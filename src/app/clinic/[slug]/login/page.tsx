@@ -33,51 +33,57 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
 
     try {
       // 1. Try normal Firebase Auth login
-      await signInWithEmailAndPassword(auth, inputEmail, password)
-      toast.success('تم تسجيل الدخول بنجاح')
-      router.push(`/clinic/${slug}/admin`)
-    } catch (err: any) {
-      if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-        
-        // 2. Fallback: Check if the owner just created this clinic and the user hasn't registered yet
-        try {
-          const q = query(collection(db, 'clinics'), where('slug', '==', slug))
-          const snapshot = await getDocs(q)
-          
-          if (!snapshot.empty) {
-            const clinicDoc = snapshot.docs[0].data()
-            
+      let loginSuccess = false
+      try {
+        await signInWithEmailAndPassword(auth, inputEmail, password)
+        loginSuccess = true
+      } catch (err: any) {
+        if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+          loginSuccess = false // We will try fallback below
+        } else {
+          throw err // Re-throw other errors
+        }
+      }
 
-            // Check if credentials match either doctor or assistant
-            const isDoctor = clinicDoc.doctorEmail === inputEmail && clinicDoc.doctorPassword === password
-            let isAssistant = clinicDoc.assistantEmail === inputEmail && clinicDoc.assistantPassword === password
+      // Check DB for role
+      const q = query(collection(db, 'clinics'), where('slug', '==', slug))
+      const snapshot = await getDocs(q)
+      
+      if (!snapshot.empty) {
+        const clinicDoc = snapshot.docs[0].data()
+        const isDoctor = clinicDoc.doctorEmail === inputEmail && clinicDoc.doctorPassword === password
+        let isAssistant = clinicDoc.assistantEmail === inputEmail && clinicDoc.assistantPassword === password
 
-            // Also check multiple assistants array
-            if (!isAssistant && clinicDoc.assistants) {
-              const matchedAss = clinicDoc.assistants.find((a: any) => a.email === inputEmail && a.password === password)
-              if (matchedAss) isAssistant = true;
-            }
+        if (!isAssistant && clinicDoc.assistants) {
+          const matchedAss = clinicDoc.assistants.find((a: any) => a.email === inputEmail && a.password === password)
+          if (matchedAss) isAssistant = true;
+        }
 
-            if (isDoctor || isAssistant) {
-
-              // Auto-register them in Firebase Auth
-              await createUserWithEmailAndPassword(auth, inputEmail, password)
-              toast.success('تم تفعيل الحساب وتسجيل الدخول بنجاح!')
-              // Store role in local storage for quick UI access
-              localStorage.setItem('clinic_role', isDoctor ? 'doctor' : 'assistant')
-              router.push(`/clinic/${slug}/admin`)
-              return
-            }
+        if (isDoctor || isAssistant) {
+          if (!loginSuccess) {
+            // Auto-register them in Firebase Auth if fallback
+            await createUserWithEmailAndPassword(auth, inputEmail, password)
+            toast.success('تم تفعيل الحساب وتسجيل الدخول بنجاح!')
+          } else {
+            toast.success('تم تسجيل الدخول بنجاح')
           }
           
-          // If we reach here, no match in DB either
-          setError('البريد الإلكتروني أو كلمة المرور غير صحيحة.')
-        } catch (dbErr) {
-          setError('حدث خطأ أثناء التحقق من البيانات.')
+          // ALWAYS Store role in local storage
+          localStorage.setItem('clinic_role', isDoctor ? 'doctor' : 'assistant')
+          router.push(`/clinic/${slug}/admin`)
+          return
+        } else if (loginSuccess) {
+           // They logged in successfully to Firebase Auth but they don't belong to this clinic anymore (password changed or removed)
+           setError('بيانات الاعتماد غير صالحة لهذه العيادة أو تم تغييرها.')
+           return
         }
-      } else {
-        setError(err.message || 'فشل الاتصال بالخادم.')
       }
+      
+      if (!loginSuccess) {
+        setError('البريد الإلكتروني أو كلمة المرور غير صحيحة.')
+      }
+    } catch (err: any) {
+      setError(err.message || 'فشل الاتصال بالخادم.')
     } finally {
       setIsLoading(false)
     }

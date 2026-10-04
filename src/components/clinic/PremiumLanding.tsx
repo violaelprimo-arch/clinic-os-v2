@@ -114,7 +114,11 @@ export function PremiumLanding({ clinic, services }: { clinic: any, services: an
                   <Calendar className="w-5 h-5 ml-2" />
                   احجز موعدك الآن
                 </Button>
-                <div className="flex items-center gap-2 text-slate-600 font-medium px-4">
+                <Button variant="outline" className="h-14 px-8 text-lg rounded-full border-2 border-primary text-primary hover:bg-primary/5 hover:scale-105 transition-all" onClick={() => document.getElementById('track-turn')?.scrollIntoView({ behavior: 'smooth' })}>
+                  <Clock className="w-5 h-5 ml-2" />
+                  تابع دورك الآن
+                </Button>
+                <div className="flex items-center gap-2 text-slate-600 font-medium px-4 mt-2 md:mt-0">
                   <div className="flex -space-x-2 rtl:space-x-reverse">
                     {[1,2,3,4].map(i => (
                       <div key={i} className={`w-10 h-10 rounded-full border-2 border-white bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-500 z-${i}0`}>
@@ -217,7 +221,9 @@ export function PremiumLanding({ clinic, services }: { clinic: any, services: an
             viewport={{ once: true }}
           >
             <BookingForm clinic={clinic} services={services} />
-            <TrackTurnWidget clinicId={clinic.id || clinic.slug} />
+            <div id="track-turn" className="mt-8">
+              <TrackTurnWidget clinicId={clinic.id || clinic.slug} />
+            </div>
           </motion.div>
         </div>
       </div>
