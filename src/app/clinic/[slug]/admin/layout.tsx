@@ -2,9 +2,10 @@
 
 import { use, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { FileText, Users, DollarSign, Calendar, Settings, Bot } from 'lucide-react'
-import { db } from '@/lib/firebase'
+import { FileText, Users, DollarSign, Calendar, Settings, Bot, LogOut, Receipt } from 'lucide-react'
+import { db, auth } from '@/lib/firebase'
 import { collection, query, where, getDocs } from 'firebase/firestore'
+import { signOut } from 'firebase/auth'
 
 export default function AdminLayout({
   children,
@@ -37,14 +38,21 @@ export default function AdminLayout({
     fetchClinic()
   }, [slug])
 
+  const handleLogout = async () => {
+    await signOut(auth)
+    localStorage.removeItem('clinic_role')
+    window.location.href = `/clinic/${slug}`
+  }
+
   if (loading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div></div>
 
   const assistantPermissions = clinic?.assistantPermissions || ['appointments']
   const primaryColor = clinic?.primaryColor || '#0ea5e9' // Default Tailwind Sky-500
 
   const allLinks = [
-    { id: 'appointments', name: 'الطابور والمواعيد', href: `/clinic/${slug}/admin`, icon: <Calendar className="w-5 h-5" /> },
+    { id: 'appointments', name: 'الدور والمواعيد', href: `/clinic/${slug}/admin`, icon: <Calendar className="w-5 h-5" /> },
     { id: 'patients', name: 'سجل المرضى', href: `/clinic/${slug}/admin/patients`, icon: <Users className="w-5 h-5" /> },
+    { id: 'accounts', name: 'الحسابات', href: `/clinic/${slug}/admin/accounts`, icon: <Receipt className="w-5 h-5" /> },
     { id: 'prescriptions', name: 'الروشتات الطبية', href: `/clinic/${slug}/admin/prescriptions`, icon: <FileText className="w-5 h-5" /> },
     { id: 'finance', name: 'التقارير المالية', href: `/clinic/${slug}/admin/finance`, icon: <DollarSign className="w-5 h-5" /> },
     { id: 'ai-training', name: 'تدريب الذكاء الاصطناعي', href: `/clinic/${slug}/admin/ai-training`, icon: <Bot className="w-5 h-5" /> },
@@ -59,12 +67,12 @@ export default function AdminLayout({
   })
 
   return (
-    <div className="flex h-screen bg-[#F8FAFC] font-sans" dir="rtl">
+    <div className="flex h-screen print:h-auto print:block bg-[#F8FAFC] print:bg-white font-sans" dir="rtl">
       {/* Inject dynamic CSS variable for Primary Color globally for this dashboard */}
       <style dangerouslySetInnerHTML={{__html: `:root { --primary: ${primaryColor}; }`}} />
       
       {/* Sidebar */}
-      <aside className="w-64 bg-slate-900 text-slate-300 shadow-2xl hidden md:flex flex-col transition-all duration-300 relative z-20">
+      <aside className="print:hidden w-64 bg-slate-900 text-slate-300 shadow-2xl hidden md:flex flex-col transition-all duration-300 relative z-20">
         <div className="p-6 text-center border-b border-slate-800 bg-slate-950/50">
           <div className="w-20 h-20 bg-primary/20 rounded-2xl mx-auto mb-4 flex items-center justify-center text-primary shadow-lg shadow-primary/10 overflow-hidden">
             {clinic?.heroImage ? (
@@ -79,27 +87,36 @@ export default function AdminLayout({
             الصلاحية: {role === 'assistant' ? 'مساعد' : 'طبيب'}
           </div>
         </div>
-        <nav className="flex-1 overflow-y-auto p-4 space-y-2">
-          {links.map((link) => (
-            <Link key={link.href} href={link.href}>
-              <div className="flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-primary/20 hover:text-white transition-all group cursor-pointer border border-transparent hover:border-primary/20">
-                <div className="text-primary group-hover:scale-110 transition-transform">
-                  {link.icon}
+        <nav className="flex-1 overflow-y-auto p-4 space-y-2 flex flex-col justify-between">
+          <div className="space-y-2">
+            {links.map((link) => (
+              <Link key={link.href} href={link.href}>
+                <div className="flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-primary/20 hover:text-white transition-all group cursor-pointer border border-transparent hover:border-primary/20">
+                  <div className="text-primary group-hover:scale-110 transition-transform">
+                    {link.icon}
+                  </div>
+                  <span className="font-bold text-sm tracking-wide">{link.name}</span>
                 </div>
-                <span className="font-bold text-sm tracking-wide">{link.name}</span>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            ))}
+          </div>
+          <div 
+            onClick={handleLogout}
+            className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-all group cursor-pointer mt-4"
+          >
+            <LogOut className="w-5 h-5 group-hover:scale-110 transition-transform" />
+            <span className="font-bold text-sm tracking-wide">تسجيل الخروج</span>
+          </div>
         </nav>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto relative z-10 scroll-smooth">
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl mix-blend-multiply opacity-70 pointer-events-none -translate-y-1/2 translate-x-1/3"></div>
-        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-300/10 rounded-full blur-3xl mix-blend-multiply opacity-50 pointer-events-none translate-y-1/3 -translate-x-1/3"></div>
+      <main className="print:overflow-visible print:p-0 flex-1 overflow-y-auto relative z-10 scroll-smooth">
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl mix-blend-multiply opacity-70 pointer-events-none -translate-y-1/2 translate-x-1/3 print:hidden"></div>
+        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-300/10 rounded-full blur-3xl mix-blend-multiply opacity-50 pointer-events-none translate-y-1/3 -translate-x-1/3 print:hidden"></div>
         
         {/* Mobile Nav */}
-        <div className="md:hidden bg-white p-4 border-b flex overflow-x-auto gap-2 whitespace-nowrap sticky top-0 z-30 shadow-sm">
+        <div className="print:hidden md:hidden bg-white p-4 border-b flex overflow-x-auto gap-2 whitespace-nowrap sticky top-0 z-30 shadow-sm items-center">
           {links.map(link => (
             <Link key={link.href} href={link.href}>
               <div className="flex items-center gap-2 p-2 px-4 rounded-full bg-slate-50 text-slate-700 hover:bg-primary hover:text-white border border-slate-100 text-sm font-bold transition-colors">
@@ -108,6 +125,9 @@ export default function AdminLayout({
               </div>
             </Link>
           ))}
+          <div onClick={handleLogout} className="flex items-center gap-2 p-2 px-4 rounded-full bg-red-50 text-red-600 border border-red-100 text-sm font-bold cursor-pointer shrink-0 ml-4">
+            <LogOut className="w-4 h-4" /> خروج
+          </div>
         </div>
         
         {children}

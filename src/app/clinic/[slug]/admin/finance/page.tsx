@@ -13,8 +13,9 @@ import { collection, query, where, getDocs } from 'firebase/firestore'
 export default function FinancePage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
-  const [fromDate, setFromDate] = useState(new Date().toISOString().split('T')[0])
-  const [toDate, setToDate] = useState(new Date().toISOString().split('T')[0])
+  const getLocalDate = () => new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0]
+  const [fromDate, setFromDate] = useState(getLocalDate())
+  const [toDate, setToDate] = useState(getLocalDate())
   const [report, setReport] = useState<any[]>([])
   
   const [totals, setTotals] = useState({ 
@@ -40,12 +41,10 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
       const cId = cSnap.docs[0].id
       setClinicId(cId)
 
-      // Fetch Appointments
+      // Fetch Appointments (Query by clinic_id, filter dates locally to avoid composite index requirement)
       const q = query(
         collection(db, 'appointments'),
-        where('clinic_id', '==', cId),
-        where('date', '>=', fromDate),
-        where('date', '<=', toDate)
+        where('clinic_id', '==', cId)
       )
       const snapshot = await getDocs(q)
       
@@ -53,17 +52,20 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
       let csh = 0
       let wllt = 0
       let inst = 0
-      const appts = snapshot.docs.map(d => {
-        const data = d.data()
-        
+      const appts = snapshot.docs
+        .map(d => {
+          const data = d.data()
+          return { id: d.id, ...data } as any
+        })
+        .filter(d => d.date >= fromDate && d.date <= toDate && d.paymentStatus === 'paid')
+
+      appts.forEach(data => {
         const price = data.servicePrice || 0
         rev += price
         
         if (data.paymentMethod === 'wallet') wllt += price
         else if (data.paymentMethod === 'instapay') inst += price
         else csh += price
-
-        return { id: d.id, ...data }
       })
 
       setReport(appts)

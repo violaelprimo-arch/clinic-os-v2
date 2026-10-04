@@ -42,7 +42,8 @@ export default function OwnerDashboard() {
   const [badge2Title, setBadge2Title] = useState('تقييم العيادة')
   const [badge2Value, setBadge2Value] = useState('4.9/5.0')
 
-  const [activationDate, setActivationDate] = useState(new Date().toISOString().split('T')[0])
+  const getLocalDate = () => new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0]
+  const [activationDate, setActivationDate] = useState(getLocalDate())
   const [expirationDate, setExpirationDate] = useState('')
   const [isActive, setIsActive] = useState(true)
 
@@ -166,7 +167,7 @@ export default function OwnerDashboard() {
     setBadge1Value(c.badge1Value || 'خبرة +15 سنة')
     setBadge2Title(c.badge2Title || 'تقييم العيادة')
     setBadge2Value(c.badge2Value || '4.9/5.0')
-    setActivationDate(c.activationDate || new Date().toISOString().split('T')[0])
+    setActivationDate(c.activationDate || getLocalDate())
     setExpirationDate(c.expirationDate || '')
     setIsActive(c.isActive !== false)
 

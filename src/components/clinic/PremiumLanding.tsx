@@ -7,6 +7,7 @@ import { Calendar, PhoneCall, Star, ShieldCheck, Clock, Activity, HeartPulse, Ma
 import Link from 'next/link'
 import { BookingForm } from './BookingForm'
 import { AIChatWidget } from './AIChatWidget'
+import { TrackTurnWidget } from './TrackTurnWidget'
 
 export function PremiumLanding({ clinic, services }: { clinic: any, services: any[] }) {
   const fadeIn = {
@@ -216,6 +217,7 @@ export function PremiumLanding({ clinic, services }: { clinic: any, services: an
             viewport={{ once: true }}
           >
             <BookingForm clinic={clinic} services={services} />
+            <TrackTurnWidget clinicId={clinic.id || clinic.slug} />
           </motion.div>
         </div>
       </div>

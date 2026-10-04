@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Printer, Trash2, Search, FileSignature, MapPin, Phone, User as UserIcon } from 'lucide-react'
+import { Plus, Printer, Trash2, Search, FileSignature, MapPin, Phone, User as UserIcon, Stethoscope, Activity } from 'lucide-react'
 import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
 import { collection, addDoc, query, where, getDocs } from 'firebase/firestore'
@@ -15,6 +15,9 @@ import { EGYPTIAN_DRUGS } from '@/lib/egyptian-drugs'
 import { doc, updateDoc } from 'firebase/firestore'
 import { Star, Settings2, ShieldCheck, Pill } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Caveat } from 'next/font/google'
+
+const caveat = Caveat({ subsets: ['latin'], weight: ['400', '700'] })
 
 export default function PrescriptionsPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -34,9 +37,9 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
 
   const [clinic, setClinic] = useState<any>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const [date] = useState(new Date().toISOString().split('T')[0])
+  const [date] = useState(new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0])
+  const [todayPatients, setTodayPatients] = useState<any[]>([])
 
-  
   useEffect(() => {
     const fetchClinic = async () => {
       const q = query(collection(db, 'clinics'), where('slug', '==', slug))
@@ -48,11 +51,37 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
         setClinicId(cDoc.id);
         if (data.favoriteDrugs) setFavoriteDrugs(data.favoriteDrugs);
         if (data.customDrugs) setCustomDrugs(data.customDrugs);
+
+        // Fetch today's patients for auto-fill
+        try {
+          const today = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0]
+          const apptsQ = query(collection(db, 'appointments'), where('clinic_id', '==', cDoc.id), where('date', '==', today))
+          const apptsSnap = await getDocs(apptsQ)
+          const appts = apptsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any))
+          
+          setTodayPatients(appts)
+
+          // Auto-fill logic (only if not passed via URL)
+          if (!searchParams?.get('patientName')) {
+            const completedAppts = appts.filter(a => a.status === 'completed' && a.completedAt)
+            completedAppts.sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime())
+            
+            if (completedAppts.length > 0) {
+              setPatientName(completedAppts[0].patientName || '')
+              setPatientPhone(completedAppts[0].phone || '')
+            } else {
+              const waitingAppts = appts.filter(a => a.status === 'waiting')
+              if (waitingAppts.length > 0) {
+                setPatientName(waitingAppts[0].patientName || '')
+                setPatientPhone(waitingAppts[0].phone || '')
+              }
+            }
+          }
+        } catch(e) {}
       }
     }
     fetchClinic()
-  }, [slug])
-
+  }, [slug, searchParams])
 
   const addDrug = () => {
     setDrugs([...drugs, { id: Date.now(), name: '', dosage: '', duration: '' }])
@@ -160,7 +189,28 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
         <div className="md:col-span-5 print:hidden space-y-6">
           <Card className="shadow-lg border-t-4 border-t-blue-500">
             <CardHeader className="bg-slate-50/50 border-b pb-4">
-              <CardTitle className="text-lg">بيانات المريض</CardTitle>
+              <div className="flex justify-between items-center">
+                <CardTitle className="text-lg">بيانات المريض</CardTitle>
+                {todayPatients.length > 0 && (
+                  <select 
+                    className="text-sm border rounded p-1 bg-white"
+                    onChange={(e) => {
+                      if(e.target.value) {
+                        const p = todayPatients.find(x => x.id === e.target.value)
+                        if(p) {
+                          setPatientName(p.patientName || '')
+                          setPatientPhone(p.phone || '')
+                        }
+                      }
+                    }}
+                  >
+                    <option value="">-- اختر من كشوفات اليوم --</option>
+                    {todayPatients.map(p => (
+                      <option key={p.id} value={p.id}>{p.patientName} ({p.queue_number})</option>
+                    ))}
+                  </select>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="pt-4 space-y-4">
               <div className="space-y-2">
@@ -366,88 +416,99 @@ Brufen 400"
         </div>
 
         {/* 3. Live Preview / Printable Area */}
-        <div className="md:col-span-7 print:col-span-12 print:m-0 print:p-0">
-          <div className="bg-white p-8 md:p-12 shadow-2xl rounded-xl min-h-[29.7cm] border border-slate-200 relative overflow-hidden print:shadow-none print:border-none print:rounded-none">
+        <div className="md:col-span-7 print:col-span-12 print:m-0 print:p-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+          {(() => {
+            const drugsPerPage = 6;
+            const chunkedDrugs = [];
+            const activeDrugs = drugs.filter(d => d.name.trim() !== '' || drugs.length === 1);
+            for (let i = 0; i < activeDrugs.length; i += drugsPerPage) {
+              chunkedDrugs.push(activeDrugs.slice(i, i + drugsPerPage));
+            }
+            if (chunkedDrugs.length === 0) chunkedDrugs.push([]);
             
-            {/* Watermark Logo */}
-            {clinic?.heroImage && (
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.03] pointer-events-none w-3/4 flex justify-center items-center">
-                <img src={clinic.heroImage} className="w-full h-auto grayscale" alt="Watermark" />
-              </div>
-            )}
+            return chunkedDrugs.map((pageDrugs, pageIndex) => (
+              <div key={pageIndex} className="bg-white p-6 md:p-8 shadow-2xl rounded-xl min-h-[27cm] border border-slate-200 relative overflow-hidden print:shadow-none print:border-none print:rounded-none mb-8 print:mb-0 break-after-page print:break-inside-avoid print:!bg-white print:scale-[0.95] origin-top">
+                <style dangerouslySetInnerHTML={{__html: `@page { size: A4; margin: 0; }`}} />
+                {/* Header (Medical Letterhead) */}
+                <div className="flex justify-between items-start border-b-[3px] pb-4 border-primary mb-6 print:border-primary">
+                  {/* Doctor Details (Right) */}
+                  <div className="space-y-1 text-right">
+                    <h1 className="text-3xl font-black text-primary mb-1">{clinic?.doctorTitle || 'د.'} {clinic?.doctorName || 'اسم الطبيب'}</h1>
+                    <h2 className="text-lg font-bold text-slate-700">{clinic?.clinicName || 'اسم العيادة'}</h2>
+                    <p className="text-sm text-slate-500 font-bold max-w-[250px]">{clinic?.specialtySubtitle || 'مستشار الطب المتخصص والعلاج المتقدم'}</p>
+                  </div>
 
-            {/* Header (Medical Letterhead) */}
-            <div className="flex justify-between items-start border-b-2 pb-6 border-primary/20 mb-8">
-              <div className="space-y-1 text-right max-w-[60%]">
-                <h1 className="text-3xl font-black text-primary mb-1">{clinic?.clinicName || 'عيادة طبية'}</h1>
-                <h2 className="text-xl font-bold text-slate-800">د. {clinic?.doctorName || 'اسم الطبيب'}</h2>
-                <p className="text-sm text-slate-500 font-semibold mt-2">مستشار الطب المتخصص والعلاج المتقدم</p>
-              </div>
-              <div className="w-24 h-24 bg-primary/5 rounded-2xl flex items-center justify-center border-2 border-primary/20 overflow-hidden shrink-0">
-                {clinic?.heroImage ? (
-                  <img src={clinic.heroImage} alt="Logo" className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-4xl font-black text-primary">{slug.charAt(0).toUpperCase()}</span>
-                )}
-              </div>
-            </div>
-
-            {/* Patient Info Row */}
-            <div className="flex justify-between items-center bg-slate-50 p-4 rounded-xl border border-slate-100 mb-8 print:bg-transparent print:border-y print:border-x-0 print:rounded-none">
-              <div className="flex items-center gap-3">
-                <UserIcon className="w-5 h-5 text-slate-400" />
-                <div>
-                  <p className="text-xs text-slate-500 font-bold mb-1">اسم المريض</p>
-                  <p className="font-black text-lg text-slate-800">{patientName || '......................................................'}</p>
-                </div>
-              </div>
-              <div className="text-left">
-                <p className="text-xs text-slate-500 font-bold mb-1">التاريخ</p>
-                <p className="font-bold text-slate-800 dir-ltr">{date}</p>
-              </div>
-            </div>
-
-            {/* Rx Symbol */}
-            <div className="text-5xl font-serif font-bold text-primary mb-8 italic pl-4 border-l-4 border-primary ml-4">
-              Rx
-            </div>
-
-            {/* Drugs Render */}
-            <div className="space-y-8 pr-12 min-h-[400px]">
-              {drugs.map((drug, idx) => (
-                <div key={drug.id} className="space-y-1 relative">
-                  <div className="absolute -right-6 top-1 w-2 h-2 rounded-full bg-primary/40"></div>
-                  <h3 className="text-xl font-bold text-slate-900 capitalize dir-ltr flex justify-between w-full">
-                    <span>{drug.name || '............................................'}</span>
-                  </h3>
-                  <div className="flex gap-4 text-slate-600 font-medium mt-1">
-                    <span className="bg-slate-50 px-3 py-1 rounded text-sm print:bg-transparent print:p-0">{drug.dosage || '................'}</span>
-                    <span className="bg-slate-50 px-3 py-1 rounded text-sm print:bg-transparent print:p-0">{drug.duration || '................'}</span>
+                  {/* Clinic Info (Left) */}
+                  <div className="flex flex-col items-end text-left space-y-2">
+                    {clinic?.heroImage ? (
+                      <div className="w-16 h-16 rounded-xl overflow-hidden shadow-sm border border-slate-200">
+                        <img src={clinic.heroImage} alt="Doctor" className="w-full h-full object-cover" />
+                      </div>
+                    ) : (
+                      <Activity className="w-10 h-10 text-primary" />
+                    )}
+                    <div className="text-xs text-slate-600 font-bold text-left dir-ltr">
+                      {clinic?.clinicPhones && clinic.clinicPhones[0] && (
+                        <div className="flex items-center justify-end gap-1"><Phone className="w-3 h-3 text-primary" /> {clinic.clinicPhones[0]}</div>
+                      )}
+                      {clinic?.clinicAddress && (
+                        <div className="flex items-center justify-end gap-1 mt-1"><MapPin className="w-3 h-3 text-primary" /> {clinic.clinicAddress}</div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
 
-            {/* Footer */}
-            <div className="absolute bottom-8 left-8 right-8 border-t-2 border-primary/20 pt-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
-                    <MapPin className="w-4 h-4 text-primary" />
-                    {clinic?.clinicAddress || 'العنوان غير مدرج'}
+                {/* Patient Info Row */}
+                <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border-2 border-slate-200 mb-6 print:border-slate-200 print:bg-slate-50">
+                  <div className="flex items-center gap-4">
+                    <div>
+                      <span className="text-sm text-slate-500 font-bold ml-2">الاسم:</span>
+                      <span className="font-black text-lg text-slate-900">{patientName || '......................................................'}</span>
+                    </div>
+                  </div>
+                  <div className="text-left flex items-center gap-2">
+                    <span className="text-sm text-slate-500 font-bold">التاريخ:</span>
+                    <span className="font-bold text-slate-900 dir-ltr">{date}</span>
                   </div>
                 </div>
-                <div className="flex flex-col gap-2 items-end text-sm font-bold text-slate-700 dir-ltr">
-                  {(clinic?.clinicPhones || [clinic?.clinicPhone]).map((p: string, i: number) => p && (
-                    <div key={i} className="flex items-center gap-2">
-                      <Phone className="w-4 h-4 text-primary" /> {p}
+
+                {/* Rx Symbol */}
+                <div className={`text-6xl font-black text-primary mb-6 pl-2 border-l-4 border-primary ml-2 ${caveat.className}`} dir="ltr">
+                  Rx
+                </div>
+
+                {/* Drugs Render */}
+                <div className="space-y-6 px-6 min-h-[400px]" dir="ltr">
+                  {pageDrugs.map((drug, idx) => (
+                    <div key={drug.id || idx} className="relative pl-6">
+                      {/* Drug Name with Caveat Font */}
+                      <h3 className={`text-3xl font-bold text-slate-900 capitalize w-full ${caveat.className}`}>
+                        {drug.name || '......................................................'}
+                      </h3>
+                      
+                      {/* Dosage & Duration closely packed under drug name */}
+                      <div className="flex gap-3 text-slate-700 font-bold mt-1" dir="rtl">
+                        <span className="text-xs">{drug.dosage || '...................................'}</span>
+                        <span className="text-xs text-slate-400">|</span>
+                        <span className="text-xs">{drug.duration || '...................................'}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
-              </div>
-            </div>
 
-          </div>
+                {/* Footer */}
+                <div className="absolute bottom-6 left-6 right-6 border-t-2 border-slate-200 pt-4 print:border-slate-200">
+                  <div className="flex justify-between items-center text-xs font-bold text-slate-400">
+                    <span className="text-primary/80">مع تمنياتنا بالشفاء العاجل</span>
+                    {chunkedDrugs.length > 1 && (
+                      <span className="text-slate-400">صفحة {pageIndex + 1} من {chunkedDrugs.length}</span>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+            ));
+          })()}
         </div>
       </div>
     </div>

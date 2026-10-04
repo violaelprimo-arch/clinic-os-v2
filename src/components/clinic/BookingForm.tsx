@@ -18,8 +18,13 @@ export function BookingForm({
   clinic: any
   services: any[]
 }) {
+  const getLocalDate = () => {
+    const d = new Date()
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0]
+  }
+
   const [selectedService, setSelectedService] = useState<string>(services[0]?.id || '')
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0])
+  const [selectedDate, setSelectedDate] = useState<string>(getLocalDate())
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [isBooking, setIsBooking] = useState(false)
@@ -46,7 +51,7 @@ export function BookingForm({
       const serviceDetail = services.find(s => s.id === selectedService)
       
       let payStatus = 'pending'
-      if (paymentMethod === 'wallet' || paymentMethod === 'instapay') payStatus = 'paid'
+      if (paymentMethod === 'wallet' || paymentMethod === 'instapay') payStatus = 'review'
 
       const newAppt = {
         clinic_id: clinic.id || clinic.slug,
@@ -54,6 +59,7 @@ export function BookingForm({
         phone,
         serviceId: selectedService,
         serviceName: serviceDetail?.name || 'كشف',
+        serviceType: serviceDetail?.type || 'normal',
         servicePrice: serviceDetail?.price || 0,
         date: selectedDate,
         queue_number: myQueueNumber,
@@ -103,20 +109,20 @@ export function BookingForm({
       </CardHeader>
       <form onSubmit={handleBooking}>
         <CardContent className="space-y-6">
-          <div className="space-y-2">
+          <div className="space-y-3">
             <Label>الخدمة المطلوبة</Label>
-            <Select value={selectedService} onValueChange={(v) => v && setSelectedService(v)} required>
-              <SelectTrigger dir="rtl" className="h-12 text-right">
-                <SelectValue placeholder="اختر الخدمة" />
-              </SelectTrigger>
-              <SelectContent dir="rtl">
-                {services.map((service) => (
-                  <SelectItem key={service.id} value={service.id}>
-                    {service.name} - {service.price} ج.م
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {services.map((service) => (
+                <div
+                  key={service.id}
+                  onClick={() => setSelectedService(service.id)}
+                  className={`cursor-pointer rounded-xl border-2 p-3 text-center transition-all ${selectedService === service.id ? 'border-primary bg-primary/5 text-primary' : 'border-slate-200 bg-white text-slate-600 hover:border-primary/50 hover:bg-slate-50'}`}
+                >
+                  <p className="font-bold text-sm mb-1">{service.name}</p>
+                  <p className="text-xs font-black">{service.price} ج.م</p>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -124,10 +130,10 @@ export function BookingForm({
             <Input 
               type="date" 
               required 
-              min={new Date().toISOString().split('T')[0]} 
+              min={getLocalDate()} 
               value={selectedDate}
               onChange={e => setSelectedDate(e.target.value)}
-              className="h-12 text-right"
+              className="h-12 text-right font-bold"
               dir="rtl"
             />
           </div>

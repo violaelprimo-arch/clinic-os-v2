@@ -22,10 +22,16 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const [primaryColor, setPrimaryColor] = useState('#0ea5e9')
   const [assistantPermissions, setAssistantPermissions] = useState<string[]>(['appointments'])
   const [averageVisitTime, setAverageVisitTime] = useState<number>(15)
+  const [patternNormalCount, setPatternNormalCount] = useState<number>(2)
+  const [patternConsultCount, setPatternConsultCount] = useState<number>(1)
   
   // New Info
   const [address, setAddress] = useState('')
   const [phones, setPhones] = useState<string[]>([''])
+
+  const [doctorTitle, setDoctorTitle] = useState('د.')
+  const [specialtySubtitle, setSpecialtySubtitle] = useState('مستشار الطب المتخصص والعلاج المتقدم')
+  const [clinicName, setClinicName] = useState('')
 
   // AI Config
   const [aiInstructions, setAiInstructions] = useState('أنت مساعد ذكي لعيادة طبية. مهمتك الإجابة على استفسارات المرضى باختصار ولطف بناءً على معلومات العيادة.')
@@ -50,10 +56,15 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           const data = cDoc.data()
           setPhotoUrl(data.heroImage || '')
           setPrimaryColor(data.primaryColor || '#0ea5e9')
-          setAssistantPermissions(data.assistantPermissions || ['appointments'])
+          setAssistantPermissions(data.assistantPermissions || ['appointments', 'accounts', 'finance'])
           setAverageVisitTime(data.averageVisitTime || 15)
+          setPatternNormalCount(data.patternNormalCount || 2)
+          setPatternConsultCount(data.patternConsultCount || 1)
           setAddress(data.clinicAddress || '')
           setPhones(data.clinicPhones?.length ? data.clinicPhones : [data.clinicPhone || ''])
+          setDoctorTitle(data.doctorTitle || 'د.')
+          setSpecialtySubtitle(data.specialtySubtitle || 'مستشار الطب المتخصص والعلاج المتقدم')
+          setClinicName(data.clinicName || '')
           setAiInstructions(data.aiInstructions || 'أنت مساعد ذكي لعيادة طبية. مهمتك الإجابة على استفسارات المرضى باختصار ولطف بناءً على معلومات العيادة.')
           
           setOnlinePaymentEnabled(data.onlinePaymentEnabled || false)
@@ -61,9 +72,9 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           setInstapayHandle(data.instapayHandle || '')
           setAssistants(data.assistants || [])
           setServices(data.services || [
-            { id: '1', name: 'كشف عادي', price: 200 },
-            { id: '2', name: 'استشارة', price: 100 },
-            { id: '3', name: 'كشف مستعجل', price: 350 },
+            { id: '1', name: 'كشف عادي', price: 200, type: 'normal' },
+            { id: '2', name: 'استشارة', price: 100, type: 'consult' },
+            { id: '3', name: 'كشف مستعجل', price: 350, type: 'urgent' },
           ])
         }
       } catch (err) {
@@ -85,9 +96,17 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         primaryColor,
         assistantPermissions,
         averageVisitTime: Number(averageVisitTime),
+        patternNormalCount: Number(patternNormalCount),
+        patternConsultCount: Number(patternConsultCount),
         clinicAddress: address,
         clinicPhones: phones.filter(p => p.trim() !== ''),
+        doctorTitle,
+        specialtySubtitle,
+        clinicName,
         aiInstructions,
+        onlinePaymentEnabled,
+        walletNumber,
+        instapayHandle
         })
       toast.success('تم حفظ كافة الإعدادات بنجاح')
     } catch (err) {
@@ -152,9 +171,21 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           
           <Card className="shadow-lg border-t-4 border-t-orange-500">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><MapPin className="w-5 h-5 text-orange-500"/> بيانات التواصل (للروشتة)</CardTitle>
+              <CardTitle className="flex items-center gap-2"><MapPin className="w-5 h-5 text-orange-500"/> بيانات الروشتة</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>اللقب (د. - أ.د)</Label>
+                <Input value={doctorTitle} onChange={e => setDoctorTitle(e.target.value)} placeholder="مثال: د. أو أ.د" />
+              </div>
+              <div className="space-y-2">
+                <Label>اسم العيادة</Label>
+                <Input value={clinicName} onChange={e => setClinicName(e.target.value)} placeholder="مثال: عيادة النور التخصصية" />
+              </div>
+              <div className="space-y-2">
+                <Label>التخصص الدقيق (الوصف أسفل الاسم)</Label>
+                <Input value={specialtySubtitle} onChange={e => setSpecialtySubtitle(e.target.value)} placeholder="مثال: استشاري جراحة القلب والصدر" />
+              </div>
               <div className="space-y-2">
                 <Label>عنوان العيادة</Label>
                 <Input value={address} onChange={e => setAddress(e.target.value)} placeholder="مثال: شارع التسعين، التجمع الخامس..." />
@@ -185,10 +216,37 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           
           <Card className="shadow-lg border-t-4 border-t-indigo-500">
             <CardHeader>
-              <CardTitle>إعدادات الكشف والطابور</CardTitle>
+              <CardTitle>إعدادات الكشف والدور</CardTitle>
+              <CardDescription>قم بتحديد نمط دخول المرضى (كم كشف ثم كم استشارة) وسيتم التبديل تلقائياً، مع إعطاء الأولوية القصوى للمستعجل.</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-2 max-w-sm">
+            <CardContent className="space-y-6">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>عدد الكشوفات المتتالية</Label>
+                  <Input 
+                    type="number" 
+                    value={patternNormalCount} 
+                    onChange={e => setPatternNormalCount(Number(e.target.value))} 
+                    min={1} 
+                    className="h-12 text-lg font-bold text-center"
+                    dir="ltr"
+                  />
+                  <p className="text-xs text-slate-500 text-right">مثال: 2 (يعني يدخل 2 كشف)</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>عدد الاستشارات المتتالية</Label>
+                  <Input 
+                    type="number" 
+                    value={patternConsultCount} 
+                    onChange={e => setPatternConsultCount(Number(e.target.value))} 
+                    min={1} 
+                    className="h-12 text-lg font-bold text-center"
+                    dir="ltr"
+                  />
+                  <p className="text-xs text-slate-500 text-right">مثال: 1 (ثم يدخل 1 استشارة)</p>
+                </div>
+              </div>
+              <div className="space-y-2 max-w-sm pt-4 border-t">
                 <Label>متوسط وقت الكشف الافتراضي (بالدقائق)</Label>
                 <Input 
                   type="number" 
@@ -199,7 +257,6 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                   className="text-right h-12 text-lg font-bold"
                   dir="ltr"
                 />
-                <p className="text-xs text-slate-500">سيتم استخدامه كقيمة مبدئية، ولكن سيقوم النظام بضبطه تلقائياً بناءً على سرعتك الفعلية اليوم.</p>
               </div>
             </CardContent>
           </Card>
@@ -227,11 +284,12 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           <Card className="shadow-lg border-t-4 border-t-blue-500">
             <CardHeader>
               <CardTitle>الخدمات والأسعار</CardTitle>
+              <CardDescription>أضف خدماتك وحدد نوع كل خدمة ليتمكن النظام من تنظيم الطابور بدقة.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {services.map((service, index) => (
-                <div key={service.id} className="flex items-end gap-4 p-4 bg-slate-50 border rounded-xl">
-                  <div className="flex-1 space-y-2">
+                <div key={service.id} className="flex flex-col md:flex-row items-end gap-4 p-4 bg-slate-50 border rounded-xl">
+                  <div className="flex-1 space-y-2 w-full">
                     <Label>اسم الخدمة</Label>
                     <Input 
                       value={service.name} 
@@ -241,6 +299,22 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                         setServices(newS);
                       }} 
                     />
+                  </div>
+                  <div className="flex-1 space-y-2 w-full">
+                    <Label>نوع الخدمة (لتنظيم الدور)</Label>
+                    <select 
+                      className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      value={service.type || 'normal'}
+                      onChange={e => {
+                        const newS = [...services];
+                        newS[index].type = e.target.value;
+                        setServices(newS);
+                      }}
+                    >
+                      <option value="normal">كشف عادي</option>
+                      <option value="consult">استشارة</option>
+                      <option value="urgent">كشف مستعجل (أولوية قصوى)</option>
+                    </select>
                   </div>
                   <div className="w-32 space-y-2">
                     <Label>السعر (ج.م)</Label>
@@ -348,7 +422,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="flex items-center gap-3 p-3 border rounded-xl bg-slate-50">
                   <Switch checked={true} disabled />
-                  <Label className="font-bold opacity-70">الطابور والمواعيد (إجباري)</Label>
+                  <Label className="font-bold opacity-70">الدور والمواعيد (إجباري)</Label>
                 </div>
                 <div className="flex items-center gap-3 p-3 border rounded-xl hover:bg-slate-50 transition-colors">
                   <Switch checked={assistantPermissions.includes('patients')} onCheckedChange={() => togglePermission('patients')} />
@@ -357,6 +431,10 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                 <div className="flex items-center gap-3 p-3 border rounded-xl hover:bg-slate-50 transition-colors">
                   <Switch checked={assistantPermissions.includes('prescriptions')} onCheckedChange={() => togglePermission('prescriptions')} />
                   <Label className="font-bold cursor-pointer" onClick={() => togglePermission('prescriptions')}>الروشتات الطبية</Label>
+                </div>
+                <div className="flex items-center gap-3 p-3 border rounded-xl hover:bg-slate-50 transition-colors">
+                  <Switch checked={assistantPermissions.includes('accounts')} onCheckedChange={() => togglePermission('accounts')} />
+                  <Label className="font-bold cursor-pointer" onClick={() => togglePermission('accounts')}>إدارة الحسابات وتأكيد الدفع</Label>
                 </div>
                 <div className="flex items-center gap-3 p-3 border rounded-xl hover:bg-slate-50 transition-colors">
                   <Switch checked={assistantPermissions.includes('finance')} onCheckedChange={() => togglePermission('finance')} />
