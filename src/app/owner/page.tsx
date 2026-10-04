@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { Plus, Trash2, Building, Image as ImageIcon, MapPin, TextSelect, FileEdit, Lock, ShieldAlert, CheckCircle, XCircle, Edit } from 'lucide-react'
 import { db } from '@/lib/firebase'
-import { collection, addDoc, getDocs, deleteDoc, updateDoc, doc } from 'firebase/firestore'
+import { collection, addDoc, getDocs, deleteDoc, updateDoc, doc, setDoc } from 'firebase/firestore'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 
@@ -18,6 +18,8 @@ export default function OwnerDashboard() {
   
   // Edit mode
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [globalApiKey, setGlobalApiKey] = useState("")
+  const [isSavingGlobal, setIsSavingGlobal] = useState(false)
 
   // Comprehensive form state
   const [clinicName, setClinicName] = useState('')
@@ -28,7 +30,7 @@ export default function OwnerDashboard() {
   const [mapsLink, setMapsLink] = useState('')
   const [doctorEmail, setDoctorEmail] = useState('')
   const [doctorPassword, setDoctorPassword] = useState('')
-  const [assistantEmail, aiApiKey, setAssistantEmail] = useState(''); const [aiApiKey, setAiApiKey] = useState('');
+  const [assistantEmail, setAssistantEmail] = useState(''); const [aiApiKey, setAiApiKey] = useState('');
   const [assistantPassword, setAssistantPassword] = useState('')
   const [heroImage, setHeroImage] = useState('https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=2000&auto=format&fit=crop')
   const [heroTitle, setHeroTitle] = useState('صحتك تستحق العناية الفائقة')
@@ -51,9 +53,34 @@ export default function OwnerDashboard() {
     setClinics(snap.docs.map(d => ({ id: d.id, ...d.data() })))
   }
 
+  
   useEffect(() => {
+    const fetchGlobal = async () => {
+      try {
+        const snap = await getDocs(collection(db, 'system'));
+        const configDoc = snap.docs.find(d => d.id === 'config');
+        if (configDoc && configDoc.data().globalAiKey) {
+          setGlobalApiKey(configDoc.data().globalAiKey);
+        }
+      } catch (err) {}
+    }
+    fetchGlobal();
+
+  // 
     loadClinics()
   }, [])
+
+  
+  const saveGlobalKey = async () => {
+    setIsSavingGlobal(true);
+    try {
+      await setDoc(doc(db, 'system', 'config'), { globalAiKey: globalApiKey }, { merge: true });
+      toast.success('تم حفظ مفتاح الذكاء الاصطناعي المركزي بنجاح!');
+    } catch (err) {
+      toast.error('حدث خطأ أثناء حفظ المفتاح المركزي');
+    }
+    setIsSavingGlobal(false);
+  }
 
   const handleAddOrUpdateClinic = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -181,6 +208,22 @@ export default function OwnerDashboard() {
 
   return (
     <div className="space-y-8" dir="rtl">
+
+      <Card className="mb-8 border-t-4 border-t-purple-500 shadow-xl">
+        <CardHeader className="bg-purple-50/50">
+          <CardTitle className="text-xl text-purple-700">إعدادات النظام المركزية (OpenAI / ChatGPT)</CardTitle>
+          <CardDescription>ضع هنا مفتاح OpenAI API الخاص بك كمالك للمنصة. هذا المفتاح سيُشغل الذكاء الاصطناعي لجميع العيادات المشتركة.</CardDescription>
+        </CardHeader>
+        <CardContent className="pt-6 flex gap-4">
+          <div className="flex-1">
+            <Input type="password" value={globalApiKey} onChange={e => setGlobalApiKey(e.target.value)} dir="ltr" className="text-right border-purple-200 focus:border-purple-500 font-mono" placeholder="sk-proj-..." />
+          </div>
+          <Button onClick={saveGlobalKey} disabled={isSavingGlobal} className="bg-purple-600 hover:bg-purple-700 w-32 font-bold">
+            {isSavingGlobal ? 'جاري الحفظ...' : 'حفظ المفتاح'}
+          </Button>
+        </CardContent>
+      </Card>
+
       <Card className={`shadow-2xl border-t-4 overflow-hidden transition-all ${editingId ? 'border-t-blue-500 ring-2 ring-blue-500/20' : 'border-t-amber-500'}`}>
         <CardHeader className={`${editingId ? 'bg-blue-50' : 'bg-slate-50'} border-b transition-colors`}>
           <CardTitle className="text-2xl flex items-center gap-2">
@@ -210,7 +253,7 @@ export default function OwnerDashboard() {
               <div className="grid md:grid-cols-3 gap-4">
                 <div className="space-y-2"><Label>رقم تليفون الطبيب (شخصي)</Label><Input value={doctorPhone} onChange={e => setDoctorPhone(e.target.value)} dir="ltr" className="text-right" /></div>
                 <div className="space-y-2"><Label>رقم العيادة (واتساب الحجز)</Label><Input value={clinicPhone} onChange={e => setClinicPhone(e.target.value)} required dir="ltr" className="text-right" /></div>
-                <div className="space-y-2"><Label>رابط جوجل ماب (Location)</Label><Input value={mapsLink} onChange={e => setMapsLink(e.target.value)} dir="ltr" className="text-right" placeholder="https://maps.google.com/..." /></div>
+                <div className="space-y-2"><Label>Location</Label><Input value={mapsLink} onChange={e => setMapsLink(e.target.value)} dir="ltr" className="text-right" placeholder="https://maps.google.com/..." /></div>
               </div>
             </div>
 
@@ -375,3 +418,4 @@ export default function OwnerDashboard() {
     </div>
   )
 }
+

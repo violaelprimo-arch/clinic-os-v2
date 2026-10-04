@@ -1,57 +1,57 @@
 import { NextResponse } from 'next/server'
+import { db } from '@/lib/firebase'
+import { doc, getDoc } from 'firebase/firestore'
+import OpenAI from 'openai'
 
 export async function POST(request: Request) {
   try {
-    const { message, aiApiKey, aiInstructions } = await request.json()
+    const { message, aiKnowledge } = await request.json()
+
+    // Securely fetch Global API Key from Firestore on the server
+    const configSnap = await getDoc(doc(db, 'system', 'config'));
+    let aiApiKey = '';
+    if (configSnap.exists()) {
+      aiApiKey = configSnap.data().globalAiKey || '';
+    }
 
     if (!aiApiKey) {
-      // Fallback response if Doctor didn't provide a key
-      return NextResponse.json({
-        reply: "عذراً، طبيب العيادة لم يقم بتفعيل مفتاح الذكاء الاصطناعي بعد. ولكن نحن في خدمتك دائماً عبر الهاتف أو في مقر العيادة."
-      })
+      aiApiKey = process.env.OPENAI_API_KEY || '';
     }
 
-    // Prepare system instructions + user message for Gemini REST API
-    const prompt = `
-System Instructions (You are a medical clinic assistant acting on behalf of the clinic):
-${aiInstructions}
+    if (!aiApiKey) {
+      return NextResponse.json({ reply: 'يجب على مالك المنصة إعداد مفتاح الذكاء الاصطناعي (OpenAI) المركزي من لوحة التحكم.' })
+    }
 
-User Question: ${message}
+    const systemPrompt = `
+أنت المساعد الذكي الرسمي للعيادة.
+سترد على استفسارات المرضى بأسلوب احترافي وودود جداً.
+هذه هي معلومات العيادة وتعليمات الطبيب (Knowledge Base):
+${JSON.stringify(aiKnowledge || [])}
 
-Important: Answer concisely, politely, and in Arabic.
+قواعد صارمة:
+1. أجب فقط بناءً على المعلومات المتوفرة في سجل التعليمات أعلاه.
+2. إذا سأل المريض عن شيء غير موجود في السجل، اعتذر بلطف واطلب منه التواصل مع العيادة.
+3. لا تخترع أي أسعار أو مواعيد غير موجودة.
+4. إجابتك يجب أن تكون قصيرة ومباشرة ومفيدة للمريض.
 `
 
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${aiApiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: prompt }]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 250,
-        }
-      })
-    })
+    const openai = new OpenAI({ apiKey: aiApiKey });
 
-    const data = await res.json()
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: message }
+      ],
+      temperature: 0.3,
+      max_tokens: 250
+    });
 
-    if (data.error) {
-      console.error('Gemini API Error:', data.error)
-      return NextResponse.json({ reply: 'عذراً، حدث خطأ في النظام. يرجى التأكد من صحة مفتاح الذكاء الاصطناعي.' })
-    }
+    const replyText = completion.choices[0].message.content || 'لم أتمكن من الرد.';
+    return NextResponse.json({ reply: replyText });
 
-    const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'لم أتمكن من الإجابة في الوقت الحالي.'
-    
-    return NextResponse.json({ reply: replyText })
-
-  } catch (error) {
-    console.error('Chat API Error:', error)
-    return NextResponse.json({ reply: 'عذراً، حدث خطأ في الاتصال بالذكاء الاصطناعي.' }, { status: 500 })
+  } catch (error: any) {
+    console.error('Chat API Error:', error);
+    return NextResponse.json({ reply: 'خطأ من الذكاء الاصطناعي (OpenAI): ' + (error.message || 'حدث خطأ في الخادم.') });
   }
 }

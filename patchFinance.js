@@ -1,9 +1,10 @@
-'use client'
+const fs = require('fs');
+let content = fs.readFileSync('src/app/clinic/[slug]/admin/finance/page.tsx', 'utf8');
 
+const newFinanceLogic = `
 import { use, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Printer, TrendingUp, Users, Wallet, CreditCard, Banknote } from 'lucide-react'
 import { toast } from 'sonner'
@@ -204,3 +205,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
     </div>
   )
 }
+`;
+
+fs.writeFileSync('src/app/clinic/[slug]/admin/finance/page.tsx', newFinanceLogic);
+console.log('Successfully updated FinancePage');

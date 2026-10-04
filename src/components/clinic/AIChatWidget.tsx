@@ -38,8 +38,8 @@ export function AIChatWidget({ clinic }: { clinic: any }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: userText,
-          aiApiKey: clinic?.aiApiKey || '',
-          aiInstructions: clinic?.aiInstructions || ''
+          
+          aiKnowledge: clinic?.aiKnowledge || []
         })
       })
       

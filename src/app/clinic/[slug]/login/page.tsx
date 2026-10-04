@@ -47,11 +47,19 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
           if (!snapshot.empty) {
             const clinicDoc = snapshot.docs[0].data()
             
+
             // Check if credentials match either doctor or assistant
             const isDoctor = clinicDoc.doctorEmail === inputEmail && clinicDoc.doctorPassword === password
-            const isAssistant = clinicDoc.assistantEmail === inputEmail && clinicDoc.assistantPassword === password
+            let isAssistant = clinicDoc.assistantEmail === inputEmail && clinicDoc.assistantPassword === password
+
+            // Also check multiple assistants array
+            if (!isAssistant && clinicDoc.assistants) {
+              const matchedAss = clinicDoc.assistants.find((a: any) => a.email === inputEmail && a.password === password)
+              if (matchedAss) isAssistant = true;
+            }
 
             if (isDoctor || isAssistant) {
+
               // Auto-register them in Firebase Auth
               await createUserWithEmailAndPassword(auth, inputEmail, password)
               toast.success('تم تفعيل الحساب وتسجيل الدخول بنجاح!')

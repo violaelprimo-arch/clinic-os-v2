@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { FileText, Users, DollarSign, Calendar, Settings } from 'lucide-react'
+import { FileText, Users, DollarSign, Calendar, Settings, Bot } from 'lucide-react'
 import { db } from '@/lib/firebase'
 import { collection, query, where, getDocs } from 'firebase/firestore'
 
@@ -47,6 +47,7 @@ export default function AdminLayout({
     { id: 'patients', name: 'سجل المرضى', href: `/clinic/${slug}/admin/patients`, icon: <Users className="w-5 h-5" /> },
     { id: 'prescriptions', name: 'الروشتات الطبية', href: `/clinic/${slug}/admin/prescriptions`, icon: <FileText className="w-5 h-5" /> },
     { id: 'finance', name: 'التقارير المالية', href: `/clinic/${slug}/admin/finance`, icon: <DollarSign className="w-5 h-5" /> },
+    { id: 'ai-training', name: 'تدريب الذكاء الاصطناعي', href: `/clinic/${slug}/admin/ai-training`, icon: <Bot className="w-5 h-5" /> },
     { id: 'settings', name: 'إعدادات العيادة', href: `/clinic/${slug}/admin/settings`, icon: <Settings className="w-5 h-5" /> },
   ]
 
@@ -72,7 +73,7 @@ export default function AdminLayout({
               <span className="text-3xl font-black text-white">{slug.charAt(0).toUpperCase()}</span>
             )}
           </div>
-          <h2 className="text-xl font-bold text-white tracking-wide">{clinic?.clinicName || 'العيادة الذكية'}</h2>
+          <h2 className="text-xl font-bold text-white tracking-wide">{clinic?.clinicName || 'عيادة طبية'}</h2>
           <p className="text-xs text-primary mt-1 mb-2">/clinic/{slug}</p>
           <div className="inline-block px-3 py-1 rounded-full bg-slate-800 text-xs font-bold text-slate-400 border border-slate-700">
             الصلاحية: {role === 'assistant' ? 'مساعد' : 'طبيب'}
