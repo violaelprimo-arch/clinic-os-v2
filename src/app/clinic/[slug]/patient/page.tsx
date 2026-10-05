@@ -7,9 +7,12 @@ import { collection, query, where, getDocs } from 'firebase/firestore'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { LogOut, FileText, Clock, Activity, Calendar, ShieldCheck } from 'lucide-react'
+import { LogOut, FileText, Clock, Activity, Calendar, ShieldCheck, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { PatientLiveTurn } from '@/components/clinic/PatientLiveTurn'
+import { BookingForm } from '@/components/clinic/BookingForm'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { doc, getDoc } from 'firebase/firestore'
 
 export default function PatientDashboard({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -19,6 +22,8 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
   const [patientData, setPatientData] = useState<{ phone: string, name: string, clinic_id: string } | null>(null)
   const [appointments, setAppointments] = useState<any[]>([])
   const [prescriptions, setPrescriptions] = useState<any[]>([])
+  const [clinic, setClinic] = useState<any>(null)
+  const [services, setServices] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -32,9 +37,20 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
     const parsed = JSON.parse(authData)
     setPatientData(parsed)
 
-    // 2. Fetch History
-    const fetchHistory = async () => {
+    // 2. Fetch History & Clinic Data
+    const fetchData = async () => {
       try {
+        // Fetch Clinic and Services for booking
+        const cDoc = await getDoc(doc(db, 'clinics', parsed.clinic_id))
+        if (cDoc.exists()) {
+          setClinic({ id: cDoc.id, ...cDoc.data() })
+        }
+
+        const srvQ = query(collection(db, 'services'), where('clinic_id', '==', parsed.clinic_id))
+        const srvSnap = await getDocs(srvQ)
+        setServices(srvSnap.docs.map(d => ({ id: d.id, ...d.data() })))
+
+        // Fetch Appointments
         const apptsQ = query(
           collection(db, 'appointments'),
           where('clinic_id', '==', parsed.clinic_id),
@@ -47,6 +63,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
         
         setAppointments(appts)
 
+        // Fetch Prescriptions
         const rxQ = query(
           collection(db, 'prescriptions'),
           where('clinic_id', '==', parsed.clinic_id),
@@ -65,7 +82,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
       }
     }
 
-    fetchHistory()
+    fetchData()
   }, [slug, router])
 
   const handleLogout = () => {
@@ -94,10 +111,32 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
 
       <main className="max-w-5xl mx-auto px-4 mt-8 space-y-8">
         {/* Welcome Section */}
-        <div className="bg-gradient-to-l from-primary to-blue-600 rounded-3xl p-8 text-white shadow-lg relative overflow-hidden">
+        <div className="bg-gradient-to-l from-primary to-blue-600 rounded-3xl p-8 text-white shadow-lg relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
-          <h1 className="text-3xl md:text-4xl font-black mb-2 relative z-10">مرحباً بك، {patientData.name} 👋</h1>
-          <p className="text-blue-100 text-lg relative z-10">يمكنك هنا متابعة جميع كشوفاتك وروشتاتك الطبية بكل سهولة.</p>
+          <div className="relative z-10 flex-1">
+            <h1 className="text-3xl md:text-4xl font-black mb-2">مرحباً بك، {patientData.name} 👋</h1>
+            <p className="text-blue-100 text-lg">يمكنك هنا متابعة جميع كشوفاتك وروشتاتك الطبية بكل سهولة.</p>
+          </div>
+          
+          <div className="relative z-10">
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button className="bg-white text-primary hover:bg-slate-50 font-bold text-lg h-14 px-8 rounded-full shadow-xl hover:scale-105 transition-transform">
+                  <Plus className="w-5 h-5 ml-2" /> حجز كشف جديد
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden bg-transparent border-none shadow-none">
+                {clinic && services.length > 0 && (
+                  <BookingForm 
+                    clinic={clinic} 
+                    services={services} 
+                    defaultName={patientData.name} 
+                    defaultPhone={patientData.phone} 
+                  />
+                )}
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         {/* Live Turn Tracking Banner */}

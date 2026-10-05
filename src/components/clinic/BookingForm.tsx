@@ -13,10 +13,14 @@ import { collection, addDoc, getDocs, query, where } from 'firebase/firestore'
 
 export function BookingForm({ 
   clinic, 
-  services 
+  services,
+  defaultName = '',
+  defaultPhone = ''
 }: { 
   clinic: any
   services: any[]
+  defaultName?: string
+  defaultPhone?: string
 }) {
   const getLocalDate = () => {
     const d = new Date()
@@ -25,8 +29,8 @@ export function BookingForm({
 
   const [selectedService, setSelectedService] = useState<string>(services[0]?.id || '')
   const [selectedDate, setSelectedDate] = useState<string>(getLocalDate())
-  const [name, setName] = useState('')
-  const [phone, setPhone] = useState('')
+  const [name, setName] = useState(defaultName)
+  const [phone, setPhone] = useState(defaultPhone)
   const [isBooking, setIsBooking] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState('cash')
   const [transferNumber, setTransferNumber] = useState('')
