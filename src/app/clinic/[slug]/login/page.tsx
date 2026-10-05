@@ -14,6 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { AlertCircle, Stethoscope } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
+import Link from 'next/link'
 
 export default function DoctorLogin({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -90,7 +91,14 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 font-sans" dir="rtl">
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 font-sans relative" dir="rtl">
+      {/* Floating Back Button */}
+      <Link href={`/clinic/${slug}`} className="absolute top-6 right-6 z-50">
+        <Button variant="outline" className="rounded-full shadow-sm bg-white/80 backdrop-blur font-bold text-slate-700 hover:text-primary hover:bg-white border-slate-200">
+          العودة للصفحة الرئيسية
+        </Button>
+      </Link>
+
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl mix-blend-multiply opacity-70 pointer-events-none -translate-y-1/2 translate-x-1/3"></div>
       
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="w-full max-w-md p-4 relative z-10">
