@@ -430,83 +430,123 @@ Brufen 400"
             }
             if (chunkedDrugs.length === 0) chunkedDrugs.push([]);
             
+            const rxColor = clinic?.rxColor || clinic?.primaryColor || '#1e3a8a';
+            const rxLogo = clinic?.rxLogo || clinic?.heroImage || '';
+            const rxDoctorName = clinic?.rxDoctorName || clinic?.doctorName || 'اسم الطبيب';
+            const rxSpecialty = clinic?.rxSpecialty || clinic?.specialtySubtitle || 'التخصص';
+            const rxFooterText = clinic?.rxFooterText || `العنوان: ${clinic?.clinicAddress || ''} | محمول: ${clinic?.clinicPhones?.[0] || ''}`;
+
             return chunkedDrugs.map((pageDrugs, pageIndex) => (
-              <div key={pageIndex} className="bg-white p-6 md:p-8 shadow-2xl rounded-xl min-h-[27cm] border border-slate-200 relative overflow-hidden print:shadow-none print:border-none print:rounded-none mb-8 print:mb-0 break-after-page print:break-inside-avoid print:!bg-white print:scale-[0.95] origin-top">
-                <style dangerouslySetInnerHTML={{__html: `@page { size: A4; margin: 0; }`}} />
-                {/* Header (Medical Letterhead) */}
-                <div className="flex justify-between items-start border-b-[3px] pb-4 border-primary mb-6 print:border-primary">
-                  {/* Doctor Details (Right) */}
-                  <div className="space-y-1 text-right">
-                    <h1 className="text-3xl font-black text-primary mb-1">{clinic?.doctorTitle || 'د.'} {clinic?.doctorName || 'اسم الطبيب'}</h1>
-                    <h2 className="text-lg font-bold text-slate-700">{clinic?.clinicName || 'اسم العيادة'}</h2>
-                    <p className="text-sm text-slate-500 font-bold max-w-[250px]">{clinic?.specialtySubtitle || 'مستشار الطب المتخصص والعلاج المتقدم'}</p>
-                  </div>
+              <div key={pageIndex} className="bg-white shadow-2xl rounded-xl min-h-[29cm] w-full border border-slate-200 relative overflow-hidden print:shadow-none print:border-none print:rounded-none mb-8 print:mb-0 break-after-page print:break-inside-avoid print:!bg-white print:scale-[1.0] origin-top flex flex-col">
+                <style dangerouslySetInnerHTML={{__html: `@page { size: A4; margin: 0; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }`}} />
+                
+                {/* SVG Header Curve Background */}
+                <div className="absolute top-0 left-0 w-full h-48 z-0">
+                  <svg viewBox="0 0 1440 320" className="w-full h-full preserve-3d" preserveAspectRatio="none">
+                    <path fill={rxColor} fillOpacity="1" d="M0,64L80,64C160,64,320,64,480,101.3C640,139,800,213,960,229.3C1120,245,1280,203,1360,181.3L1440,160L1440,0L1360,0C1280,0,1120,0,960,0C800,0,640,0,480,0C320,0,160,0,80,0L0,0Z"></path>
+                  </svg>
+                </div>
 
-                  {/* Clinic Info (Left) */}
-                  <div className="flex flex-col items-end text-left space-y-2">
-                    {clinic?.heroImage ? (
-                      <div className="w-16 h-16 rounded-xl overflow-hidden shadow-sm border border-slate-200">
-                        <img src={clinic.heroImage} alt="Doctor" className="w-full h-full object-cover" />
-                      </div>
-                    ) : (
-                      <Activity className="w-10 h-10 text-primary" />
-                    )}
-                    <div className="text-xs text-slate-600 font-bold text-left dir-ltr">
-                      {clinic?.clinicPhones && clinic.clinicPhones[0] && (
-                        <div className="flex items-center justify-end gap-1"><Phone className="w-3 h-3 text-primary" /> {clinic.clinicPhones[0]}</div>
+                {/* SVG Footer Curve Background */}
+                <div className="absolute bottom-0 left-0 w-full h-32 z-0">
+                  <svg viewBox="0 0 1440 320" className="w-full h-full preserve-3d" preserveAspectRatio="none">
+                    <path fill={rxColor} fillOpacity="1" d="M0,192L80,197.3C160,203,320,213,480,202.7C640,192,800,160,960,170.7C1120,181,1280,235,1360,261.3L1440,288L1440,320L1360,320C1280,320,1120,320,960,320C800,320,640,320,480,320C320,320,160,320,80,320L0,320Z"></path>
+                  </svg>
+                </div>
+
+                {/* Watermark Logo */}
+                {rxLogo && (
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.07] z-0 pointer-events-none grayscale">
+                    <img src={rxLogo} alt="Watermark" className="w-96 h-96 object-contain" />
+                  </div>
+                )}
+
+                <div className="relative z-10 flex-1 flex flex-col p-8 pt-12">
+                  {/* Header Content */}
+                  <div className="flex justify-between items-start mb-8">
+                    {/* Logo */}
+                    <div className="w-32 h-32 rounded-full bg-white p-2 shadow-lg border-4 flex items-center justify-center overflow-hidden" style={{ borderColor: rxColor }}>
+                      {rxLogo ? (
+                        <img src={rxLogo} alt="Logo" className="w-full h-full object-contain" />
+                      ) : (
+                        <Activity className="w-12 h-12" style={{ color: rxColor }} />
                       )}
-                      {clinic?.clinicAddress && (
-                        <div className="flex items-center justify-end gap-1 mt-1"><MapPin className="w-3 h-3 text-primary" /> {clinic.clinicAddress}</div>
-                      )}
+                    </div>
+
+                    {/* Doctor Details */}
+                    <div className="text-right text-white pt-2 pr-6">
+                      <div className="text-sm font-bold opacity-90 mb-1">دكتور</div>
+                      <h1 className="text-4xl font-black mb-2">{rxDoctorName}</h1>
+                      <h2 className="text-lg font-bold opacity-90">{rxSpecialty}</h2>
                     </div>
                   </div>
-                </div>
 
-                {/* Patient Info Row */}
-                <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border-2 border-slate-200 mb-6 print:border-slate-200 print:bg-slate-50">
-                  <div className="flex items-center gap-4">
-                    <div>
-                      <span className="text-sm text-slate-500 font-bold ml-2">الاسم:</span>
-                      <span className="font-black text-lg text-slate-900">{patientName || '......................................................'}</span>
-                    </div>
-                  </div>
-                  <div className="text-left flex items-center gap-2">
-                    <span className="text-sm text-slate-500 font-bold">التاريخ:</span>
-                    <span className="font-bold text-slate-900 dir-ltr">{date}</span>
-                  </div>
-                </div>
-
-                {/* Rx Symbol */}
-                <div className={`text-6xl font-black text-primary mb-6 pl-2 border-l-4 border-primary ml-2 ${caveat.className}`} dir="ltr">
-                  Rx
-                </div>
-
-                {/* Drugs Render */}
-                <div className="space-y-6 px-6 min-h-[400px]" dir="ltr">
-                  {pageDrugs.map((drug, idx) => (
-                    <div key={drug.id || idx} className="relative pl-6">
-                      {/* Drug Name with Caveat Font */}
-                      <h3 className={`text-3xl font-bold text-slate-900 capitalize w-full ${caveat.className}`}>
-                        {drug.name || '......................................................'}
-                      </h3>
-                      
-                      {/* Dosage & Duration closely packed under drug name */}
-                      <div className="flex gap-3 text-slate-700 font-bold mt-1" dir="rtl">
-                        <span className="text-xs">{drug.dosage || '...................................'}</span>
-                        <span className="text-xs text-slate-400">|</span>
-                        <span className="text-xs">{drug.duration || '...................................'}</span>
+                  {/* Patient Info Table */}
+                  <div className="w-full border-t-2 border-b-2 py-4 mb-8" style={{ borderColor: rxColor }}>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex items-end gap-2 text-lg">
+                        <span className="font-bold" style={{ color: rxColor }}>الاسم :</span>
+                        <span className="font-black flex-1 border-b-2 border-dotted pb-1 text-slate-800 border-slate-400">
+                          {patientName || '\u00A0'}
+                        </span>
+                      </div>
+                      <div className="flex items-end gap-2 text-lg">
+                        <span className="font-bold" style={{ color: rxColor }}>التاريخ :</span>
+                        <span className="font-bold flex-1 border-b-2 border-dotted pb-1 text-slate-800 border-slate-400 text-center" dir="ltr">
+                          {date}
+                        </span>
+                      </div>
+                      <div className="flex items-end gap-2 text-lg">
+                        <span className="font-bold" style={{ color: rxColor }}>التشخيص :</span>
+                        <span className="font-bold flex-1 border-b-2 border-dotted pb-1 text-slate-800 border-slate-400">
+                          {'\u00A0'}
+                        </span>
+                      </div>
+                      <div className="flex items-end gap-2 text-lg">
+                        <span className="font-bold" style={{ color: rxColor }}>السن :</span>
+                        <span className="font-bold flex-1 border-b-2 border-dotted pb-1 text-slate-800 border-slate-400 text-center">
+                          {'\u00A0'}
+                        </span>
                       </div>
                     </div>
-                  ))}
+                  </div>
+
+                  {/* Rx Symbol */}
+                  <div className="mb-6 flex">
+                    <div className={`text-6xl font-black ${caveat.className}`} style={{ color: rxColor }} dir="ltr">
+                      Rx:
+                    </div>
+                  </div>
+
+                  {/* Drugs List */}
+                  <div className="flex-1 px-8 space-y-8" dir="ltr">
+                    {pageDrugs.map((drug, idx) => (
+                      <div key={drug.id || idx} className="pl-6 border-l-4" style={{ borderColor: `${rxColor}30` }}>
+                        <h3 className={`text-4xl font-bold text-slate-900 capitalize w-full tracking-wide ${caveat.className}`}>
+                          {drug.name || '\u00A0'}
+                        </h3>
+                        <div className="flex gap-4 text-slate-700 font-bold mt-2 text-lg" dir="rtl">
+                          <span>{drug.dosage || ''}</span>
+                          {drug.duration && <span className="text-slate-300">|</span>}
+                          <span>{drug.duration || ''}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
-                {/* Footer */}
-                <div className="absolute bottom-6 left-6 right-6 border-t-2 border-slate-200 pt-4 print:border-slate-200">
-                  <div className="flex justify-between items-center text-xs font-bold text-slate-400">
-                    <span className="text-primary/80">مع تمنياتنا بالشفاء العاجل</span>
+                {/* Footer Content */}
+                <div className="relative z-10 w-full text-center text-white pb-6 pt-16 px-8 mt-auto flex justify-between items-end">
+                  <div className="text-xs opacity-50 text-right w-24">
                     {chunkedDrugs.length > 1 && (
-                      <span className="text-slate-400">صفحة {pageIndex + 1} من {chunkedDrugs.length}</span>
+                      <span>صفحة {pageIndex + 1} / {chunkedDrugs.length}</span>
                     )}
+                  </div>
+                  <div className="flex-1 font-bold text-sm tracking-wide px-4" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.2)' }}>
+                    {rxFooterText}
+                  </div>
+                  <div className="text-xs opacity-50 text-left w-24">
+                    <span>Powerd by Almaher</span>
                   </div>
                 </div>
 

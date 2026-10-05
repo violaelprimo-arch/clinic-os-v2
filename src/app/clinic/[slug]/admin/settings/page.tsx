@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Save, Plus, Trash2, Palette, ShieldAlert, Phone, MapPin, Bot, Wallet, Users } from 'lucide-react'
+import { Save, Plus, Trash2, Palette, ShieldAlert, Phone, MapPin, Bot, Wallet, Users, Printer } from 'lucide-react'
 import { db } from '@/lib/firebase'
 import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore'
 import { Switch } from '@/components/ui/switch'
@@ -44,6 +44,12 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const [instapayHandle, setInstapayHandle] = useState('')
   const [assistants, setAssistants] = useState<any[]>([])
 
+  // Rx Settings
+  const [rxLogo, setRxLogo] = useState('')
+  const [rxDoctorName, setRxDoctorName] = useState('')
+  const [rxSpecialty, setRxSpecialty] = useState('')
+  const [rxFooterText, setRxFooterText] = useState('')
+  const [rxColor, setRxColor] = useState('#1e3a8a')
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -71,6 +77,13 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           setWalletNumber(data.walletNumber || '')
           setInstapayHandle(data.instapayHandle || '')
           setAssistants(data.assistants || [])
+          
+          setRxLogo(data.rxLogo || '')
+          setRxDoctorName(data.rxDoctorName || '')
+          setRxSpecialty(data.rxSpecialty || '')
+          setRxFooterText(data.rxFooterText || '')
+          setRxColor(data.rxColor || '#1e3a8a')
+
           setServices(data.services || [
             { id: '1', name: 'كشف عادي', price: 200, type: 'normal' },
             { id: '2', name: 'استشارة', price: 100, type: 'consult' },
@@ -106,7 +119,12 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         aiInstructions,
         onlinePaymentEnabled,
         walletNumber,
-        instapayHandle
+        instapayHandle,
+        rxLogo,
+        rxDoctorName,
+        rxSpecialty,
+        rxFooterText,
+        rxColor
         })
       toast.success('تم حفظ كافة الإعدادات بنجاح')
     } catch (err) {
@@ -444,6 +462,74 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
             </CardContent>
           </Card>
           
+          <Card className="shadow-lg border-t-4" style={{ borderTopColor: rxColor || primaryColor }}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Printer className="w-5 h-5" style={{ color: rxColor || primaryColor }} /> إعدادات طباعة الروشتة (تصميم A4)
+              </CardTitle>
+              <CardDescription>قم بتخصيص تصميم الروشتة المطبوعة (اللوجو، الألوان، والتذييل)</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label>رابط لوجو العيادة (للهيدر والعلامة المائية)</Label>
+                  <Input 
+                    placeholder="https://example.com/logo.png" 
+                    value={rxLogo} 
+                    onChange={e => setRxLogo(e.target.value)} 
+                    dir="ltr"
+                    className="text-left"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>لون تصميم الروشتة (Hex)</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      type="color" 
+                      value={rxColor} 
+                      onChange={e => setRxColor(e.target.value)} 
+                      className="w-16 h-10 p-1 cursor-pointer"
+                    />
+                    <Input 
+                      value={rxColor} 
+                      onChange={e => setRxColor(e.target.value)} 
+                      dir="ltr"
+                      className="flex-1 font-mono uppercase"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label>اسم الطبيب في الهيدر (مثل: د. شهاب كشاف)</Label>
+                  <Input 
+                    value={rxDoctorName} 
+                    onChange={e => setRxDoctorName(e.target.value)} 
+                    placeholder="اسم الطبيب"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>تخصص الطبيب في الهيدر (مثل: ماجستير في طب الأسنان)</Label>
+                  <Input 
+                    value={rxSpecialty} 
+                    onChange={e => setRxSpecialty(e.target.value)} 
+                    placeholder="التخصص"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>النص في تذييل الروشتة (العنوان والهواتف)</Label>
+                <Input 
+                  value={rxFooterText} 
+                  onChange={e => setRxFooterText(e.target.value)} 
+                  placeholder="مثال: العنوان: الحي ١٢ شارع كان كان - موبايل العيادة: ٠١٠٠٠٠٠٠٠٠٠"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="flex justify-end">
             <Button onClick={handleSave} disabled={isLoading} className="h-14 px-12 text-lg font-bold rounded-full shadow-lg hover:scale-105 transition-transform">
               <Save className="w-5 h-5 ml-2" /> {isLoading ? 'جاري الحفظ...' : 'حفظ كافة التعديلات'}
