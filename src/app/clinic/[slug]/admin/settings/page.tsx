@@ -50,6 +50,11 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const [rxSpecialty, setRxSpecialty] = useState('')
   const [rxFooterText, setRxFooterText] = useState('')
   const [rxColor, setRxColor] = useState('#1e3a8a')
+  const [rxLayout, setRxLayout] = useState('logo-left')
+  const [rxHeaderTextColor, setRxHeaderTextColor] = useState('#ffffff')
+  const [rxPatientInfoColor, setRxPatientInfoColor] = useState('#1e293b')
+  const [rxDrugsTextColor, setRxDrugsTextColor] = useState('#0f172a')
+  const [rxFooterTextColor, setRxFooterTextColor] = useState('#ffffff')
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -83,6 +88,11 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           setRxSpecialty(data.rxSpecialty || '')
           setRxFooterText(data.rxFooterText || '')
           setRxColor(data.rxColor || '#1e3a8a')
+          setRxLayout(data.rxLayout || 'logo-left')
+          setRxHeaderTextColor(data.rxHeaderTextColor || '#ffffff')
+          setRxPatientInfoColor(data.rxPatientInfoColor || '#1e293b')
+          setRxDrugsTextColor(data.rxDrugsTextColor || '#0f172a')
+          setRxFooterTextColor(data.rxFooterTextColor || '#ffffff')
 
           setServices(data.services || [
             { id: '1', name: 'كشف عادي', price: 200, type: 'normal' },
@@ -124,7 +134,12 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         rxDoctorName,
         rxSpecialty,
         rxFooterText,
-        rxColor
+        rxColor,
+        rxLayout,
+        rxHeaderTextColor,
+        rxPatientInfoColor,
+        rxDrugsTextColor,
+        rxFooterTextColor
         })
       toast.success('تم حفظ كافة الإعدادات بنجاح')
     } catch (err) {
@@ -526,6 +541,58 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                   onChange={e => setRxFooterText(e.target.value)} 
                   placeholder="مثال: العنوان: الحي ١٢ شارع كان كان - موبايل العيادة: ٠١٠٠٠٠٠٠٠٠٠"
                 />
+              </div>
+
+              <div className="pt-4 border-t border-slate-100">
+                <h3 className="font-bold text-slate-700 mb-4">إعدادات متقدمة (الألوان والاتجاهات)</h3>
+                
+                <div className="grid md:grid-cols-2 gap-6 mb-6">
+                  <div className="space-y-2">
+                    <Label>توزيع الهيدر (مكان اللوجو)</Label>
+                    <select 
+                      className="w-full border rounded-md h-10 px-3 bg-white"
+                      value={rxLayout}
+                      onChange={e => setRxLayout(e.target.value)}
+                    >
+                      <option value="logo-left">اللوجو يسار - النص يمين (الافتراضي)</option>
+                      <option value="logo-right">اللوجو يمين - النص يسار</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid md:grid-cols-4 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs">لون نص الهيدر</Label>
+                    <div className="flex gap-2">
+                      <Input type="color" value={rxHeaderTextColor} onChange={e => setRxHeaderTextColor(e.target.value)} className="w-10 h-10 p-1 cursor-pointer" />
+                      <Input value={rxHeaderTextColor} onChange={e => setRxHeaderTextColor(e.target.value)} dir="ltr" className="flex-1 font-mono uppercase text-xs" />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-xs">لون بيانات المريض</Label>
+                    <div className="flex gap-2">
+                      <Input type="color" value={rxPatientInfoColor} onChange={e => setRxPatientInfoColor(e.target.value)} className="w-10 h-10 p-1 cursor-pointer" />
+                      <Input value={rxPatientInfoColor} onChange={e => setRxPatientInfoColor(e.target.value)} dir="ltr" className="flex-1 font-mono uppercase text-xs" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs">لون كتابة الأدوية</Label>
+                    <div className="flex gap-2">
+                      <Input type="color" value={rxDrugsTextColor} onChange={e => setRxDrugsTextColor(e.target.value)} className="w-10 h-10 p-1 cursor-pointer" />
+                      <Input value={rxDrugsTextColor} onChange={e => setRxDrugsTextColor(e.target.value)} dir="ltr" className="flex-1 font-mono uppercase text-xs" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs">لون نص التذييل (الفوتر)</Label>
+                    <div className="flex gap-2">
+                      <Input type="color" value={rxFooterTextColor} onChange={e => setRxFooterTextColor(e.target.value)} className="w-10 h-10 p-1 cursor-pointer" />
+                      <Input value={rxFooterTextColor} onChange={e => setRxFooterTextColor(e.target.value)} dir="ltr" className="flex-1 font-mono uppercase text-xs" />
+                    </div>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>

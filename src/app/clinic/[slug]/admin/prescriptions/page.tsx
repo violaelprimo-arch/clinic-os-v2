@@ -435,6 +435,11 @@ Brufen 400"
             const rxDoctorName = clinic?.rxDoctorName || clinic?.doctorName || 'اسم الطبيب';
             const rxSpecialty = clinic?.rxSpecialty || clinic?.specialtySubtitle || 'التخصص';
             const rxFooterText = clinic?.rxFooterText || `العنوان: ${clinic?.clinicAddress || ''} | محمول: ${clinic?.clinicPhones?.[0] || ''}`;
+            const rxLayout = clinic?.rxLayout || 'logo-left';
+            const rxHeaderTextColor = clinic?.rxHeaderTextColor || '#ffffff';
+            const rxPatientInfoColor = clinic?.rxPatientInfoColor || '#1e293b';
+            const rxDrugsTextColor = clinic?.rxDrugsTextColor || '#0f172a';
+            const rxFooterTextColor = clinic?.rxFooterTextColor || '#ffffff';
 
             return chunkedDrugs.map((pageDrugs, pageIndex) => (
               <div key={pageIndex} className="mx-auto bg-white shadow-2xl w-[210mm] min-h-[297mm] relative overflow-hidden print:shadow-none print:w-full print:h-auto print:min-h-0 mb-8 print:mb-0 break-after-page print:break-inside-avoid print:!bg-white print:scale-100 origin-top flex flex-col border border-slate-200 print:border-none">
@@ -442,14 +447,14 @@ Brufen 400"
                 
                 {/* SVG Header Curve Background */}
                 <div className="absolute top-0 left-0 w-full h-48 z-0">
-                  <svg viewBox="0 0 1440 320" className="w-full h-full -scale-x-100" preserveAspectRatio="none">
+                  <svg viewBox="0 0 1440 320" className={`w-full h-full ${rxLayout === 'logo-left' ? '-scale-x-100' : 'scale-x-100'}`} preserveAspectRatio="none">
                     <path fill={rxColor} fillOpacity="1" d="M0,64L80,64C160,64,320,64,480,101.3C640,139,800,213,960,229.3C1120,245,1280,203,1360,181.3L1440,160L1440,0L1360,0C1280,0,1120,0,960,0C800,0,640,0,480,0C320,0,160,0,80,0L0,0Z"></path>
                   </svg>
                 </div>
 
                 {/* SVG Footer Curve Background */}
                 <div className="absolute bottom-0 left-0 w-full h-32 z-0">
-                  <svg viewBox="0 0 1440 320" className="w-full h-full -scale-x-100" preserveAspectRatio="none">
+                  <svg viewBox="0 0 1440 320" className={`w-full h-full ${rxLayout === 'logo-left' ? '-scale-x-100' : 'scale-x-100'}`} preserveAspectRatio="none">
                     <path fill={rxColor} fillOpacity="1" d="M0,192L80,197.3C160,203,320,213,480,202.7C640,192,800,160,960,170.7C1120,181,1280,235,1360,261.3L1440,288L1440,320L1360,320C1280,320,1120,320,960,320C800,320,640,320,480,320C320,320,160,320,80,320L0,320Z"></path>
                   </svg>
                 </div>
@@ -463,15 +468,15 @@ Brufen 400"
 
                 <div className="relative z-10 flex-1 flex flex-col p-8 pt-12">
                   {/* Header Content */}
-                  <div className="flex justify-between items-start mb-12">
-                    {/* Doctor Details (Right) */}
-                    <div className="text-right text-white pt-2 z-10 w-2/3">
+                  <div className={`flex justify-between items-start mb-12 ${rxLayout === 'logo-right' ? 'flex-row-reverse' : ''}`}>
+                    {/* Doctor Details */}
+                    <div className={`z-10 w-2/3 pt-2 ${rxLayout === 'logo-right' ? 'text-left pl-6' : 'text-right pr-6'}`} style={{ color: rxHeaderTextColor }}>
                       <div className="text-sm font-bold opacity-90 mb-1">دكتور</div>
                       <h1 className="text-4xl font-black mb-2">{rxDoctorName}</h1>
                       <h2 className="text-lg font-bold opacity-90">{rxSpecialty}</h2>
                     </div>
 
-                    {/* Logo (Left) */}
+                    {/* Logo */}
                     <div className="w-32 h-32 rounded-full bg-white p-2 shadow-lg border-4 flex items-center justify-center overflow-hidden z-10" style={{ borderColor: rxColor }}>
                       {rxLogo ? (
                         <img src={rxLogo} alt="Logo" className="w-full h-full object-contain" />
@@ -482,29 +487,29 @@ Brufen 400"
                   </div>
 
                   {/* Patient Info Table */}
-                  <div className="w-full border-t-2 border-b-2 py-4 mb-8" style={{ borderColor: rxColor }}>
+                  <div className="w-full border-t-2 border-b-2 py-4 mb-8" style={{ borderColor: rxColor, color: rxPatientInfoColor }}>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="flex items-end gap-2 text-lg">
                         <span className="font-bold" style={{ color: rxColor }}>الاسم :</span>
-                        <span className="font-black flex-1 border-b-2 border-dotted pb-1 text-slate-800 border-slate-400">
+                        <span className="font-black flex-1 border-b-2 border-dotted pb-1 border-slate-400">
                           {patientName || '\u00A0'}
                         </span>
                       </div>
                       <div className="flex items-end gap-2 text-lg">
                         <span className="font-bold" style={{ color: rxColor }}>التاريخ :</span>
-                        <span className="font-bold flex-1 border-b-2 border-dotted pb-1 text-slate-800 border-slate-400 text-center" dir="ltr">
+                        <span className="font-bold flex-1 border-b-2 border-dotted pb-1 border-slate-400 text-center" dir="ltr">
                           {date}
                         </span>
                       </div>
                       <div className="flex items-end gap-2 text-lg">
                         <span className="font-bold" style={{ color: rxColor }}>التشخيص :</span>
-                        <span className="font-bold flex-1 border-b-2 border-dotted pb-1 text-slate-800 border-slate-400">
+                        <span className="font-bold flex-1 border-b-2 border-dotted pb-1 border-slate-400">
                           {'\u00A0'}
                         </span>
                       </div>
                       <div className="flex items-end gap-2 text-lg">
                         <span className="font-bold" style={{ color: rxColor }}>السن :</span>
-                        <span className="font-bold flex-1 border-b-2 border-dotted pb-1 text-slate-800 border-slate-400 text-center">
+                        <span className="font-bold flex-1 border-b-2 border-dotted pb-1 border-slate-400 text-center">
                           {'\u00A0'}
                         </span>
                       </div>
@@ -519,15 +524,15 @@ Brufen 400"
                   </div>
 
                   {/* Drugs List (Left to Right) */}
-                  <div className="flex-1 px-8 space-y-8 z-10 pb-32" dir="ltr">
+                  <div className="flex-1 px-8 space-y-8 z-10 pb-32" dir="ltr" style={{ color: rxDrugsTextColor }}>
                     {pageDrugs.map((drug, idx) => (
                       <div key={drug.id || idx} className="pl-6 border-l-4" style={{ borderColor: `${rxColor}30` }}>
-                        <h3 className={`text-4xl font-bold text-slate-900 capitalize w-full tracking-wide ${caveat.className}`}>
+                        <h3 className={`text-4xl font-bold capitalize w-full tracking-wide ${caveat.className}`}>
                           {drug.name || '\u00A0'}
                         </h3>
-                        <div className="flex gap-4 text-slate-700 font-bold mt-2 text-lg">
+                        <div className="flex gap-4 font-bold mt-2 text-lg opacity-80">
                           <span>{drug.dosage || ''}</span>
-                          {drug.duration && <span className="text-slate-300">|</span>}
+                          {drug.duration && <span className="opacity-50">|</span>}
                           <span>{drug.duration || ''}</span>
                         </div>
                       </div>
@@ -536,16 +541,16 @@ Brufen 400"
                 </div>
 
                 {/* Footer Content */}
-                <div className="relative z-10 w-full pb-6 pt-16 px-8 mt-auto flex justify-between items-end">
-                  <div className="text-xs text-white/70 text-right w-24">
+                <div className="relative z-10 w-full pb-6 pt-16 px-8 mt-auto flex justify-between items-end" style={{ color: rxFooterTextColor }}>
+                  <div className="text-xs opacity-70 text-right w-24">
                     {chunkedDrugs.length > 1 && (
                       <span>صفحة {pageIndex + 1} / {chunkedDrugs.length}</span>
                     )}
                   </div>
-                  <div className="flex-1 font-bold text-sm tracking-wide px-4 text-center text-white" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
+                  <div className="flex-1 font-bold text-sm tracking-wide px-4 text-center" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
                     {rxFooterText}
                   </div>
-                  <div className="text-xs text-white/70 text-left w-24">
+                  <div className="text-xs opacity-70 text-left w-24">
                     <span>Powered by Almaher</span>
                   </div>
                 </div>
