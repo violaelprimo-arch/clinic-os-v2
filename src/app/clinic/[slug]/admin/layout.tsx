@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { FileText, Users, DollarSign, Calendar, Settings, Bot, LogOut, Receipt } from 'lucide-react'
+import { FileText, Users, DollarSign, Calendar, Settings, Bot, LogOut, Receipt, Database } from 'lucide-react'
 import { db, auth } from '@/lib/firebase'
 import { collection, query, where, getDocs } from 'firebase/firestore'
 import { signOut } from 'firebase/auth'
@@ -54,6 +54,7 @@ export default function AdminLayout({
     { id: 'patients', name: 'سجل المرضى', href: `/clinic/${slug}/admin/patients`, icon: <Users className="w-5 h-5" /> },
     { id: 'accounts', name: 'الحسابات', href: `/clinic/${slug}/admin/accounts`, icon: <Receipt className="w-5 h-5" /> },
     { id: 'prescriptions', name: 'الروشتات الطبية', href: `/clinic/${slug}/admin/prescriptions`, icon: <FileText className="w-5 h-5" /> },
+    { id: 'drugs', name: 'دليل الأدوية', href: `/clinic/${slug}/admin/drugs`, icon: <Database className="w-5 h-5" /> },
     { id: 'finance', name: 'التقارير المالية', href: `/clinic/${slug}/admin/finance`, icon: <DollarSign className="w-5 h-5" /> },
     { id: 'ai-training', name: 'تدريب الذكاء الاصطناعي', href: `/clinic/${slug}/admin/ai-training`, icon: <Bot className="w-5 h-5" /> },
     { id: 'settings', name: 'إعدادات العيادة', href: `/clinic/${slug}/admin/settings`, icon: <Settings className="w-5 h-5" /> },
