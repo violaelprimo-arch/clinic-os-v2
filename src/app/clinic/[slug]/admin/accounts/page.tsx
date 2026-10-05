@@ -9,6 +9,7 @@ import { db } from '@/lib/firebase'
 import { collection, query, where, getDocs, doc, updateDoc, onSnapshot } from 'firebase/firestore'
 import { Receipt, CheckCircle, Clock, Search, ArrowUpDown } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 export default function AccountsPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -21,10 +22,14 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ key: 'queue_number', direction: 'asc' })
 
   const getLocalDate = () => new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0]
+  
+  const [fromDate, setFromDate] = useState(getLocalDate())
+  const [toDate, setToDate] = useState(getLocalDate())
 
   useEffect(() => {
     let unsubscribe: any;
     const fetchData = async () => {
+      setLoading(true)
       try {
         const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
         const cSnap = await getDocs(cQ)
@@ -32,20 +37,22 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
         const cId = cSnap.docs[0].id
         setClinicId(cId)
 
-        const today = getLocalDate()
+        // Query by clinic_id and filter dates locally to avoid composite index error
         const q = query(
           collection(db, 'appointments'),
-          where('clinic_id', '==', cId),
-          where('date', '==', today)
+          where('clinic_id', '==', cId)
         )
         
         unsubscribe = onSnapshot(q, (snap) => {
-          const appts = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+          const appts = snap.docs
+            .map(d => ({ id: d.id, ...d.data() } as any))
+            .filter(d => d.date >= fromDate && d.date <= toDate)
+          
           setAppointments(appts)
           setLoading(false)
         }, (err) => {
           console.error(err)
-          toast.error('حدث خطأ أثناء تحميل الحسابات لحظياً')
+          toast.error('حدث خطأ أثناء تحميل الحسابات')
           setLoading(false)
         })
 
@@ -59,7 +66,7 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
     return () => {
       if (unsubscribe) unsubscribe()
     }
-  }, [slug])
+  }, [slug, fromDate, toDate])
 
   const confirmPayment = async (id: string) => {
     try {
@@ -94,11 +101,24 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-6" dir="rtl">
-      <div>
-        <h1 className="text-3xl font-bold text-primary flex items-center gap-2">
-          <Receipt className="w-8 h-8" /> إدارة الحسابات اليومية
-        </h1>
-        <p className="text-slate-500 mt-2">تأكيد الدفعات والحجوزات لليوم الحالي ({getLocalDate()})</p>
+      <div className="flex flex-col md:flex-row justify-between md:items-end gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+        <div>
+          <h1 className="text-3xl font-bold text-primary flex items-center gap-2">
+            <Receipt className="w-8 h-8" /> إدارة الحسابات
+          </h1>
+          <p className="text-slate-500 mt-2">تأكيد الدفعات ومراجعة الإيرادات وتصفية حسب التاريخ</p>
+        </div>
+        
+        <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
+          <div className="space-y-1">
+            <Label className="text-slate-500 font-bold">من تاريخ</Label>
+            <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="h-12 bg-slate-50 w-full md:w-48" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-slate-500 font-bold">إلى تاريخ</Label>
+            <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="h-12 bg-slate-50 w-full md:w-48" />
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
