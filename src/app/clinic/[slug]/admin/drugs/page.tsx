@@ -7,9 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Database, RefreshCw, Search, History, AlertTriangle, ShieldCheck } from 'lucide-react'
+import { Database, RefreshCw, Search, History, AlertTriangle, ShieldCheck, Plus, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { useEgyptianDrugs } from '@/hooks/useEgyptianDrugs'
 
 export default function DrugsManager({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -19,6 +20,30 @@ export default function DrugsManager({ params }: { params: Promise<{ slug: strin
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [search, setSearch] = useState('')
+
+  const { drugs: pubDrugs, loading: loadingPubDrugs } = useEgyptianDrugs()
+
+  const handleAddFromMarket = async (marketDrug: any) => {
+    try {
+      const newDrug = {
+        clinic_id: clinicId,
+        name: marketDrug.commercial_name_en,
+        current_price: marketDrug.price_egp || 0,
+        previous_price: 0,
+        price_history: [],
+        last_sync_date: new Date().toISOString(),
+        last_price_change: new Date().toISOString(),
+        is_locked: true,
+        manufacturer: marketDrug.manufacturer || '',
+        active_ingredient: marketDrug.scientific_name || ''
+      }
+      const docRef = await addDoc(collection(db, 'clinic_drugs'), newDrug)
+      setDrugs([...drugs, { id: docRef.id, ...newDrug }])
+      toast.success(`تمت إضافة ${marketDrug.commercial_name_en} إلى قاعدة العيادة بنجاح!`)
+    } catch (err) {
+      toast.error('حدث خطأ أثناء الإضافة')
+    }
+  }
 
   useEffect(() => {
     const fetchData = async () => {
@@ -164,6 +189,14 @@ export default function DrugsManager({ params }: { params: Promise<{ slug: strin
   }
 
   const filteredDrugs = drugs.filter(d => d.name.toLowerCase().includes(search.toLowerCase()))
+  
+  // Market drugs that match search AND are NOT already in the local DB
+  // Limit to 20 to prevent rendering thousands of rows at once
+  const filteredMarketDrugs = search.length >= 2 ? pubDrugs.filter(pd => 
+    (pd.commercial_name_en?.toLowerCase().includes(search.toLowerCase()) || 
+     pd.commercial_name_ar?.includes(search)) &&
+    !drugs.some(ld => ld.name.toLowerCase() === pd.commercial_name_en?.toLowerCase())
+  ).slice(0, 20) : []
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-6" dir="rtl">
@@ -199,11 +232,11 @@ export default function DrugsManager({ params }: { params: Promise<{ slug: strin
               <CardTitle>سجل الأدوية المتوفرة</CardTitle>
               <CardDescription>قاعدة الأدوية الخاصة بالعيادة مع تتبع دقيق لتغيرات الأسعار</CardDescription>
             </div>
-            <div className="relative w-64">
+            <div className="relative w-72">
               <Search className="w-5 h-5 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <Input 
-                placeholder="ابحث عن دواء..." 
-                className="pr-10 bg-slate-50"
+                placeholder={loadingPubDrugs ? "جاري تحميل قاعدة أدوية السوق..." : "ابحث في العيادة أو السوق (25,000+)..."} 
+                className="pr-10 bg-slate-50 border-primary/20 focus:border-primary"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
               />
@@ -284,14 +317,47 @@ export default function DrugsManager({ params }: { params: Promise<{ slug: strin
                     </td>
                   </tr>
                 ))}
-                {filteredDrugs.length === 0 && (
+                {filteredDrugs.length === 0 && filteredMarketDrugs.length === 0 && (
                   <tr>
                     <td colSpan={6} className="p-8 text-center text-slate-500">
                       <AlertTriangle className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                      لا توجد أدوية مسجلة بعد.
+                      لا توجد أدوية مسجلة أو مطابقة للبحث.
                     </td>
                   </tr>
                 )}
+
+                {filteredMarketDrugs.length > 0 && (
+                  <tr>
+                    <td colSpan={6} className="p-4 bg-slate-100 font-bold text-slate-700 text-center">
+                      نتائج من سوق الدواء المصري (غير مسجلة بالعيادة)
+                    </td>
+                  </tr>
+                )}
+
+                {filteredMarketDrugs.map((md, idx) => (
+                  <tr key={`md-${idx}`} className="border-b bg-amber-50/30 hover:bg-amber-50 transition-colors">
+                    <td className="p-4 font-bold text-slate-800">
+                      {md.commercial_name_en}
+                      {md.commercial_name_ar && <div className="text-xs text-slate-500 font-normal">{md.commercial_name_ar}</div>}
+                    </td>
+                    <td className="p-4 text-slate-600">
+                      <div className="font-semibold">{md.scientific_name || '-'}</div>
+                      <div className="text-xs opacity-70">{md.manufacturer || '-'}</div>
+                    </td>
+                    <td className="p-4">
+                      <Badge variant="outline" className="bg-white text-slate-700 border-slate-300 text-base">
+                        {md.price_egp} ج.م
+                      </Badge>
+                    </td>
+                    <td className="p-4 text-slate-500">-</td>
+                    <td className="p-4 text-slate-400 text-xs">بيانات السوق</td>
+                    <td className="p-4 text-center">
+                      <Button onClick={() => handleAddFromMarket(md)} size="sm" variant="outline" className="border-primary text-primary hover:bg-primary hover:text-white font-bold h-8">
+                        <Plus className="w-4 h-4 ml-1" /> إضافة للعيادة
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
