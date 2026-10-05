@@ -11,7 +11,7 @@ import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
 import { collection, addDoc, query, where, getDocs } from 'firebase/firestore'
 import { useSearchParams } from 'next/navigation'
-import { EGYPTIAN_DRUGS } from '@/lib/egyptian-drugs'
+import { useEgyptianDrugs } from '@/hooks/useEgyptianDrugs'
 import { doc, updateDoc } from 'firebase/firestore'
 import { Star, Settings2, ShieldCheck, Pill } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -39,6 +39,8 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const [isSaving, setIsSaving] = useState(false)
   const [date] = useState(new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0])
   const [todayPatients, setTodayPatients] = useState<any[]>([])
+
+  const { drugs: pubDrugs, loading: loadingPubDrugs } = useEgyptianDrugs()
 
   useEffect(() => {
     const fetchClinic = async () => {
@@ -235,7 +237,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                 <div className="relative flex-1">
                   <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input 
-                    placeholder="ابحث عن الدواء في قاعدة البيانات (أكثر من 300 دواء)..." 
+                    placeholder={loadingPubDrugs ? "جاري تحميل قاعدة الأدوية (25,000+ دواء)..." : "ابحث عن الدواء في قاعدة البيانات (25,000+ دواء)..."}
                     value={drugSearch}
                     onChange={e => setDrugSearch(e.target.value)}
                     className="pr-10 bg-slate-50 border-primary/20 focus:border-primary h-12 text-lg font-bold"
@@ -243,7 +245,9 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                   {drugSearch && (
                     <div className="absolute w-full mt-1 bg-white border shadow-2xl rounded-xl overflow-hidden z-50 max-h-72 overflow-y-auto">
                       {(() => {
-                        const searchList = [...new Set([...favoriteDrugs, ...customDrugs, ...EGYPTIAN_DRUGS])];
+                        const publicDrugNames = pubDrugs.map(d => d.commercial_name_en);
+                        const publicDrugNamesAr = pubDrugs.map(d => d.commercial_name_ar).filter(Boolean);
+                        const searchList = [...new Set([...favoriteDrugs, ...customDrugs, ...publicDrugNames, ...publicDrugNamesAr])];
                         const filtered = searchList.filter(d => d.toLowerCase().includes(drugSearch.toLowerCase())).slice(0, 50);
                         const exactMatch = searchList.find(d => d.toLowerCase() === drugSearch.toLowerCase());
                         
