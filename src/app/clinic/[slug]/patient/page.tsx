@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { LogOut, FileText, Clock, Activity, Calendar, ShieldCheck } from 'lucide-react'
 import Link from 'next/link'
+import { PatientLiveTurn } from '@/components/clinic/PatientLiveTurn'
 
 export default function PatientDashboard({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -98,6 +99,9 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
           <h1 className="text-3xl md:text-4xl font-black mb-2 relative z-10">مرحباً بك، {patientData.name} 👋</h1>
           <p className="text-blue-100 text-lg relative z-10">يمكنك هنا متابعة جميع كشوفاتك وروشتاتك الطبية بكل سهولة.</p>
         </div>
+
+        {/* Live Turn Tracking Banner */}
+        <PatientLiveTurn clinicId={patientData.clinic_id} patientPhone={patientData.phone} />
 
         {/* Timeline */}
         <div className="space-y-6">
