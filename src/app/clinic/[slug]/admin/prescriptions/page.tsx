@@ -437,19 +437,19 @@ Brufen 400"
             const rxFooterText = clinic?.rxFooterText || `العنوان: ${clinic?.clinicAddress || ''} | محمول: ${clinic?.clinicPhones?.[0] || ''}`;
 
             return chunkedDrugs.map((pageDrugs, pageIndex) => (
-              <div key={pageIndex} className="bg-white shadow-2xl rounded-xl min-h-[29cm] w-full border border-slate-200 relative overflow-hidden print:shadow-none print:border-none print:rounded-none mb-8 print:mb-0 break-after-page print:break-inside-avoid print:!bg-white print:scale-[1.0] origin-top flex flex-col">
+              <div key={pageIndex} className="mx-auto bg-white shadow-2xl w-[210mm] min-h-[297mm] relative overflow-hidden print:shadow-none print:w-full print:h-auto print:min-h-0 mb-8 print:mb-0 break-after-page print:break-inside-avoid print:!bg-white print:scale-100 origin-top flex flex-col border border-slate-200 print:border-none">
                 <style dangerouslySetInnerHTML={{__html: `@page { size: A4; margin: 0; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }`}} />
                 
                 {/* SVG Header Curve Background */}
                 <div className="absolute top-0 left-0 w-full h-48 z-0">
-                  <svg viewBox="0 0 1440 320" className="w-full h-full preserve-3d" preserveAspectRatio="none">
+                  <svg viewBox="0 0 1440 320" className="w-full h-full -scale-x-100" preserveAspectRatio="none">
                     <path fill={rxColor} fillOpacity="1" d="M0,64L80,64C160,64,320,64,480,101.3C640,139,800,213,960,229.3C1120,245,1280,203,1360,181.3L1440,160L1440,0L1360,0C1280,0,1120,0,960,0C800,0,640,0,480,0C320,0,160,0,80,0L0,0Z"></path>
                   </svg>
                 </div>
 
                 {/* SVG Footer Curve Background */}
                 <div className="absolute bottom-0 left-0 w-full h-32 z-0">
-                  <svg viewBox="0 0 1440 320" className="w-full h-full preserve-3d" preserveAspectRatio="none">
+                  <svg viewBox="0 0 1440 320" className="w-full h-full -scale-x-100" preserveAspectRatio="none">
                     <path fill={rxColor} fillOpacity="1" d="M0,192L80,197.3C160,203,320,213,480,202.7C640,192,800,160,960,170.7C1120,181,1280,235,1360,261.3L1440,288L1440,320L1360,320C1280,320,1120,320,960,320C800,320,640,320,480,320C320,320,160,320,80,320L0,320Z"></path>
                   </svg>
                 </div>
@@ -536,17 +536,17 @@ Brufen 400"
                 </div>
 
                 {/* Footer Content */}
-                <div className="relative z-10 w-full text-center text-white pb-6 pt-16 px-8 mt-auto flex justify-between items-end">
-                  <div className="text-xs opacity-50 text-right w-24">
+                <div className="relative z-10 w-full pb-6 pt-16 px-8 mt-auto flex justify-between items-end">
+                  <div className="text-xs text-white/70 text-right w-24">
                     {chunkedDrugs.length > 1 && (
                       <span>صفحة {pageIndex + 1} / {chunkedDrugs.length}</span>
                     )}
                   </div>
-                  <div className="flex-1 font-bold text-sm tracking-wide px-4" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.2)' }}>
+                  <div className="flex-1 font-bold text-sm tracking-wide px-4 text-center text-white" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
                     {rxFooterText}
                   </div>
-                  <div className="text-xs opacity-50 text-left w-24">
-                    <span>Powerd by Almaher</span>
+                  <div className="text-xs text-white/70 text-left w-24">
+                    <span>Powered by Almaher</span>
                   </div>
                 </div>
 
