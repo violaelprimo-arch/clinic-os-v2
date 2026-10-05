@@ -57,6 +57,11 @@ export function PremiumLanding({ clinic, services }: { clinic: any, services: an
                   </Button>
                 </a>
               )}
+              <Link href={`/clinic/${clinic.slug}/patient/login`}>
+                <Button variant="outline" className="rounded-full font-bold text-primary border-primary/20 hover:bg-primary/5 shadow-sm h-11 px-6 hover:scale-105 transition-transform">
+                  بوابة المريض
+                </Button>
+              </Link>
               <Link href={`/clinic/${clinic.slug}/login`}>
                 <Button className="rounded-full shadow-lg shadow-primary/25 h-11 px-6 font-bold hover:scale-105 transition-transform">
                   دخول الطاقم
