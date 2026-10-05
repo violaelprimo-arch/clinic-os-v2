@@ -120,10 +120,8 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
           
           <div className="relative z-10">
             <Dialog>
-              <DialogTrigger asChild>
-                <Button className="bg-white text-primary hover:bg-slate-50 font-bold text-lg h-14 px-8 rounded-full shadow-xl hover:scale-105 transition-transform">
-                  <Plus className="w-5 h-5 ml-2" /> حجز كشف جديد
-                </Button>
+              <DialogTrigger className="inline-flex items-center justify-center bg-white text-primary hover:bg-slate-50 font-bold text-lg h-14 px-8 rounded-full shadow-xl hover:scale-105 transition-transform">
+                <Plus className="w-5 h-5 ml-2" /> حجز كشف جديد
               </DialogTrigger>
               <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden bg-transparent border-none shadow-none">
                 {clinic && services.length > 0 && (
