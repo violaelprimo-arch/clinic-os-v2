@@ -278,11 +278,9 @@ export default function DrugsManager({ params }: { params: Promise<{ slug: strin
                     <td className="p-4">
                       {drug.last_price_change ? (
                         <Dialog>
-                          <DialogTrigger asChild>
-                            <Button variant="ghost" className="h-8 px-2 text-xs font-bold text-amber-600 hover:text-amber-700 hover:bg-amber-50">
-                              <History className="w-3 h-3 ml-1" />
-                              {new Date(drug.last_price_change).toLocaleDateString('ar-EG')}
-                            </Button>
+                          <DialogTrigger className="inline-flex items-center justify-center rounded-md h-8 px-2 text-xs font-bold text-amber-600 hover:text-amber-700 hover:bg-amber-50 transition-colors">
+                            <History className="w-3 h-3 ml-1" />
+                            {new Date(drug.last_price_change).toLocaleDateString('ar-EG')}
                           </DialogTrigger>
                           <DialogContent>
                             <DialogHeader>
