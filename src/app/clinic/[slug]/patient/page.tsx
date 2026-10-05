@@ -43,12 +43,17 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
         // Fetch Clinic and Services for booking
         const cDoc = await getDoc(doc(db, 'clinics', parsed.clinic_id))
         if (cDoc.exists()) {
-          setClinic({ id: cDoc.id, ...cDoc.data() })
+          const cData = cDoc.data()
+          setClinic({ id: cDoc.id, ...cData })
+          
+          // Define fallback services if the clinic didn't set any yet
+          const clinicServices = cData.services || [
+            { id: '1', name: 'كشف عام', price: 250 },
+            { id: '2', name: 'استشارة', price: 100 },
+            { id: '3', name: 'كشف مستعجل', price: 400 }
+          ]
+          setServices(clinicServices)
         }
-
-        const srvQ = query(collection(db, 'services'), where('clinic_id', '==', parsed.clinic_id))
-        const srvSnap = await getDocs(srvQ)
-        setServices(srvSnap.docs.map(d => ({ id: d.id, ...d.data() })))
 
         // Fetch Appointments
         const apptsQ = query(
