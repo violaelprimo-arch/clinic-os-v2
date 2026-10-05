@@ -422,7 +422,7 @@ Brufen 400"
         {/* 3. Live Preview / Printable Area */}
         <div className="md:col-span-7 print:col-span-12 print:m-0 print:p-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
           {(() => {
-            const drugsPerPage = 6;
+            const drugsPerPage = 5;
             const chunkedDrugs = [];
             const activeDrugs = drugs.filter(d => d.name.trim() !== '' || drugs.length === 1);
             for (let i = 0; i < activeDrugs.length; i += drugsPerPage) {
@@ -463,21 +463,21 @@ Brufen 400"
 
                 <div className="relative z-10 flex-1 flex flex-col p-8 pt-12">
                   {/* Header Content */}
-                  <div className="flex justify-between items-start mb-8">
-                    {/* Logo */}
-                    <div className="w-32 h-32 rounded-full bg-white p-2 shadow-lg border-4 flex items-center justify-center overflow-hidden" style={{ borderColor: rxColor }}>
+                  <div className="flex justify-between items-start mb-12">
+                    {/* Doctor Details (Right) */}
+                    <div className="text-right text-white pt-2 z-10 w-2/3">
+                      <div className="text-sm font-bold opacity-90 mb-1">دكتور</div>
+                      <h1 className="text-4xl font-black mb-2">{rxDoctorName}</h1>
+                      <h2 className="text-lg font-bold opacity-90">{rxSpecialty}</h2>
+                    </div>
+
+                    {/* Logo (Left) */}
+                    <div className="w-32 h-32 rounded-full bg-white p-2 shadow-lg border-4 flex items-center justify-center overflow-hidden z-10" style={{ borderColor: rxColor }}>
                       {rxLogo ? (
                         <img src={rxLogo} alt="Logo" className="w-full h-full object-contain" />
                       ) : (
                         <Activity className="w-12 h-12" style={{ color: rxColor }} />
                       )}
-                    </div>
-
-                    {/* Doctor Details */}
-                    <div className="text-right text-white pt-2 pr-6">
-                      <div className="text-sm font-bold opacity-90 mb-1">دكتور</div>
-                      <h1 className="text-4xl font-black mb-2">{rxDoctorName}</h1>
-                      <h2 className="text-lg font-bold opacity-90">{rxSpecialty}</h2>
                     </div>
                   </div>
 
@@ -512,20 +512,20 @@ Brufen 400"
                   </div>
 
                   {/* Rx Symbol */}
-                  <div className="mb-6 flex">
-                    <div className={`text-6xl font-black ${caveat.className}`} style={{ color: rxColor }} dir="ltr">
+                  <div className="mb-6 flex" dir="ltr">
+                    <div className={`text-6xl font-black ${caveat.className}`} style={{ color: rxColor }}>
                       Rx:
                     </div>
                   </div>
 
-                  {/* Drugs List */}
-                  <div className="flex-1 px-8 space-y-8" dir="ltr">
+                  {/* Drugs List (Left to Right) */}
+                  <div className="flex-1 px-8 space-y-8 z-10 pb-32" dir="ltr">
                     {pageDrugs.map((drug, idx) => (
                       <div key={drug.id || idx} className="pl-6 border-l-4" style={{ borderColor: `${rxColor}30` }}>
                         <h3 className={`text-4xl font-bold text-slate-900 capitalize w-full tracking-wide ${caveat.className}`}>
                           {drug.name || '\u00A0'}
                         </h3>
-                        <div className="flex gap-4 text-slate-700 font-bold mt-2 text-lg" dir="rtl">
+                        <div className="flex gap-4 text-slate-700 font-bold mt-2 text-lg">
                           <span>{drug.dosage || ''}</span>
                           {drug.duration && <span className="text-slate-300">|</span>}
                           <span>{drug.duration || ''}</span>
