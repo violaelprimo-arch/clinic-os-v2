@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
@@ -20,12 +20,14 @@ export function BookingForm({
   clinic,
   services = [],
   defaultName = '',
-  defaultPhone = ''
+  defaultPhone = '',
+  preselectedServiceId = null
 }: {
   clinic: any
   services?: any[]
   defaultName?: string
   defaultPhone?: string
+  preselectedServiceId?: string | null
 }) {
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [name, setName] = useState(defaultName)
@@ -40,7 +42,15 @@ export function BookingForm({
     { id: '4', name: 'متابعة', price: 100, desc: 'متابعة لحالة كشف سابقة', duration: 'حوالي 10 دقائق' }
   ]
 
-  const [selectedServiceId, setSelectedServiceId] = useState<string>(availableServices[0]?.id || '1')
+  const [selectedServiceId, setSelectedServiceId] = useState<string>(
+    preselectedServiceId || availableServices[0]?.id || '1'
+  )
+
+  useEffect(() => {
+    if (preselectedServiceId) {
+      setSelectedServiceId(preselectedServiceId)
+    }
+  }, [preselectedServiceId])
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0])
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'instapay' | 'wallet'>('cash')
   const [transferNumber, setTransferNumber] = useState('')

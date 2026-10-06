@@ -1,15 +1,22 @@
 'use client'
 
-import { motion } from 'framer-motion'
+import { useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   Calendar, PhoneCall, Star, ShieldCheck, Clock,
   Activity, HeartPulse, MapPin, CheckCircle2, Award,
   Sparkles, ArrowLeft, Stethoscope, ChevronDown, UserCheck,
-  Navigation, ExternalLink, FileText, Phone, MessageCircle
+  Navigation, ExternalLink, FileText, Phone, MessageCircle,
+  Search, Loader2, AlertCircle, X, Check, ArrowRight
 } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
+import { db } from '@/lib/firebase'
+import { collection, query, where, getDocs } from 'firebase/firestore'
 import { BookingForm } from './BookingForm'
 import { AIChatWidget } from './AIChatWidget'
 import { ClinicLogo } from './ClinicLogo'
@@ -21,7 +28,14 @@ export function PremiumLanding({
   clinic: any
   services: any[]
 }) {
+  const router = useRouter()
   const primaryColor = clinic?.primaryColor || '#15B8A6'
+
+  const [trackModalOpen, setTrackModalOpen] = useState(false)
+  const [trackPhone, setTrackPhone] = useState('')
+  const [isSearchingQueue, setIsSearchingQueue] = useState(false)
+  const [searchError, setSearchError] = useState('')
+  const [preselectedServiceId, setPreselectedServiceId] = useState<string | null>(null)
 
   const defaultServices = services.length > 0 ? services : [
     { id: '1', name: 'كشف عادي', price: 250, desc: 'كشف طبي شامل مع تشخيص دقيق', duration: 'حوالي 15 دقيقة' },
@@ -32,6 +46,47 @@ export function PremiumLanding({
 
   const scrollToBooking = () => {
     document.getElementById('booking')?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  const handleSelectService = (serviceId: string) => {
+    setPreselectedServiceId(serviceId)
+    scrollToBooking()
+  }
+
+  const handleTrackQueueSearch = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!trackPhone.trim()) {
+      toast.error('يرجى إدخال رقم الهاتف المسجل بالحجز')
+      return
+    }
+
+    setIsSearchingQueue(true)
+    setSearchError('')
+
+    try {
+      const q = query(
+        collection(db, 'appointments'),
+        where('clinic_id', '==', clinic?.id || clinic?.slug),
+        where('phone', '==', trackPhone.trim())
+      )
+      const snap = await getDocs(q)
+      if (snap.empty) {
+        setSearchError('لم يتم العثور على حجز نشط بهذا الرقم في العيادة اليوم.')
+      } else {
+        const sorted = snap.docs
+          .map(d => ({ id: d.id, ...d.data() } as any))
+          .sort((a, b) => new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime())
+        const targetAppt = sorted.find(a => a.status === 'waiting' || a.status === 'in_progress') || sorted[0]
+        toast.success(`تم العثور على حجزك (دور رقم ${targetAppt.queue_number || '1'})`)
+        setTrackModalOpen(false)
+        router.push(`/clinic/${clinic?.slug}/track/${targetAppt.id}`)
+      }
+    } catch (err) {
+      console.error(err)
+      toast.error('حدث خطأ أثناء الاستعلام، يرجى المحاولة ثانيةً')
+    } finally {
+      setIsSearchingQueue(false)
+    }
   }
 
   return (
@@ -105,12 +160,17 @@ export function PremiumLanding({
         </div>
       </nav>
 
-      {/* 2. DOCTOR HERO SECTION (Matching Top Right Screen in Mockup) */}
+      {/* 2. DOCTOR HERO SECTION */}
       <section className="pt-28 pb-12 sm:pt-36 sm:pb-16 relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
-          {/* Main Hero Card Container */}
-          <div className="medical-card bg-gradient-to-br from-[#0B1F33] via-[#0F2840] to-[#0B1F33] text-white rounded-3xl p-6 sm:p-12 relative overflow-hidden shadow-2xl">
+          {/* Main Hero Card Container with Smooth Entrance */}
+          <motion.div
+            initial={{ opacity: 0, y: 25 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+            className="medical-card bg-gradient-to-br from-[#0B1F33] via-[#0F2840] to-[#0B1F33] text-white rounded-3xl p-6 sm:p-12 relative overflow-hidden shadow-2xl border border-white/10"
+          >
             {/* Ambient Background Glows */}
             <div className="absolute top-0 right-0 w-96 h-96 bg-[#15B8A6]/20 rounded-full blur-3xl pointer-events-none"></div>
             <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#2F80ED]/20 rounded-full blur-3xl pointer-events-none"></div>
@@ -121,83 +181,136 @@ export function PremiumLanding({
               <div className="lg:col-span-7 space-y-6 text-right">
                 
                 {/* Live Availability Badge */}
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold">
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold"
+                >
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                   العيادة متاحة للحجز واستقبال المرضى اليوم
-                </div>
+                </motion.div>
 
                 <div className="space-y-2">
-                  <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight">
+                  <motion.h1
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight"
+                  >
                     {clinic?.doctorName ? `د. ${clinic.doctorName}` : 'د. محمد علي'}
-                  </h1>
-                  <p className="text-base sm:text-lg text-teal-300 font-bold">
+                  </motion.h1>
+                  <motion.p
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="text-base sm:text-lg text-teal-300 font-bold"
+                  >
                     {clinic?.specialty || 'استشاري الطب المتخصص وعلاج الحالات المتقدمة'}
-                  </p>
+                  </motion.p>
                 </div>
 
-                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-xl">
+                <motion.p
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-xl"
+                >
                   {clinic?.heroSubtitle ||
                     'نقدم لك ولأسرتك رعاية طبية متكاملة بأحدث المعايير السريرية مع نظام إلكتروني ذكي لتنظيم الأدوار ومتابعة حالتك بدون انتظار طويل.'}
-                </p>
+                </motion.p>
 
                 {/* Rating & Patients stats */}
-                <div className="flex flex-wrap items-center gap-4 pt-1">
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 backdrop-blur-xs text-xs font-bold text-amber-300 border border-white/10">
+                <motion.div
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.6 }}
+                  className="flex flex-wrap items-center gap-4 pt-1"
+                >
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 backdrop-blur-xs text-xs font-bold text-amber-300 border border-white/10 shadow-xs">
                     <Star className="w-4 h-4 fill-amber-300 text-amber-300" />
-                    <span>4.9 (140 تقييم موثق)</span>
+                    <span>{clinic?.badge2Value ? `${clinic.badge2Value} (تقييم موثق)` : '4.9 (140 تقييم موثق)'}</span>
                   </div>
 
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
                     <UserCheck className="w-4 h-4 text-[#15B8A6]" />
-                    <span>+1,200 حالة تم علاجها</span>
+                    <span>{clinic?.badge1Value || '+1,200 حالة تم علاجها'}</span>
                   </div>
-                </div>
+                </motion.div>
 
-                {/* Action CTA Buttons matching Mockup */}
-                <div className="flex flex-wrap gap-3 pt-3">
-                  <Button
+                {/* Action CTA Buttons */}
+                <motion.div
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.7 }}
+                  className="flex flex-wrap items-center gap-3 pt-3"
+                >
+                  {/* Button 1: Book Appointment */}
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.04, y: -2 }}
+                    whileTap={{ scale: 0.96 }}
                     onClick={scrollToBooking}
-                    className="h-12 px-8 text-sm font-black bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-lg shadow-[#15B8A6]/30 transition-all cursor-pointer"
+                    className="h-12 px-7 text-xs sm:text-sm font-black bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-lg shadow-[#15B8A6]/35 flex items-center gap-2 cursor-pointer transition-all"
                   >
-                    <Calendar className="w-4 h-4 ml-2" />
+                    <Calendar className="w-4 h-4 ml-1 text-white" />
                     احجز موعدك الآن
-                  </Button>
+                  </motion.button>
 
-                  <Button
-                    variant="outline"
-                    onClick={scrollToBooking}
-                    className="h-12 px-6 text-xs font-bold border-white/20 text-white hover:bg-white/10 rounded-xl"
+                  {/* Button 2: Track Queue (High contrast, pure white background with dark navy text) */}
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.04, y: -2 }}
+                    whileTap={{ scale: 0.96 }}
+                    onClick={() => {
+                      setSearchError('')
+                      setTrackModalOpen(true)
+                    }}
+                    className="h-12 px-6 text-xs sm:text-sm font-black bg-white hover:bg-slate-100 text-[#0B1F33] rounded-xl shadow-md shadow-black/15 flex items-center gap-2 cursor-pointer transition-all border border-white"
                   >
+                    <Clock className="w-4 h-4 ml-1 text-[#15B8A6]" />
                     تتبع دورك مباشرة
-                  </Button>
+                  </motion.button>
 
+                  {/* Button 3: Patient Portal */}
                   <Link href={`/clinic/${clinic?.slug}/patient/login`}>
-                    <Button
-                      variant="outline"
-                      className="h-12 px-6 text-xs font-bold bg-white/10 border-teal-400/40 text-teal-200 hover:bg-white/20 rounded-xl"
+                    <motion.button
+                      type="button"
+                      whileHover={{ scale: 1.04, y: -2 }}
+                      whileTap={{ scale: 0.96 }}
+                      className="h-12 px-6 text-xs sm:text-sm font-bold bg-[#132B45] hover:bg-[#1a385a] text-teal-200 border border-teal-500/40 rounded-xl shadow-sm flex items-center gap-2 cursor-pointer transition-all"
                     >
-                      <UserCheck className="w-4 h-4 ml-2 text-[#15B8A6]" />
+                      <UserCheck className="w-4 h-4 ml-1 text-[#15B8A6]" />
                       بوابة المريض (كشوفاتك السابقة)
-                    </Button>
+                    </motion.button>
                   </Link>
-                </div>
+                </motion.div>
               </div>
 
               {/* Doctor Visual / Avatar Card (Left side in RTL) */}
               <div className="lg:col-span-5 flex justify-center">
-                <div className="relative w-64 h-80 sm:w-72 sm:h-96 rounded-3xl overflow-hidden shadow-2xl border-4 border-white/20">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.8, delay: 0.2 }}
+                  className="relative w-64 h-80 sm:w-72 sm:h-96 rounded-3xl overflow-hidden shadow-2xl border-4 border-white/20 group"
+                >
                   <img
                     src={
                       clinic?.heroImage ||
                       'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=1000&auto=format&fit=crop'
                     }
                     alt="Doctor"
-                    className="w-full h-full object-cover object-top"
+                    className="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0B1F33]/80 via-transparent to-transparent"></div>
                   
                   {/* Floating Verified Badge */}
-                  <div className="absolute bottom-4 inset-x-4 p-3 rounded-2xl bg-white/95 backdrop-blur-md text-[#182230] flex items-center gap-3 shadow-lg">
+                  <motion.div
+                    animate={{ y: [0, -4, 0] }}
+                    transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
+                    className="absolute bottom-4 inset-x-4 p-3 rounded-2xl bg-white/95 backdrop-blur-md text-[#182230] flex items-center gap-3 shadow-xl"
+                  >
                     <div className="w-9 h-9 rounded-xl bg-teal-50 text-[#15B8A6] flex items-center justify-center shrink-0">
                       <ShieldCheck className="w-5 h-5" />
                     </div>
@@ -205,12 +318,12 @@ export function PremiumLanding({
                       <p className="text-xs font-black">طبيب معتمد رسمياً</p>
                       <p className="text-[10px] text-slate-500 font-semibold">نقابة الأطباء المصرية</p>
                     </div>
-                  </div>
-                </div>
+                  </motion.div>
+                </motion.div>
               </div>
 
             </div>
-          </div>
+          </motion.div>
 
           {/* 3. Feature Highlights Pills Row (Matching Mockup) */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-6">
@@ -284,8 +397,8 @@ export function PremiumLanding({
 
                   <Button
                     size="sm"
-                    onClick={scrollToBooking}
-                    className="h-9 px-4 text-xs font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-xs"
+                    onClick={() => handleSelectService(service.id)}
+                    className="h-9 px-4 text-xs font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-xs cursor-pointer transition-all hover:scale-105 active:scale-95"
                   >
                     احجز الآن
                   </Button>
@@ -308,7 +421,11 @@ export function PremiumLanding({
             </p>
           </div>
 
-          <BookingForm clinic={clinic} services={defaultServices} />
+          <BookingForm
+            clinic={clinic}
+            services={defaultServices}
+            preselectedServiceId={preselectedServiceId}
+          />
         </div>
       </section>
 
@@ -518,6 +635,17 @@ export function PremiumLanding({
                   </button>
                 </li>
                 <li>
+                  <button
+                    onClick={() => {
+                      setSearchError('')
+                      setTrackModalOpen(true)
+                    }}
+                    className="hover:text-[#15B8A6] cursor-pointer"
+                  >
+                    تتبع دورك في الطابور المباشر
+                  </button>
+                </li>
+                <li>
                   <Link href={`/clinic/${clinic?.slug}/patient/login`} className="hover:text-[#15B8A6]">
                     بوابة المريض الإلكترونية
                   </Link>
@@ -574,6 +702,121 @@ export function PremiumLanding({
 
       {/* 8. FLOATING AI ASSISTANT WIDGET */}
       <AIChatWidget clinic={clinic} />
+
+      {/* 9. LIVE QUEUE TRACKER MODAL */}
+      <AnimatePresence>
+        {trackModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" dir="rtl">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              transition={{ duration: 0.25 }}
+              className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-[#E5EAF0] space-y-6 relative overflow-hidden"
+            >
+              {/* Top Close Button */}
+              <button
+                type="button"
+                onClick={() => setTrackModalOpen(false)}
+                className="absolute top-5 left-5 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center cursor-pointer transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              {/* Modal Header */}
+              <div className="text-right space-y-1.5 pt-1">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-50 text-[#15B8A6] text-xs font-bold border border-teal-100">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>طابور العيادة المباشر</span>
+                </div>
+                <h3 className="text-xl font-black text-[#182230]">استعلام وتتبع دورك في الكشف</h3>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  أدخل رقم الهاتف الذي قمت بالحجز به في {clinic?.clinicName || 'العيادة'} لمعرفة دورك اللحظي والوقت المتبقي لدخولك.
+                </p>
+              </div>
+
+              {/* Search Form */}
+              <form onSubmit={handleTrackQueueSearch} className="space-y-4">
+                <div className="space-y-1.5 text-right">
+                  <label className="text-xs font-bold text-slate-700">رقم الهاتف المسجل في الحجز</label>
+                  <div className="relative">
+                    <Input
+                      type="tel"
+                      value={trackPhone}
+                      onChange={e => {
+                        setTrackPhone(e.target.value)
+                        setSearchError('')
+                      }}
+                      placeholder="01012345678"
+                      className="h-12 text-sm font-mono text-center rounded-xl bg-slate-50 border-[#E5EAF0] focus:bg-white pr-10"
+                      dir="ltr"
+                      autoFocus
+                    />
+                    <Phone className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+                  </div>
+                </div>
+
+                {searchError && (
+                  <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold space-y-2">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                      <span>{searchError}</span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setTrackModalOpen(false)
+                        scrollToBooking()
+                      }}
+                      className="w-full h-8 text-xs font-bold border-rose-300 text-rose-700 hover:bg-rose-100/60 rounded-lg cursor-pointer"
+                    >
+                      <Calendar className="w-3.5 h-3.5 ml-1" />
+                      احجز كشفاً الآن
+                    </Button>
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    type="submit"
+                    disabled={isSearchingQueue || !trackPhone.trim()}
+                    className="w-full h-12 font-black text-xs bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-md shadow-[#15B8A6]/20 cursor-pointer"
+                  >
+                    {isSearchingQueue ? (
+                      <>
+                        <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+                        جاري البحث عن الحجز...
+                      </>
+                    ) : (
+                      <>
+                        <Search className="w-4 h-4 ml-1.5" />
+                        عرض موقعي في الطابور
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </form>
+
+              {/* Bottom Quick Help */}
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                <span className="text-[11px]">ليس لديك حجز مسبق؟</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTrackModalOpen(false)
+                    scrollToBooking()
+                  }}
+                  className="text-xs font-bold text-[#15B8A6] hover:underline cursor-pointer"
+                >
+                  احجز كشفك الآن
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
