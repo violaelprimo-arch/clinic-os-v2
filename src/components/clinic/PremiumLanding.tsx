@@ -535,33 +535,37 @@ export function PremiumLanding({
               </ul>
             </div>
 
-            {/* Col 3: Platform Support & Owner Contact */}
+            {/* Col 3: Clinic Direct Contact & Working Hours */}
             <div className="space-y-2.5">
-              <h4 className="font-bold text-xs text-[#182230]">الدعم الفني والمنصة</h4>
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5">
-                <span className="text-[11px] font-bold text-slate-500 block">للدعم الفني وتجديد الاشتراك:</span>
-                <a
-                  href="https://wa.me/201551007018"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-mono text-xs font-black text-[#15B8A6] hover:underline flex items-center gap-1.5"
-                >
-                  <Phone className="w-3.5 h-3.5" />
-                  <span>01551007018</span>
-                </a>
-                <span className="text-[10px] text-slate-400 block">متاح طوال أيام الأسبوع</span>
+              <h4 className="font-bold text-xs text-[#182230]">مواعيد العمل والتواصل</h4>
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
+                <div className="space-y-0.5">
+                  <span className="text-[11px] font-bold text-slate-500 block">هاتف العيادة والحجز:</span>
+                  <span className="font-mono text-xs font-black text-[#15B8A6] block" dir="ltr">
+                    {clinic?.clinicPhone || '01012345678'}
+                  </span>
+                </div>
+                <div className="pt-1.5 border-t border-slate-200/60">
+                  <span className="text-[10px] text-slate-400 block">
+                    السبت إلى الخميس: 2:00 م — 10:00 م
+                  </span>
+                </div>
               </div>
             </div>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400 font-medium">
             <div>
-              جميع الحقوق محفوظة © {new Date().getFullYear()} Clinic OS — نظام تشغيل العيادات الذكي
+              جميع الحقوق محفوظة © {new Date().getFullYear()} {clinic?.clinicName || 'العيادة الطبية'}
             </div>
-            <div className="flex items-center gap-4">
-              <Link href="/owner" className="hover:text-slate-600">لوحة مالك المنصة</Link>
+            <div className="flex items-center gap-3">
+              <Link href={`/clinic/${clinic?.slug}/login`} className="hover:text-slate-600">
+                دخول الكادر الطبي
+              </Link>
               <span>•</span>
-              <a href="tel:01551007018" className="hover:text-[#15B8A6]">تواصل مع المالك: 01551007018</a>
+              <Link href={`/clinic/${clinic?.slug}/patient/login`} className="hover:text-[#15B8A6]">
+                بوابة المريض
+              </Link>
             </div>
           </div>
 
