@@ -43,7 +43,7 @@ export default function Home() {
               نظام تشغيل العيادات الذكي
             </h1>
             <p className="text-base sm:text-xl text-slate-500 max-w-2xl mx-auto leading-relaxed font-medium">
-              منصة سحابية متكاملة لإدارة كشوفات المرضى، الطابور اللحظي، الروشتات الإلكترونية، والحسابات المالية بدقة وسرعة فائقة.
+              منصة سحابية متكاملة لإدارة كشوفات المرضى، الدور اللحظي، الروشتات الإلكترونية، والحسابات المالية بدقة وسرعة فائقة.
             </p>
           </div>
 
@@ -69,7 +69,7 @@ export default function Home() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 pt-8">
           {[
             { icon: Users, title: 'ملفات المرضى', desc: 'سجل طبي موحد' },
-            { icon: Calendar, title: 'تنظيم الدور', desc: 'طابور لحظي ذكي' },
+            { icon: Calendar, title: 'تنظيم الدور', desc: 'دور لحظي ذكي' },
             { icon: Stethoscope, title: 'إدارة سهلة', desc: 'واجهة سريعة وبسيطة' },
             { icon: FileSignature, title: 'روشتات احترافية', desc: 'طباعة فورية A4' },
             { icon: TrendingUp, title: 'تقارير دقيقة', desc: 'إيرادات وتحليلات' },

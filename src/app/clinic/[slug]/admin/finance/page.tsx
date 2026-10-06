@@ -271,7 +271,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
               {[
                 { name: 'كاش بالعيادة', pct: 64, color: 'bg-emerald-500' },
                 { name: 'InstaPay', pct: 27, color: 'bg-purple-500' },
-                { name: 'محفظة إلكترونية (فودافون كاش)', pct: 9, color: 'bg-blue-500' }
+                { name: 'محفظة إلكترونية (محفظة إلكترونية)', pct: 9, color: 'bg-blue-500' }
               ].map((p, idx) => (
                 <div key={idx} className="space-y-1">
                   <div className="flex justify-between text-xs font-bold text-slate-700">

@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import {
   Search, UserPlus, Phone, Calendar, Clock, MessageCircle,
   FileText, ChevronLeft, ChevronRight, Filter, User, Plus,
-  FileSignature, ArrowUpDown, MoreVertical, X
+  FileSignature, ArrowUpDown, MoreVertical, X, Trash2
 } from 'lucide-react'
 import Link from 'next/link'
 import { db } from '@/lib/firebase'
@@ -158,6 +158,24 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
       toast.error('حدث خطأ أثناء إضافة المريض')
     } finally {
       setIsAdding(false)
+    }
+  }
+
+  const handleDeletePatient = async (phone: string, name: string) => {
+    if (!confirm(`هل أنت متأكد من حذف المريض ${name} وجميع زياراته؟`)) return
+    try {
+      if (clinicId) {
+        const { deleteDoc, doc } = await import('firebase/firestore')
+        const q = query(collection(db, 'appointments'), where('clinic_id', '==', clinicId), where('phone', '==', phone))
+        const snap = await getDocs(q)
+        for (const document of snap.docs) {
+          await deleteDoc(doc(db, 'appointments', document.id))
+        }
+      }
+      setPatients(prev => prev.filter(p => p.phone !== phone))
+      toast.success('تم حذف المريض بنجاح')
+    } catch (err) {
+      toast.error('حدث خطأ أثناء الحذف')
     }
   }
 
@@ -401,6 +419,15 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                             title="مراسلة عبر واتساب"
                           >
                             <MessageCircle className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-rose-500 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-colors"
+                            onClick={() => handleDeletePatient(patient.phone, patient.name)}
+                            title="حذف المريض"
+                          >
+                            <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
                       </td>

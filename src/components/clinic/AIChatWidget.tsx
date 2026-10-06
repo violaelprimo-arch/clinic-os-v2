@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Bot, X, Send, User, Loader2, Sparkles } from 'lucide-react'
 
 export function AIChatWidget({ clinic }: { clinic: any }) {
-  if (clinic?.aiEnabled === false) return null
+  if (clinic?.aiEnabled === false || clinic?.aiLockedByOwner === true) return null
 
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState<{ role: 'user' | 'bot', text: string }[]>([

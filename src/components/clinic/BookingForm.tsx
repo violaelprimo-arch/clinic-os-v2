@@ -38,7 +38,7 @@ export function BookingForm({
   const availableServices = services.length > 0 ? services : [
     { id: '1', name: 'كشف عادي', price: 250, desc: 'كشف طبي عام شامل', duration: 'حوالي 15 دقيقة' },
     { id: '2', name: 'استشارة', price: 150, desc: 'استشارة ومتابعة سريعة', duration: 'حوالي 10 دقائق' },
-    { id: '3', name: 'كشف مستعجل', price: 400, desc: 'أولوية فورية في الطابور', duration: 'كشف فوري مباشر' },
+    { id: '3', name: 'كشف مستعجل', price: 400, desc: 'أولوية فورية في الدور', duration: 'كشف فوري مباشر' },
     { id: '4', name: 'متابعة', price: 100, desc: 'متابعة لحالة كشف سابقة', duration: 'حوالي 10 دقائق' }
   ]
 
@@ -443,7 +443,7 @@ export function BookingForm({
                 }`}
               >
                 <Wallet className="w-5 h-5 mx-auto mb-1" />
-                <span className="text-xs">فودافون كاش</span>
+                <span className="text-xs">محفظة إلكترونية</span>
               </button>
             </div>
           </div>

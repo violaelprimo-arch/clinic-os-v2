@@ -16,18 +16,35 @@ import { db } from '@/lib/firebase'
 import { collection, query, where, getDocs, updateDoc, doc, addDoc } from 'firebase/firestore'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { PremiumLanding } from '@/components/clinic/PremiumLanding'
+import { MessageCircle } from 'lucide-react'
 
 export default function ClinicSettings({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
 
   const [activeTab, setActiveTab] = useState<'profile' | 'queue' | 'services' | 'payment' | 'staff' | 'print' | 'ai'>('profile')
+  const [supportNumbers, setSupportNumbers] = useState<any[]>([])
 
   const [clinicId, setClinicId] = useState<string | null>(null)
   const [photoUrl, setPhotoUrl] = useState('')
   const [doctorName, setDoctorName] = useState('')
+  const [doctorTitle, setDoctorTitle] = useState('د.')
   const [clinicName, setClinicName] = useState('')
   const [specialty, setSpecialty] = useState('')
+  const [heroSubtitle, setHeroSubtitle] = useState('')
+  const [certificationTitle, setCertificationTitle] = useState('')
+  const [certificationEntity, setCertificationEntity] = useState('')
+  
+  useEffect(() => {
+    const fetchSupport = async () => {
+      const snap = await getDocs(query(collection(db, 'platformSettings')));
+      if (!snap.empty) {
+        setSupportNumbers(snap.docs[0].data().supportNumbers || []);
+      }
+    }
+    fetchSupport();
+  }, [])
   const [primaryColor, setPrimaryColor] = useState('#15B8A6')
   const [averageVisitTime, setAverageVisitTime] = useState<number>(15)
 
@@ -68,6 +85,8 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
 
+  const [aiLockedByOwner, setAiLockedByOwner] = useState(false)
+
   useEffect(() => {
     const fetchSettings = async () => {
       try {
@@ -78,18 +97,23 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           setClinicId(cDoc.id)
           const data = cDoc.data()
           setPhotoUrl(data.heroImage || '')
-          setClinicName(data.clinicName || 'عيادة الأمل التخصصية')
-          setDoctorName(data.doctorName || 'د. محمد علي')
-          setSpecialty(data.specialty || 'استشاري الطب الباطني والجهاز الهضمي')
+          setClinicName(data.clinicName || '')
+          setDoctorName(data.doctorName || '')
+          setDoctorTitle(data.doctorTitle || 'د.')
+          setSpecialty(data.specialty || '')
+          setHeroSubtitle(data.heroSubtitle || '')
+          setCertificationTitle(data.certificationTitle || '')
+          setCertificationEntity(data.certificationEntity || '')
           setPrimaryColor(data.primaryColor || '#15B8A6')
           setAssistantPermissions(data.assistantPermissions || ['appointments'])
           setAverageVisitTime(data.averageVisitTime || 15)
-          setAddress(data.clinicAddress || 'شارع التسعين الشمالي، التجمع الخامس، القاهرة')
+          setAddress(data.clinicAddress || '')
           setDoctorPhone(data.doctorPhone || '')
-          setClinicPhone(data.clinicPhone || (data.clinicPhones?.[0] || '01012345678'))
+          setClinicPhone(data.clinicPhone || (data.clinicPhones?.[0] || ''))
           setMapsLink(data.mapsLink || '')
-          setPhones(data.clinicPhones?.length ? data.clinicPhones : [data.clinicPhone || '01012345678'])
+          setPhones(data.clinicPhones?.length ? data.clinicPhones : [data.clinicPhone || ''])
           setAiEnabled(data.aiEnabled !== false)
+          setAiLockedByOwner(data.aiLockedByOwner === true)
           setAiInstructions(data.aiInstructions || aiInstructions)
           setOnlinePaymentEnabled(data.onlinePaymentEnabled || false)
           setWalletNumber(data.walletNumber || '')
@@ -111,28 +135,34 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const handleSave = async () => {
     setIsSaving(true)
     try {
-      const payload = {
-        clinicName,
-        doctorName,
-        specialty,
-        heroImage: photoUrl,
-        services,
-        primaryColor,
-        assistantPermissions,
-        averageVisitTime: Number(averageVisitTime),
-        clinicAddress: address,
-        clinicPhone,
-        doctorPhone,
-        mapsLink,
-        clinicPhones: clinicPhone ? [clinicPhone] : phones.filter(p => p.trim() !== ''),
-        aiEnabled: Boolean(aiEnabled),
-        aiInstructions,
-        onlinePaymentEnabled,
-        walletNumber,
-        instapayHandle,
-        assistants,
+      const rawPayload = {
+        clinicName: clinicName || '',
+        doctorName: doctorName || '',
+        doctorTitle: doctorTitle || 'د.',
+        specialty: specialty || '',
+        heroSubtitle: heroSubtitle || '',
+        certificationTitle: certificationTitle || '',
+        certificationEntity: certificationEntity || '',
+        services: services || [],
+        primaryColor: primaryColor || '#15B8A6',
+        assistantPermissions: assistantPermissions || [],
+        averageVisitTime: Number(averageVisitTime) || 15,
+        clinicAddress: address || '',
+        clinicPhone: phones[0] || '',
+        doctorPhone: doctorPhone || '',
+        mapsLink: mapsLink || '',
+        clinicPhones: phones.filter(p => typeof p === 'string' && p.trim() !== ''),
+        onlinePaymentEnabled: Boolean(onlinePaymentEnabled),
+        walletNumber: walletNumber || '',
+        instapayHandle: instapayHandle || '',
+        assistants: assistants || [],
         updatedAt: new Date().toISOString()
       }
+
+      // Remove undefined values to prevent Firebase error
+      const payload = Object.fromEntries(
+        Object.entries(rawPayload).filter(([_, v]) => v !== undefined)
+      )
 
       if (!clinicId) {
         const docRef = await addDoc(collection(db, 'clinics'), {
@@ -146,9 +176,9 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         await updateDoc(doc(db, 'clinics', clinicId), payload)
       }
       toast.success('تم حفظ كافة إعدادات العيادة بنجاح وتطبيقها فورياً')
-    } catch (err) {
-      console.error(err)
-      toast.error('حدث خطأ أثناء الحفظ')
+    } catch (err: any) {
+      console.error('Save Error:', err)
+      toast.error('حدث خطأ أثناء الحفظ: ' + (err.message || ''))
     } finally {
       setIsSaving(false)
     }
@@ -199,15 +229,17 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
     }
   }
 
-  const tabs = [
+  const baseTabs = [
     { id: 'profile', label: 'الهوية والبيانات', icon: Building2 },
-    { id: 'queue', label: 'المواعيد والطابور', icon: Clock },
+    { id: 'queue', label: 'المواعيد والدور', icon: Clock },
     { id: 'services', label: 'الخدمات والأسعار', icon: ShieldCheck },
     { id: 'payment', label: 'طرق الدفع', icon: Wallet },
-    { id: 'staff', label: 'المساعدين والصلاحيات', icon: Users },
-    { id: 'print', label: 'الروشتة والطباعة', icon: Printer },
-    { id: 'ai', label: 'المساعد الذكي (AI Chatbot)', icon: Bot },
+    { id: 'staff', label: 'المساعدين والصلاحيات', icon: Users }
   ]
+  
+  const tabs = aiLockedByOwner 
+    ? baseTabs 
+    : [...baseTabs, { id: 'ai', label: 'المساعد الذكي (AI Chatbot)', icon: Bot }]
 
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto" dir="rtl">
@@ -260,37 +292,13 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       
       {/* TAB 1: Profile & Visual Identity */}
       {activeTab === 'profile' && (
-        <div className="grid md:grid-cols-12 gap-6">
-          <div className="md:col-span-4 medical-card p-6 flex flex-col items-center space-y-5 text-center">
-            <Avatar className="w-32 h-32 border-4 border-teal-50 shadow-md">
-              <AvatarImage src={photoUrl} alt="Doctor" className="object-cover" />
-              <AvatarFallback className="text-3xl font-black bg-teal-50 text-[#15B8A6]">ط</AvatarFallback>
-            </Avatar>
-            <div className="w-full space-y-1.5 text-right">
-              <Label className="text-xs font-bold text-slate-600">رابط صورة الطبيب (URL)</Label>
-              <Input
-                value={photoUrl}
-                onChange={e => setPhotoUrl(e.target.value)}
-                placeholder="https://..."
-                className="h-10 text-xs rounded-xl font-mono text-left"
-                dir="ltr"
-              />
+        <div className="grid lg:grid-cols-2 gap-6">
+          {/* Form Side */}
+          <div className="medical-card p-6 space-y-5">
+            <div className="pb-3 border-b border-[#E5EAF0]">
+              <h3 className="font-bold text-sm text-[#182230]">البيانات العامة للعيادة</h3>
             </div>
-            <div className="w-full space-y-1.5 text-right">
-              <Label className="text-xs font-bold text-slate-600">اللون الرئيسي للنظام</Label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="color"
-                  value={primaryColor}
-                  onChange={e => setPrimaryColor(e.target.value)}
-                  className="w-10 h-10 rounded-xl cursor-pointer border border-[#E5EAF0] p-1 bg-white"
-                />
-                <span className="font-mono text-xs text-slate-600 font-bold">{primaryColor}</span>
-              </div>
-            </div>
-          </div>
 
-          <div className="md:col-span-8 medical-card p-6 space-y-4">
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-slate-600">اسم العيادة</Label>
               <Input
@@ -302,15 +310,31 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
             </div>
 
             <div className="grid sm:grid-cols-2 gap-4">
+              
               <div className="space-y-1.5">
                 <Label className="text-xs font-bold text-slate-600">اسم الطبيب المعالج</Label>
-                <Input
-                  value={doctorName}
-                  onChange={e => setDoctorName(e.target.value)}
-                  placeholder="د. محمد علي"
-                  className="h-10 text-xs rounded-xl"
-                />
+                <div className="flex gap-2">
+                  <select
+                    value={doctorTitle}
+                    onChange={e => setDoctorTitle(e.target.value)}
+                    className="h-10 text-xs rounded-xl border border-slate-200 px-2 bg-slate-50 w-24"
+                  >
+                    <option value="د.">د.</option>
+                    <option value="أ.د.">أ.د.</option>
+                    <option value="دكتورة">دكتورة</option>
+                    <option value="استشاري">استشاري</option>
+                    <option value="طبيب">طبيب</option>
+                    <option value="">بدون لقب</option>
+                  </select>
+                  <Input
+                    value={doctorName}
+                    onChange={e => setDoctorName(e.target.value)}
+                    placeholder="محمد علي"
+                    className="h-10 text-xs rounded-xl flex-1"
+                  />
+                </div>
               </div>
+
 
               <div className="space-y-1.5">
                 <Label className="text-xs font-bold text-slate-600">التخصص والمسمى</Label>
@@ -324,6 +348,54 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
             </div>
 
             <div className="space-y-1.5">
+              
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600">اللقب / الاعتماد (يظهر على صورة الطبيب)</Label>
+                <Input
+                  value={certificationTitle}
+                  onChange={e => setCertificationTitle(e.target.value)}
+                  placeholder="طبيب معتمد رسمياً"
+                  className="h-10 text-xs rounded-xl"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600">الجهة المانحة (النقابة / الزمالة)</Label>
+                <Input
+                  value={certificationEntity}
+                  onChange={e => setCertificationEntity(e.target.value)}
+                  placeholder="نقابة الأطباء المصرية"
+                  className="h-10 text-xs rounded-xl"
+                />
+              </div>
+            </div>
+
+            <Label className="text-xs font-bold text-slate-600">نبذة تعريفية (تظهر للمرضى)</Label>
+              <Textarea
+                value={heroSubtitle}
+                onChange={e => setHeroSubtitle(e.target.value)}
+                placeholder="نقدم لك ولأسرتك رعاية طبية متكاملة..."
+                className="text-xs rounded-xl h-24"
+              />
+            </div>
+
+            
+            <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600">اللون الرئيسي للنظام</Label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={primaryColor}
+                    onChange={e => setPrimaryColor(e.target.value)}
+                    className="w-10 h-10 rounded-xl cursor-pointer border-0 p-0"
+                  />
+                  <span className="font-mono text-sm text-slate-600">{primaryColor}</span>
+                </div>
+              </div>
+
+
+            <div className="space-y-1.5 pt-2">
               <Label className="text-xs font-bold text-slate-600">عنوان العيادة التفصيلي</Label>
               <Input
                 value={address}
@@ -334,43 +406,94 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
             </div>
 
             <div className="grid sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-600">رقم هاتف العيادة (للحجز والواتساب والروشتة)</Label>
-                <Input
-                  value={clinicPhone}
-                  onChange={e => setClinicPhone(e.target.value)}
-                  placeholder="01012345678"
-                  className="h-10 text-xs rounded-xl font-mono text-right"
-                  dir="ltr"
-                />
+              <div className="space-y-1.5 col-span-2">
+                <Label className="text-xs font-bold text-slate-600">أرقام هواتف العيادة (للحجز والواتساب)</Label>
+                <div className="space-y-2">
+                  {phones.map((p, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <Input
+                        value={p}
+                        onChange={e => {
+                          const newPhones = [...phones]
+                          newPhones[idx] = e.target.value
+                          setPhones(newPhones)
+                        }}
+                        placeholder="01012345678"
+                        className="h-10 text-xs rounded-xl font-mono text-right"
+                        dir="ltr"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setPhones(phones.filter((_, i) => i !== idx))}
+                        className="text-rose-500 hover:text-rose-600 hover:bg-rose-50"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    variant="outline"
+                    onClick={() => setPhones([...phones, ''])}
+                    className="w-full border-dashed h-10 text-xs font-bold text-[#15B8A6] border-teal-200 hover:bg-teal-50"
+                  >
+                    <Plus className="w-4 h-4 ml-2" /> إضافة رقم آخر
+                  </Button>
+                </div>
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-600">رقم هاتف الطبيب (اتصال مباشر)</Label>
+              <div className="space-y-1.5 col-span-2">
+                <Label className="text-xs font-bold text-slate-600">رابط موقع العيادة (Google Maps)</Label>
                 <Input
-                  value={doctorPhone}
-                  onChange={e => setDoctorPhone(e.target.value)}
-                  placeholder="01112345678"
+                  value={mapsLink}
+                  onChange={e => setMapsLink(e.target.value)}
+                  placeholder="https://maps.google.com/..."
                   className="h-10 text-xs rounded-xl font-mono text-right"
                   dir="ltr"
                 />
               </div>
             </div>
+          </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-slate-600">رابط موقع العيادة (Google Maps)</Label>
-              <Input
-                value={mapsLink}
-                onChange={e => setMapsLink(e.target.value)}
-                placeholder="https://maps.google.com/..."
-                className="h-10 text-xs rounded-xl font-mono text-right"
-                dir="ltr"
-              />
+          {/* Preview Side */}
+          <div className="medical-card overflow-hidden bg-slate-50 relative flex flex-col hidden lg:flex border-4 border-slate-100">
+            <div className="p-3 border-b border-slate-200 bg-white flex items-center justify-between shadow-sm z-10">
+              <h3 className="font-bold text-sm text-[#182230] flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-500" />
+                معاينة حية لصفحة المريض
+              </h3>
+              <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full font-bold">
+                Live Preview
+              </span>
+            </div>
+            
+            <div className="flex-1 relative overflow-y-auto overflow-x-hidden no-scrollbar bg-white">
+              <div className="absolute inset-0 origin-top" style={{ transform: 'scale(0.85)', width: '117%' }}>
+                <PremiumLanding 
+                  clinic={{
+                    clinicName: clinicName || 'عيادة تجريبية',
+                    doctorName: doctorName || 'طبيب',
+                    doctorTitle: doctorTitle || 'د.',
+                    specialty: specialty || 'تخصص',
+                    heroSubtitle: heroSubtitle || '',
+                    certificationTitle: certificationTitle || 'طبيب معتمد رسمياً',
+                    certificationEntity: certificationEntity || 'نقابة الأطباء المصرية',
+                    heroImage: photoUrl || '',
+                    primaryColor: primaryColor || '#15B8A6',
+                    clinicPhone: phones[0] || '01000000000',
+                    clinicPhones: phones.filter(p => p.trim() !== ''),
+                    clinicAddress: address || 'عنوان',
+                    mapsLink: mapsLink || '',
+                    services: services || [],
+                    aiEnabled: aiEnabled
+                  }} 
+                  services={services || []} 
+                />
+              </div>
             </div>
           </div>
         </div>
       )}
-
       {/* TAB 2: Queue & Visit Duration */}
       {activeTab === 'queue' && (
         <div className="medical-card p-6 max-w-2xl space-y-5">
@@ -404,7 +527,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-[#E5EAF0]">
             <div>
               <h3 className="font-bold text-sm text-[#182230]">الخدمات والأسعار المعتمدة في العيادة</h3>
-              <p className="text-xs text-slate-400">تظهر هذه الخدمات في نموذج حجز المرضى وشاشة طابور اليوم</p>
+              <p className="text-xs text-slate-400">تظهر هذه الخدمات في نموذج حجز المرضى وشاشة دور اليوم</p>
             </div>
           </div>
 
@@ -465,7 +588,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           <div className="flex items-center justify-between pb-3 border-b border-[#E5EAF0]">
             <div>
               <h3 className="font-bold text-sm text-[#182230]">تفعيل الدفع الإلكتروني (Online Payment)</h3>
-              <p className="text-xs text-slate-400">إتاحة الدفع عبر فودافون كاش أو انستاباي أثناء حجز المريض</p>
+              <p className="text-xs text-slate-400">إتاحة الدفع عبر محفظة إلكترونية أو انستاباي أثناء حجز المريض</p>
             </div>
             <Switch
               checked={onlinePaymentEnabled}
@@ -476,7 +599,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           {onlinePaymentEnabled && (
             <div className="space-y-4 pt-2">
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-600">رقم محفظة فودافون كاش (للتحويل)</Label>
+                <Label className="text-xs font-bold text-slate-600">رقم محفظة محفظة إلكترونية (للتحويل)</Label>
                 <Input
                   value={walletNumber}
                   onChange={e => setWalletNumber(e.target.value)}
@@ -514,7 +637,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
             <h4 className="text-xs font-black text-slate-700">الأقسام المصرح للمساعد بالوصول إليها:</h4>
             <div className="grid sm:grid-cols-3 gap-3">
               {[
-                { id: 'appointments', label: 'طابور اليوم والمواعيد' },
+                { id: 'appointments', label: 'دور اليوم والمواعيد' },
                 { id: 'patients', label: 'سجل المرضى' },
                 { id: 'prescriptions', label: 'الروشتات الطبية' },
                 { id: 'drugs', label: 'دليل الأدوية' },
@@ -604,78 +727,32 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
       {/* TAB 7: AI Assistant */}
       {activeTab === 'ai' && (
-        <div className="medical-card p-6 max-w-3xl space-y-6">
+        <div className="medical-card p-6 max-w-3xl space-y-6 text-center">
           <div className="pb-3 border-b border-[#E5EAF0]">
-            <h3 className="font-bold text-sm text-[#182230] flex items-center gap-2">
+            <h3 className="font-bold text-sm text-[#182230] flex items-center justify-center gap-2">
               <Bot className="w-5 h-5 text-[#15B8A6]" />
-              خدمة المساعد الذكي (AI Chatbot) للعيادة
+              إعدادات المساعد الذكي (AI Chatbot)
             </h3>
-            <p className="text-xs text-slate-400">
-              التحكم في تشغيل أو تعطيل الشات بوت على صفحة العيادة وتحديد توجيهاته للرد على المرضى
+          </div>
+          <div className="p-8 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-4">
+            <Bot className="w-16 h-16 text-slate-300 mx-auto" />
+            <h4 className="text-lg font-black text-slate-700">هذه الخاصية تدار بواسطة الإدارة</h4>
+            <p className="text-sm text-slate-500 font-medium">
+              لا يمكنك تعديل إعدادات المساعد الذكي أو تفعيله بنفسك. يرجى التواصل مع فريق الدعم الفني للمنصة.
             </p>
-          </div>
-
-          {/* Master AI Activation Switch Card */}
-          <div className="p-5 rounded-2xl bg-gradient-to-r from-teal-50/70 via-white to-slate-50 border border-teal-200/80 shadow-2xs space-y-4">
-            <div className="flex items-center justify-between gap-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-[#15B8A6]" />
-                  <h4 className="text-sm font-black text-[#182230]">تفعيل خدمة الشات بوت للمرضى</h4>
-                </div>
-                <p className="text-xs text-slate-500">
-                  عند التفعيل، تظهر أيقونة الدردشة العائمة لزوار صفحة العيادة للإجابة التلقائية على استفساراتهم
-                </p>
+            {supportNumbers.filter((n: any) => n.isActive).length > 0 ? (
+              <div className="flex flex-wrap justify-center gap-3 pt-6">
+                {supportNumbers.filter((n: any) => n.isActive).map((num: any, idx: number) => (
+                  <a key={idx} href={`https://wa.me/20${num.phone.replace(/^0/, '')}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-5 py-2.5 bg-emerald-100 text-emerald-800 rounded-xl font-bold text-sm hover:bg-emerald-200 transition-colors shadow-sm">
+                    <MessageCircle className="w-4 h-4" />
+                    {num.label || 'الدعم الفني'} - {num.phone}
+                  </a>
+                ))}
               </div>
-
-              <Switch
-                checked={aiEnabled}
-                onCheckedChange={setAiEnabled}
-                className="data-[state=checked]:bg-[#15B8A6]"
-              />
-            </div>
-
-            <div className="flex items-center gap-2 pt-2 border-t border-teal-100">
-              <span className="text-xs font-bold text-slate-600">حالة الخدمة الآن:</span>
-              {aiEnabled ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  مفعل ويعمل حالياً على صفحة العيادة
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                  <span className="w-2 h-2 rounded-full bg-slate-400"></span>
-                  معطل ومخفي بالكامل عن المرضى
-                </span>
-              )}
-            </div>
+            ) : (
+              <p className="text-xs text-rose-500 font-bold pt-6">لا توجد أرقام دعم فني متاحة حالياً.</p>
+            )}
           </div>
-
-          {/* Instructions Config */}
-          {aiEnabled ? (
-            <div className="space-y-2">
-              <Label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                <Bot className="w-3.5 h-3.5 text-[#15B8A6]" />
-                تعليمات وتوجيهات المساعد الذكي (System Prompt)
-              </Label>
-              <Textarea
-                value={aiInstructions}
-                onChange={e => setAiInstructions(e.target.value)}
-                placeholder="أدخل التعليمات التي ترغب أن يلتزم بها المساعد الذكي..."
-                className="min-h-[140px] text-xs rounded-xl bg-slate-50 border-[#E5EAF0] leading-relaxed"
-              />
-              <p className="text-[11px] text-slate-400">
-                يقوم الذكاء الاصطناعي بالرد على استفسارات المرضى حول مواعيد العمل، الخدمات، والأسعار بناءً على هذه التوجيهات.
-              </p>
-            </div>
-          ) : (
-            <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-medium space-y-1">
-              <p className="font-bold">⚠️ خدمة الشات بوت معطلة حالياً</p>
-              <p className="text-amber-700">
-                لن تظهر نافذة الدردشة للمرضى على الصفحة الرئيسية، وتم إخفاء تبويب التدريب من القائمة الجانبية. يمكنك إعادة التفعيل في أي وقت بالضغط على زر التفعيل أعلاه ثم حفظ التعديلات.
-              </p>
-            </div>
-          )}
         </div>
       )}
 

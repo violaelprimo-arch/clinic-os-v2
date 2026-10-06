@@ -29,6 +29,7 @@ export default function OwnerDashboard() {
   // Edit mode
   const [editingId, setEditingId] = useState<string | null>(null)
   const [globalApiKey, setGlobalApiKey] = useState('')
+  const [supportNumbers, setSupportNumbers] = useState<any[]>([{phone: '01551007018', label: 'دعم المنصة', isActive: true}])
   const [isSavingGlobal, setIsSavingGlobal] = useState(false)
   const [previewTemplateModal, setPreviewTemplateModal] = useState<string | null>(null)
 
@@ -87,6 +88,11 @@ export default function OwnerDashboard() {
         if (configDoc && configDoc.data().globalAiKey) {
           setGlobalApiKey(configDoc.data().globalAiKey)
         }
+        
+        const pSnap = await getDocs(collection(db, 'platformSettings'))
+        if (!pSnap.empty) {
+          setSupportNumbers(pSnap.docs[0].data().supportNumbers || [])
+        }
       } catch (err) {}
     }
     fetchGlobal()
@@ -126,9 +132,10 @@ export default function OwnerDashboard() {
     setIsSavingGlobal(true)
     try {
       await setDoc(doc(db, 'system', 'config'), { globalAiKey: globalApiKey }, { merge: true })
-      toast.success('تم حفظ مفتاح الذكاء الاصطناعي المركزي بنجاح!')
+      await setDoc(doc(db, 'platformSettings', 'main'), { supportNumbers }, { merge: true })
+      toast.success('تم حفظ إعدادات المنصة بنجاح!')
     } catch (err) {
-      toast.error('حدث خطأ أثناء حفظ المفتاح المركزي')
+      toast.error('حدث خطأ أثناء حفظ الإعدادات')
     } finally {
       setIsSavingGlobal(false)
     }
@@ -262,9 +269,9 @@ export default function OwnerDashboard() {
   const toggleClinicAi = async (id: string, currentAi: boolean) => {
     const nextAi = !currentAi
     // Optimistic UI update
-    setClinics(prev => prev.map(c => c.id === id ? { ...c, aiEnabled: nextAi } : c))
+    setClinics(prev => prev.map(c => c.id === id ? { ...c, aiEnabled: nextAi, aiLockedByOwner: !nextAi } : c))
     try {
-      await updateDoc(doc(db, 'clinics', id), { aiEnabled: nextAi })
+      await updateDoc(doc(db, 'clinics', id), { aiEnabled: nextAi, aiLockedByOwner: !nextAi })
       toast.success(
         nextAi
           ? 'تم تفعيل AI Chatbot للعيادة بنجاح (سيظهر المساعد في لوحة العيادة وصفحة الحجز)'
@@ -750,6 +757,16 @@ export default function OwnerDashboard() {
                       disabled={!!editingId}
                     />
                   </div>
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label className="text-xs font-bold text-slate-600">صورة الطبيب (Hero Image)</Label>
+                    <Input
+                      value={heroImage}
+                      onChange={e => setHeroImage(e.target.value)}
+                      placeholder="https://images.unsplash.com/..."
+                      dir="ltr"
+                      className="h-10 text-xs rounded-xl text-right font-mono"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -1045,12 +1062,60 @@ export default function OwnerDashboard() {
                 يتم حفظ المفتاح بأمان تام واستخدامه في الرد على استفسارات المرضى حول مواعيد وكشوفات العيادات المسموح لها.
               </p>
 
+            <div className="pb-4 mt-8 border-b border-[#E5EAF0]">
+              <h2 className="text-xl font-black text-[#182230] flex items-center gap-2">
+                <Phone className="w-6 h-6 text-emerald-600" />
+                أرقام الدعم الفني للمنصة
+              </h2>
+              <p className="text-xs text-slate-400 mt-1">
+                هذه الأرقام تظهر للأطباء في لوحة التحكم الخاصة بهم للتواصل معكم (مثل قسم إعدادات الذكاء الاصطناعي).
+              </p>
+            </div>
+            <div className="space-y-4 pt-4">
+              {supportNumbers.map((num, idx) => (
+                <div key={idx} className="flex flex-col sm:flex-row gap-3 items-end p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+                  <div className="space-y-1.5 w-full">
+                    <Label className="text-xs font-bold text-slate-700">المسمى (مثل: دعم المنصة)</Label>
+                    <Input value={num.label} onChange={e => {
+                      const newNums = [...supportNumbers];
+                      newNums[idx].label = e.target.value;
+                      setSupportNumbers(newNums);
+                    }} className="h-10 text-xs rounded-xl bg-white" />
+                  </div>
+                  <div className="space-y-1.5 w-full">
+                    <Label className="text-xs font-bold text-slate-700">رقم الهاتف (واتساب)</Label>
+                    <Input value={num.phone} onChange={e => {
+                      const newNums = [...supportNumbers];
+                      newNums[idx].phone = e.target.value;
+                      setSupportNumbers(newNums);
+                    }} className="h-10 text-xs font-mono text-right rounded-xl bg-white" dir="ltr" />
+                  </div>
+                  <div className="flex items-center gap-3 w-full sm:w-auto h-10 px-2">
+                    <Switch checked={num.isActive} onCheckedChange={checked => {
+                      const newNums = [...supportNumbers];
+                      newNums[idx].isActive = checked;
+                      setSupportNumbers(newNums);
+                    }} className="data-[state=checked]:bg-emerald-500" />
+                    <span className="text-xs font-bold text-slate-600">{num.isActive ? 'متاح' : 'مخفي'}</span>
+                    <Button variant="ghost" size="icon" onClick={() => {
+                      setSupportNumbers(supportNumbers.filter((_, i) => i !== idx));
+                    }} className="text-rose-500 hover:text-rose-600 hover:bg-rose-50">
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              <Button variant="outline" onClick={() => setSupportNumbers([...supportNumbers, {phone: '', label: '', isActive: true}])} className="w-full border-dashed h-12 text-xs font-bold text-[#15B8A6] border-teal-200 hover:bg-teal-50">
+                <Plus className="w-4 h-4 ml-2" /> إضافة رقم دعم جديد
+              </Button>
+            </div>
+
               <Button
                 onClick={saveGlobalKey}
                 disabled={isSavingGlobal}
                 className="h-11 px-8 font-black text-xs bg-purple-600 hover:bg-purple-700 text-white rounded-xl shadow-md cursor-pointer"
               >
-                {isSavingGlobal ? 'جاري الحفظ...' : 'حفظ المفتاح المركزي'}
+                {isSavingGlobal ? 'جاري الحفظ...' : 'حفظ إعدادات المنصة'}
               </Button>
             </div>
           </div>

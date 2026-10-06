@@ -2,6 +2,7 @@
 
 import { use, useState, useEffect } from 'react'
 import { PremiumLanding } from '@/components/clinic/PremiumLanding'
+import { DynamicTheme } from '@/components/DynamicTheme'
 import { db } from '@/lib/firebase'
 import { collection, query, where, onSnapshot } from 'firebase/firestore'
 import { ShieldAlert } from 'lucide-react'
@@ -36,7 +37,7 @@ export default function ClinicPage({ params }: { params: Promise<{ slug: string 
               services: [
                 { id: '1', name: 'كشف عادي', price: 250, desc: 'كشف طبي شامل مع تشخيص دقيق', duration: 'حوالي 15 دقيقة' },
                 { id: '2', name: 'استشارة', price: 150, desc: 'استشارة ومراجعة تحاليل', duration: 'حوالي 10 دقائق' },
-                { id: '3', name: 'كشف مستعجل', price: 400, desc: 'أولوية فورية في الطابور والدخول', duration: 'كشف فوري مباشر' },
+                { id: '3', name: 'كشف مستعجل', price: 400, desc: 'أولوية فورية في الدور والدخول', duration: 'كشف فوري مباشر' },
                 { id: '4', name: 'متابعة', price: 100, desc: 'متابعة لحالة سابقة وتعديل الجرعات', duration: 'حوالي 10 دقائق' },
               ]
             })
@@ -108,5 +109,10 @@ export default function ClinicPage({ params }: { params: Promise<{ slug: string 
     { id: '3', name: 'كشف مستعجل', price: 400 }
   ]
 
-  return <PremiumLanding clinic={clinic} services={services} />
+  return (
+    <>
+      <DynamicTheme color={clinic.primaryColor} />
+      <PremiumLanding clinic={clinic} services={services} />
+    </>
+  )
 }

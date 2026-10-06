@@ -241,7 +241,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                   <Users className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-[#182230]">طابور اليوم</h2>
+                  <h2 className="text-lg font-bold text-[#182230]">دور اليوم</h2>
                   <p className="text-xs text-slate-400">قائمة المرضى والمواعيد المسجلة لتاريخ اليوم</p>
                 </div>
               </div>
@@ -276,7 +276,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
               {isLoading ? (
                 <div className="py-16 text-center text-slate-400">
                   <div className="w-8 h-8 border-2 border-[#15B8A6] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-                  جاري تحميل الطابور...
+                  جاري تحميل الدور...
                 </div>
               ) : filteredBookings.length === 0 ? (
                 <div className="py-16 text-center text-slate-400 space-y-3">

@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useState } from 'react'
+import { use, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { auth, db } from '@/lib/firebase'
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'
@@ -24,7 +24,23 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
   const [rememberMe, setRememberMe] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [clinicHero, setClinicHero] = useState('https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=1000&auto=format&fit=crop')
   const router = useRouter()
+
+  useEffect(() => {
+    const fetchClinic = async () => {
+      try {
+        const q = query(collection(db, 'clinics'), where('slug', '==', slug))
+        const snapshot = await getDocs(q)
+        if (!snapshot.empty) {
+          const cDoc = snapshot.docs[0].data()
+          if (cDoc.heroImage) setClinicHero(cDoc.heroImage)
+        }
+      } catch (err) {}
+    }
+    fetchClinic()
+  }, [slug])
+
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -109,7 +125,7 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
           <div className="relative z-10 my-auto text-center space-y-5">
             <div className="relative w-56 h-64 mx-auto rounded-3xl overflow-hidden shadow-2xl border-2 border-white/20">
               <img
-                src="https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=1000&auto=format&fit=crop"
+                src={clinicHero}
                 alt="Doctor Medical Team"
                 className="w-full h-full object-cover object-top"
               />

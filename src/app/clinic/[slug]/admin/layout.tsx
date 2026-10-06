@@ -1,5 +1,5 @@
 'use client'
-
+import { DynamicTheme } from '@/components/DynamicTheme'
 import { use, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -151,7 +151,7 @@ export default function AdminLayout({
 
   // Filter based on role and permissions
   const filteredNav = navItems.filter(item => {
-    if (item.id === 'ai-training' && clinic?.aiEnabled === false) return false
+    if (item.id === 'ai-training' && (clinic?.aiEnabled === false || clinic?.aiLockedByOwner === true)) return false
     if (role === 'doctor') return true
     if (role === 'assistant') return assistantPermissions.includes(item.id)
     return false
@@ -175,6 +175,7 @@ export default function AdminLayout({
   return (
     <div className="flex h-screen bg-[#F6F8FB] font-sans overflow-hidden text-[#182230]" dir="rtl">
       {/* Dynamic Primary Color injection */}
+      <DynamicTheme color={primaryColor} />
       <style dangerouslySetInnerHTML={{ __html: `:root { --primary: ${primaryColor}; }` }} />
 
       {/* 1. DESKTOP SIDEBAR */}

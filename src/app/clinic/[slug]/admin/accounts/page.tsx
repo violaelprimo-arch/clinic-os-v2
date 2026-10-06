@@ -181,7 +181,7 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
 
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-800 text-xs font-bold border border-blue-200">
             <Wallet className="w-4 h-4 text-blue-600" />
-            <span>فودافون كاش: {metrics.walletTotal.toLocaleString()} ج.م</span>
+            <span>محفظة إلكترونية: {metrics.walletTotal.toLocaleString()} ج.م</span>
           </div>
         </div>
       </div>
@@ -273,7 +273,7 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
                         {item.paymentMethod === 'instapay'
                           ? 'انستاباي'
                           : item.paymentMethod === 'wallet'
-                          ? 'فودافون كاش'
+                          ? 'محفظة إلكترونية'
                           : 'كاش بالعيادة'}
                       </td>
                       <td className="py-3.5 px-4 text-center font-bold text-xs text-[#182230]">

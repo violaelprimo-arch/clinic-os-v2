@@ -40,7 +40,7 @@ export function PremiumLanding({
   const defaultServices = services.length > 0 ? services : [
     { id: '1', name: 'كشف عادي', price: 250, desc: 'كشف طبي شامل مع تشخيص دقيق', duration: 'حوالي 15 دقيقة' },
     { id: '2', name: 'استشارة', price: 150, desc: 'استشارة تخصصية ومراجعة تحاليل', duration: 'حوالي 10 دقائق' },
-    { id: '3', name: 'كشف مستعجل', price: 400, desc: 'أولوية فورية في الطابور والدخول', duration: 'كشف فوري مباشر' },
+    { id: '3', name: 'كشف مستعجل', price: 400, desc: 'أولوية فورية في الدور والدخول', duration: 'كشف فوري مباشر' },
     { id: '4', name: 'متابعة', price: 100, desc: 'متابعة لحالة سابقة وتعديل الجرعات', duration: 'حوالي 10 دقائق' },
   ]
 
@@ -102,10 +102,10 @@ export function PremiumLanding({
               <ClinicLogo size="sm" variant="light" showSubtitle={false} />
               <div className="hidden sm:block border-r border-slate-200 pr-3">
                 <h1 className="text-sm font-black text-[#182230]">
-                  {clinic?.clinicName || 'عيادة د. محمد علي'}
+                  {clinic?.clinicName || `عيادة ${clinic?.doctorTitle || 'د.'} محمد علي`}
                 </h1>
                 <p className="text-[10px] font-bold text-[#15B8A6]">
-                  {clinic?.doctorName ? `د. ${clinic.doctorName}` : (clinic?.specialty || 'استشاري الطب الباطني')}
+                  {clinic?.doctorName ? `${clinic?.doctorTitle || 'د.'} ${clinic.doctorName}` : (clinic?.specialty || 'استشاري الطب الباطني')}
                 </p>
               </div>
             </div>
@@ -143,7 +143,7 @@ export function PremiumLanding({
               <Link href={`/clinic/${clinic?.slug}/patient/login`}>
                 <Button
                   variant="outline"
-                  className="rounded-xl text-xs font-bold text-[#15B8A6] border-teal-200 hover:bg-teal-50 h-9 px-3.5"
+                  className="rounded-xl text-xs font-bold text-[#15B8A6] border-[#15B8A6]/30 hover:bg-[#15B8A6]/10 h-9 px-3.5"
                 >
                   <UserCheck className="w-3.5 h-3.5 ml-1.5" />
                   بوابة المريض
@@ -151,7 +151,7 @@ export function PremiumLanding({
               </Link>
 
               <Link href={`/clinic/${clinic?.slug}/login`}>
-                <Button className="rounded-xl text-xs font-black bg-[#0B1F33] hover:bg-[#132B45] text-white h-9 px-4 shadow-sm">
+                <Button className="rounded-xl text-xs font-black bg-[#0B1F33] hover:bg-[#132B45] text-white h-9 px-4 shadow-sm border border-[#0B1F33]/20">
                   دخول الطاقم
                 </Button>
               </Link>
@@ -198,7 +198,7 @@ export function PremiumLanding({
                     transition={{ delay: 0.3 }}
                     className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight"
                   >
-                    {clinic?.doctorName ? `د. ${clinic.doctorName}` : 'د. محمد علي'}
+                    {clinic?.doctorName ? `${clinic?.doctorTitle || 'د.'} ${clinic.doctorName}` : `${clinic?.doctorTitle || 'د.'} محمد علي`}
                   </motion.h1>
                   <motion.p
                     initial={{ opacity: 0, y: 15 }}
@@ -243,7 +243,7 @@ export function PremiumLanding({
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.7 }}
-                  className="flex flex-wrap items-center gap-3 pt-3"
+                  className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 pt-3 w-full"
                 >
                   {/* Button 1: Book Appointment */}
                   <motion.button
@@ -251,7 +251,7 @@ export function PremiumLanding({
                     whileHover={{ scale: 1.04, y: -2 }}
                     whileTap={{ scale: 0.96 }}
                     onClick={scrollToBooking}
-                    className="h-12 px-7 text-xs sm:text-sm font-black bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-lg shadow-[#15B8A6]/35 flex items-center gap-2 cursor-pointer transition-all"
+                    className="h-12 px-7 w-full sm:w-auto justify-center text-xs sm:text-sm font-black bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-lg shadow-[#15B8A6]/35 flex items-center gap-2 cursor-pointer transition-all"
                   >
                     <Calendar className="w-4 h-4 ml-1 text-white" />
                     احجز موعدك الآن
@@ -266,19 +266,19 @@ export function PremiumLanding({
                       setSearchError('')
                       setTrackModalOpen(true)
                     }}
-                    className="h-12 px-6 text-xs sm:text-sm font-black bg-white hover:bg-slate-100 text-[#0B1F33] rounded-xl shadow-md shadow-black/15 flex items-center gap-2 cursor-pointer transition-all border border-white"
+                    className="h-12 px-6 w-full sm:w-auto justify-center text-xs sm:text-sm font-black bg-white hover:bg-slate-100 text-[#0B1F33] rounded-xl shadow-md shadow-black/15 flex items-center gap-2 cursor-pointer transition-all border border-white"
                   >
                     <Clock className="w-4 h-4 ml-1 text-[#15B8A6]" />
                     تتبع دورك مباشرة
                   </motion.button>
 
                   {/* Button 3: Patient Portal */}
-                  <Link href={`/clinic/${clinic?.slug}/patient/login`}>
+                  <Link href={`/clinic/${clinic?.slug}/patient/login`} className="w-full sm:w-auto">
                     <motion.button
                       type="button"
                       whileHover={{ scale: 1.04, y: -2 }}
                       whileTap={{ scale: 0.96 }}
-                      className="h-12 px-6 text-xs sm:text-sm font-bold bg-[#132B45] hover:bg-[#1a385a] text-teal-200 border border-teal-500/40 rounded-xl shadow-sm flex items-center gap-2 cursor-pointer transition-all"
+                      className="h-12 px-6 w-full sm:w-auto justify-center text-xs sm:text-sm font-bold bg-[#132B45] hover:bg-[#1a385a] text-teal-200 border border-teal-500/40 rounded-xl shadow-sm flex items-center gap-2 cursor-pointer transition-all"
                     >
                       <UserCheck className="w-4 h-4 ml-1 text-[#15B8A6]" />
                       بوابة المريض (كشوفاتك السابقة)
@@ -315,8 +315,8 @@ export function PremiumLanding({
                       <ShieldCheck className="w-5 h-5" />
                     </div>
                     <div>
-                      <p className="text-xs font-black">طبيب معتمد رسمياً</p>
-                      <p className="text-[10px] text-slate-500 font-semibold">نقابة الأطباء المصرية</p>
+                      <p className="text-xs font-black">{clinic?.certificationTitle || 'طبيب معتمد رسمياً'}</p>
+                      <p className="text-[10px] text-slate-500 font-semibold">{clinic?.certificationEntity || 'نقابة الأطباء المصرية'}</p>
                     </div>
                   </motion.div>
                 </motion.div>
@@ -485,28 +485,34 @@ export function PremiumLanding({
                     <h4 className="font-bold text-sm text-[#182230]">هاتف العيادة والحجز</h4>
                     <p className="text-xs text-slate-400">للحجز والاستفسار عن المواعيد والأدوار</p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-sm font-black text-slate-800 dir-ltr bg-slate-50 px-3 py-1 rounded-xl border border-slate-200">
-                      {clinic?.clinicPhone || '01012345678'}
-                    </span>
-                    {clinic?.clinicPhone && (
-                      <a
-                        href={`https://wa.me/${clinic.clinicPhone.replace(/[^0-9]/g, '').replace(/^0/, '20')}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-bold border border-emerald-200 transition-colors"
-                      >
-                        <MessageCircle className="w-3.5 h-3.5" />
-                        <span>محادثة واتساب</span>
-                      </a>
-                    )}
-                    <a
-                      href={`tel:${clinic?.clinicPhone || '01012345678'}`}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold transition-colors"
-                    >
-                      <Phone className="w-3.5 h-3.5" />
-                      <span>اتصال مباشر</span>
-                    </a>
+                  <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3">
+                    {(clinic?.clinicPhones?.length ? clinic.clinicPhones : [clinic?.clinicPhone || '01012345678']).map((phone: string, idx: number) => (
+                      <div key={idx} className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-sm font-black text-slate-800 dir-ltr bg-slate-50 px-3 py-1 rounded-xl border border-slate-200">
+                          {phone}
+                        </span>
+                        {phone && (
+                          <a
+                            href={`https://wa.me/${phone.replace(/[^0-9]/g, '').replace(/^0/, '20')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-bold border border-emerald-200 transition-colors"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            <span>واتساب</span>
+                          </a>
+                        )}
+                        {phone && (
+                          <a
+                            href={`tel:${phone}`}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-bold border border-blue-200 transition-colors"
+                          >
+                            <Phone className="w-3.5 h-3.5" />
+                            <span>اتصال</span>
+                          </a>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -642,7 +648,7 @@ export function PremiumLanding({
                     }}
                     className="hover:text-[#15B8A6] cursor-pointer"
                   >
-                    تتبع دورك في الطابور المباشر
+                    تتبع دورك في الدور المباشر
                   </button>
                 </li>
                 <li>
@@ -727,7 +733,7 @@ export function PremiumLanding({
               <div className="text-right space-y-1.5 pt-1">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-50 text-[#15B8A6] text-xs font-bold border border-teal-100">
                   <Clock className="w-3.5 h-3.5" />
-                  <span>طابور العيادة المباشر</span>
+                  <span>دور العيادة المباشر</span>
                 </div>
                 <h3 className="text-xl font-black text-[#182230]">استعلام وتتبع دورك في الكشف</h3>
                 <p className="text-xs text-slate-500 leading-relaxed">
@@ -792,7 +798,7 @@ export function PremiumLanding({
                     ) : (
                       <>
                         <Search className="w-4 h-4 ml-1.5" />
-                        عرض موقعي في الطابور
+                        عرض موقعي في الدور
                       </>
                     )}
                   </Button>

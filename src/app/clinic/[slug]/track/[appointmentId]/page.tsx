@@ -71,7 +71,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
     return (
       <div className="min-h-screen bg-[#F6F8FB] flex flex-col items-center justify-center p-4" dir="rtl">
         <ClinicLogo size="md" variant="light" />
-        <p className="text-xs text-slate-400 font-bold mt-3">جاري مزامنة الطابور المباشر...</p>
+        <p className="text-xs text-slate-400 font-bold mt-3">جاري مزامنة الدور المباشر...</p>
       </div>
     )
   }
@@ -134,7 +134,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
           <div className="space-y-4">
             {/* Big Queue Card */}
             <div className="bg-[#F8FAFC] border border-[#E5EAF0] rounded-3xl p-6 text-center space-y-1">
-              <span className="text-xs font-bold text-slate-400">رقم دورك في الطابور</span>
+              <span className="text-xs font-bold text-slate-400">رقم دورك في الدور</span>
               <div className="text-6xl font-black text-[#15B8A6] tracking-tight">
                 {appointment.queue_number}
               </div>
@@ -162,7 +162,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
 
             <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs font-semibold flex items-center gap-2">
               <Clock className="w-4 h-4 text-blue-600 shrink-0" />
-              <span>يتم تحديث هذه الشاشة تلقائياً وبشكل فوري مع حركة الطابور.</span>
+              <span>يتم تحديث هذه الشاشة تلقائياً وبشكل فوري مع حركة الدور.</span>
             </div>
           </div>
         )}
