@@ -531,16 +531,16 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
               </div>
 
               {/* Medicines List */}
-              <div className="space-y-4 pr-3 min-h-[220px]">
+              <div className="space-y-4 pl-3 min-h-[220px]" dir="ltr">
                 {drugs.filter(d => d.name.trim()).map((drug, index) => (
                   <div key={index} className="space-y-0.5 bg-white/60 backdrop-blur-2xs p-1.5 rounded-lg">
                     <div className="flex items-baseline gap-2">
                       <span className="text-xs font-black text-[#15B8A6]">{index + 1}.</span>
-                      <h4 className="font-black text-sm text-[#182230] tracking-wide font-sans">
+                      <h4 className="font-black text-sm text-[#182230] tracking-wide font-sans text-left">
                         {drug.name}
                       </h4>
                     </div>
-                    <p className="text-xs text-slate-700 font-medium pr-5">
+                    <p className="text-xs text-slate-700 font-medium pl-5 text-right" dir="rtl">
                       {drug.dosage} {drug.duration ? `— ${drug.duration}` : ''}
                     </p>
                   </div>

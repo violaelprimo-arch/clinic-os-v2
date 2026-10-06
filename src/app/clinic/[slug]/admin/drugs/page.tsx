@@ -51,6 +51,9 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
           const data = cDoc.data()
           if (data.favoriteDrugs) {
             setFavoriteList(data.favoriteDrugs)
+          } else {
+            const defaults = STRUCTURED_DRUGS.filter(d => d.isFavorite).map(d => d.name)
+            setFavoriteList(defaults)
           }
           if (data.customDrugsRecords) {
             setDrugs([...data.customDrugsRecords, ...STRUCTURED_DRUGS])
@@ -321,7 +324,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
                 </tr>
               ) : (
                 paginated.map((drug) => {
-                  const isFav = favoriteList.includes(drug.name) || drug.isFavorite
+                  const isFav = favoriteList.includes(drug.name)
                   return (
                     <tr key={drug.id} className="hover:bg-slate-50/80 transition-colors">
                       {/* Favorite Toggle Star */}

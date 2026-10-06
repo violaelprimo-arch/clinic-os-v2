@@ -161,6 +161,27 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
     }
   }
 
+  
+  const handleDeleteAllPatients = async () => {
+    if (!confirm('هل أنت متأكد من حذف جميع المرضى من السجل بشكل نهائي؟ لا يمكن التراجع عن هذا الإجراء.')) return
+    if (!confirm('تأكيد أخير: هل تريد مسح كل السجلات فعلاً؟')) return
+
+    try {
+      if (clinicId) {
+        const { deleteDoc, doc } = await import('firebase/firestore')
+        const q = query(collection(db, 'appointments'), where('clinic_id', '==', clinicId))
+        const snap = await getDocs(q)
+        for (const document of snap.docs) {
+          await deleteDoc(doc(db, 'appointments', document.id))
+        }
+      }
+      setPatients([])
+      toast.success('تم مسح جميع المرضى من السجل بنجاح')
+    } catch (err) {
+      toast.error('حدث خطأ أثناء المسح')
+    }
+  }
+
   const handleDeletePatient = async (phone: string, name: string) => {
     if (!confirm(`هل أنت متأكد من حذف المريض ${name} وجميع زياراته؟`)) return
     try {
@@ -199,12 +220,23 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
           </p>
         </div>
 
-        {/* Add Patient Modal */}
-        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button 
+            variant="destructive"
+            onClick={handleDeleteAllPatients}
+            className="h-10 px-4 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl shadow-md shadow-rose-500/20 transition-all text-xs inline-flex items-center justify-center cursor-pointer"
+          >
+            <Trash2 className="w-4 h-4 ml-1.5" />
+            مسح جميع المرضى
+          </Button>
+          
+          {/* Add Patient Modal */}
+          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
           <DialogTrigger className="h-10 px-4 bg-[#15B8A6] hover:bg-[#0D9488] text-white font-bold rounded-xl shadow-md shadow-[#15B8A6]/20 transition-all text-xs inline-flex items-center justify-center cursor-pointer">
             <Plus className="w-4 h-4 ml-1.5" />
             إضافة مريض جديد
           </DialogTrigger>
+          </div>
           <DialogContent className="sm:max-w-md" dir="rtl">
             <DialogHeader>
               <DialogTitle className="text-lg font-bold text-[#182230]">إضافة مريض جديد للسجل</DialogTitle>
