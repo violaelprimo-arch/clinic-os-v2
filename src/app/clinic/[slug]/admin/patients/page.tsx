@@ -236,7 +236,6 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
             <Plus className="w-4 h-4 ml-1.5" />
             إضافة مريض جديد
           </DialogTrigger>
-          </div>
           <DialogContent className="sm:max-w-md" dir="rtl">
             <DialogHeader>
               <DialogTitle className="text-lg font-bold text-[#182230]">إضافة مريض جديد للسجل</DialogTitle>
@@ -310,6 +309,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* 2. Search & Filters Bar */}
