@@ -1,95 +1,87 @@
 'use client'
 
-import { use, useState, useEffect } from 'react'
+import { use, useState, useEffect, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Printer, Trash2, Search, FileSignature, MapPin, Phone, User as UserIcon, Stethoscope, Activity } from 'lucide-react'
+import {
+  Plus, Printer, Trash2, Search, FileSignature, MapPin,
+  Phone, User as UserIcon, Star, Check, MessageCircle,
+  FileText, ShieldCheck, ChevronDown, Sparkles
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
-import { collection, addDoc, query, where, getDocs } from 'firebase/firestore'
+import { collection, addDoc, query, where, getDocs, doc, updateDoc } from 'firebase/firestore'
 import { useSearchParams } from 'next/navigation'
-import { useEgyptianDrugs } from '@/hooks/useEgyptianDrugs'
-import { doc, updateDoc } from 'firebase/firestore'
-import { Star, Settings2, ShieldCheck, Pill } from 'lucide-react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Caveat } from 'next/font/google'
-
-const caveat = Caveat({ subsets: ['latin'], weight: ['400', '700'] })
+import { EGYPTIAN_DRUGS, STRUCTURED_DRUGS } from '@/lib/egyptian-drugs'
+import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 
 export default function PrescriptionsPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
   const searchParams = useSearchParams()
-  
+
   const [patientName, setPatientName] = useState(searchParams?.get('patientName') || '')
   const [patientPhone, setPatientPhone] = useState(searchParams?.get('patientPhone') || '')
-  
-  const [drugs, setDrugs] = useState([{ id: 1, name: '', dosage: '', duration: '' }])
-  const [drugSearch, setDrugSearch] = useState('')
-  const [favoriteDrugs, setFavoriteDrugs] = useState<string[]>([])
-  const [customDrugs, setCustomDrugs] = useState<string[]>([])
-  const [isFavoritesOpen, setIsFavoritesOpen] = useState(false)
-  const [clinicId, setClinicId] = useState<string | null>(null)
-  
+  const [diagnosis, setDiagnosis] = useState('')
+  const [age, setAge] = useState('28')
 
+  const [drugs, setDrugs] = useState<any[]>([
+    { id: 1, name: searchParams?.get('drug') || 'Augmentin 1g', dosage: 'قرص كل 12 ساعة', duration: 'لمدة 5 أيام' },
+    { id: 2, name: 'Catafast 50 mg', dosage: 'كيس عند اللزوم', duration: 'بعد الأكل' }
+  ])
+
+  const [drugSearch, setDrugSearch] = useState('')
+  const [favoriteDrugs, setFavoriteDrugs] = useState<string[]>([
+    'Augmentin 1g', 'Catafast 50 mg', 'Panadol 500 mg', 'Brufen 600 mg', 'Controloc 40 mg', 'Alphintern'
+  ])
+  const [clinicId, setClinicId] = useState<string | null>(null)
   const [clinic, setClinic] = useState<any>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const [date] = useState(new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0])
   const [todayPatients, setTodayPatients] = useState<any[]>([])
-
-  const { drugs: pubDrugs, loading: loadingPubDrugs } = useEgyptianDrugs()
+  const dateStr = new Date().toISOString().split('T')[0]
 
   useEffect(() => {
     const fetchClinic = async () => {
-      const q = query(collection(db, 'clinics'), where('slug', '==', slug))
-      const snapshot = await getDocs(q)
-      if (!snapshot.empty) {
-        const cDoc = snapshot.docs[0];
-        const data = cDoc.data();
-        setClinic({ id: cDoc.id, ...data });
-        setClinicId(cDoc.id);
-        if (data.favoriteDrugs) setFavoriteDrugs(data.favoriteDrugs);
-        if (data.customDrugs) setCustomDrugs(data.customDrugs);
-
-        // Fetch today's patients for auto-fill
-        try {
-          const today = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0]
-          const apptsQ = query(collection(db, 'appointments'), where('clinic_id', '==', cDoc.id), where('date', '==', today))
-          const apptsSnap = await getDocs(apptsQ)
-          const appts = apptsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any))
-          
-          setTodayPatients(appts)
-
-          // Auto-fill logic (only if not passed via URL)
-          if (!searchParams?.get('patientName')) {
-            const completedAppts = appts.filter(a => a.status === 'completed' && a.completedAt)
-            completedAppts.sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime())
-            
-            if (completedAppts.length > 0) {
-              setPatientName(completedAppts[0].patientName || '')
-              setPatientPhone(completedAppts[0].phone || '')
-            } else {
-              const waitingAppts = appts.filter(a => a.status === 'waiting')
-              if (waitingAppts.length > 0) {
-                setPatientName(waitingAppts[0].patientName || '')
-                setPatientPhone(waitingAppts[0].phone || '')
-              }
-            }
+      try {
+        const q = query(collection(db, 'clinics'), where('slug', '==', slug))
+        const snapshot = await getDocs(q)
+        if (!snapshot.empty) {
+          const cDoc = snapshot.docs[0]
+          const data = cDoc.data()
+          setClinic({ id: cDoc.id, ...data })
+          setClinicId(cDoc.id)
+          if (data.favoriteDrugs && data.favoriteDrugs.length > 0) {
+            setFavoriteDrugs(data.favoriteDrugs)
           }
-        } catch(e) {}
+
+          // Fetch today's patients for quick select
+          const todayQ = query(
+            collection(db, 'appointments'),
+            where('clinic_id', '==', cDoc.id),
+            where('date', '==', dateStr)
+          )
+          const todaySnap = await getDocs(todayQ)
+          setTodayPatients(todaySnap.docs.map(d => ({ id: d.id, ...d.data() })))
+        }
+      } catch (err) {
+        console.error(err)
       }
     }
     fetchClinic()
-  }, [slug, searchParams])
+  }, [slug, dateStr])
 
-  const addDrug = () => {
-    setDrugs([...drugs, { id: Date.now(), name: '', dosage: '', duration: '' }])
+  const addDrug = (name = '', dosage = '', duration = '') => {
+    setDrugs([...drugs, { id: Date.now(), name, dosage, duration }])
   }
 
   const removeDrug = (id: number) => {
+    if (drugs.length === 1) {
+      setDrugs([{ id: Date.now(), name: '', dosage: '', duration: '' }])
+      return
+    }
     setDrugs(drugs.filter(d => d.id !== id))
   }
 
@@ -98,19 +90,23 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   }
 
   const handleSave = async () => {
-    if (!patientName.trim()) return toast.error('يجب إدخال اسم المريض')
-    if (!patientPhone.trim()) return toast.error('يجب إدخال رقم هاتف المريض للربط بملفه')
-    
+    if (!patientName.trim()) return toast.error('يرجى إدخال اسم المريض')
+    if (!patientPhone.trim()) return toast.error('يرجى إدخال رقم هاتف المريض للربط بملفه')
+
     setIsSaving(true)
     try {
-      await addDoc(collection(db, 'prescriptions'), {
-        clinic_id: clinic?.id,
-        patientName,
-        patientPhone,
-        date,
-        drugs: drugs.filter(d => d.name.trim() !== ''),
-        createdAt: new Date().toISOString()
-      })
+      if (clinicId) {
+        await addDoc(collection(db, 'prescriptions'), {
+          clinic_id: clinicId,
+          patientName,
+          patientPhone,
+          age,
+          diagnosis,
+          date: dateStr,
+          drugs: drugs.filter(d => d.name.trim() !== ''),
+          createdAt: new Date().toISOString()
+        })
+      }
       toast.success('تم حفظ الروشتة وإضافتها لملف المريض بنجاح')
     } catch (error) {
       toast.error('حدث خطأ أثناء حفظ الروشتة')
@@ -119,446 +115,365 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     }
   }
 
+  const sendWhatsAppRx = () => {
+    if (!patientPhone) return toast.error('يرجى إدخال رقم هاتف المريض')
+    let formattedPhone = patientPhone.replace(/[^0-9]/g, '')
+    if (formattedPhone.startsWith('0')) formattedPhone = '2' + formattedPhone
 
-  const toggleFavorite = async (e: React.MouseEvent, drugName: string) => {
-    e.stopPropagation();
-    if (!clinicId) return;
-    let newFavs = [...favoriteDrugs];
-    if (newFavs.includes(drugName)) {
-      newFavs = newFavs.filter(d => d !== drugName);
-    } else {
-      newFavs.push(drugName);
-    }
-    setFavoriteDrugs(newFavs);
-    try {
-      await updateDoc(doc(db, 'clinics', clinicId), { favoriteDrugs: newFavs });
-      toast.success(newFavs.includes(drugName) ? 'تم الإضافة للمفضلة' : 'تم الإزالة من المفضلة');
-    } catch (err) {
-      toast.error('حدث خطأ أثناء حفظ المفضلة');
-    }
+    const drugsList = drugs
+      .filter(d => d.name)
+      .map((d, i) => `${i + 1}. ${d.name} (${d.dosage} - ${d.duration})`)
+      .join('\n')
+
+    const message = encodeURIComponent(
+      `الروشتة الطبية الإلكترونية 📋\nالعيادة: ${clinic?.clinicName || 'عيادة د. محمد علي'}\nالمريض: ${patientName}\nالتاريخ: ${dateStr}\n\nالعلاج المطلوب:\n${drugsList}\n\nنتمنى لك الشفاء العاجل!`
+    )
+    window.open(`https://wa.me/${formattedPhone}?text=${message}`, '_blank')
   }
 
-  
-  const addCustomDrug = async (drugName: string) => {
-    if (!clinicId || !drugName.trim()) return;
-    const newCustom = [...new Set([...customDrugs, drugName])];
-    const newFavs = [...new Set([...favoriteDrugs, drugName])];
-    setCustomDrugs(newCustom);
-    setFavoriteDrugs(newFavs);
-    try {
-      await updateDoc(doc(db, 'clinics', clinicId), { customDrugs: newCustom, favoriteDrugs: newFavs });
-      toast.success('تمت إضافة الدواء لقاعدة البيانات والمفضلة');
-      
-      const emptyDrug = drugs.find(d => !d.name)
-      if (emptyDrug) updateDrug(emptyDrug.id, 'name', drugName)
-      else setDrugs([...drugs, { id: Date.now(), name: drugName, dosage: '', duration: '' }])
-      
-      setDrugSearch('');
-    } catch (err) {
-      toast.error('حدث خطأ أثناء الإضافة');
-    }
-  }
-
-  const handlePrint = () => {
-
-    window.print()
-  }
+  // Filtered drugs for quick search
+  const filteredSearchDrugs = useMemo(() => {
+    if (!drugSearch.trim()) return []
+    const queryTerm = drugSearch.toLowerCase()
+    return EGYPTIAN_DRUGS.filter(d => d.toLowerCase().includes(queryTerm)).slice(0, 8)
+  }, [drugSearch])
 
   return (
-    <div className="p-4 md:p-8 space-y-6 max-w-6xl mx-auto" dir="rtl">
+    <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto" dir="rtl">
       
-      {/* 1. Controller Section (Hidden on Print) */}
-      <div className="print:hidden flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+      {/* 1. Header Toolbar (Hidden on Print) */}
+      <div className="print:hidden flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-2xl border border-[#E5EAF0] shadow-xs">
         <div>
-          <h1 className="text-2xl font-bold text-primary flex items-center gap-2">
-            <FileSignature className="w-6 h-6" /> إصدار روشتة طبية
+          <h1 className="text-2xl font-black text-[#182230] flex items-center gap-2">
+            <FileSignature className="w-6 h-6 text-[#15B8A6]" />
+            إصدار روشتة طبية
           </h1>
-          <p className="text-slate-500 mt-1">قم بتعبئة بيانات المريض والأدوية لتجهيز الروشتة للطباعة</p>
+          <p className="text-xs text-slate-400 mt-0.5">
+            تعبئة بيانات الكشف والأدوية مع معاينة فورية وتنسيق طباعة معتمد
+          </p>
         </div>
-        <div className="flex gap-3">
-          <Button onClick={handleSave} disabled={isSaving} className="font-bold">
-            {isSaving ? 'جاري الحفظ...' : 'حفظ في ملف المريض'}
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Button
+            onClick={sendWhatsAppRx}
+            variant="outline"
+            className="h-10 text-xs font-bold text-emerald-600 border-emerald-200 hover:bg-emerald-50 rounded-xl"
+          >
+            <MessageCircle className="w-4 h-4 ml-1.5" />
+            إرسال واتساب
           </Button>
-          <Button variant="outline" onClick={handlePrint} className="border-primary text-primary hover:bg-primary/10 font-bold">
-            <Printer className="w-4 h-4 ml-2" /> طباعة الروشتة
+
+          <Button
+            onClick={() => window.print()}
+            variant="outline"
+            className="h-10 text-xs font-bold border-[#15B8A6] text-[#15B8A6] hover:bg-teal-50 rounded-xl"
+          >
+            <Printer className="w-4 h-4 ml-1.5" />
+            طباعة الروشتة
+          </Button>
+
+          <Button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="h-10 px-5 text-xs font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-md shadow-[#15B8A6]/20"
+          >
+            {isSaving ? 'جاري الحفظ...' : 'حفظ في الملف'}
           </Button>
         </div>
       </div>
 
-      <div className="grid md:grid-cols-12 gap-8 print:block">
+      {/* 2. Main Two-Column Layout (Form Editor on right, A4 Preview on left) */}
+      <div className="grid lg:grid-cols-12 gap-6 items-start">
         
-        {/* 2. Form Editor (Hidden on Print) */}
-        <div className="md:col-span-5 print:hidden space-y-6">
-          <Card className="shadow-lg border-t-4 border-t-blue-500">
-            <CardHeader className="bg-slate-50/50 border-b pb-4">
-              <div className="flex justify-between items-center">
-                <CardTitle className="text-lg">بيانات المريض</CardTitle>
-                {todayPatients.length > 0 && (
-                  <select 
-                    className="text-sm border rounded p-1 bg-white"
-                    onChange={(e) => {
-                      if(e.target.value) {
-                        const p = todayPatients.find(x => x.id === e.target.value)
-                        if(p) {
-                          setPatientName(p.patientName || '')
-                          setPatientPhone(p.phone || '')
-                        }
-                      }
-                    }}
-                  >
-                    <option value="">-- اختر من كشوفات اليوم --</option>
-                    {todayPatients.map(p => (
-                      <option key={p.id} value={p.id}>{p.patientName} ({p.queue_number})</option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-4">
-              <div className="space-y-2">
-                <Label>اسم المريض</Label>
-                <Input value={patientName} onChange={e => setPatientName(e.target.value)} placeholder="اسم المريض ثلاثي" className="h-12 bg-slate-50" />
-              </div>
-              <div className="space-y-2">
-                <Label>رقم الموبايل (للربط بالملف)</Label>
-                <Input value={patientPhone} onChange={e => setPatientPhone(e.target.value)} placeholder="01xxxxxxxxx" className="h-12 bg-slate-50" dir="ltr" />
-              </div>
-            </CardContent>
-          </Card>
+        {/* RIGHT COLUMN: Form Editor (7 cols) - Hidden on Print */}
+        <div className="lg:col-span-7 space-y-5 print:hidden">
+          
+          {/* Patient Details Card */}
+          <div className="medical-card p-5 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E5EAF0]">
+              <h3 className="font-bold text-sm text-[#182230] flex items-center gap-2">
+                <UserIcon className="w-4 h-4 text-[#15B8A6]" />
+                بيانات المريض
+              </h3>
 
-          <Card className="shadow-lg border-t-4 border-t-primary">
-            <CardHeader className="bg-slate-50/50 border-b pb-4">
-              <CardTitle className="text-lg">الأدوية (Rx)</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-6">
-              
-              {/* Quick Add */}
-              <div className="flex gap-2 relative">
-                <div className="relative flex-1">
-                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <Input 
-                    placeholder={loadingPubDrugs ? "جاري تحميل قاعدة الأدوية (25,000+ دواء)..." : "ابحث عن الدواء في قاعدة البيانات (25,000+ دواء)..."}
-                    value={drugSearch}
-                    onChange={e => setDrugSearch(e.target.value)}
-                    className="pr-10 bg-slate-50 border-primary/20 focus:border-primary h-12 text-lg font-bold"
-                  />
-                  {drugSearch && (
-                    <div className="absolute w-full mt-1 bg-white border shadow-2xl rounded-xl overflow-hidden z-50 max-h-72 overflow-y-auto">
-                      {(() => {
-                        const publicDrugNames = pubDrugs.map(d => d.commercial_name_en);
-                        const publicDrugNamesAr = pubDrugs.map(d => d.commercial_name_ar).filter(Boolean);
-                        const searchList = [...new Set([...favoriteDrugs, ...customDrugs, ...publicDrugNames, ...publicDrugNamesAr])];
-                        const filtered = searchList.filter(d => d.toLowerCase().includes(drugSearch.toLowerCase())).slice(0, 50);
-                        const exactMatch = searchList.find(d => d.toLowerCase() === drugSearch.toLowerCase());
-                        
-                        return (
-                          <>
-                            {filtered.map(drug => {
-                              const isFav = favoriteDrugs.includes(drug);
-                              return (
-                                <div 
-                                  key={drug} 
-                                  className="p-3 hover:bg-slate-50 cursor-pointer text-sm font-bold border-b last:border-none flex justify-between items-center"
-                                  onClick={() => {
-                                    const emptyDrug = drugs.find(d => !d.name)
-                                    if (emptyDrug) updateDrug(emptyDrug.id, 'name', drug)
-                                    else setDrugs([...drugs, { id: Date.now(), name: drug, dosage: '', duration: '' }])
-                                    setDrugSearch('')
-                                  }}
-                                >
-                                  <span dir="ltr" className={isFav ? 'text-primary' : 'text-slate-700'}>{drug}</span>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    className={`h-8 w-8 rounded-full ${isFav ? 'text-yellow-500 hover:text-yellow-600 hover:bg-yellow-50' : 'text-slate-300 hover:text-yellow-500 hover:bg-yellow-50'}`}
-                                    onClick={(e) => toggleFavorite(e, drug)}
-                                  >
-                                    <Star className={`w-4 h-4 ${isFav ? 'fill-current' : ''}`} />
-                                  </Button>
-                                </div>
-                              )
-                            })}
-                            {!exactMatch && (
-                              <div className="p-3 bg-slate-50 border-t flex justify-between items-center">
-                                <span className="text-sm font-bold text-slate-500">غير موجود في القاعدة؟</span>
-                                <Button size="sm" onClick={() => addCustomDrug(drugSearch)} className="h-8">
-                                  <Plus className="w-4 h-4 ml-1" /> إضافة "{drugSearch}"
-                                </Button>
-                              </div>
-                            )}
-                          </>
-                        )
-                      })()}
+              {todayPatients.length > 0 && (
+                <select
+                  className="text-xs font-bold border border-[#E5EAF0] rounded-xl px-2.5 py-1.5 bg-slate-50 text-slate-700"
+                  onChange={(e) => {
+                    const selected = todayPatients.find(p => p.id === e.target.value)
+                    if (selected) {
+                      setPatientName(selected.patientName || '')
+                      setPatientPhone(selected.phone || '')
+                    }
+                  }}
+                >
+                  <option value="">-- اختر من كشوفات اليوم --</option>
+                  {todayPatients.map(p => (
+                    <option key={p.id} value={p.id}>
+                      #{p.queue_number} - {p.patientName}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div className="grid sm:grid-cols-3 gap-3">
+              <div className="sm:col-span-1 space-y-1">
+                <Label className="text-xs font-bold text-slate-600">اسم المريض</Label>
+                <Input
+                  value={patientName}
+                  onChange={e => setPatientName(e.target.value)}
+                  placeholder="محمد محمود"
+                  className="h-10 text-xs rounded-xl"
+                />
+              </div>
+
+              <div className="sm:col-span-1 space-y-1">
+                <Label className="text-xs font-bold text-slate-600">رقم الهاتف</Label>
+                <Input
+                  value={patientPhone}
+                  onChange={e => setPatientPhone(e.target.value)}
+                  placeholder="01xxxxxxxxx"
+                  className="h-10 text-xs font-mono text-right rounded-xl"
+                  dir="ltr"
+                />
+              </div>
+
+              <div className="sm:col-span-1 space-y-1">
+                <Label className="text-xs font-bold text-slate-600">السن</Label>
+                <Input
+                  value={age}
+                  onChange={e => setAge(e.target.value)}
+                  placeholder="28 سنة"
+                  className="h-10 text-xs rounded-xl"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-bold text-slate-600">التشخيص الطبي</Label>
+              <Input
+                value={diagnosis}
+                onChange={e => setDiagnosis(e.target.value)}
+                placeholder="مثال: التهاب اللوزتين الحاد"
+                className="h-10 text-xs rounded-xl"
+              />
+            </div>
+          </div>
+
+          {/* Medicines Prescription Form */}
+          <div className="medical-card p-5 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E5EAF0]">
+              <h3 className="font-bold text-sm text-[#182230] flex items-center gap-2">
+                <FileText className="w-4 h-4 text-[#15B8A6]" />
+                الأدوية والجرعات (Rx)
+              </h3>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => addDrug()}
+                className="h-8 text-xs font-bold text-[#15B8A6] border-teal-200 hover:bg-teal-50 rounded-xl"
+              >
+                <Plus className="w-3.5 h-3.5 ml-1" />
+                إضافة دواء آخر
+              </Button>
+            </div>
+
+            {/* Quick Favorites Bar */}
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-bold text-slate-400">أدوية شائعة لسرعة الإضافة:</span>
+              <div className="flex flex-wrap gap-1.5">
+                {favoriteDrugs.map((fav, i) => (
+                  <button
+                    key={i}
+                    onClick={() => addDrug(fav, 'قرص كل 12 ساعة', 'لمدة 5 أيام')}
+                    className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 text-slate-700 hover:bg-teal-50 hover:text-[#15B8A6] border border-slate-200 transition-colors"
+                  >
+                    + {fav}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Drug Search Bar */}
+            <div className="relative">
+              <Search className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Input
+                value={drugSearch}
+                onChange={e => setDrugSearch(e.target.value)}
+                placeholder="ابحث عن اسم الدواء في الدليل..."
+                className="pr-10 h-10 text-xs bg-[#F6F8FB] rounded-xl focus:bg-white"
+              />
+              {filteredSearchDrugs.length > 0 && (
+                <div className="absolute top-full right-0 w-full mt-1 bg-white border border-[#E5EAF0] shadow-xl rounded-xl z-50 overflow-hidden divide-y divide-slate-100">
+                  {filteredSearchDrugs.map((d, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        addDrug(d, 'قرص كل 12 ساعة', 'لمدة 5 أيام')
+                        setDrugSearch('')
+                      }}
+                      className="w-full text-right p-2.5 text-xs font-bold text-slate-700 hover:bg-teal-50 hover:text-[#15B8A6] transition-colors"
+                    >
+                      + {d}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Medicines List Rows */}
+            <div className="space-y-3 pt-2">
+              {drugs.map((drug, index) => (
+                <div
+                  key={drug.id}
+                  className="p-3.5 rounded-xl border border-[#E5EAF0] bg-slate-50/50 space-y-2.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-slate-500">دواء #{index + 1}</span>
+                    <button
+                      onClick={() => removeDrug(drug.id)}
+                      className="text-slate-400 hover:text-rose-600 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid sm:grid-cols-12 gap-2">
+                    <div className="sm:col-span-5">
+                      <Input
+                        value={drug.name}
+                        onChange={e => updateDrug(drug.id, 'name', e.target.value)}
+                        placeholder="اسم الدواء (مثال: Augmentin 1g)"
+                        className="h-9 text-xs rounded-lg bg-white"
+                      />
                     </div>
-                  )}
+                    <div className="sm:col-span-4">
+                      <Input
+                        value={drug.dosage}
+                        onChange={e => updateDrug(drug.id, 'dosage', e.target.value)}
+                        placeholder="الجرعة (مثال: قرص كل 12 ساعة)"
+                        className="h-9 text-xs rounded-lg bg-white"
+                      />
+                    </div>
+                    <div className="sm:col-span-3">
+                      <Input
+                        value={drug.duration}
+                        onChange={e => updateDrug(drug.id, 'duration', e.target.value)}
+                        placeholder="المدة (مثال: 5 أيام)"
+                        className="h-9 text-xs rounded-lg bg-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* LEFT COLUMN: Realistic A4 Prescription Sheet Preview (5 cols on screen, full on print) */}
+        <div className="lg:col-span-5 print:w-full print:block">
+          <div className="medical-card bg-white p-6 sm:p-8 space-y-6 shadow-lg border border-[#E5EAF0] relative min-h-[580px] flex flex-col justify-between rounded-2xl">
+            
+            {/* Top Sheet Header */}
+            <div>
+              <div className="flex items-start justify-between border-b-2 border-slate-900 pb-4">
+                <div>
+                  <h2 className="text-xl font-black text-[#182230]">
+                    {clinic?.doctorName ? `د. ${clinic.doctorName}` : 'د. محمد علي'}
+                  </h2>
+                  <p className="text-xs font-bold text-[#15B8A6] mt-0.5">
+                    {clinic?.specialty || 'استشاري الطب الباطني والجهاز الهضمي'}
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    عضو الجمعية الطبية المصرية
+                  </p>
                 </div>
 
-                
-                {/* Manage Favorites Dialog */}
-                <Dialog open={isFavoritesOpen} onOpenChange={setIsFavoritesOpen}>
-                  
-                    <Button variant="outline" onClick={() => setIsFavoritesOpen(true)} className="h-12 border-primary/20 text-primary hover:bg-primary/5 px-6">
-                      <Star className="w-5 h-5 ml-2 fill-primary" /> إدارة أدويتي
-                    </Button>
-                  
-                  <DialogContent className="max-w-2xl" dir="rtl">
-                    <DialogHeader>
-                      <DialogTitle className="text-xl flex items-center gap-2 text-primary">
-                        <Pill className="w-6 h-6 fill-primary/20 text-primary" /> إدارة الأدوية الخاصة بالعيادة
-                      </DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4 my-2">
-                      <div className="bg-slate-50 p-4 rounded-xl border">
-                        <Label className="font-bold text-primary mb-2 block">إضافة أدوية متعددة دفعة واحدة (Bulk Add)</Label>
-                        <p className="text-sm text-slate-500 mb-2">انسخ أسماء الأدوية الخاصة بتخصصك من أي ملف (Excel أو Word) والصقها هنا، بحيث يكون كل دواء في سطر منفصل.</p>
-                        <div className="flex gap-2">
-                          <textarea 
-                            id="bulkDrugsInput"
-                            placeholder="مثال:
-Amoxicillin 500mg
-Panadol Extra
-Brufen 400" 
-                            className="w-full h-24 p-2 text-sm border rounded-md"
-                            dir="ltr"
-                          />
-                          <Button 
-                            className="h-24 px-8 font-bold"
-                            onClick={async () => {
-                              const textarea = document.getElementById('bulkDrugsInput') as HTMLTextAreaElement;
-                              const lines = textarea.value.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-                              if(lines.length === 0) return toast.error('الرجاء إدخال أدوية أولاً');
-                              if(!clinicId) return;
-                              
-                              const newCustom = [...new Set([...customDrugs, ...lines])];
-                              setCustomDrugs(newCustom);
-                              try {
-                                await updateDoc(doc(db, 'clinics', clinicId), { customDrugs: newCustom });
-                                toast.success(`تم إضافة ${lines.length} دواء بنجاح!`);
-                                textarea.value = '';
-                              } catch(err) {
-                                toast.error('حدث خطأ');
-                              }
-                            }}
-                          >
-                            حفظ <br/> الكل
-                          </Button>
-                        </div>
-                      </div>
-
-                      <div className="max-h-64 overflow-y-auto px-2">
-                        <h4 className="font-bold mb-2">الأدوية المفضلة والخاصة بك ({favoriteDrugs.length + customDrugs.length})</h4>
-                        {favoriteDrugs.length === 0 && customDrugs.length === 0 ? (
-                          <p className="text-center text-slate-500 py-4">لا توجد أدوية خاصة بك حتى الآن.</p>
-                        ) : (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            {[...new Set([...favoriteDrugs, ...customDrugs])].map(drug => (
-                              <div key={drug} className="flex justify-between items-center p-2 border rounded-xl bg-white hover:bg-slate-50 transition-colors">
-                                <span className="font-bold text-sm text-primary truncate pl-2" dir="ltr">{drug}</span>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon"
-                                  className="text-red-500 hover:text-red-600 hover:bg-red-50 h-8 w-8 shrink-0"
-                                  onClick={async (e) => {
-                                    e.stopPropagation();
-                                    if(!clinicId) return;
-                                    const newFavs = favoriteDrugs.filter(d => d !== drug);
-                                    const newCustom = customDrugs.filter(d => d !== drug);
-                                    setFavoriteDrugs(newFavs);
-                                    setCustomDrugs(newCustom);
-                                    await updateDoc(doc(db, 'clinics', clinicId), { favoriteDrugs: newFavs, customDrugs: newCustom });
-                                    toast.success('تم الحذف');
-                                  }}
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-
+                <div className="text-left flex flex-col items-end">
+                  <ClinicLogo size="sm" variant="light" showSubtitle={false} />
+                  <span className="text-[10px] font-bold text-slate-400 mt-1 font-mono">
+                    {clinic?.clinicName || 'Clinic OS'}
+                  </span>
+                </div>
               </div>
 
+              {/* Patient Meta Strip */}
+              <div className="flex items-center justify-between py-3 border-b border-slate-200 text-xs font-bold text-slate-700 bg-slate-50/70 px-3 rounded-lg mt-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-400">الاسم:</span>
+                  <span>{patientName || '................................'}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-400">السن:</span>
+                  <span>{age || '28'} سنة</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-400">التاريخ:</span>
+                  <span className="font-mono">{dateStr}</span>
+                </div>
+              </div>
 
-              {/* Drugs List */}
-              <div className="space-y-4">
-                {drugs.map((drug, index) => (
-                  <div key={drug.id} className="p-4 border rounded-xl bg-white shadow-sm space-y-3 relative group">
-                    <div className="flex justify-between items-center mb-2">
-                      <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">دواء {index + 1}</Badge>
-                      {drugs.length > 1 && (
-                        <Button variant="ghost" size="icon" onClick={() => removeDrug(drug.id)} className="text-red-500 h-8 w-8 hover:bg-red-50">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      )}
+              {/* Diagnosis if any */}
+              {diagnosis && (
+                <div className="mt-2.5 text-xs text-slate-500 font-semibold px-1">
+                  <span className="text-slate-400">التشخيص: </span>
+                  <span className="text-[#182230]">{diagnosis}</span>
+                </div>
+              )}
+
+              {/* The Iconic R/ Symbol */}
+              <div className="pt-4 pb-2">
+                <span className="text-3xl font-black font-serif text-[#182230] tracking-wider select-none">
+                  R/
+                </span>
+              </div>
+
+              {/* Medicines List */}
+              <div className="space-y-4 pr-3 min-h-[220px]">
+                {drugs.filter(d => d.name.trim()).map((drug, index) => (
+                  <div key={index} className="space-y-0.5">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-xs font-black text-[#15B8A6]">{index + 1}.</span>
+                      <h4 className="font-black text-sm text-[#182230] tracking-wide font-sans">
+                        {drug.name}
+                      </h4>
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs text-slate-500">اسم الدواء</Label>
-                      <Input value={drug.name} onChange={e => updateDrug(drug.id, 'name', e.target.value)} placeholder="مثال: Augmentin 1g" dir="ltr" className="font-bold h-10" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <Label className="text-xs text-slate-500">الجرعة</Label>
-                        <Input value={drug.dosage} onChange={e => updateDrug(drug.id, 'dosage', e.target.value)} placeholder="قرص كل 12 ساعة" className="h-10 text-sm" />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs text-slate-500">المدة</Label>
-                        <Input value={drug.duration} onChange={e => updateDrug(drug.id, 'duration', e.target.value)} placeholder="لمدة 5 أيام" className="h-10 text-sm" />
-                      </div>
-                    </div>
+                    <p className="text-xs text-slate-600 font-medium pr-5">
+                      {drug.dosage} {drug.duration ? `— ${drug.duration}` : ''}
+                    </p>
                   </div>
                 ))}
               </div>
-              <Button variant="outline" onClick={addDrug} className="w-full border-dashed border-2 border-slate-300 text-slate-600 hover:border-primary hover:text-primary">
-                <Plus className="w-4 h-4 ml-2" /> إضافة دواء آخر
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
 
-        {/* 3. Live Preview / Printable Area */}
-        <div className="md:col-span-7 print:col-span-12 print:m-0 print:p-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
-          {(() => {
-            const drugsPerPage = 5;
-            const chunkedDrugs = [];
-            const activeDrugs = drugs.filter(d => d.name.trim() !== '' || drugs.length === 1);
-            for (let i = 0; i < activeDrugs.length; i += drugsPerPage) {
-              chunkedDrugs.push(activeDrugs.slice(i, i + drugsPerPage));
-            }
-            if (chunkedDrugs.length === 0) chunkedDrugs.push([]);
-            
-            const rxColor = clinic?.rxColor || clinic?.primaryColor || '#1e3a8a';
-            const rxLogo = clinic?.rxLogo || clinic?.heroImage || '';
-            const rxDoctorName = clinic?.rxDoctorName || clinic?.doctorName || 'اسم الطبيب';
-            const rxSpecialty = clinic?.rxSpecialty || clinic?.specialtySubtitle || 'التخصص';
-            const rxFooterText = clinic?.rxFooterText || `العنوان: ${clinic?.clinicAddress || ''} | محمول: ${clinic?.clinicPhones?.[0] || ''}`;
-            const rxLayout = clinic?.rxLayout || 'logo-left';
-            const rxHeaderTextColor = clinic?.rxHeaderTextColor || '#ffffff';
-            const rxPatientInfoColor = clinic?.rxPatientInfoColor || '#1e293b';
-            const rxDrugsTextColor = clinic?.rxDrugsTextColor || '#0f172a';
-            const rxFooterTextColor = clinic?.rxFooterTextColor || '#ffffff';
-
-            return chunkedDrugs.map((pageDrugs, pageIndex) => (
-              <div key={pageIndex} className="mx-auto bg-white shadow-2xl w-[210mm] min-h-[297mm] relative overflow-hidden print:shadow-none print:w-full print:h-auto print:min-h-0 mb-8 print:mb-0 break-after-page print:break-inside-avoid print:!bg-white print:scale-100 origin-top flex flex-col border border-slate-200 print:border-none">
-                <style dangerouslySetInnerHTML={{__html: `@page { size: A4; margin: 0; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }`}} />
-                
-                {/* SVG Header Curve Background */}
-                <div className="absolute top-0 left-0 w-full h-48 z-0">
-                  <svg viewBox="0 0 1440 320" className={`w-full h-full ${rxLayout === 'logo-left' ? '-scale-x-100' : 'scale-x-100'}`} preserveAspectRatio="none">
-                    <path fill={rxColor} fillOpacity="1" d="M0,64L80,64C160,64,320,64,480,101.3C640,139,800,213,960,229.3C1120,245,1280,203,1360,181.3L1440,160L1440,0L1360,0C1280,0,1120,0,960,0C800,0,640,0,480,0C320,0,160,0,80,0L0,0Z"></path>
-                  </svg>
+            {/* Sheet Footer (Doctor signature & clinic contacts) */}
+            <div className="pt-6 border-t border-slate-200 space-y-4">
+              <div className="flex justify-between items-end">
+                <div className="text-[10px] text-slate-400 space-y-0.5">
+                  <p className="flex items-center gap-1">
+                    <MapPin className="w-3 h-3 text-[#15B8A6]" />
+                    {clinic?.clinicAddress || 'شارع التسعين الشمالي، التجمع الخامس، القاهرة'}
+                  </p>
+                  <p className="flex items-center gap-1">
+                    <Phone className="w-3 h-3 text-[#15B8A6]" />
+                    {clinic?.clinicPhone || '01012345678'}
+                  </p>
                 </div>
 
-                {/* SVG Footer Curve Background */}
-                <div className="absolute bottom-0 left-0 w-full h-32 z-0">
-                  <svg viewBox="0 0 1440 320" className={`w-full h-full ${rxLayout === 'logo-left' ? '-scale-x-100' : 'scale-x-100'}`} preserveAspectRatio="none">
-                    <path fill={rxColor} fillOpacity="1" d="M0,192L80,197.3C160,203,320,213,480,202.7C640,192,800,160,960,170.7C1120,181,1280,235,1360,261.3L1440,288L1440,320L1360,320C1280,320,1120,320,960,320C800,320,640,320,480,320C320,320,160,320,80,320L0,320Z"></path>
-                  </svg>
+                {/* Signature Simulation Line */}
+                <div className="text-center">
+                  <div className="w-28 border-b-2 border-slate-400 pb-1 italic font-serif text-slate-500 text-xs">
+                    د. محمد علي
+                  </div>
+                  <span className="text-[9px] text-slate-400 font-bold">توقيع وختم الطبيب</span>
                 </div>
-
-                {/* Watermark Logo */}
-                {rxLogo && (
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.07] z-0 pointer-events-none grayscale">
-                    <img src={rxLogo} alt="Watermark" className="w-96 h-96 object-contain" />
-                  </div>
-                )}
-
-                <div className="relative z-10 flex-1 flex flex-col p-8 pt-12">
-                  {/* Header Content */}
-                  <div className={`flex justify-between items-start mb-12 ${rxLayout === 'logo-right' ? 'flex-row-reverse' : ''}`}>
-                    {/* Doctor Details */}
-                    <div className={`z-10 w-2/3 pt-2 ${rxLayout === 'logo-right' ? 'text-left pl-6' : 'text-right pr-6'}`} style={{ color: rxHeaderTextColor }}>
-                      <div className="text-sm font-bold opacity-90 mb-1">دكتور</div>
-                      <h1 className="text-4xl font-black mb-2">{rxDoctorName}</h1>
-                      <h2 className="text-lg font-bold opacity-90">{rxSpecialty}</h2>
-                    </div>
-
-                    {/* Logo */}
-                    <div className="w-32 h-32 rounded-full bg-white p-2 shadow-lg border-4 flex items-center justify-center overflow-hidden z-10" style={{ borderColor: rxColor }}>
-                      {rxLogo ? (
-                        <img src={rxLogo} alt="Logo" className="w-full h-full object-contain" />
-                      ) : (
-                        <Activity className="w-12 h-12" style={{ color: rxColor }} />
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Patient Info Table */}
-                  <div className="w-full border-t-2 border-b-2 py-4 mb-8" style={{ borderColor: rxColor, color: rxPatientInfoColor }}>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="flex items-end gap-2 text-lg">
-                        <span className="font-bold" style={{ color: rxColor }}>الاسم :</span>
-                        <span className="font-black flex-1 border-b-2 border-dotted pb-1 border-slate-400">
-                          {patientName || '\u00A0'}
-                        </span>
-                      </div>
-                      <div className="flex items-end gap-2 text-lg">
-                        <span className="font-bold" style={{ color: rxColor }}>التاريخ :</span>
-                        <span className="font-bold flex-1 border-b-2 border-dotted pb-1 border-slate-400 text-center" dir="ltr">
-                          {date}
-                        </span>
-                      </div>
-                      <div className="flex items-end gap-2 text-lg">
-                        <span className="font-bold" style={{ color: rxColor }}>التشخيص :</span>
-                        <span className="font-bold flex-1 border-b-2 border-dotted pb-1 border-slate-400">
-                          {'\u00A0'}
-                        </span>
-                      </div>
-                      <div className="flex items-end gap-2 text-lg">
-                        <span className="font-bold" style={{ color: rxColor }}>السن :</span>
-                        <span className="font-bold flex-1 border-b-2 border-dotted pb-1 border-slate-400 text-center">
-                          {'\u00A0'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Rx Symbol */}
-                  <div className="mb-6 flex" dir="ltr">
-                    <div className={`text-6xl font-black ${caveat.className}`} style={{ color: rxColor }}>
-                      Rx:
-                    </div>
-                  </div>
-
-                  {/* Drugs List (Left to Right) */}
-                  <div className="flex-1 px-8 space-y-8 z-10 pb-32" dir="ltr" style={{ color: rxDrugsTextColor }}>
-                    {pageDrugs.map((drug, idx) => (
-                      <div key={drug.id || idx} className="pl-6 border-l-4" style={{ borderColor: `${rxColor}30` }}>
-                        <h3 className={`text-4xl font-bold capitalize w-full tracking-wide ${caveat.className}`}>
-                          {drug.name || '\u00A0'}
-                        </h3>
-                        <div className="flex gap-4 font-bold mt-2 text-lg opacity-80">
-                          <span>{drug.dosage || ''}</span>
-                          {drug.duration && <span className="opacity-50">|</span>}
-                          <span>{drug.duration || ''}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Footer Content */}
-                <div className="relative z-10 w-full pb-6 pt-16 px-8 mt-auto flex justify-between items-end" style={{ color: rxFooterTextColor }}>
-                  <div className="text-xs opacity-70 text-right w-24">
-                    {chunkedDrugs.length > 1 && (
-                      <span>صفحة {pageIndex + 1} / {chunkedDrugs.length}</span>
-                    )}
-                  </div>
-                  <div className="flex-1 font-bold text-sm tracking-wide px-4 text-center" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
-                    {rxFooterText}
-                  </div>
-                  <div className="text-xs opacity-70 text-left w-24">
-                    <span>Powered by Almaher</span>
-                  </div>
-                </div>
-
               </div>
-            ));
-          })()}
+            </div>
+
+          </div>
         </div>
+
       </div>
     </div>
   )

@@ -4,12 +4,15 @@ import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Bot, X, Send, User, Loader2 } from 'lucide-react'
+import { Bot, X, Send, User, Loader2, Sparkles } from 'lucide-react'
 
 export function AIChatWidget({ clinic }: { clinic: any }) {
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState<{ role: 'user' | 'bot', text: string }[]>([
-    { role: 'bot', text: `مرحباً بك في عيادة ${clinic?.clinicName || 'الطبيب'}! أنا المساعد الذكي، كيف يمكنني مساعدتك اليوم؟` }
+    {
+      role: 'bot',
+      text: `مرحباً بك في عيادة ${clinic?.clinicName || 'الطبيب'}! أنا المساعد الذكي، كيف يمكنني مساعدتك اليوم بخصوص المواعيد أو الخدمات؟`
+    }
   ])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -38,15 +41,17 @@ export function AIChatWidget({ clinic }: { clinic: any }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: userText,
-          
           aiKnowledge: clinic?.aiKnowledge || []
         })
       })
-      
+
       const data = await res.json()
       setMessages(prev => [...prev, { role: 'bot', text: data.reply }])
     } catch (err) {
-      setMessages(prev => [...prev, { role: 'bot', text: 'عذراً، لم أتمكن من الرد. يرجى المحاولة لاحقاً.' }])
+      setMessages(prev => [
+        ...prev,
+        { role: 'bot', text: 'عذراً، لم أتمكن من الرد في الوقت الحالي. يرجى مراجعة العيادة مباشرة.' }
+      ])
     } finally {
       setIsLoading(false)
     }
@@ -54,72 +59,97 @@ export function AIChatWidget({ clinic }: { clinic: any }) {
 
   return (
     <>
-      {/* Floating Button */}
+      {/* Floating Action Bubble */}
       {!isOpen && (
-        <Button 
+        <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 w-16 h-16 rounded-full shadow-2xl bg-teal-600 hover:bg-teal-700 text-white z-50 flex items-center justify-center animate-bounce hover:animate-none"
+          className="fixed bottom-6 left-6 w-14 h-14 rounded-full shadow-2xl bg-[#15B8A6] hover:bg-[#0D9488] text-white z-50 flex items-center justify-center transition-all hover:scale-110 active:scale-95 group cursor-pointer border-2 border-white"
+          title="تحدث مع المساعد الذكي"
         >
-          <Bot className="w-8 h-8" />
-        </Button>
+          <Bot className="w-7 h-7" />
+          <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-400 rounded-full border-2 border-white flex items-center justify-center text-[9px] text-slate-900 font-black animate-pulse">
+            !
+          </span>
+        </button>
       )}
 
-      {/* Chat Window */}
+      {/* Floating Chat Modal */}
       {isOpen && (
-        <Card className="fixed bottom-6 right-6 w-80 md:w-96 shadow-2xl z-50 border-t-4 border-t-teal-600 flex flex-col h-[500px] max-h-[80vh] overflow-hidden rounded-2xl" dir="rtl">
-          <CardHeader className="bg-teal-50 border-b pb-3 flex flex-row items-center justify-between">
-            <CardTitle className="text-teal-800 flex items-center gap-2 text-lg">
-              <Bot className="w-5 h-5 text-teal-600" />
-              المساعد الذكي للعيادة
-            </CardTitle>
-            <Button variant="ghost" size="icon" onClick={() => setIsOpen(false)} className="h-8 w-8 text-slate-500 hover:bg-teal-100">
-              <X className="w-4 h-4" />
-            </Button>
-          </CardHeader>
-          
-          <CardContent className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
+        <div
+          className="fixed bottom-6 left-6 w-84 sm:w-96 shadow-2xl z-50 bg-white border border-[#E5EAF0] flex flex-col h-[520px] max-h-[85vh] rounded-3xl overflow-hidden font-sans"
+          dir="rtl"
+        >
+          {/* Header */}
+          <div className="bg-[#0B1F33] text-white px-5 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-teal-500/20 text-[#15B8A6] flex items-center justify-center">
+                <Bot className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-white">المساعد الذكي للعيادة</h3>
+                <span className="text-[10px] text-teal-300 font-semibold flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  متصل ومتاح للرد فوراً
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setIsOpen(false)}
+              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Messages Body */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#F8FAFC]">
             {messages.map((m, idx) => (
               <div key={idx} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-                <div className={`max-w-[85%] rounded-2xl p-3 text-sm leading-relaxed shadow-sm ${
-                  m.role === 'user' 
-                    ? 'bg-primary text-white rounded-tr-none' 
-                    : 'bg-white text-slate-800 border border-slate-100 rounded-tl-none'
-                }`}>
+                <div
+                  className={`max-w-[85%] rounded-2xl p-3 text-xs leading-relaxed shadow-xs ${
+                    m.role === 'user'
+                      ? 'bg-[#15B8A6] text-white rounded-tr-none'
+                      : 'bg-white text-[#182230] border border-[#E5EAF0] rounded-tl-none font-medium'
+                  }`}
+                >
                   {m.text}
                 </div>
               </div>
             ))}
+
             {isLoading && (
               <div className="flex justify-end">
-                <div className="bg-white border rounded-2xl rounded-tl-none p-3 shadow-sm flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin text-teal-600" />
-                  <span className="text-xs text-slate-500">جاري التفكير...</span>
+                <div className="bg-white border border-[#E5EAF0] rounded-2xl rounded-tl-none p-3 shadow-xs flex items-center gap-2 text-xs text-slate-400 font-bold">
+                  <Loader2 className="w-4 h-4 animate-spin text-[#15B8A6]" />
+                  جاري صياغة الإجابة...
                 </div>
               </div>
             )}
             <div ref={messagesEndRef} />
-          </CardContent>
+          </div>
 
-          <CardFooter className="p-3 bg-white border-t">
-            <form onSubmit={handleSend} className="flex w-full gap-2 relative">
-              <Input 
+          {/* Input Footer */}
+          <div className="p-3 bg-white border-t border-[#E5EAF0]">
+            <form onSubmit={handleSend} className="flex gap-2 relative">
+              <Input
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={e => setInput(e.target.value)}
                 placeholder="اسألني أي سؤال عن العيادة..."
-                className="pr-4 pl-10 h-12 bg-slate-50 border-slate-200 focus:border-teal-500 focus:ring-teal-500/20"
+                className="h-11 pr-3 pl-11 text-xs bg-[#F6F8FB] border-[#E5EAF0] rounded-xl focus:bg-white"
                 disabled={isLoading}
               />
-              <Button 
-                type="submit" 
-                size="icon" 
+              <Button
+                type="submit"
+                size="icon"
                 disabled={!input.trim() || isLoading}
-                className="absolute left-1 top-1 w-10 h-10 bg-teal-600 hover:bg-teal-700 rounded-lg text-white transition-transform active:scale-95"
+                className="absolute left-1 top-1 w-9 h-9 bg-[#15B8A6] hover:bg-[#0D9488] rounded-lg text-white"
               >
                 <Send className="w-4 h-4" />
               </Button>
             </form>
-          </CardFooter>
-        </Card>
+          </div>
+        </div>
       )}
     </>
   )

@@ -2,10 +2,19 @@
 
 import { use, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { FileText, Users, DollarSign, Calendar, Settings, Bot, LogOut, Receipt, Database } from 'lucide-react'
+import { usePathname } from 'next/navigation'
+import {
+  FileText, Users, DollarSign, Calendar, Settings, Bot,
+  LogOut, Receipt, Pill, Bell, Search, ExternalLink, Menu,
+  X, CheckCircle, ChevronLeft, User
+} from 'lucide-react'
 import { db, auth } from '@/lib/firebase'
 import { collection, query, where, getDocs } from 'firebase/firestore'
 import { signOut } from 'firebase/auth'
+import { ClinicLogo } from '@/components/clinic/ClinicLogo'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
+import { toast } from 'sonner'
 
 export default function AdminLayout({
   children,
@@ -16,9 +25,12 @@ export default function AdminLayout({
 }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
+  const pathname = usePathname()
   const [role, setRole] = useState<string | null>(null)
   const [clinic, setClinic] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     const storedRole = localStorage.getItem('clinic_role') || 'doctor'
@@ -38,101 +50,361 @@ export default function AdminLayout({
     fetchClinic()
   }, [slug])
 
+  // Close mobile drawer on route change
+  useEffect(() => {
+    setMobileDrawerOpen(false)
+  }, [pathname])
+
   const handleLogout = async () => {
     await signOut(auth)
     localStorage.removeItem('clinic_role')
     window.location.href = `/clinic/${slug}`
   }
 
-  if (loading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div></div>
+  // Get current Arabic formatted date
+  const todayArabic = new Intl.DateTimeFormat('ar-EG', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }).format(new Date())
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F6F8FB] flex flex-col items-center justify-center gap-4" dir="rtl">
+        <ClinicLogo size="lg" variant="light" />
+        <div className="flex items-center gap-2 text-sm font-semibold text-slate-500">
+          <div className="w-5 h-5 border-2 border-[#15B8A6] border-t-transparent rounded-full animate-spin"></div>
+          جاري تحميل نظام العيادة...
+        </div>
+      </div>
+    )
+  }
 
   const assistantPermissions = clinic?.assistantPermissions || ['appointments']
-  const primaryColor = clinic?.primaryColor || '#0ea5e9' // Default Tailwind Sky-500
+  const primaryColor = clinic?.primaryColor || '#15B8A6'
 
-  const allLinks = [
-    { id: 'appointments', name: 'الدور والمواعيد', href: `/clinic/${slug}/admin`, icon: <Calendar className="w-5 h-5" /> },
-    { id: 'patients', name: 'سجل المرضى', href: `/clinic/${slug}/admin/patients`, icon: <Users className="w-5 h-5" /> },
-    { id: 'accounts', name: 'الحسابات', href: `/clinic/${slug}/admin/accounts`, icon: <Receipt className="w-5 h-5" /> },
-    { id: 'prescriptions', name: 'الروشتات الطبية', href: `/clinic/${slug}/admin/prescriptions`, icon: <FileText className="w-5 h-5" /> },
-    { id: 'drugs', name: 'دليل الأدوية', href: `/clinic/${slug}/admin/drugs`, icon: <Database className="w-5 h-5" /> },
-    { id: 'finance', name: 'التقارير المالية', href: `/clinic/${slug}/admin/finance`, icon: <DollarSign className="w-5 h-5" /> },
-    { id: 'ai-training', name: 'تدريب الذكاء الاصطناعي', href: `/clinic/${slug}/admin/ai-training`, icon: <Bot className="w-5 h-5" /> },
-    { id: 'settings', name: 'إعدادات العيادة', href: `/clinic/${slug}/admin/settings`, icon: <Settings className="w-5 h-5" /> },
+  const navItems = [
+    {
+      id: 'appointments',
+      name: 'لوحة اليوم',
+      href: `/clinic/${slug}/admin`,
+      icon: Calendar,
+      badge: 'مباشر'
+    },
+    {
+      id: 'patients',
+      name: 'سجل المرضى',
+      href: `/clinic/${slug}/admin/patients`,
+      icon: Users
+    },
+    {
+      id: 'prescriptions',
+      name: 'الروشتات الطبية',
+      href: `/clinic/${slug}/admin/prescriptions`,
+      icon: FileText
+    },
+    {
+      id: 'drugs',
+      name: 'دليل الأدوية',
+      href: `/clinic/${slug}/admin/drugs`,
+      icon: Pill
+    },
+    {
+      id: 'accounts',
+      name: 'الحسابات',
+      href: `/clinic/${slug}/admin/accounts`,
+      icon: Receipt
+    },
+    {
+      id: 'finance',
+      name: 'التقارير المالية',
+      href: `/clinic/${slug}/admin/finance`,
+      icon: DollarSign
+    },
+    {
+      id: 'ai-training',
+      name: 'المساعد الذكي',
+      href: `/clinic/${slug}/admin/ai-training`,
+      icon: Bot
+    },
+    {
+      id: 'settings',
+      name: 'الإعدادات',
+      href: `/clinic/${slug}/admin/settings`,
+      icon: Settings
+    },
   ]
 
-  // Filter based on role and dynamic permissions
-  const links = allLinks.filter(l => {
+  // Filter based on role and permissions
+  const filteredNav = navItems.filter(item => {
     if (role === 'doctor') return true
-    if (role === 'assistant') return assistantPermissions.includes(l.id)
+    if (role === 'assistant') return assistantPermissions.includes(item.id)
     return false
   })
 
+  // Quick bottom nav shortcuts for mobile
+  const bottomNavItems = [
+    { name: 'الرئيسية', href: `/clinic/${slug}/admin`, icon: Calendar },
+    { name: 'المرضى', href: `/clinic/${slug}/admin/patients`, icon: Users },
+    { name: 'الروشتات', href: `/clinic/${slug}/admin/prescriptions`, icon: FileText },
+    { name: 'الحسابات', href: `/clinic/${slug}/admin/accounts`, icon: Receipt },
+    { name: 'المزيد', href: `/clinic/${slug}/admin/settings`, icon: Settings },
+  ]
+
+  const handleGlobalSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!searchQuery.trim()) return
+    window.location.href = `/clinic/${slug}/admin/patients?search=${encodeURIComponent(searchQuery)}`
+  }
+
   return (
-    <div className="flex h-screen print:h-auto print:block bg-[#F8FAFC] print:bg-white font-sans" dir="rtl">
-      {/* Inject dynamic CSS variable for Primary Color globally for this dashboard */}
-      <style dangerouslySetInnerHTML={{__html: `:root { --primary: ${primaryColor}; }`}} />
-      
-      {/* Sidebar */}
-      <aside className="print:hidden w-64 bg-slate-900 text-slate-300 shadow-2xl hidden md:flex flex-col transition-all duration-300 relative z-20">
-        <div className="p-6 text-center border-b border-slate-800 bg-slate-950/50">
-          <div className="w-20 h-20 bg-primary/20 rounded-2xl mx-auto mb-4 flex items-center justify-center text-primary shadow-lg shadow-primary/10 overflow-hidden">
-            {clinic?.heroImage ? (
-              <img src={clinic.heroImage} alt="Clinic Logo" className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-3xl font-black text-white">{slug.charAt(0).toUpperCase()}</span>
-            )}
-          </div>
-          <h2 className="text-xl font-bold text-white tracking-wide">{clinic?.clinicName || 'عيادة طبية'}</h2>
-          <p className="text-xs text-primary mt-1 mb-2">/clinic/{slug}</p>
-          <div className="inline-block px-3 py-1 rounded-full bg-slate-800 text-xs font-bold text-slate-400 border border-slate-700">
-            الصلاحية: {role === 'assistant' ? 'مساعد' : 'طبيب'}
+    <div className="flex h-screen bg-[#F6F8FB] font-sans overflow-hidden text-[#182230]" dir="rtl">
+      {/* Dynamic Primary Color injection */}
+      <style dangerouslySetInnerHTML={{ __html: `:root { --primary: ${primaryColor}; }` }} />
+
+      {/* 1. DESKTOP SIDEBAR */}
+      <aside className="w-64 bg-[#0B1F33] text-slate-300 hidden lg:flex flex-col border-l border-[#132B45] relative z-30 shrink-0 select-none shadow-xl">
+        {/* Brand Header */}
+        <div className="p-5 border-b border-[#132B45] bg-[#081827]/80">
+          <Link href={`/clinic/${slug}/admin`} className="flex items-center gap-3">
+            <ClinicLogo size="md" variant="dark" />
+          </Link>
+
+          {/* Doctor Profile Mini Card */}
+          <div className="mt-4 p-3 rounded-xl bg-[#0F243A] border border-[#1E3A5F] flex items-center gap-3">
+            <Avatar className="w-10 h-10 border border-[#15B8A6]/40 shadow-sm shrink-0">
+              <AvatarImage src={clinic?.heroImage} alt="Doctor" className="object-cover" />
+              <AvatarFallback className="bg-[#15B8A6]/20 text-[#15B8A6] font-bold text-sm">
+                <User className="w-5 h-5" />
+              </AvatarFallback>
+            </Avatar>
+            <div className="overflow-hidden flex-1">
+              <h3 className="font-bold text-sm text-white truncate">
+                {clinic?.doctorName ? `د. ${clinic.doctorName}` : (clinic?.clinicName || 'العيادة الطبية')}
+              </h3>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span className="text-[11px] text-slate-400 font-medium truncate">
+                  {role === 'assistant' ? 'مساعد العيادة' : 'طبيب معتمد'}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
-        <nav className="flex-1 overflow-y-auto p-4 space-y-2 flex flex-col justify-between">
-          <div className="space-y-2">
-            {links.map((link) => (
-              <Link key={link.href} href={link.href}>
-                <div className="flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-primary/20 hover:text-white transition-all group cursor-pointer border border-transparent hover:border-primary/20">
-                  <div className="text-primary group-hover:scale-110 transition-transform">
-                    {link.icon}
+
+        {/* Navigation Links */}
+        <nav className="flex-1 overflow-y-auto p-3 space-y-1.5 py-4">
+          {filteredNav.map((item) => {
+            const Icon = item.icon
+            const isActive = pathname === item.href
+            return (
+              <Link key={item.href} href={item.href}>
+                <div
+                  className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all duration-200 cursor-pointer ${
+                    isActive
+                      ? 'bg-[#15B8A6] text-white shadow-md shadow-[#15B8A6]/25 font-bold'
+                      : 'text-slate-300 hover:text-white hover:bg-[#132B45] font-medium'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-white'}`} />
+                    <span className="text-sm tracking-wide">{item.name}</span>
                   </div>
-                  <span className="font-bold text-sm tracking-wide">{link.name}</span>
+                  {item.badge && !isActive && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                      {item.badge}
+                    </span>
+                  )}
                 </div>
               </Link>
-            ))}
-          </div>
-          <div 
-            onClick={handleLogout}
-            className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-all group cursor-pointer mt-4"
-          >
-            <LogOut className="w-5 h-5 group-hover:scale-110 transition-transform" />
-            <span className="font-bold text-sm tracking-wide">تسجيل الخروج</span>
-          </div>
+            )
+          })}
         </nav>
+
+        {/* Sidebar Footer */}
+        <div className="p-4 border-t border-[#132B45] bg-[#081827]/80 space-y-2">
+          <Link
+            href={`/clinic/${slug}`}
+            target="_blank"
+            className="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-[#15B8A6] hover:bg-[#0F243A] transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <ExternalLink className="w-3.5 h-3.5 text-[#15B8A6]" />
+              صفحة الحجز للمرضى
+            </span>
+            <ChevronLeft className="w-3.5 h-3.5" />
+          </Link>
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            تسجيل الخروج
+          </button>
+        </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="print:overflow-visible print:p-0 flex-1 overflow-y-auto relative z-10 scroll-smooth">
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl mix-blend-multiply opacity-70 pointer-events-none -translate-y-1/2 translate-x-1/3 print:hidden"></div>
-        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-300/10 rounded-full blur-3xl mix-blend-multiply opacity-50 pointer-events-none translate-y-1/3 -translate-x-1/3 print:hidden"></div>
-        
-        {/* Mobile Nav */}
-        <div className="print:hidden md:hidden bg-white p-4 border-b flex overflow-x-auto gap-2 whitespace-nowrap sticky top-0 z-30 shadow-sm items-center">
-          {links.map(link => (
-            <Link key={link.href} href={link.href}>
-              <div className="flex items-center gap-2 p-2 px-4 rounded-full bg-slate-50 text-slate-700 hover:bg-primary hover:text-white border border-slate-100 text-sm font-bold transition-colors">
-                {link.icon}
-                {link.name}
-              </div>
-            </Link>
-          ))}
-          <div onClick={handleLogout} className="flex items-center gap-2 p-2 px-4 rounded-full bg-red-50 text-red-600 border border-red-100 text-sm font-bold cursor-pointer shrink-0 ml-4">
-            <LogOut className="w-4 h-4" /> خروج
+      {/* 2. MOBILE DRAWER OVERLAY */}
+      {mobileDrawerOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs lg:hidden transition-opacity"
+          onClick={() => setMobileDrawerOpen(false)}
+        >
+          <div
+            className="fixed inset-y-0 right-0 w-72 bg-[#0B1F33] text-slate-300 shadow-2xl flex flex-col z-50 p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-4 border-b border-[#132B45]">
+              <ClinicLogo size="md" variant="dark" />
+              <button
+                onClick={() => setMobileDrawerOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <nav className="flex-1 overflow-y-auto py-4 space-y-1">
+              {filteredNav.map((item) => {
+                const Icon = item.icon
+                const isActive = pathname === item.href
+                return (
+                  <Link key={item.href} href={item.href}>
+                    <div
+                      className={`flex items-center justify-between px-3.5 py-3 rounded-xl transition-all ${
+                        isActive
+                          ? 'bg-[#15B8A6] text-white font-bold'
+                          : 'text-slate-300 hover:text-white hover:bg-[#132B45]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon className="w-5 h-5" />
+                        <span className="text-sm font-semibold">{item.name}</span>
+                      </div>
+                    </div>
+                  </Link>
+                )
+              })}
+            </nav>
+
+            <div className="pt-4 border-t border-[#132B45] space-y-2">
+              <Link
+                href={`/clinic/${slug}`}
+                target="_blank"
+                className="flex items-center justify-between px-3 py-2 text-xs font-bold text-[#15B8A6] bg-[#0F243A] rounded-lg"
+              >
+                <span className="flex items-center gap-2">
+                  <ExternalLink className="w-4 h-4" /> صفحة حجز المرضى
+                </span>
+              </Link>
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-rose-400 hover:bg-rose-500/10 rounded-lg"
+              >
+                <LogOut className="w-4 h-4" /> تسجيل الخروج
+              </button>
+            </div>
           </div>
         </div>
-        
-        {children}
-      </main>
+      )}
+
+      {/* 3. MAIN WORKSPACE AREA */}
+      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+        {/* Sticky Topbar */}
+        <header className="h-16 bg-white border-b border-[#E5EAF0] px-4 md:px-8 flex items-center justify-between gap-4 z-20 shrink-0">
+          {/* Right side: Mobile Menu Button & Search */}
+          <div className="flex items-center gap-3 flex-1 max-w-lg">
+            <button
+              onClick={() => setMobileDrawerOpen(true)}
+              className="lg:hidden p-2 rounded-xl border border-[#E5EAF0] text-slate-700 hover:bg-slate-50 focus:outline-none"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+
+            {/* Quick Search */}
+            <form onSubmit={handleGlobalSearch} className="relative w-full max-w-md hidden sm:block">
+              <Search className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="ابحث عن مريض بالاسم أو رقم الهاتف..."
+                className="w-full h-10 pr-10 pl-4 rounded-xl bg-[#F6F8FB] border border-[#E5EAF0] text-sm text-[#182230] placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#15B8A6]/20 focus:border-[#15B8A6] transition-all"
+              />
+            </form>
+          </div>
+
+          {/* Left side: Date, Clinic Public Link, Notifications, Profile */}
+          <div className="flex items-center gap-3 md:gap-5">
+            {/* Realtime Date Badge */}
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#F6F8FB] border border-[#E5EAF0] text-xs font-semibold text-slate-600">
+              <Calendar className="w-3.5 h-3.5 text-[#15B8A6]" />
+              <span>{todayArabic}</span>
+            </div>
+
+            {/* Link to Patient Page */}
+            <Link
+              href={`/clinic/${slug}`}
+              target="_blank"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-[#15B8A6] bg-[#E6FFFA] border border-[#15B8A6]/20 hover:bg-[#15B8A6] hover:text-white transition-all shadow-xs"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              صفحة الحجز
+            </Link>
+
+            {/* Notification Bell */}
+            <button
+              onClick={() => toast.info('لا توجد إشعارات جديدة حالياً')}
+              className="relative p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+            >
+              <Bell className="w-5 h-5" />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#15B8A6] ring-2 ring-white"></span>
+            </button>
+
+            {/* User Avatar & Info */}
+            <div className="flex items-center gap-2.5 pl-1">
+              <Avatar className="w-9 h-9 border border-[#E5EAF0]">
+                <AvatarImage src={clinic?.heroImage} alt="User" className="object-cover" />
+                <AvatarFallback className="bg-[#E6FFFA] text-[#0D9488] font-bold text-xs">
+                  {clinic?.doctorName?.charAt(0) || 'ط'}
+                </AvatarFallback>
+              </Avatar>
+              <div className="hidden xl:block text-right">
+                <p className="text-xs font-bold text-[#182230] leading-tight">
+                  {clinic?.doctorName ? `د. ${clinic.doctorName}` : 'الطبيب المسجل'}
+                </p>
+                <p className="text-[10px] text-slate-400 font-medium">/clinic/{slug}</p>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Scrollable Page Body */}
+        <main className="flex-1 overflow-y-auto bg-[#F6F8FB] pb-20 lg:pb-8 relative">
+          {children}
+        </main>
+
+        {/* 4. MOBILE BOTTOM NAVIGATION (Fixed at bottom for phones) */}
+        <nav className="lg:hidden fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-md border-t border-[#E5EAF0] px-3 py-2 z-40 flex justify-around items-center shadow-lg">
+          {bottomNavItems.map((item) => {
+            const Icon = item.icon
+            const isActive = pathname === item.href
+            return (
+              <Link key={item.name} href={item.href} className="flex-1">
+                <div
+                  className={`flex flex-col items-center justify-center py-1 transition-all ${
+                    isActive ? 'text-[#15B8A6] font-bold' : 'text-slate-400 hover:text-slate-600 font-medium'
+                  }`}
+                >
+                  <Icon className={`w-5 h-5 mb-0.5 ${isActive ? 'scale-110' : ''}`} />
+                  <span className="text-[10px]">{item.name}</span>
+                </div>
+              </Link>
+            )
+          })}
+        </nav>
+      </div>
     </div>
   )
 }

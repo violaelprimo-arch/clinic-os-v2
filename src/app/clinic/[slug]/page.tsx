@@ -21,6 +21,28 @@ export default function ClinicPage({ params }: { params: Promise<{ slug: string 
         const snapshot = await getDocs(q)
         
         if (snapshot.empty) {
+          if (slug === 'demo') {
+            setClinic({
+              id: 'demo',
+              slug: 'demo',
+              clinicName: 'عيادة د. محمد علي التخصصية',
+              doctorName: 'محمد علي',
+              specialty: 'استشاري الطب المتخصص وعلاج الحالات المتقدمة',
+              heroImage: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=1000&auto=format&fit=crop',
+              clinicPhone: '01012345678',
+              clinicAddress: 'شارع التسعين الشمالي، التجمع الخامس، القاهرة',
+              primaryColor: '#15B8A6',
+              isActive: true,
+              services: [
+                { id: '1', name: 'كشف عادي', price: 250, desc: 'كشف طبي شامل مع تشخيص دقيق', duration: 'حوالي 15 دقيقة' },
+                { id: '2', name: 'استشارة', price: 150, desc: 'استشارة ومراجعة تحاليل', duration: 'حوالي 10 دقائق' },
+                { id: '3', name: 'كشف مستعجل', price: 400, desc: 'أولوية فورية في الطابور والدخول', duration: 'كشف فوري مباشر' },
+                { id: '4', name: 'متابعة', price: 100, desc: 'متابعة لحالة سابقة وتعديل الجرعات', duration: 'حوالي 10 دقائق' },
+              ]
+            })
+            setLoading(false)
+            return
+          }
           setError('العيادة غير موجودة')
           setLoading(false)
           return

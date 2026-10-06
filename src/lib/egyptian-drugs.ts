@@ -78,3 +78,36 @@ export const EGYPTIAN_DRUGS = [
   "Duspatalin Retard 200mg", "Duspatalin 135mg", "Mebeverine 200mg",
   "Ketofan 50mg Capsules", "Ketolac 30mg Ampoules", "Ketolac Tablets"
 ].sort();
+
+export interface DrugItem {
+  id: string
+  name: string
+  activeIngredient: string
+  company: string
+  form: 'أقراص' | 'كبسولات' | 'شراب' | 'أكياس' | 'حقن' | 'نقط' | 'دهان / مرهم'
+  price: number
+  isFavorite?: boolean
+}
+
+export const STRUCTURED_DRUGS: DrugItem[] = [
+  { id: '1', name: 'Augmentin 1g', activeIngredient: 'Amoxicillin + Clavulanic Acid', company: 'GSK', form: 'أقراص', price: 125, isFavorite: true },
+  { id: '2', name: 'Catafast 50 mg', activeIngredient: 'Diclofenac Potassium', company: 'Novartis', form: 'أكياس', price: 72, isFavorite: true },
+  { id: '3', name: 'Panadol 500 mg', activeIngredient: 'Paracetamol', company: 'GSK', form: 'أقراص', price: 25, isFavorite: true },
+  { id: '4', name: 'Clarinese', activeIngredient: 'Loratadine + Pseudoephedrine', company: 'MSD', form: 'أقراص', price: 95, isFavorite: false },
+  { id: '5', name: 'Zyrtec 10 mg', activeIngredient: 'Cetirizine', company: 'UCB', form: 'أقراص', price: 60, isFavorite: false },
+  { id: '6', name: 'Brufen 600 mg', activeIngredient: 'Ibuprofen', company: 'Abbott', form: 'أقراص', price: 54, isFavorite: true },
+  { id: '7', name: 'Cataflam 50 mg', activeIngredient: 'Diclofenac Potassium', company: 'Novartis', form: 'أقراص', price: 48, isFavorite: false },
+  { id: '8', name: 'Voltaren 75 mg', activeIngredient: 'Diclofenac Sodium', company: 'Novartis', form: 'حقن', price: 65, isFavorite: false },
+  { id: '9', name: 'Hibiotic 1g', activeIngredient: 'Amoxicillin + Clavulanic Acid', company: 'Amoun', form: 'أقراص', price: 105, isFavorite: true },
+  { id: '10', name: 'Congestal', activeIngredient: 'Paracetamol + Pseudoephedrine + Chlorpheniramine', company: 'Sigma', form: 'أقراص', price: 35, isFavorite: false },
+  { id: '11', name: 'Antinal', activeIngredient: 'Nifuroxazide', company: 'Amoun', form: 'كبسولات', price: 40, isFavorite: false },
+  { id: '12', name: 'Flagyl 500 mg', activeIngredient: 'Metronidazole', company: 'Sanofi', form: 'أقراص', price: 32, isFavorite: false },
+  { id: '13', name: 'Controloc 40 mg', activeIngredient: 'Pantoprazole', company: 'Takeda', form: 'أقراص', price: 130, isFavorite: true },
+  { id: '14', name: 'Nexium 40 mg', activeIngredient: 'Esomeprazole', company: 'AstraZeneca', form: 'أقراص', price: 180, isFavorite: false },
+  { id: '15', name: 'Concor 5 mg', activeIngredient: 'Bisoprolol Fumarate', company: 'Merck', form: 'أقراص', price: 78, isFavorite: false },
+  { id: '16', name: 'Lipitor 20 mg', activeIngredient: 'Atorvastatin', company: 'Pfizer', form: 'أقراص', price: 190, isFavorite: false },
+  { id: '17', name: 'Alphintern', activeIngredient: 'Chymotrypsin + Trypsin', company: 'Amoun', form: 'أقراص', price: 54, isFavorite: true },
+  { id: '18', name: 'Mucosolvan', activeIngredient: 'Ambroxol Hydrochloride', company: 'Sanofi', form: 'شراب', price: 45, isFavorite: false },
+  { id: '19', name: 'Fucicort Cream', activeIngredient: 'Fusidic Acid + Betamethasone', company: 'Leo Pharma', form: 'دهان / مرهم', price: 68, isFavorite: false },
+  { id: '20', name: 'Otrivin Adult Drops', activeIngredient: 'Xylometazoline', company: 'GSK', form: 'نقط', price: 28, isFavorite: false }
+];

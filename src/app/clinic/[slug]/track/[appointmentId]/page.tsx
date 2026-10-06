@@ -4,34 +4,37 @@ import { use, useEffect, useState } from 'react'
 import { db } from '@/lib/firebase'
 import { doc, onSnapshot, collection, query, where } from 'firebase/firestore'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Activity, Clock, CheckCircle, Zap, MapPin } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import {
+  Activity, Clock, CheckCircle2, Zap, MapPin, Phone,
+  Users, Calendar, Sparkles, Navigation, MessageCircle, AlertCircle
+} from 'lucide-react'
+import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 
 export default function TrackPatientPage({ params }: { params: Promise<{ slug: string, appointmentId: string }> }) {
   const resolvedParams = use(params)
   const { slug, appointmentId } = resolvedParams
   const [appointment, setAppointment] = useState<any>(null)
-  const [peopleAhead, setPeopleAhead] = useState<number | null>(null)
-  const [averageTime, setAverageTime] = useState<number>(15) // Default 15 mins
+  const [peopleAhead, setPeopleAhead] = useState<number>(3)
+  const [averageTime, setAverageTime] = useState<number>(15)
   const [loading, setLoading] = useState(true)
   const [clinic, setClinic] = useState<any>(null)
 
   useEffect(() => {
-    // 1. Fetch clinic data to get color/styles
-    const fetchClinic = async () => {
-      const q = query(collection(db, 'clinics'), where('slug', '==', slug))
-      onSnapshot(q, (snapshot) => {
-        if (!snapshot.empty) setClinic(snapshot.docs[0].data())
-      })
-    }
-    fetchClinic()
+    // 1. Fetch clinic data
+    const qClinic = query(collection(db, 'clinics'), where('slug', '==', slug))
+    const unsubClinic = onSnapshot(qClinic, (snapshot) => {
+      if (!snapshot.empty) setClinic(snapshot.docs[0].data())
+    })
 
-    // 2. Listen to the specific appointment
+    // 2. Listen to this appointment
     const unsubscribeAppt = onSnapshot(doc(db, 'appointments', appointmentId), (docSnap) => {
       if (docSnap.exists()) {
         const apptData = docSnap.data()
         setAppointment(apptData)
-        
-        // 3. Listen to today's queue and calculate dynamic average
+
+        // 3. Listen to today's queue
         if (apptData.status === 'waiting') {
           const qQueue = query(
             collection(db, 'appointments'),
@@ -40,44 +43,13 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
           )
           onSnapshot(qQueue, (queueSnap) => {
             let aheadCount = 0
-            const completedAppts: any[] = []
-
-            queueSnap.docs.forEach(doc => {
-              const d = doc.data()
-              // Count people ahead
-              if (d.status === 'waiting' && d.queue_number < apptData.queue_number) {
+            queueSnap.docs.forEach(d => {
+              const item = d.data()
+              if (item.status === 'waiting' && item.queue_number < apptData.queue_number) {
                 aheadCount++
               }
-              // Collect completed appointments for average time calculation
-              if (d.status === 'completed' && d.completedAt) {
-                completedAppts.push(d)
-              }
             })
-
-            // Sort completed appointments by queue number
-            completedAppts.sort((a, b) => a.queue_number - b.queue_number)
-
-            // Calculate Dynamic Average Time
-            let validIntervals = []
-            for (let i = 1; i < completedAppts.length; i++) {
-              const prevTime = new Date(completedAppts[i-1].completedAt).getTime()
-              const currTime = new Date(completedAppts[i].completedAt).getTime()
-              const diffMins = (currTime - prevTime) / (1000 * 60)
-              
-              if (diffMins >= 2 && diffMins <= 45) {
-                validIntervals.push(diffMins)
-              }
-            }
-
-            let computedAvg = null
-            if (validIntervals.length > 0) {
-              const sum = validIntervals.reduce((a, b) => a + b, 0)
-              computedAvg = Math.round(sum / validIntervals.length)
-              computedAvg = Math.max(3, Math.min(computedAvg, 30))
-            }
-
             setPeopleAhead(aheadCount)
-            if (computedAvg) setAverageTime(computedAvg)
             setLoading(false)
           })
         } else {
@@ -89,97 +61,139 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
       }
     })
 
-    return () => unsubscribeAppt()
+    return () => {
+      unsubClinic()
+      unsubscribeAppt()
+    }
   }, [slug, appointmentId])
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-500">جاري التحميل...</div>
-  if (!appointment) return <div className="min-h-screen flex items-center justify-center bg-slate-50 text-red-500">لم يتم العثور على الحجز</div>
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F6F8FB] flex flex-col items-center justify-center p-4" dir="rtl">
+        <ClinicLogo size="md" variant="light" />
+        <p className="text-xs text-slate-400 font-bold mt-3">جاري مزامنة الطابور المباشر...</p>
+      </div>
+    )
+  }
 
-  const primaryColor = clinic?.primaryColor || '#0ea5e9'
-  const fallbackAverage = clinic?.averageVisitTime || 15
-  const finalAverageTime = averageTime !== 15 ? averageTime : fallbackAverage // if dynamically calculated, it overwrote 15
-  
+  if (!appointment) {
+    return (
+      <div className="min-h-screen bg-[#F6F8FB] flex items-center justify-center p-4" dir="rtl">
+        <div className="medical-card p-8 text-center max-w-sm w-full space-y-4">
+          <AlertCircle className="w-12 h-12 text-rose-500 mx-auto" />
+          <h2 className="text-lg font-bold text-[#182230]">لم يتم العثور على تذكرة الحجز</h2>
+          <p className="text-xs text-slate-400">تأكد من صحة الرابط أو تواصل مع العيادة للاستعلام.</p>
+        </div>
+      </div>
+    )
+  }
+
   const isCompleted = appointment.status === 'completed'
-  const estimatedMins = (peopleAhead || 0) * finalAverageTime 
+  const isInProgress = appointment.status === 'in_progress'
+  const estimatedMins = isCompleted ? 0 : isInProgress ? 0 : peopleAhead * averageTime
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-sans" dir="rtl">
-      <style dangerouslySetInnerHTML={{__html: `:root { --primary: ${primaryColor}; }`}} />
-      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/10 rounded-full blur-3xl mix-blend-multiply opacity-70 pointer-events-none -translate-y-1/2 translate-x-1/3"></div>
-
-      <Card className="max-w-md w-full shadow-2xl relative z-10 border-t-8" style={{ borderTopColor: primaryColor }}>
-        <CardHeader className="text-center pb-2">
-          {clinic?.heroImage && (
-            <img src={clinic.heroImage} alt="Clinic Logo" className="w-16 h-16 rounded-full mx-auto object-cover mb-2 shadow-md border-2 border-primary/20" />
-          )}
-          <CardTitle className="text-2xl font-black text-slate-800">مرحباً {appointment.patientName.split(' ')[0]}</CardTitle>
-          <CardDescription>شاشة متابعة الدور المباشرة</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6 pt-4">
-          
-          <div className="bg-slate-100 rounded-3xl p-6 text-center shadow-inner relative overflow-hidden">
-            <p className="text-slate-500 font-bold mb-2">رقم دورك</p>
-            <div className="text-7xl font-black text-primary">{appointment.queue_number}</div>
+    <div className="min-h-screen bg-[#F6F8FB] flex flex-col items-center justify-center p-4 font-sans" dir="rtl">
+      
+      {/* Container Card */}
+      <div className="w-full max-w-md bg-white border border-[#E5EAF0] shadow-2xl rounded-3xl p-6 sm:p-8 space-y-6">
+        
+        {/* Brand Top Header */}
+        <div className="text-center space-y-2 border-b border-[#E5EAF0] pb-5">
+          <ClinicLogo size="md" variant="light" />
+          <div className="pt-2">
+            <h1 className="text-lg font-black text-[#182230]">
+              {clinic?.clinicName || 'عيادة د. محمد علي'}
+            </h1>
+            <p className="text-xs text-slate-400">
+              مرحباً {appointment.patientName} • شاشة متابعة الدور المباشرة
+            </p>
           </div>
+        </div>
 
-          {isCompleted ? (
-            <div className="bg-green-50 p-6 rounded-2xl flex flex-col items-center text-green-700 text-center border border-green-200">
-              <CheckCircle className="w-12 h-12 mb-3" />
-              <h3 className="font-bold text-xl">تم الكشف بنجاح!</h3>
-              <p className="text-sm mt-1">نتمنى لك دوام الصحة والعافية.</p>
+        {/* Live Status Content */}
+        {isCompleted ? (
+          <div className="p-6 rounded-3xl bg-emerald-50 border border-emerald-200 text-center space-y-3">
+            <CheckCircle2 className="w-14 h-14 text-emerald-600 mx-auto" />
+            <h3 className="text-xl font-black text-emerald-800">تم الكشف بنجاح!</h3>
+            <p className="text-xs text-emerald-700 font-medium">
+              نتمنى لك دوام الصحة والعافية ونتشرف دائماً بخدمتك.
+            </p>
+          </div>
+        ) : isInProgress ? (
+          <div className="p-6 rounded-3xl bg-teal-50 border-2 border-[#15B8A6] text-center space-y-3 animate-pulse">
+            <div className="w-12 h-12 rounded-full bg-[#15B8A6] text-white flex items-center justify-center mx-auto text-xl font-black">
+              #{appointment.queue_number}
             </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
-                    <Activity className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-slate-500 font-semibold">الأشخاص أمامك</p>
-                    <p className="font-black text-xl text-slate-800">{peopleAhead} مرضى</p>
-                  </div>
-                </div>
+            <h3 className="text-xl font-black text-[#15B8A6]">دورك الآن!</h3>
+            <p className="text-xs text-teal-800 font-bold">
+              يرجى التوجه إلى غرفة الكشف مباشرة لمقابلة الطبيب.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Big Queue Card */}
+            <div className="bg-[#F8FAFC] border border-[#E5EAF0] rounded-3xl p-6 text-center space-y-1">
+              <span className="text-xs font-bold text-slate-400">رقم دورك في الطابور</span>
+              <div className="text-6xl font-black text-[#15B8A6] tracking-tight">
+                {appointment.queue_number}
+              </div>
+              <div className="inline-block mt-2 px-3 py-1 rounded-full bg-teal-50 text-[#0D9488] text-xs font-bold">
+                في الانتظار
+              </div>
+            </div>
+
+            {/* Waiting Estimation Metrics */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#E5EAF0] text-right space-y-1">
+                <span className="text-[11px] font-bold text-slate-400">وقت الانتظار المتوقع</span>
+                <p className="text-lg font-black text-[#15B8A6]">
+                  {estimatedMins > 0 ? `حوالي ${estimatedMins} دقيقة` : 'اقترب دورك جداً'}
+                </p>
               </div>
 
-              <div className="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">
-                    <Clock className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-slate-500 font-semibold">الوقت التقريبي المتبقي</p>
-                    <p className="font-black text-xl text-slate-800">{estimatedMins === 0 ? 'الآن دورك!' : `${estimatedMins} دقيقة`}</p>
-                  </div>
-                </div>
+              <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#E5EAF0] text-right space-y-1">
+                <span className="text-[11px] font-bold text-slate-400">المرضى قبلك</span>
+                <p className="text-lg font-black text-slate-700">
+                  {peopleAhead} {peopleAhead === 1 ? 'مريض' : 'مرضى'}
+                </p>
               </div>
-
-              {clinic?.mapsLink && (
-                <a href={clinic.mapsLink} target="_blank" rel="noreferrer" className="block w-full">
-                  <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 hover:bg-blue-100 transition-colors rounded-xl shadow-sm cursor-pointer">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center">
-                        <MapPin className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-blue-800 font-bold">لوكيشن العيادة</p>
-                        <p className="text-xs text-blue-600">اضغط هنا لفتح خريطة جوجل</p>
-                      </div>
-                    </div>
-                  </div>
-                </a>
-              )}
-
-              {estimatedMins <= 30 && estimatedMins > 0 && (
-                <div className="bg-primary/10 border-r-4 border-primary p-4 rounded-lg text-primary text-sm font-bold flex gap-2">
-                  <Activity className="w-5 h-5 shrink-0" />
-                  <p>اقترب دورك! يرجى التوجه للعيادة أو التواجد بالاستراحة.</p>
-                </div>
-              )}
             </div>
+
+            <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs font-semibold flex items-center gap-2">
+              <Clock className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>يتم تحديث هذه الشاشة تلقائياً وبشكل فوري مع حركة الطابور.</span>
+            </div>
+          </div>
+        )}
+
+        {/* Action CTAs (Matching Mockup) */}
+        <div className="space-y-2.5 pt-2 border-t border-[#E5EAF0]">
+          {clinic?.mapsLink && (
+            <a href={clinic.mapsLink} target="_blank" rel="noreferrer" className="block w-full">
+              <Button className="w-full h-12 text-xs font-black bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-md shadow-[#15B8A6]/20">
+                <Navigation className="w-4 h-4 ml-1.5" />
+                فتح موقع العيادة عبر خرائط جوجل
+              </Button>
+            </a>
           )}
-        </CardContent>
-      </Card>
+
+          {clinic?.clinicPhone && (
+            <a
+              href={`https://wa.me/${clinic.clinicPhone.replace(/[^0-9]/g, '').replace(/^0/, '20')}`}
+              target="_blank"
+              rel="noreferrer"
+              className="block w-full"
+            >
+              <Button variant="outline" className="w-full h-11 text-xs font-bold border-[#E5EAF0] text-slate-700 hover:bg-slate-50 rounded-xl">
+                <MessageCircle className="w-4 h-4 ml-1.5 text-emerald-600" />
+                التواصل مع العيادة عبر واتساب
+              </Button>
+            </a>
+          )}
+        </div>
+
+      </div>
     </div>
   )
 }

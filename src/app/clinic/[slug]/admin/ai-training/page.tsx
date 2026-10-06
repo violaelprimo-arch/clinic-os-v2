@@ -6,13 +6,13 @@ import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/fire
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Bot, User, Send, Loader2, Info } from 'lucide-react'
+import { Bot, User, Send, Loader2, Info, Sparkles, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function AITrainingPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
-  
+
   const [clinicId, setClinicId] = useState<string | null>(null)
   const [messages, setMessages] = useState<{ role: 'user' | 'model', text: string }[]>([])
   const [input, setInput] = useState('')
@@ -31,13 +31,12 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
         const data = cDoc.data()
         setHasApiKey(!!data.aiApiKey)
         setApiKey(data.aiApiKey || '')
-        // If there's an existing knowledge base, load it. Otherwise, start fresh.
         if (data.aiKnowledge && data.aiKnowledge.length > 0) {
           setMessages(data.aiKnowledge)
         } else {
           setMessages([{
             role: 'model',
-            text: 'مرحباً دكتور. أنا المساعد الذكي الخاص بعيادتك. يمكنك هنا تزويدي بأي معلومات ترغب أن أتعلمها لأرد بها على استفسارات المرضى (مثل أسعار الكشف، المواعيد، الإجازات، أو أي تعليمات خاصة).'
+            text: 'مرحباً دكتور. أنا المساعد الذكي الخاص بعيادتك. يمكنك تزويدي هنا بأي معلومات أو تعليمات ترغب أن أتعلمها للرد على استفسارات المرضى (مثل أوقات الكشف، الأسعار، الإجازات، أو تعليمات الزيارة).'
           }])
         }
       }
@@ -57,17 +56,14 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
     e.preventDefault()
     if (!input.trim() || !clinicId) return
 
-    
-
     const userText = input.trim()
     setInput('')
-    
+
     const newMessages = [...messages, { role: 'user' as const, text: userText }]
     setMessages(newMessages)
     setIsLoading(true)
 
     try {
-      // Save instantly so if they close, it's not lost
       await updateDoc(doc(db, 'clinics', clinicId), { aiKnowledge: newMessages })
 
       const res = await fetch('/api/ai-train', {
@@ -75,16 +71,16 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ slug, newMessages })
       })
-      
+
       const data = await res.json()
-      
+
       if (data.reply) {
         const finalMessages = [...newMessages, { role: 'model' as const, text: data.reply }]
         setMessages(finalMessages)
         await updateDoc(doc(db, 'clinics', clinicId), { aiKnowledge: finalMessages })
       }
     } catch (err) {
-      toast.error('حدث خطأ في الاتصال بالذكاء الاصطناعي')
+      toast.error('حدث خطأ أثناء التواصل مع نموذج الذكاء الاصطناعي')
     } finally {
       setIsLoading(false)
     }
@@ -92,93 +88,114 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
 
   const handleClearMemory = async () => {
     if (!clinicId) return
-    if (!confirm('هل أنت متأكد من مسح ذاكرة الذكاء الاصطناعي؟ سينسى كل التعليمات السابقة.')) return
+    if (!confirm('هل أنت متأكد من رغبتك في مسح ذاكرة المساعد الذكي؟')) return
 
     const initial = [{
       role: 'model' as const,
-      text: 'تم مسح ذاكرتي بنجاح. أنا جاهز لتلقي معلومات جديدة.'
+      text: 'تم مسح ذاكرتي بنجاح. أنا جاهز لاستقبال معلومات وتوجيهات جديدة.'
     }]
     setMessages(initial)
     await updateDoc(doc(db, 'clinics', clinicId), { aiKnowledge: initial })
-    toast.success('تم مسح الذاكرة')
+    toast.success('تم مسح ذاكرة المساعد الذكي')
   }
 
   return (
-    <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-6" dir="rtl">
-      <div>
-        <h1 className="text-3xl font-bold text-primary flex items-center gap-2">
-          <Bot className="w-8 h-8" /> تدريب المساعد الذكي
-        </h1>
-        <p className="text-slate-500 mt-2">
-          تحدث معي كما تتحدث مع السكرتير الخاص بك. أخبرني بتعليماتك، وسأقوم بالرد على أسئلة المرضى نيابة عنك.
-        </p>
+    <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-6" dir="rtl">
+      
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-[#182230] flex items-center gap-2">
+            <Bot className="w-6 h-6 text-[#15B8A6]" />
+            تدريب المساعد الذكي للعيادة
+          </h1>
+          <p className="text-xs text-slate-400 mt-0.5">
+            تحدث مع المساعد كما تتحدث مع سكرتير العيادة، وسيتعلم الرد على استفسارات المرضى تلقائياً
+          </p>
+        </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleClearMemory}
+          className="h-9 text-xs font-bold text-rose-600 border-rose-200 hover:bg-rose-50 rounded-xl"
+        >
+          <Trash2 className="w-3.5 h-3.5 ml-1" />
+          مسح الذاكرة
+        </Button>
       </div>
 
       {!hasApiKey && (
-        <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex items-start gap-3 text-amber-800">
-          <Info className="w-6 h-6 shrink-0 mt-0.5" />
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold flex items-start gap-3">
+          <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
           <div>
-            <h4 className="font-bold">تنبيه: مفتاح التشغيل غير متوفر</h4>
-            <p className="text-sm">لم يقم مالك المنصة بتكوين مفتاح Gemini API لهذه العيادة. لن يتمكن المساعد من العمل بشكل حي حتى يتم ربط المفتاح من لوحة تحكم المالك.</p>
+            <span className="font-bold block mb-0.5">ملاحظة بشأن مفتاح الذكاء الاصطناعي:</span>
+            <span>لم يتم تعيين مفتاح API مباشر لهذه العيادة. يمكنك تدريب وحفظ الذاكرة، ولكن لردود حية للمرضى تأكد من ضبط المفتاح من لوحة المالك.</span>
           </div>
         </div>
       )}
 
-      <Card className="shadow-2xl border-t-4 border-t-primary h-[600px] flex flex-col">
-        <CardHeader className="border-b bg-slate-50/50 flex flex-row justify-between items-center py-4">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Bot className="w-5 h-5 text-primary" /> عقل الذكاء الاصطناعي للعيادة
-          </CardTitle>
-          <Button variant="ghost" className="text-red-500 hover:text-red-700 hover:bg-red-50 text-xs font-bold h-8" onClick={handleClearMemory}>
-            مسح الذاكرة
-          </Button>
-        </CardHeader>
+      {/* Chat Container */}
+      <div className="medical-card overflow-hidden h-[580px] flex flex-col bg-white">
         
-        <CardContent className="flex-1 overflow-y-auto p-4 space-y-6 bg-slate-50/30">
+        {/* Chat Messages Body */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-[#F8FAFC]">
           {messages.map((m, idx) => (
             <div key={idx} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-              <div className={`max-w-[80%] rounded-2xl p-4 text-sm leading-relaxed shadow-sm flex items-start gap-3 ${
-                m.role === 'user' 
-                  ? 'bg-primary text-white rounded-tr-none' 
-                  : 'bg-white text-slate-800 border border-slate-200 rounded-tl-none'
-              }`}>
-                {m.role === 'model' && <Bot className="w-5 h-5 mt-0.5 text-primary shrink-0" />}
-                {m.role === 'user' && <User className="w-5 h-5 mt-0.5 opacity-70 shrink-0" />}
-                <div>{m.text}</div>
+              <div
+                className={`max-w-[85%] sm:max-w-[75%] rounded-2xl p-4 text-xs sm:text-sm leading-relaxed shadow-xs flex items-start gap-3 ${
+                  m.role === 'user'
+                    ? 'bg-[#15B8A6] text-white rounded-tr-none'
+                    : 'bg-white text-slate-800 border border-[#E5EAF0] rounded-tl-none'
+                }`}
+              >
+                {m.role === 'model' && (
+                  <div className="w-7 h-7 rounded-lg bg-teal-50 text-[#15B8A6] flex items-center justify-center shrink-0">
+                    <Bot className="w-4 h-4" />
+                  </div>
+                )}
+                {m.role === 'user' && (
+                  <div className="w-7 h-7 rounded-lg bg-white/20 text-white flex items-center justify-center shrink-0">
+                    <User className="w-4 h-4" />
+                  </div>
+                )}
+                <div className="pt-0.5">{m.text}</div>
               </div>
             </div>
           ))}
+
           {isLoading && (
             <div className="flex justify-end">
-              <div className="bg-white border rounded-2xl rounded-tl-none p-4 shadow-sm flex items-center gap-3">
-                <Loader2 className="w-5 h-5 animate-spin text-primary" />
-                <span className="text-sm text-slate-500 font-bold">جاري استيعاب المعلومات...</span>
+              <div className="bg-white border border-[#E5EAF0] rounded-2xl rounded-tl-none p-3 shadow-xs flex items-center gap-2 text-xs text-slate-500 font-bold">
+                <Loader2 className="w-4 h-4 animate-spin text-[#15B8A6]" />
+                جاري استيعاب وتطبيق التعليمات...
               </div>
             </div>
           )}
           <div ref={messagesEndRef} />
-        </CardContent>
+        </div>
 
-        <CardFooter className="p-4 bg-white border-t">
-          <form onSubmit={handleSend} className="flex w-full gap-3 relative">
-            <Input 
+        {/* Chat Input Bar */}
+        <div className="p-4 bg-white border-t border-[#E5EAF0]">
+          <form onSubmit={handleSend} className="flex gap-2">
+            <Input
               value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="اكتب معلومة جديدة للذكاء الاصطناعي (مثال: سعر الكشف العادي 300 جنيه)..."
-              className="pr-4 pl-12 h-14 bg-slate-50 border-slate-200 focus:border-primary text-base rounded-xl"
-              disabled={isLoading || !hasApiKey}
+              onChange={e => setInput(e.target.value)}
+              placeholder="اكتب تعليمات جديدة للذكاء الاصطناعي (مثال: مواعيد العيادة تبدأ يومياً من الساعة 5 مساءً)..."
+              className="h-12 text-xs sm:text-sm rounded-xl bg-[#F6F8FB] border-[#E5EAF0] focus:bg-white"
             />
-            <Button 
-              type="submit" 
-              size="icon" 
-              disabled={!input.trim() || isLoading || !hasApiKey}
-              className="absolute left-2 top-2 w-10 h-10 bg-primary hover:bg-primary/90 rounded-lg text-white transition-transform active:scale-95"
+            <Button
+              type="submit"
+              disabled={!input.trim() || isLoading}
+              className="h-12 px-6 font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-md shadow-[#15B8A6]/20"
             >
-              <Send className="w-5 h-5" />
+              <Send className="w-4 h-4 ml-1.5" />
+              إرسال
             </Button>
           </form>
-        </CardFooter>
-      </Card>
+        </div>
+
+      </div>
     </div>
   )
 }

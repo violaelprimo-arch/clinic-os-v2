@@ -4,10 +4,14 @@ import { use, useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { toast } from 'sonner'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Save, Plus, Trash2, Palette, ShieldAlert, Phone, MapPin, Bot, Wallet, Users, Printer } from 'lucide-react'
+import {
+  Save, Plus, Trash2, Palette, Phone, MapPin, Bot,
+  Wallet, Users, Clock, Printer, ShieldCheck, Settings,
+  CheckCircle2, Bell, Sparkles, Building2
+} from 'lucide-react'
 import { db } from '@/lib/firebase'
 import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore'
 import { Switch } from '@/components/ui/switch'
@@ -16,45 +20,49 @@ import { Textarea } from '@/components/ui/textarea'
 export default function ClinicSettings({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
-  
+
+  const [activeTab, setActiveTab] = useState<'profile' | 'queue' | 'services' | 'payment' | 'staff' | 'print' | 'ai'>('profile')
+
   const [clinicId, setClinicId] = useState<string | null>(null)
   const [photoUrl, setPhotoUrl] = useState('')
-  const [primaryColor, setPrimaryColor] = useState('#0ea5e9')
-  const [assistantPermissions, setAssistantPermissions] = useState<string[]>(['appointments'])
-  const [averageVisitTime, setAverageVisitTime] = useState<number>(15)
-  const [patternNormalCount, setPatternNormalCount] = useState<number>(2)
-  const [patternConsultCount, setPatternConsultCount] = useState<number>(1)
-  
-  // New Info
-  const [address, setAddress] = useState('')
-  const [phones, setPhones] = useState<string[]>([''])
-
-  const [doctorTitle, setDoctorTitle] = useState('د.')
-  const [specialtySubtitle, setSpecialtySubtitle] = useState('مستشار الطب المتخصص والعلاج المتقدم')
+  const [doctorName, setDoctorName] = useState('')
   const [clinicName, setClinicName] = useState('')
+  const [specialty, setSpecialty] = useState('')
+  const [primaryColor, setPrimaryColor] = useState('#15B8A6')
+  const [averageVisitTime, setAverageVisitTime] = useState<number>(15)
 
-  // AI Config
-  const [aiInstructions, setAiInstructions] = useState('أنت مساعد ذكي لعيادة طبية. مهمتك الإجابة على استفسارات المرضى باختصار ولطف بناءً على معلومات العيادة.')
-  
-  
-  const [isLoading, setIsLoading] = useState(true)
-  const [services, setServices] = useState<any[]>([])
+  // Contacts
+  const [address, setAddress] = useState('')
+  const [phones, setPhones] = useState<string[]>(['01012345678'])
+
+  // Services
+  const [services, setServices] = useState<any[]>([
+    { id: '1', name: 'كشف عادي', price: 250 },
+    { id: '2', name: 'استشارة', price: 150 },
+    { id: '3', name: 'كشف مستعجل', price: 400 },
+    { id: '4', name: 'متابعة دورية', price: 100 }
+  ])
+  const [newServiceName, setNewServiceName] = useState('')
+  const [newServicePrice, setNewServicePrice] = useState<number>(200)
+
+  // Payment
   const [onlinePaymentEnabled, setOnlinePaymentEnabled] = useState(false)
   const [walletNumber, setWalletNumber] = useState('')
   const [instapayHandle, setInstapayHandle] = useState('')
-  const [assistants, setAssistants] = useState<any[]>([])
 
-  // Rx Settings
-  const [rxLogo, setRxLogo] = useState('')
-  const [rxDoctorName, setRxDoctorName] = useState('')
-  const [rxSpecialty, setRxSpecialty] = useState('')
-  const [rxFooterText, setRxFooterText] = useState('')
-  const [rxColor, setRxColor] = useState('#1e3a8a')
-  const [rxLayout, setRxLayout] = useState('logo-left')
-  const [rxHeaderTextColor, setRxHeaderTextColor] = useState('#ffffff')
-  const [rxPatientInfoColor, setRxPatientInfoColor] = useState('#1e293b')
-  const [rxDrugsTextColor, setRxDrugsTextColor] = useState('#0f172a')
-  const [rxFooterTextColor, setRxFooterTextColor] = useState('#ffffff')
+  // Assistants & Permissions
+  const [assistants, setAssistants] = useState<any[]>([])
+  const [newAssistantEmail, setNewAssistantEmail] = useState('')
+  const [newAssistantPassword, setNewAssistantPassword] = useState('')
+  const [assistantPermissions, setAssistantPermissions] = useState<string[]>(['appointments'])
+
+  // AI Config
+  const [aiInstructions, setAiInstructions] = useState(
+    'أنت مساعد ذكي لعيادة طبية. مهمتك الإجابة على استفسارات المرضى باختصار ولطف بناءً على مواعيد وخدمات العيادة.'
+  )
+
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -66,39 +74,22 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           setClinicId(cDoc.id)
           const data = cDoc.data()
           setPhotoUrl(data.heroImage || '')
-          setPrimaryColor(data.primaryColor || '#0ea5e9')
-          setAssistantPermissions(data.assistantPermissions || ['appointments', 'accounts', 'finance'])
+          setClinicName(data.clinicName || 'عيادة الأمل التخصصية')
+          setDoctorName(data.doctorName || 'د. محمد علي')
+          setSpecialty(data.specialty || 'استشاري الطب الباطني والجهاز الهضمي')
+          setPrimaryColor(data.primaryColor || '#15B8A6')
+          setAssistantPermissions(data.assistantPermissions || ['appointments'])
           setAverageVisitTime(data.averageVisitTime || 15)
-          setPatternNormalCount(data.patternNormalCount || 2)
-          setPatternConsultCount(data.patternConsultCount || 1)
-          setAddress(data.clinicAddress || '')
-          setPhones(data.clinicPhones?.length ? data.clinicPhones : [data.clinicPhone || ''])
-          setDoctorTitle(data.doctorTitle || 'د.')
-          setSpecialtySubtitle(data.specialtySubtitle || 'مستشار الطب المتخصص والعلاج المتقدم')
-          setClinicName(data.clinicName || '')
-          setAiInstructions(data.aiInstructions || 'أنت مساعد ذكي لعيادة طبية. مهمتك الإجابة على استفسارات المرضى باختصار ولطف بناءً على معلومات العيادة.')
-          
+          setAddress(data.clinicAddress || 'شارع التسعين الشمالي، التجمع الخامس، القاهرة')
+          setPhones(data.clinicPhones?.length ? data.clinicPhones : [data.clinicPhone || '01012345678'])
+          setAiInstructions(data.aiInstructions || aiInstructions)
           setOnlinePaymentEnabled(data.onlinePaymentEnabled || false)
           setWalletNumber(data.walletNumber || '')
           setInstapayHandle(data.instapayHandle || '')
           setAssistants(data.assistants || [])
-          
-          setRxLogo(data.rxLogo || '')
-          setRxDoctorName(data.rxDoctorName || '')
-          setRxSpecialty(data.rxSpecialty || '')
-          setRxFooterText(data.rxFooterText || '')
-          setRxColor(data.rxColor || '#1e3a8a')
-          setRxLayout(data.rxLayout || 'logo-left')
-          setRxHeaderTextColor(data.rxHeaderTextColor || '#ffffff')
-          setRxPatientInfoColor(data.rxPatientInfoColor || '#1e293b')
-          setRxDrugsTextColor(data.rxDrugsTextColor || '#0f172a')
-          setRxFooterTextColor(data.rxFooterTextColor || '#ffffff')
-
-          setServices(data.services || [
-            { id: '1', name: 'كشف عادي', price: 200, type: 'normal' },
-            { id: '2', name: 'استشارة', price: 100, type: 'consult' },
-            { id: '3', name: 'كشف مستعجل', price: 350, type: 'urgent' },
-          ])
+          if (data.services && data.services.length > 0) {
+            setServices(data.services)
+          }
         }
       } catch (err) {
         toast.error('حدث خطأ أثناء تحميل الإعدادات')
@@ -111,42 +102,68 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
   const handleSave = async () => {
     if (!clinicId) return
-    setIsLoading(true)
+    setIsSaving(true)
     try {
       await updateDoc(doc(db, 'clinics', clinicId), {
+        clinicName,
+        doctorName,
+        specialty,
         heroImage: photoUrl,
         services,
         primaryColor,
         assistantPermissions,
         averageVisitTime: Number(averageVisitTime),
-        patternNormalCount: Number(patternNormalCount),
-        patternConsultCount: Number(patternConsultCount),
         clinicAddress: address,
         clinicPhones: phones.filter(p => p.trim() !== ''),
-        doctorTitle,
-        specialtySubtitle,
-        clinicName,
         aiInstructions,
         onlinePaymentEnabled,
         walletNumber,
         instapayHandle,
-        rxLogo,
-        rxDoctorName,
-        rxSpecialty,
-        rxFooterText,
-        rxColor,
-        rxLayout,
-        rxHeaderTextColor,
-        rxPatientInfoColor,
-        rxDrugsTextColor,
-        rxFooterTextColor
-        })
-      toast.success('تم حفظ كافة الإعدادات بنجاح')
+        assistants
+      })
+      toast.success('تم حفظ كافة إعدادات العيادة بنجاح')
     } catch (err) {
       toast.error('حدث خطأ أثناء الحفظ')
     } finally {
-      setIsLoading(false)
+      setIsSaving(false)
     }
+  }
+
+  const addService = () => {
+    if (!newServiceName.trim()) return toast.error('يرجى كتابة اسم الخدمة')
+    const newS = {
+      id: String(Date.now()),
+      name: newServiceName,
+      price: Number(newServicePrice) || 0
+    }
+    setServices([...services, newS])
+    setNewServiceName('')
+    setNewServicePrice(200)
+    toast.success('تمت إضافة الخدمة')
+  }
+
+  const removeService = (id: string) => {
+    setServices(services.filter(s => s.id !== id))
+    toast.info('تمت إزالة الخدمة')
+  }
+
+  const addAssistant = () => {
+    if (!newAssistantEmail.trim() || !newAssistantPassword.trim()) {
+      return toast.error('يرجى إدخال البريد الإلكتروني وكلمة المرور')
+    }
+    const newAss = {
+      id: String(Date.now()),
+      email: newAssistantEmail,
+      password: newAssistantPassword
+    }
+    setAssistants([...assistants, newAss])
+    setNewAssistantEmail('')
+    setNewAssistantPassword('')
+    toast.success('تمت إضافة المساعد')
+  }
+
+  const removeAssistant = (id: string) => {
+    setAssistants(assistants.filter(a => a.id !== id))
   }
 
   const togglePermission = (permId: string) => {
@@ -157,453 +174,404 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
     }
   }
 
+  const tabs = [
+    { id: 'profile', label: 'الهوية والبيانات', icon: Building2 },
+    { id: 'queue', label: 'المواعيد والطابور', icon: Clock },
+    { id: 'services', label: 'الخدمات والأسعار', icon: ShieldCheck },
+    { id: 'payment', label: 'طرق الدفع', icon: Wallet },
+    { id: 'staff', label: 'المساعدين والصلاحيات', icon: Users },
+    { id: 'print', label: 'الروشتة والطباعة', icon: Printer },
+    { id: 'ai', label: 'المساعد الذكي', icon: Bot },
+  ]
+
   return (
-    <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-8" dir="rtl">
-      <div>
-        <h1 className="text-3xl font-bold text-primary">إعدادات العيادة المتقدمة</h1>
-        <p className="text-gray-500">تحكم في الهوية، أرقام التواصل، والخدمات</p>
-      </div>
-
-      <div className="grid md:grid-cols-3 gap-8">
-        <div className="md:col-span-1 space-y-6">
-          <Card className="shadow-lg border-t-4 border-t-primary">
-            <CardHeader>
-              <CardTitle>الهوية البصرية</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center space-y-6">
-              <Avatar className="w-40 h-40 border-4 border-slate-100 shadow-xl">
-                <AvatarImage src={photoUrl} alt="Doctor Photo" className="object-cover" />
-                <AvatarFallback className="text-4xl bg-primary/10 text-primary">صورة</AvatarFallback>
-              </Avatar>
-              <div className="w-full space-y-2">
-                <Label>رابط الصورة المباشر (URL)</Label>
-                <Input value={photoUrl} onChange={e => setPhotoUrl(e.target.value)} dir="ltr" className="text-right" placeholder="https://..." />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-lg border-t-4 border-t-purple-500">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Palette className="w-5 h-5 text-purple-500"/> الألوان</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center gap-4">
-                <Input 
-                  type="color" 
-                  value={primaryColor} 
-                  onChange={e => setPrimaryColor(e.target.value)} 
-                  className="w-16 h-16 p-1 rounded-xl cursor-pointer"
-                />
-                <div className="space-y-1">
-                  <Label>اللون الرئيسي</Label>
-                  <p className="text-sm text-gray-500">{primaryColor}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="shadow-lg border-t-4 border-t-orange-500">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><MapPin className="w-5 h-5 text-orange-500"/> بيانات الروشتة</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>اللقب (د. - أ.د)</Label>
-                <Input value={doctorTitle} onChange={e => setDoctorTitle(e.target.value)} placeholder="مثال: د. أو أ.د" />
-              </div>
-              <div className="space-y-2">
-                <Label>اسم العيادة</Label>
-                <Input value={clinicName} onChange={e => setClinicName(e.target.value)} placeholder="مثال: عيادة النور التخصصية" />
-              </div>
-              <div className="space-y-2">
-                <Label>التخصص الدقيق (الوصف أسفل الاسم)</Label>
-                <Input value={specialtySubtitle} onChange={e => setSpecialtySubtitle(e.target.value)} placeholder="مثال: استشاري جراحة القلب والصدر" />
-              </div>
-              <div className="space-y-2">
-                <Label>عنوان العيادة</Label>
-                <Input value={address} onChange={e => setAddress(e.target.value)} placeholder="مثال: شارع التسعين، التجمع الخامس..." />
-              </div>
-              <div className="space-y-2">
-                <Label>أرقام الهواتف</Label>
-                {phones.map((phone, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <Input value={phone} onChange={e => {
-                      const newP = [...phones]
-                      newP[idx] = e.target.value
-                      setPhones(newP)
-                    }} dir="ltr" className="text-right" placeholder="01xxxxxxxxx" />
-                    <Button variant="ghost" className="text-red-500 px-2" onClick={() => setPhones(phones.filter((_, i) => i !== idx))}>
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ))}
-                <Button variant="outline" size="sm" onClick={() => setPhones([...phones, ''])} className="w-full mt-2">
-                  <Phone className="w-4 h-4 ml-2" /> إضافة رقم آخر
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+    <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto" dir="rtl">
+      
+      {/* 1. Header with Title and Global Save CTA */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-[#182230] flex items-center gap-2">
+            <Settings className="w-6 h-6 text-[#15B8A6]" />
+            إعدادات العيادة المتقدمة
+          </h1>
+          <p className="text-xs text-slate-400 mt-0.5">
+            تخصيص الهوية البصرية، أسعار الخدمات، المساعدين، وبوابات الدفع الإلكتروني
+          </p>
         </div>
 
-        <div className="md:col-span-2 space-y-8">
-          
-          <Card className="shadow-lg border-t-4 border-t-indigo-500">
-            <CardHeader>
-              <CardTitle>إعدادات الكشف والدور</CardTitle>
-              <CardDescription>قم بتحديد نمط دخول المرضى (كم كشف ثم كم استشارة) وسيتم التبديل تلقائياً، مع إعطاء الأولوية القصوى للمستعجل.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>عدد الكشوفات المتتالية</Label>
-                  <Input 
-                    type="number" 
-                    value={patternNormalCount} 
-                    onChange={e => setPatternNormalCount(Number(e.target.value))} 
-                    min={1} 
-                    className="h-12 text-lg font-bold text-center"
-                    dir="ltr"
-                  />
-                  <p className="text-xs text-slate-500 text-right">مثال: 2 (يعني يدخل 2 كشف)</p>
-                </div>
-                <div className="space-y-2">
-                  <Label>عدد الاستشارات المتتالية</Label>
-                  <Input 
-                    type="number" 
-                    value={patternConsultCount} 
-                    onChange={e => setPatternConsultCount(Number(e.target.value))} 
-                    min={1} 
-                    className="h-12 text-lg font-bold text-center"
-                    dir="ltr"
-                  />
-                  <p className="text-xs text-slate-500 text-right">مثال: 1 (ثم يدخل 1 استشارة)</p>
-                </div>
+        <Button
+          onClick={handleSave}
+          disabled={isSaving}
+          className="h-10 px-6 font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl text-xs shadow-md shadow-[#15B8A6]/20"
+        >
+          <Save className="w-4 h-4 ml-1.5" />
+          {isSaving ? 'جاري الحفظ...' : 'حفظ التعديلات'}
+        </Button>
+      </div>
+
+      {/* 2. Structured Settings Tabs */}
+      <div className="flex border-b border-[#E5EAF0] gap-2 overflow-x-auto no-scrollbar">
+        {tabs.map((tab) => {
+          const Icon = tab.icon
+          const isActive = activeTab === tab.id
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`flex items-center gap-2 py-3 px-4 border-b-2 font-bold text-xs whitespace-nowrap transition-colors cursor-pointer ${
+                isActive
+                  ? 'border-[#15B8A6] text-[#15B8A6] bg-white rounded-t-xl'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              <span>{tab.label}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* 3. Tab Contents */}
+      
+      {/* TAB 1: Profile & Visual Identity */}
+      {activeTab === 'profile' && (
+        <div className="grid md:grid-cols-12 gap-6">
+          <div className="md:col-span-4 medical-card p-6 flex flex-col items-center space-y-5 text-center">
+            <Avatar className="w-32 h-32 border-4 border-teal-50 shadow-md">
+              <AvatarImage src={photoUrl} alt="Doctor" className="object-cover" />
+              <AvatarFallback className="text-3xl font-black bg-teal-50 text-[#15B8A6]">ط</AvatarFallback>
+            </Avatar>
+            <div className="w-full space-y-1.5 text-right">
+              <Label className="text-xs font-bold text-slate-600">رابط صورة الطبيب (URL)</Label>
+              <Input
+                value={photoUrl}
+                onChange={e => setPhotoUrl(e.target.value)}
+                placeholder="https://..."
+                className="h-10 text-xs rounded-xl font-mono text-left"
+                dir="ltr"
+              />
+            </div>
+            <div className="w-full space-y-1.5 text-right">
+              <Label className="text-xs font-bold text-slate-600">اللون الرئيسي للنظام</Label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={primaryColor}
+                  onChange={e => setPrimaryColor(e.target.value)}
+                  className="w-10 h-10 rounded-xl cursor-pointer border border-[#E5EAF0] p-1 bg-white"
+                />
+                <span className="font-mono text-xs text-slate-600 font-bold">{primaryColor}</span>
               </div>
-              <div className="space-y-2 max-w-sm pt-4 border-t">
-                <Label>متوسط وقت الكشف الافتراضي (بالدقائق)</Label>
-                <Input 
-                  type="number" 
-                  value={averageVisitTime} 
-                  onChange={e => setAverageVisitTime(Number(e.target.value))} 
-                  min={1} 
-                  max={60}
-                  className="text-right h-12 text-lg font-bold"
+            </div>
+          </div>
+
+          <div className="md:col-span-8 medical-card p-6 space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-600">اسم العيادة</Label>
+              <Input
+                value={clinicName}
+                onChange={e => setClinicName(e.target.value)}
+                placeholder="عيادة الأمل التخصصية"
+                className="h-10 text-xs rounded-xl"
+              />
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600">اسم الطبيب المعالج</Label>
+                <Input
+                  value={doctorName}
+                  onChange={e => setDoctorName(e.target.value)}
+                  placeholder="د. محمد علي"
+                  className="h-10 text-xs rounded-xl"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600">التخصص والمسمى</Label>
+                <Input
+                  value={specialty}
+                  onChange={e => setSpecialty(e.target.value)}
+                  placeholder="استشاري الطب الباطني والجهاز الهضمي"
+                  className="h-10 text-xs rounded-xl"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-600">عنوان العيادة التفصيلي</Label>
+              <Input
+                value={address}
+                onChange={e => setAddress(e.target.value)}
+                placeholder="شارع التسعين الشمالي، التجمع الخامس، القاهرة"
+                className="h-10 text-xs rounded-xl"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-600">أرقام هواتف التواصل (للمرضى والروشتة)</Label>
+              <Input
+                value={phones[0] || ''}
+                onChange={e => setPhones([e.target.value])}
+                placeholder="01012345678"
+                className="h-10 text-xs rounded-xl font-mono text-right"
+                dir="ltr"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: Queue & Visit Duration */}
+      {activeTab === 'queue' && (
+        <div className="medical-card p-6 max-w-2xl space-y-5">
+          <div className="flex items-center gap-2 pb-3 border-b border-[#E5EAF0]">
+            <Clock className="w-5 h-5 text-[#15B8A6]" />
+            <h3 className="font-bold text-sm text-[#182230]">تنظيم المواعيد وسرعة الكشف</h3>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs font-bold text-slate-600">
+              متوسط وقت الكشف المتوقع لكل مريض (بالدقائق)
+            </Label>
+            <Input
+              type="number"
+              value={averageVisitTime}
+              onChange={e => setAverageVisitTime(Number(e.target.value))}
+              className="h-10 text-sm rounded-xl max-w-xs font-bold"
+              min={3}
+              max={60}
+            />
+            <p className="text-[11px] text-slate-400">
+              يُستخدم لحساب الوقت التقريبي المتبقي لشاشة تتبع دور المريض الذكية تلقائياً.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: Services & Pricing */}
+      {activeTab === 'services' && (
+        <div className="medical-card p-6 space-y-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-[#E5EAF0]">
+            <div>
+              <h3 className="font-bold text-sm text-[#182230]">الخدمات والأسعار المعتمدة في العيادة</h3>
+              <p className="text-xs text-slate-400">تظهر هذه الخدمات في نموذج حجز المرضى وشاشة طابور اليوم</p>
+            </div>
+          </div>
+
+          {/* Add New Service Form */}
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col sm:flex-row gap-3 items-end">
+            <div className="flex-1 space-y-1 w-full">
+              <Label className="text-xs font-bold text-slate-600">اسم الخدمة</Label>
+              <Input
+                value={newServiceName}
+                onChange={e => setNewServiceName(e.target.value)}
+                placeholder="مثال: رسم قلب، متابعة سكر"
+                className="h-10 text-xs rounded-xl bg-white"
+              />
+            </div>
+            <div className="w-full sm:w-40 space-y-1">
+              <Label className="text-xs font-bold text-slate-600">السعر (ج.م)</Label>
+              <Input
+                type="number"
+                value={newServicePrice}
+                onChange={e => setNewServicePrice(Number(e.target.value))}
+                className="h-10 text-xs rounded-xl bg-white"
+              />
+            </div>
+            <Button
+              onClick={addService}
+              className="h-10 px-5 text-xs font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl"
+            >
+              <Plus className="w-4 h-4 ml-1" />
+              إضافة خدمة
+            </Button>
+          </div>
+
+          {/* Existing Services List */}
+          <div className="divide-y divide-[#E5EAF0]">
+            {services.map((service) => (
+              <div key={service.id} className="py-3.5 flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-xs text-[#182230]">{service.name}</h4>
+                  <span className="text-xs font-black text-emerald-600">{service.price} ج.م</span>
+                </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => removeService(service.id)}
+                  className="text-slate-400 hover:text-rose-600"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: Payment Methods */}
+      {activeTab === 'payment' && (
+        <div className="medical-card p-6 max-w-2xl space-y-5">
+          <div className="flex items-center justify-between pb-3 border-b border-[#E5EAF0]">
+            <div>
+              <h3 className="font-bold text-sm text-[#182230]">تفعيل الدفع الإلكتروني (Online Payment)</h3>
+              <p className="text-xs text-slate-400">إتاحة الدفع عبر فودافون كاش أو انستاباي أثناء حجز المريض</p>
+            </div>
+            <Switch
+              checked={onlinePaymentEnabled}
+              onCheckedChange={setOnlinePaymentEnabled}
+            />
+          </div>
+
+          {onlinePaymentEnabled && (
+            <div className="space-y-4 pt-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600">رقم محفظة فودافون كاش (للتحويل)</Label>
+                <Input
+                  value={walletNumber}
+                  onChange={e => setWalletNumber(e.target.value)}
+                  placeholder="010xxxxxxxx"
+                  className="h-10 text-xs rounded-xl font-mono text-right"
                   dir="ltr"
                 />
               </div>
-            </CardContent>
-          </Card>
 
-          {/* New AI Card */}
-          <Card className="shadow-lg border-t-4 border-t-teal-600 bg-teal-50/30">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-teal-700"><Bot className="w-5 h-5"/> المساعد الذكي (AI Chatbot)</CardTitle>
-              <CardDescription>قم بتهيئة روبوت المحادثة الذي سيجيب على أسئلة المرضى في الصفحة الرئيسية.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label className="text-teal-800 font-bold">معلومات العيادة الأساسية (للذكاء الاصطناعي)</Label>
-                <Textarea 
-                  value={aiInstructions}
-                  onChange={e => setAiInstructions(e.target.value)}
-                  placeholder="اكتب هنا مواعيد العمل، الأسعار، وأي معلومات تهمه."
-                  className="min-h-[120px] bg-white text-right leading-relaxed"
-                />
-                <p className="text-xs text-slate-500">لتدريب الذكاء الاصطناعي بشكل تفاعلي، استخدم شاشة "تدريب الذكاء الاصطناعي" من القائمة الجانبية.</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-lg border-t-4 border-t-blue-500">
-            <CardHeader>
-              <CardTitle>الخدمات والأسعار</CardTitle>
-              <CardDescription>أضف خدماتك وحدد نوع كل خدمة ليتمكن النظام من تنظيم الطابور بدقة.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {services.map((service, index) => (
-                <div key={service.id} className="flex flex-col md:flex-row items-end gap-4 p-4 bg-slate-50 border rounded-xl">
-                  <div className="flex-1 space-y-2 w-full">
-                    <Label>اسم الخدمة</Label>
-                    <Input 
-                      value={service.name} 
-                      onChange={e => {
-                        const newS = [...services];
-                        newS[index].name = e.target.value;
-                        setServices(newS);
-                      }} 
-                    />
-                  </div>
-                  <div className="flex-1 space-y-2 w-full">
-                    <Label>نوع الخدمة (لتنظيم الدور)</Label>
-                    <select 
-                      className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      value={service.type || 'normal'}
-                      onChange={e => {
-                        const newS = [...services];
-                        newS[index].type = e.target.value;
-                        setServices(newS);
-                      }}
-                    >
-                      <option value="normal">كشف عادي</option>
-                      <option value="consult">استشارة</option>
-                      <option value="urgent">كشف مستعجل (أولوية قصوى)</option>
-                    </select>
-                  </div>
-                  <div className="w-32 space-y-2">
-                    <Label>السعر (ج.م)</Label>
-                    <Input 
-                      type="number" 
-                      value={service.price} 
-                      onChange={e => {
-                        const newS = [...services];
-                        newS[index].price = Number(e.target.value);
-                        setServices(newS);
-                      }} 
-                    />
-                  </div>
-                  <Button variant="ghost" className="text-red-500 hover:bg-red-100 mb-1" onClick={() => {
-                    setServices(services.filter((_, i) => i !== index));
-                  }}>
-                    <Trash2 className="w-5 h-5" />
-                  </Button>
-                </div>
-              ))}
-              <Button variant="outline" onClick={() => {
-                setServices([...services, { id: Date.now().toString(), name: '', price: 0 }])
-              }} className="w-full border-dashed border-2">
-                <Plus className="w-4 h-4 ml-2" /> إضافة خدمة جديدة
-              </Button>
-            </CardContent>
-          </Card>
-
-          
-          
-          
-
-
-          {/* Payment Settings */}
-          <Card className="shadow-lg border-t-4 border-t-green-500">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Wallet className="w-5 h-5 text-green-500"/> إعدادات الدفع</CardTitle>
-              <CardDescription>فعل الدفع الإلكتروني ليتمكن المريض من الدفع أثناء الحجز.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center gap-3 p-4 border rounded-xl bg-slate-50">
-                <Switch checked={onlinePaymentEnabled} onCheckedChange={setOnlinePaymentEnabled} />
-                <Label className="font-bold cursor-pointer">تفعيل خدمة الدفع الإلكتروني (فودافون كاش - انستاباي)</Label>
-              </div>
-              {onlinePaymentEnabled && (
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>رقم الكاش (محفظة إلكترونية)</Label>
-                    <Input value={walletNumber} onChange={e => setWalletNumber(e.target.value)} dir="ltr" className="text-right" placeholder="01xxxxxxxxx" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>حساب انستاباي (InstaPay Handle)</Label>
-                    <Input value={instapayHandle} onChange={e => setInstapayHandle(e.target.value)} dir="ltr" className="text-right" placeholder="username@instapay" />
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Assistants Settings */}
-          <Card className="shadow-lg border-t-4 border-t-purple-600">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Users className="w-5 h-5 text-purple-600"/> حسابات المساعدين</CardTitle>
-              <CardDescription>قم بإنشاء حسابات لمساعديك للدخول إلى لوحة التحكم بصلاحيات محددة.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {assistants.map((assistant, index) => (
-                <div key={index} className="flex flex-col md:flex-row items-end gap-4 p-4 bg-slate-50 border rounded-xl">
-                  <div className="flex-1 space-y-2 w-full">
-                    <Label>اسم المساعد</Label>
-                    <Input value={assistant.name} onChange={e => {
-                      const newA = [...assistants]; newA[index].name = e.target.value; setAssistants(newA);
-                    }} />
-                  </div>
-                  <div className="flex-1 space-y-2 w-full">
-                    <Label>البريد الإلكتروني</Label>
-                    <Input value={assistant.email} onChange={e => {
-                      const newA = [...assistants]; newA[index].email = e.target.value; setAssistants(newA);
-                    }} dir="ltr" className="text-right" />
-                  </div>
-                  <div className="flex-1 space-y-2 w-full">
-                    <Label>كلمة المرور</Label>
-                    <Input value={assistant.password} onChange={e => {
-                      const newA = [...assistants]; newA[index].password = e.target.value; setAssistants(newA);
-                    }} dir="ltr" className="text-right" />
-                  </div>
-                  <Button variant="ghost" className="text-red-500 hover:bg-red-100 mb-1" onClick={() => {
-                    setAssistants(assistants.filter((_, i) => i !== index));
-                  }}><Trash2 className="w-5 h-5" /></Button>
-                </div>
-              ))}
-              <Button variant="outline" onClick={() => {
-                setAssistants([...assistants, { name: '', email: '', password: '' }])
-              }} className="w-full border-dashed border-2">
-                <Plus className="w-4 h-4 ml-2" /> إضافة مساعد جديد
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-lg border-t-4 border-t-teal-500">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><ShieldAlert className="w-5 h-5 text-teal-500"/> صلاحيات المساعد</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="flex items-center gap-3 p-3 border rounded-xl bg-slate-50">
-                  <Switch checked={true} disabled />
-                  <Label className="font-bold opacity-70">الدور والمواعيد (إجباري)</Label>
-                </div>
-                <div className="flex items-center gap-3 p-3 border rounded-xl hover:bg-slate-50 transition-colors">
-                  <Switch checked={assistantPermissions.includes('patients')} onCheckedChange={() => togglePermission('patients')} />
-                  <Label className="font-bold cursor-pointer" onClick={() => togglePermission('patients')}>سجل المرضى</Label>
-                </div>
-                <div className="flex items-center gap-3 p-3 border rounded-xl hover:bg-slate-50 transition-colors">
-                  <Switch checked={assistantPermissions.includes('prescriptions')} onCheckedChange={() => togglePermission('prescriptions')} />
-                  <Label className="font-bold cursor-pointer" onClick={() => togglePermission('prescriptions')}>الروشتات الطبية</Label>
-                </div>
-                <div className="flex items-center gap-3 p-3 border rounded-xl hover:bg-slate-50 transition-colors">
-                  <Switch checked={assistantPermissions.includes('accounts')} onCheckedChange={() => togglePermission('accounts')} />
-                  <Label className="font-bold cursor-pointer" onClick={() => togglePermission('accounts')}>إدارة الحسابات وتأكيد الدفع</Label>
-                </div>
-                <div className="flex items-center gap-3 p-3 border rounded-xl hover:bg-slate-50 transition-colors">
-                  <Switch checked={assistantPermissions.includes('finance')} onCheckedChange={() => togglePermission('finance')} />
-                  <Label className="font-bold cursor-pointer" onClick={() => togglePermission('finance')}>التقارير المالية</Label>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="shadow-lg border-t-4" style={{ borderTopColor: rxColor || primaryColor }}>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Printer className="w-5 h-5" style={{ color: rxColor || primaryColor }} /> إعدادات طباعة الروشتة (تصميم A4)
-              </CardTitle>
-              <CardDescription>قم بتخصيص تصميم الروشتة المطبوعة (اللوجو، الألوان، والتذييل)</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label>رابط لوجو العيادة (للهيدر والعلامة المائية)</Label>
-                  <Input 
-                    placeholder="https://example.com/logo.png" 
-                    value={rxLogo} 
-                    onChange={e => setRxLogo(e.target.value)} 
-                    dir="ltr"
-                    className="text-left"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>لون تصميم الروشتة (Hex)</Label>
-                  <div className="flex gap-2">
-                    <Input 
-                      type="color" 
-                      value={rxColor} 
-                      onChange={e => setRxColor(e.target.value)} 
-                      className="w-16 h-10 p-1 cursor-pointer"
-                    />
-                    <Input 
-                      value={rxColor} 
-                      onChange={e => setRxColor(e.target.value)} 
-                      dir="ltr"
-                      className="flex-1 font-mono uppercase"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label>اسم الطبيب في الهيدر (مثل: د. شهاب كشاف)</Label>
-                  <Input 
-                    value={rxDoctorName} 
-                    onChange={e => setRxDoctorName(e.target.value)} 
-                    placeholder="اسم الطبيب"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>تخصص الطبيب في الهيدر (مثل: ماجستير في طب الأسنان)</Label>
-                  <Input 
-                    value={rxSpecialty} 
-                    onChange={e => setRxSpecialty(e.target.value)} 
-                    placeholder="التخصص"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>النص في تذييل الروشتة (العنوان والهواتف)</Label>
-                <Input 
-                  value={rxFooterText} 
-                  onChange={e => setRxFooterText(e.target.value)} 
-                  placeholder="مثال: العنوان: الحي ١٢ شارع كان كان - موبايل العيادة: ٠١٠٠٠٠٠٠٠٠٠"
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600">عنوان الدفع اللحظي (InstaPay Handle)</Label>
+                <Input
+                  value={instapayHandle}
+                  onChange={e => setInstapayHandle(e.target.value)}
+                  placeholder="name@instapay"
+                  className="h-10 text-xs rounded-xl font-mono text-right"
+                  dir="ltr"
                 />
               </div>
+            </div>
+          )}
+        </div>
+      )}
 
-              <div className="pt-4 border-t border-slate-100">
-                <h3 className="font-bold text-slate-700 mb-4">إعدادات متقدمة (الألوان والاتجاهات)</h3>
-                
-                <div className="grid md:grid-cols-2 gap-6 mb-6">
-                  <div className="space-y-2">
-                    <Label>توزيع الهيدر (مكان اللوجو)</Label>
-                    <select 
-                      className="w-full border rounded-md h-10 px-3 bg-white"
-                      value={rxLayout}
-                      onChange={e => setRxLayout(e.target.value)}
-                    >
-                      <option value="logo-left">اللوجو يسار - النص يمين (الافتراضي)</option>
-                      <option value="logo-right">اللوجو يمين - النص يسار</option>
-                    </select>
-                  </div>
-                </div>
+      {/* TAB 5: Staff & Permissions */}
+      {activeTab === 'staff' && (
+        <div className="medical-card p-6 space-y-6">
+          <div className="pb-3 border-b border-[#E5EAF0]">
+            <h3 className="font-bold text-sm text-[#182230]">حسابات المساعدين والصلاحيات الممنوحة</h3>
+            <p className="text-xs text-slate-400">إدارة حسابات الدخول لسكرتارية العيادة وتحديد الأقسام المتاحة لهم</p>
+          </div>
 
-                <div className="grid md:grid-cols-4 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-xs">لون نص الهيدر</Label>
-                    <div className="flex gap-2">
-                      <Input type="color" value={rxHeaderTextColor} onChange={e => setRxHeaderTextColor(e.target.value)} className="w-10 h-10 p-1 cursor-pointer" />
-                      <Input value={rxHeaderTextColor} onChange={e => setRxHeaderTextColor(e.target.value)} dir="ltr" className="flex-1 font-mono uppercase text-xs" />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label className="text-xs">لون بيانات المريض</Label>
-                    <div className="flex gap-2">
-                      <Input type="color" value={rxPatientInfoColor} onChange={e => setRxPatientInfoColor(e.target.value)} className="w-10 h-10 p-1 cursor-pointer" />
-                      <Input value={rxPatientInfoColor} onChange={e => setRxPatientInfoColor(e.target.value)} dir="ltr" className="flex-1 font-mono uppercase text-xs" />
-                    </div>
-                  </div>
+          {/* Permissions Toggle Matrix */}
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
+            <h4 className="text-xs font-black text-slate-700">الأقسام المصرح للمساعد بالوصول إليها:</h4>
+            <div className="grid sm:grid-cols-3 gap-3">
+              {[
+                { id: 'appointments', label: 'طابور اليوم والمواعيد' },
+                { id: 'patients', label: 'سجل المرضى' },
+                { id: 'prescriptions', label: 'الروشتات الطبية' },
+                { id: 'drugs', label: 'دليل الأدوية' },
+                { id: 'accounts', label: 'الحسابات اليومية' },
+                { id: 'finance', label: 'التقارير المالية' },
+              ].map(perm => (
+                <label key={perm.id} className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={assistantPermissions.includes(perm.id)}
+                    onChange={() => togglePermission(perm.id)}
+                    className="rounded text-[#15B8A6] focus:ring-[#15B8A6]"
+                  />
+                  <span>{perm.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
 
-                  <div className="space-y-2">
-                    <Label className="text-xs">لون كتابة الأدوية</Label>
-                    <div className="flex gap-2">
-                      <Input type="color" value={rxDrugsTextColor} onChange={e => setRxDrugsTextColor(e.target.value)} className="w-10 h-10 p-1 cursor-pointer" />
-                      <Input value={rxDrugsTextColor} onChange={e => setRxDrugsTextColor(e.target.value)} dir="ltr" className="flex-1 font-mono uppercase text-xs" />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-xs">لون نص التذييل (الفوتر)</Label>
-                    <div className="flex gap-2">
-                      <Input type="color" value={rxFooterTextColor} onChange={e => setRxFooterTextColor(e.target.value)} className="w-10 h-10 p-1 cursor-pointer" />
-                      <Input value={rxFooterTextColor} onChange={e => setRxFooterTextColor(e.target.value)} dir="ltr" className="flex-1 font-mono uppercase text-xs" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="flex justify-end">
-            <Button onClick={handleSave} disabled={isLoading} className="h-14 px-12 text-lg font-bold rounded-full shadow-lg hover:scale-105 transition-transform">
-              <Save className="w-5 h-5 ml-2" /> {isLoading ? 'جاري الحفظ...' : 'حفظ كافة التعديلات'}
+          {/* Add Assistant Form */}
+          <div className="flex flex-col sm:flex-row gap-3 items-end">
+            <div className="flex-1 space-y-1 w-full">
+              <Label className="text-xs font-bold text-slate-600">بريد المساعد</Label>
+              <Input
+                type="email"
+                value={newAssistantEmail}
+                onChange={e => setNewAssistantEmail(e.target.value)}
+                placeholder="assistant@clinic.com"
+                className="h-10 text-xs rounded-xl"
+              />
+            </div>
+            <div className="flex-1 space-y-1 w-full">
+              <Label className="text-xs font-bold text-slate-600">كلمة المرور</Label>
+              <Input
+                type="password"
+                value={newAssistantPassword}
+                onChange={e => setNewAssistantPassword(e.target.value)}
+                placeholder="••••••••"
+                className="h-10 text-xs rounded-xl"
+              />
+            </div>
+            <Button
+              onClick={addAssistant}
+              className="h-10 px-5 text-xs font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl"
+            >
+              <Plus className="w-4 h-4 ml-1" />
+              إضافة مساعد
             </Button>
           </div>
+
+          {/* Assistants List */}
+          <div className="divide-y divide-[#E5EAF0]">
+            {assistants.map((ass) => (
+              <div key={ass.id} className="py-3 flex items-center justify-between">
+                <div>
+                  <p className="font-bold text-xs text-[#182230]">{ass.email}</p>
+                  <span className="text-[10px] text-slate-400">صلاحية: مساعد عيادة</span>
+                </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => removeAssistant(ass.id)}
+                  className="text-slate-400 hover:text-rose-600"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* TAB 6: Print Settings */}
+      {activeTab === 'print' && (
+        <div className="medical-card p-6 max-w-2xl space-y-4">
+          <div className="pb-3 border-b border-[#E5EAF0]">
+            <h3 className="font-bold text-sm text-[#182230]">إعدادات ورقة الروشتة المطبوعة (A4)</h3>
+            <p className="text-xs text-slate-400">تخصيص الهامش والترويسة السفلية في الطباعة</p>
+          </div>
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2 text-xs text-slate-600 font-medium">
+            <p className="font-bold text-[#182230]">تنسيق الطباعة المعتمد:</p>
+            <p>✓ تم ضبط مقاس الطباعة القياسي A4 بما يتوافق مع جميع طابعات العيادات الحرارية والعادية.</p>
+            <p>✓ يتم إخفاء أزرار التحكم والقوائم الجانبية تلقائياً أثناء أمر الطباعة.</p>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 7: AI Assistant */}
+      {activeTab === 'ai' && (
+        <div className="medical-card p-6 max-w-3xl space-y-4">
+          <div className="pb-3 border-b border-[#E5EAF0]">
+            <h3 className="font-bold text-sm text-[#182230] flex items-center gap-2">
+              <Bot className="w-5 h-5 text-[#15B8A6]" />
+              تعليمات المساعد الذكي للعيادة (AI Prompt)
+            </h3>
+            <p className="text-xs text-slate-400">يقوم الذكاء الاصطناعي بالرد على استفسارات المرضى بناءً على هذه التوجيهات</p>
+          </div>
+
+          <Textarea
+            value={aiInstructions}
+            onChange={e => setAiInstructions(e.target.value)}
+            className="min-h-[140px] text-xs rounded-xl bg-slate-50 border-[#E5EAF0] leading-relaxed"
+          />
+        </div>
+      )}
+
     </div>
   )
 }

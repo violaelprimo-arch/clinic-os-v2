@@ -49,38 +49,39 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --background: #F6F8FB;
+  --foreground: #182230;
+  --card: #FFFFFF;
+  --card-foreground: #182230;
+  --popover: #FFFFFF;
+  --popover-foreground: #182230;
+  --primary: #15B8A6;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F0F4F8;
+  --secondary-foreground: #182230;
+  --muted: #F1F5F9;
+  --muted-foreground: #687386;
+  --accent: #E6FFFA;
+  --accent-foreground: #0D9488;
+  --destructive: #EF4444;
+  --destructive-foreground: #FFFFFF;
+  --border: #E5EAF0;
+  --input: #E5EAF0;
+  --ring: #15B8A6;
+  --chart-1: #15B8A6;
+  --chart-2: #2F80ED;
+  --chart-3: #F59E0B;
+  --chart-4: #22C55E;
+  --chart-5: #6366F1;
+  --radius: 0.875rem;
+  --sidebar: #0B1F33;
+  --sidebar-foreground: #E2E8F0;
+  --sidebar-primary: #15B8A6;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #132B45;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: #1E3A5F;
+  --sidebar-ring: #15B8A6;
 }
 
 .dark {
@@ -126,5 +127,52 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+/* Custom Medical Design Utilities */
+.medical-card {
+  background-color: #FFFFFF;
+  border-radius: 1rem;
+  border: 1px solid #E5EAF0;
+  box-shadow: 0 1px 3px 0 rgba(11, 31, 51, 0.04), 0 1px 2px -1px rgba(11, 31, 51, 0.04);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.medical-card:hover {
+  box-shadow: 0 6px 20px 0 rgba(11, 31, 51, 0.07);
+}
+
+.medical-card-interactive {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.medical-card-interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(21, 184, 166, 0.12), 0 8px 10px -6px rgba(21, 184, 166, 0.08);
+}
+
+/* Custom Scrollbar for Arabic RTL */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F1F5F9;
+}
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+@media print {
+  body {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+  }
+  .print\:hidden {
+    display: none !important;
   }
 }
