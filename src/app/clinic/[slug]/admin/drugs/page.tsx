@@ -274,7 +274,7 @@ export default function DrugsManager({ params }: { params: Promise<{ slug: strin
                 {filteredDrugs.map((drug) => (
                   <tr key={drug.id} className="border-b hover:bg-slate-50 transition-colors">
                     <td className="p-4 font-bold text-slate-800 flex items-center gap-2">
-                      {drug.is_locked && <ShieldCheck className="w-4 h-4 text-green-600" title="محمي من التعديل الآلي للاسم" />}
+                      {drug.is_locked && <span title="محمي من التعديل الآلي للاسم"><ShieldCheck className="w-4 h-4 text-green-600" /></span>}
                       {drug.name}
                     </td>
                     <td className="p-4 text-slate-600">
