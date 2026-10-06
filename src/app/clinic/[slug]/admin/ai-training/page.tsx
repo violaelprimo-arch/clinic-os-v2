@@ -2,12 +2,13 @@
 
 import { use, useEffect, useState, useRef } from 'react'
 import { db } from '@/lib/firebase'
-import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore'
+import { collection, query, where, updateDoc, doc, onSnapshot } from 'firebase/firestore'
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Bot, User, Send, Loader2, Info, Sparkles, Trash2 } from 'lucide-react'
+import { Bot, User, Send, Loader2, Info, Sparkles, Trash2, AlertTriangle, ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
+import Link from 'next/link'
 
 export default function AITrainingPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -19,29 +20,37 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
   const [isLoading, setIsLoading] = useState(false)
   const [hasApiKey, setHasApiKey] = useState(false)
   const [apiKey, setApiKey] = useState('')
+  const [aiEnabled, setAiEnabled] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const fetchClinic = async () => {
-      const q = query(collection(db, 'clinics'), where('slug', '==', slug))
-      const snapshot = await getDocs(q)
-      if (!snapshot.empty) {
-        const cDoc = snapshot.docs[0]
-        setClinicId(cDoc.id)
-        const data = cDoc.data()
-        setHasApiKey(!!data.aiApiKey)
-        setApiKey(data.aiApiKey || '')
-        if (data.aiKnowledge && data.aiKnowledge.length > 0) {
-          setMessages(data.aiKnowledge)
-        } else {
-          setMessages([{
-            role: 'model',
-            text: 'مرحباً دكتور. أنا المساعد الذكي الخاص بعيادتك. يمكنك تزويدي هنا بأي معلومات أو تعليمات ترغب أن أتعلمها للرد على استفسارات المرضى (مثل أوقات الكشف، الأسعار، الإجازات، أو تعليمات الزيارة).'
-          }])
+    const q = query(collection(db, 'clinics'), where('slug', '==', slug))
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const cDoc = snapshot.docs[0]
+          setClinicId(cDoc.id)
+          const data = cDoc.data()
+          setHasApiKey(!!data.aiApiKey)
+          setApiKey(data.aiApiKey || '')
+          setAiEnabled(data.aiEnabled !== false)
+          if (data.aiKnowledge && data.aiKnowledge.length > 0) {
+            setMessages(data.aiKnowledge)
+          } else {
+            setMessages([{
+              role: 'model',
+              text: 'مرحباً دكتور. أنا المساعد الذكي الخاص بعيادتك. يمكنك تزويدي هنا بأي معلومات أو تعليمات ترغب أن أتعلمها للرد على استفسارات المرضى (مثل أوقات الكشف، الأسعار، الإجازات، أو تعليمات الزيارة).'
+            }])
+          }
         }
+      },
+      (err) => {
+        console.error(err)
       }
-    }
-    fetchClinic()
+    )
+
+    return () => unsubscribe()
   }, [slug])
 
   const scrollToBottom = () => {
@@ -124,6 +133,24 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
           مسح الذاكرة
         </Button>
       </div>
+
+      {!aiEnabled && (
+        <div className="p-4 rounded-2xl bg-slate-100 border border-slate-300 text-slate-800 text-xs font-semibold flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+            <div>
+              <span className="font-bold block text-slate-900">خدمة المساعد الذكي معطلة حالياً عن العيادة:</span>
+              <span className="text-slate-600">لن يظهر الشات للمرضى حتى تقوم بإعادة تفعيله من الإعدادات.</span>
+            </div>
+          </div>
+          <Link href={`/clinic/${slug}/admin/settings`}>
+            <Button size="sm" variant="outline" className="h-8 text-xs font-bold rounded-lg border-slate-300">
+              الانتقال للإعدادات
+              <ArrowLeft className="w-3.5 h-3.5 mr-1" />
+            </Button>
+          </Link>
+        </div>
+      )}
 
       {!hasApiKey && (
         <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold flex items-start gap-3">

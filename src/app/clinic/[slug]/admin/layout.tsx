@@ -9,7 +9,7 @@ import {
   X, CheckCircle, ChevronLeft, User
 } from 'lucide-react'
 import { db, auth } from '@/lib/firebase'
-import { collection, query, where, getDocs } from 'firebase/firestore'
+import { collection, query, where, onSnapshot } from 'firebase/firestore'
 import { signOut } from 'firebase/auth'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -36,18 +36,31 @@ export default function AdminLayout({
     const storedRole = localStorage.getItem('clinic_role') || 'doctor'
     setRole(storedRole)
 
-    const fetchClinic = async () => {
-      try {
-        const q = query(collection(db, 'clinics'), where('slug', '==', slug))
-        const snapshot = await getDocs(q)
-        if (!snapshot.empty) setClinic(snapshot.docs[0].data())
-      } catch (err) {
+    const q = query(collection(db, 'clinics'), where('slug', '==', slug))
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        if (!snapshot.empty) {
+          setClinic({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() })
+        } else if (slug === 'demo') {
+          setClinic({
+            clinicName: 'عيادة د. محمد علي التخصصية',
+            doctorName: 'محمد علي',
+            specialty: 'استشاري الطب الباطني',
+            primaryColor: '#15B8A6',
+            aiEnabled: true,
+            assistantPermissions: ['appointments']
+          })
+        }
+        setLoading(false)
+      },
+      (err) => {
         console.error(err)
-      } finally {
         setLoading(false)
       }
-    }
-    fetchClinic()
+    )
+
+    return () => unsubscribe()
   }, [slug])
 
   // Close mobile drawer on route change

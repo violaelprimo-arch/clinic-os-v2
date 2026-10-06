@@ -14,7 +14,7 @@ import {
   Copy, CheckCircle, RefreshCw, ChevronLeft, Calendar
 } from 'lucide-react'
 import { db } from '@/lib/firebase'
-import { collection, addDoc, getDocs, deleteDoc, updateDoc, doc, setDoc } from 'firebase/firestore'
+import { collection, addDoc, getDocs, deleteDoc, updateDoc, doc, setDoc, onSnapshot } from 'firebase/firestore'
 import { Switch } from '@/components/ui/switch'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
@@ -90,7 +90,20 @@ export default function OwnerDashboard() {
       } catch (err) {}
     }
     fetchGlobal()
-    loadClinics()
+
+    const unsubClinics = onSnapshot(
+      collection(db, 'clinics'),
+      (snap) => {
+        setClinics(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+        setIsRefreshing(false)
+      },
+      (err) => {
+        console.error(err)
+        setIsRefreshing(false)
+      }
+    )
+
+    return () => unsubClinics()
   }, [])
 
   const handlePrescriptionUpload = (e: React.ChangeEvent<HTMLInputElement>) => {

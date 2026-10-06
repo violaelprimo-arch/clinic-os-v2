@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
-import { collection, addDoc, query, where, getDocs, doc, updateDoc } from 'firebase/firestore'
+import { collection, addDoc, query, where, getDocs, doc, updateDoc, onSnapshot } from 'firebase/firestore'
 import { useSearchParams } from 'next/navigation'
 import { EGYPTIAN_DRUGS, STRUCTURED_DRUGS } from '@/lib/egyptian-drugs'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
@@ -46,10 +46,10 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const dateStr = new Date().toISOString().split('T')[0]
 
   useEffect(() => {
-    const fetchClinic = async () => {
-      try {
-        const q = query(collection(db, 'clinics'), where('slug', '==', slug))
-        const snapshot = await getDocs(q)
+    const q = query(collection(db, 'clinics'), where('slug', '==', slug))
+    const unsubClinic = onSnapshot(
+      q,
+      async (snapshot) => {
         if (!snapshot.empty) {
           const cDoc = snapshot.docs[0]
           const data = cDoc.data()
@@ -63,19 +63,34 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           }
 
           // Fetch today's patients for quick select
-          const todayQ = query(
-            collection(db, 'appointments'),
-            where('clinic_id', '==', cDoc.id),
-            where('date', '==', dateStr)
-          )
-          const todaySnap = await getDocs(todayQ)
-          setTodayPatients(todaySnap.docs.map(d => ({ id: d.id, ...d.data() })))
+          try {
+            const todayQ = query(
+              collection(db, 'appointments'),
+              where('clinic_id', '==', cDoc.id),
+              where('date', '==', dateStr)
+            )
+            const todaySnap = await getDocs(todayQ)
+            setTodayPatients(todaySnap.docs.map(d => ({ id: d.id, ...d.data() })))
+          } catch (e) {
+            console.error(e)
+          }
+        } else if (slug === 'demo') {
+          setClinic({
+            id: 'demo',
+            clinicName: 'عيادة د. محمد علي التخصصية',
+            doctorName: 'محمد علي',
+            specialty: 'استشاري الطب الباطني والجهاز الهضمي',
+            clinicAddress: 'شارع التسعين الشمالي، التجمع الخامس، القاهرة',
+            clinicPhone: '01012345678'
+          })
         }
-      } catch (err) {
+      },
+      (err) => {
         console.error(err)
       }
-    }
-    fetchClinic()
+    )
+
+    return () => unsubClinic()
   }, [slug, dateStr])
 
   const addDrug = (name = '', dosage = '', duration = '') => {

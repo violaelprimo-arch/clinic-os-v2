@@ -3,7 +3,7 @@
 import { use, useState, useEffect } from 'react'
 import { PremiumLanding } from '@/components/clinic/PremiumLanding'
 import { db } from '@/lib/firebase'
-import { collection, query, where, getDocs } from 'firebase/firestore'
+import { collection, query, where, onSnapshot } from 'firebase/firestore'
 import { ShieldAlert } from 'lucide-react'
 
 export default function ClinicPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -15,11 +15,10 @@ export default function ClinicPage({ params }: { params: Promise<{ slug: string 
   const [error, setError] = useState('')
 
   useEffect(() => {
-    const fetchClinic = async () => {
-      try {
-        const q = query(collection(db, 'clinics'), where('slug', '==', slug))
-        const snapshot = await getDocs(q)
-        
+    const q = query(collection(db, 'clinics'), where('slug', '==', slug))
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
         if (snapshot.empty) {
           if (slug === 'demo') {
             setClinic({
@@ -33,6 +32,7 @@ export default function ClinicPage({ params }: { params: Promise<{ slug: string 
               clinicAddress: 'شارع التسعين الشمالي، التجمع الخامس، القاهرة',
               primaryColor: '#15B8A6',
               isActive: true,
+              aiEnabled: true,
               services: [
                 { id: '1', name: 'كشف عادي', price: 250, desc: 'كشف طبي شامل مع تشخيص دقيق', duration: 'حوالي 15 دقيقة' },
                 { id: '2', name: 'استشارة', price: 150, desc: 'استشارة ومراجعة تحاليل', duration: 'حوالي 10 دقائق' },
@@ -40,10 +40,12 @@ export default function ClinicPage({ params }: { params: Promise<{ slug: string 
                 { id: '4', name: 'متابعة', price: 100, desc: 'متابعة لحالة سابقة وتعديل الجرعات', duration: 'حوالي 10 دقائق' },
               ]
             })
+            setError('')
             setLoading(false)
             return
           }
           setError('العيادة غير موجودة')
+          setClinic(null)
           setLoading(false)
           return
         }
@@ -51,28 +53,32 @@ export default function ClinicPage({ params }: { params: Promise<{ slug: string 
         const clinicData = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as any
         
         // Subscription Check
-        if (!clinicData.isActive) {
+        if (clinicData.isActive === false) {
           setError('تم إيقاف هذه العيادة مؤقتاً من قبل الإدارة.')
+          setClinic(null)
           setLoading(false)
           return
         }
         
         if (clinicData.expirationDate && new Date(clinicData.expirationDate) < new Date()) {
           setError('انتهى اشتراك هذه العيادة. يرجى التواصل مع الإدارة.')
+          setClinic(null)
           setLoading(false)
           return
         }
 
+        setError('')
         setClinic(clinicData)
-      } catch (err) {
+        setLoading(false)
+      },
+      (err) => {
         console.error(err)
         setError('حدث خطأ أثناء تحميل بيانات العيادة.')
-      } finally {
         setLoading(false)
       }
-    }
-    
-    fetchClinic()
+    )
+
+    return () => unsubscribe()
   }, [slug])
 
   if (loading) {

@@ -13,7 +13,7 @@ import {
   CheckCircle2, Bell, Sparkles, Building2
 } from 'lucide-react'
 import { db } from '@/lib/firebase'
-import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore'
+import { collection, query, where, getDocs, updateDoc, doc, addDoc } from 'firebase/firestore'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 
@@ -109,10 +109,9 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   }, [slug])
 
   const handleSave = async () => {
-    if (!clinicId) return
     setIsSaving(true)
     try {
-      await updateDoc(doc(db, 'clinics', clinicId), {
+      const payload = {
         clinicName,
         doctorName,
         specialty,
@@ -126,14 +125,29 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         doctorPhone,
         mapsLink,
         clinicPhones: clinicPhone ? [clinicPhone] : phones.filter(p => p.trim() !== ''),
+        aiEnabled: Boolean(aiEnabled),
         aiInstructions,
         onlinePaymentEnabled,
         walletNumber,
         instapayHandle,
-        assistants
-      })
-      toast.success('تم حفظ كافة إعدادات العيادة بنجاح')
+        assistants,
+        updatedAt: new Date().toISOString()
+      }
+
+      if (!clinicId) {
+        const docRef = await addDoc(collection(db, 'clinics'), {
+          slug,
+          ...payload,
+          isActive: true,
+          createdAt: new Date().toISOString()
+        })
+        setClinicId(docRef.id)
+      } else {
+        await updateDoc(doc(db, 'clinics', clinicId), payload)
+      }
+      toast.success('تم حفظ كافة إعدادات العيادة بنجاح وتطبيقها فورياً')
     } catch (err) {
+      console.error(err)
       toast.error('حدث خطأ أثناء الحفظ')
     } finally {
       setIsSaving(false)
@@ -192,7 +206,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
     { id: 'payment', label: 'طرق الدفع', icon: Wallet },
     { id: 'staff', label: 'المساعدين والصلاحيات', icon: Users },
     { id: 'print', label: 'الروشتة والطباعة', icon: Printer },
-    ...(aiEnabled ? [{ id: 'ai', label: 'المساعد الذكي', icon: Bot }] : []),
+    { id: 'ai', label: 'المساعد الذكي (AI Chatbot)', icon: Bot },
   ]
 
   return (
@@ -589,21 +603,79 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       )}
 
       {/* TAB 7: AI Assistant */}
-      {activeTab === 'ai' && aiEnabled && (
-        <div className="medical-card p-6 max-w-3xl space-y-4">
+      {activeTab === 'ai' && (
+        <div className="medical-card p-6 max-w-3xl space-y-6">
           <div className="pb-3 border-b border-[#E5EAF0]">
             <h3 className="font-bold text-sm text-[#182230] flex items-center gap-2">
               <Bot className="w-5 h-5 text-[#15B8A6]" />
-              تعليمات المساعد الذكي للعيادة (AI Prompt)
+              خدمة المساعد الذكي (AI Chatbot) للعيادة
             </h3>
-            <p className="text-xs text-slate-400">يقوم الذكاء الاصطناعي بالرد على استفسارات المرضى بناءً على هذه التوجيهات</p>
+            <p className="text-xs text-slate-400">
+              التحكم في تشغيل أو تعطيل الشات بوت على صفحة العيادة وتحديد توجيهاته للرد على المرضى
+            </p>
           </div>
 
-          <Textarea
-            value={aiInstructions}
-            onChange={e => setAiInstructions(e.target.value)}
-            className="min-h-[140px] text-xs rounded-xl bg-slate-50 border-[#E5EAF0] leading-relaxed"
-          />
+          {/* Master AI Activation Switch Card */}
+          <div className="p-5 rounded-2xl bg-gradient-to-r from-teal-50/70 via-white to-slate-50 border border-teal-200/80 shadow-2xs space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-[#15B8A6]" />
+                  <h4 className="text-sm font-black text-[#182230]">تفعيل خدمة الشات بوت للمرضى</h4>
+                </div>
+                <p className="text-xs text-slate-500">
+                  عند التفعيل، تظهر أيقونة الدردشة العائمة لزوار صفحة العيادة للإجابة التلقائية على استفساراتهم
+                </p>
+              </div>
+
+              <Switch
+                checked={aiEnabled}
+                onCheckedChange={setAiEnabled}
+                className="data-[state=checked]:bg-[#15B8A6]"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 pt-2 border-t border-teal-100">
+              <span className="text-xs font-bold text-slate-600">حالة الخدمة الآن:</span>
+              {aiEnabled ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  مفعل ويعمل حالياً على صفحة العيادة
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                  <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+                  معطل ومخفي بالكامل عن المرضى
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Instructions Config */}
+          {aiEnabled ? (
+            <div className="space-y-2">
+              <Label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <Bot className="w-3.5 h-3.5 text-[#15B8A6]" />
+                تعليمات وتوجيهات المساعد الذكي (System Prompt)
+              </Label>
+              <Textarea
+                value={aiInstructions}
+                onChange={e => setAiInstructions(e.target.value)}
+                placeholder="أدخل التعليمات التي ترغب أن يلتزم بها المساعد الذكي..."
+                className="min-h-[140px] text-xs rounded-xl bg-slate-50 border-[#E5EAF0] leading-relaxed"
+              />
+              <p className="text-[11px] text-slate-400">
+                يقوم الذكاء الاصطناعي بالرد على استفسارات المرضى حول مواعيد العمل، الخدمات، والأسعار بناءً على هذه التوجيهات.
+              </p>
+            </div>
+          ) : (
+            <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-medium space-y-1">
+              <p className="font-bold">⚠️ خدمة الشات بوت معطلة حالياً</p>
+              <p className="text-amber-700">
+                لن تظهر نافذة الدردشة للمرضى على الصفحة الرئيسية، وتم إخفاء تبويب التدريب من القائمة الجانبية. يمكنك إعادة التفعيل في أي وقت بالضغط على زر التفعيل أعلاه ثم حفظ التعديلات.
+              </p>
+            </div>
+          )}
         </div>
       )}
 

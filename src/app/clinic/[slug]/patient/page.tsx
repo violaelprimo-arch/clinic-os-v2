@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { db } from '@/lib/firebase'
-import { collection, query, where, getDocs } from 'firebase/firestore'
+import { collection, query, where, getDocs, onSnapshot } from 'firebase/firestore'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -41,23 +41,33 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
     const parsed = JSON.parse(authData)
     setPatientData(parsed)
 
-    // 2. Fetch History & Clinic Data
+    // 2. Real-time clinic synchronization
+    const qClinic = query(collection(db, 'clinics'), where('slug', '==', slug))
+    const unsubClinic = onSnapshot(qClinic, (cSnap) => {
+      if (!cSnap.empty) {
+        const cDoc = cSnap.docs[0]
+        const cData = cDoc.data()
+        setClinic({ id: cDoc.id, ...cData })
+        const clinicServices = cData.services || [
+          { id: '1', name: 'كشف عام', price: 250 },
+          { id: '2', name: 'استشارة', price: 100 },
+          { id: '3', name: 'كشف مستعجل', price: 400 }
+        ]
+        setServices(clinicServices)
+      } else if (slug === 'demo') {
+        setClinic({
+          id: 'demo',
+          clinicName: 'عيادة د. محمد علي التخصصية',
+          doctorName: 'محمد علي',
+          specialty: 'استشاري الطب المتخصص',
+          primaryColor: '#15B8A6'
+        })
+      }
+    })
+
+    // 3. Fetch History & Records
     const fetchData = async () => {
       try {
-        // Fetch Clinic and Services for booking
-        const cDoc = await getDoc(doc(db, 'clinics', parsed.clinic_id))
-        if (cDoc.exists()) {
-          const cData = cDoc.data()
-          setClinic({ id: cDoc.id, ...cData })
-          
-          // Define fallback services if the clinic didn't set any yet
-          const clinicServices = cData.services || [
-            { id: '1', name: 'كشف عام', price: 250 },
-            { id: '2', name: 'استشارة', price: 100 },
-            { id: '3', name: 'كشف مستعجل', price: 400 }
-          ]
-          setServices(clinicServices)
-        }
 
         // Fetch Appointments
         const apptsQ = query(
@@ -92,6 +102,8 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
     }
 
     fetchData()
+
+    return () => unsubClinic()
   }, [slug, router])
 
   const handleLogout = () => {
