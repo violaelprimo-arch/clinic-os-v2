@@ -7,21 +7,26 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { Plus, Trash2, Building, Image as ImageIcon, MapPin, TextSelect, FileEdit, Lock, ShieldAlert, CheckCircle, XCircle, Edit } from 'lucide-react'
+import {
+  Plus, Trash2, Building, Image as ImageIcon, MapPin,
+  FileEdit, Lock, ShieldAlert, CheckCircle, XCircle, Edit,
+  Bot, FileSignature, Phone, MessageSquare, Sparkles, Upload
+} from 'lucide-react'
 import { db } from '@/lib/firebase'
 import { collection, addDoc, getDocs, deleteDoc, updateDoc, doc, setDoc } from 'firebase/firestore'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import { motion } from 'framer-motion'
 
 export default function OwnerDashboard() {
   const [clinics, setClinics] = useState<any[]>([])
-  
+
   // Edit mode
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [globalApiKey, setGlobalApiKey] = useState("")
+  const [globalApiKey, setGlobalApiKey] = useState('')
   const [isSavingGlobal, setIsSavingGlobal] = useState(false)
 
-  // Comprehensive form state
+  // Clinic fields
   const [clinicName, setClinicName] = useState('')
   const [doctorName, setDoctorName] = useState('')
   const [doctorPhone, setDoctorPhone] = useState('')
@@ -30,13 +35,20 @@ export default function OwnerDashboard() {
   const [mapsLink, setMapsLink] = useState('')
   const [doctorEmail, setDoctorEmail] = useState('')
   const [doctorPassword, setDoctorPassword] = useState('')
-  const [assistantEmail, setAssistantEmail] = useState(''); const [aiApiKey, setAiApiKey] = useState('');
+  const [assistantEmail, setAssistantEmail] = useState('')
   const [assistantPassword, setAssistantPassword] = useState('')
+  const [aiApiKey, setAiApiKey] = useState('')
+  
+  // NEW: Prescription design image & AI Toggle
+  const [prescriptionTemplateUrl, setPrescriptionTemplateUrl] = useState('')
+  const [aiEnabled, setAiEnabled] = useState(true)
+
+  // Landing page customization
   const [heroImage, setHeroImage] = useState('https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=2000&auto=format&fit=crop')
   const [heroTitle, setHeroTitle] = useState('صحتك تستحق العناية الفائقة')
   const [heroSubtitle, setHeroSubtitle] = useState('نقدم لك ولعائلتك رعاية صحية متكاملة تعتمد على أحدث التقنيات وأفضل الكوادر الطبية المتخصصة لضمان سلامتك وتوفير راحتك.')
-  
-  // Badges state
+
+  // Badges
   const [badge1Title, setBadge1Title] = useState('أطباء معتمدون')
   const [badge1Value, setBadge1Value] = useState('خبرة +15 سنة')
   const [badge2Title, setBadge2Title] = useState('تقييم العيادة')
@@ -46,7 +58,6 @@ export default function OwnerDashboard() {
   const [activationDate, setActivationDate] = useState(getLocalDate())
   const [expirationDate, setExpirationDate] = useState('')
   const [isActive, setIsActive] = useState(true)
-
   const [isLoading, setIsLoading] = useState(false)
 
   const loadClinics = async () => {
@@ -54,39 +65,51 @@ export default function OwnerDashboard() {
     setClinics(snap.docs.map(d => ({ id: d.id, ...d.data() })))
   }
 
-  
   useEffect(() => {
     const fetchGlobal = async () => {
       try {
-        const snap = await getDocs(collection(db, 'system'));
-        const configDoc = snap.docs.find(d => d.id === 'config');
+        const snap = await getDocs(collection(db, 'system'))
+        const configDoc = snap.docs.find(d => d.id === 'config')
         if (configDoc && configDoc.data().globalAiKey) {
-          setGlobalApiKey(configDoc.data().globalAiKey);
+          setGlobalApiKey(configDoc.data().globalAiKey)
         }
       } catch (err) {}
     }
-    fetchGlobal();
-
-  // 
+    fetchGlobal()
     loadClinics()
   }, [])
 
-  
-  const saveGlobalKey = async () => {
-    setIsSavingGlobal(true);
-    try {
-      await setDoc(doc(db, 'system', 'config'), { globalAiKey: globalApiKey }, { merge: true });
-      toast.success('تم حفظ مفتاح الذكاء الاصطناعي المركزي بنجاح!');
-    } catch (err) {
-      toast.error('حدث خطأ أثناء حفظ المفتاح المركزي');
+  const handlePrescriptionUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.size > 3 * 1024 * 1024) {
+        toast.error('حجم الصورة كبير، يرجى اختيار صورة أقل من 3 ميجابايت')
+        return
+      }
+      const reader = new FileReader()
+      reader.onload = () => {
+        setPrescriptionTemplateUrl(reader.result as string)
+        toast.success('تم تحميل صورة تصميم الروشتة بنجاح!')
+      }
+      reader.readAsDataURL(file)
     }
-    setIsSavingGlobal(false);
+  }
+
+  const saveGlobalKey = async () => {
+    setIsSavingGlobal(true)
+    try {
+      await setDoc(doc(db, 'system', 'config'), { globalAiKey: globalApiKey }, { merge: true })
+      toast.success('تم حفظ مفتاح الذكاء الاصطناعي المركزي بنجاح!')
+    } catch (err) {
+      toast.error('حدث خطأ أثناء حفظ المفتاح المركزي')
+    }
+    setIsSavingGlobal(false)
   }
 
   const handleAddOrUpdateClinic = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-    
+
     try {
       const clinicData = {
         clinicName,
@@ -96,9 +119,12 @@ export default function OwnerDashboard() {
         slug,
         mapsLink,
         doctorEmail,
-        doctorPassword, 
-        assistantEmail, aiApiKey,
+        doctorPassword,
+        assistantEmail,
         assistantPassword,
+        aiApiKey,
+        prescriptionTemplateUrl,
+        aiEnabled: aiEnabled !== false,
         heroImage,
         heroTitle,
         heroSubtitle,
@@ -111,7 +137,7 @@ export default function OwnerDashboard() {
         isActive,
         updatedAt: new Date().toISOString()
       }
-      
+
       if (editingId) {
         await updateDoc(doc(db, 'clinics', editingId), clinicData)
         toast.success('تم تحديث بيانات العيادة بنجاح!')
@@ -120,7 +146,7 @@ export default function OwnerDashboard() {
         await addDoc(collection(db, 'clinics'), { ...clinicData, createdAt: new Date().toISOString() })
         toast.success('تم إضافة العيادة بكامل تفاصيلها بنجاح!')
       }
-      
+
       // Reset form
       setClinicName('')
       setDoctorName('')
@@ -130,8 +156,11 @@ export default function OwnerDashboard() {
       setMapsLink('')
       setDoctorEmail('')
       setDoctorPassword('')
-      setAssistantEmail(''); setAiApiKey('');
+      setAssistantEmail('')
       setAssistantPassword('')
+      setAiApiKey('')
+      setPrescriptionTemplateUrl('')
+      setAiEnabled(true)
       setHeroImage('https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=2000&auto=format&fit=crop')
       setHeroTitle('صحتك تستحق العناية الفائقة')
       setHeroSubtitle('نقدم لك ولعائلتك رعاية صحية متكاملة تعتمد على أحدث التقنيات وأفضل الكوادر الطبية المتخصصة لضمان سلامتك وتوفير راحتك.')
@@ -139,7 +168,7 @@ export default function OwnerDashboard() {
       setBadge1Value('خبرة +15 سنة')
       setBadge2Title('تقييم العيادة')
       setBadge2Value('4.9/5.0')
-      
+
       loadClinics()
     } catch (err: any) {
       toast.error('حدث خطأ أثناء حفظ البيانات: ' + err.message)
@@ -158,8 +187,11 @@ export default function OwnerDashboard() {
     setMapsLink(c.mapsLink || '')
     setDoctorEmail(c.doctorEmail || '')
     setDoctorPassword(c.doctorPassword || '')
-    setAssistantEmail(c.assistantEmail || ''); setAiApiKey(c.aiApiKey || '');
+    setAssistantEmail(c.assistantEmail || '')
     setAssistantPassword(c.assistantPassword || '')
+    setAiApiKey(c.aiApiKey || '')
+    setPrescriptionTemplateUrl(c.prescriptionTemplateUrl || '')
+    setAiEnabled(c.aiEnabled !== false)
     setHeroImage(c.heroImage || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=2000&auto=format&fit=crop')
     setHeroTitle(c.heroTitle || 'صحتك تستحق العناية الفائقة')
     setHeroSubtitle(c.heroSubtitle || 'نقدم لك ولعائلتك رعاية صحية متكاملة تعتمد على أحدث التقنيات وأفضل الكوادر الطبية المتخصصة لضمان سلامتك وتوفير راحتك.')
@@ -172,7 +204,7 @@ export default function OwnerDashboard() {
     setIsActive(c.isActive !== false)
 
     window.scrollTo({ top: 0, behavior: 'smooth' })
-    toast.info('جاري تعديل بيانات العيادة. يمكنك تعديل الحقول ثم الضغط على "تحديث".')
+    toast.info('جاري تعديل بيانات العيادة.')
   }
 
   const cancelEdit = () => {
@@ -180,7 +212,7 @@ export default function OwnerDashboard() {
     setClinicName('')
     setDoctorName('')
     setSlug('')
-    //... could reset all, but reloading is easier
+    setPrescriptionTemplateUrl('')
     toast.info('تم إلغاء التعديل')
   }
 
@@ -194,8 +226,19 @@ export default function OwnerDashboard() {
     }
   }
 
+  const toggleClinicAi = async (id: string, currentAi: boolean) => {
+    try {
+      const nextAi = !currentAi
+      await updateDoc(doc(db, 'clinics', id), { aiEnabled: nextAi })
+      toast.success(nextAi ? 'تم تفعيل المساعد الذكي AI لهذه العيادة' : 'تم تعطيل وإخفاء المساعد الذكي AI عن العيادة')
+      loadClinics()
+    } catch (err) {
+      toast.error('حدث خطأ أثناء تعديل حالة الذكاء الاصطناعي')
+    }
+  }
+
   const deleteClinic = async (id: string) => {
-    if(confirm('تحذير: سيتم حذف العيادة نهائياً من قاعدة البيانات! هل أنت متأكد؟')) {
+    if (confirm('تحذير: سيتم حذف العيادة نهائياً من قاعدة البيانات! هل أنت متأكد؟')) {
       try {
         await deleteDoc(doc(db, 'clinics', id))
         toast.success('تم حذف العيادة نهائياً')
@@ -208,31 +251,56 @@ export default function OwnerDashboard() {
   }
 
   return (
-    <div className="space-y-8" dir="rtl">
-
-      <Card className="mb-8 border-t-4 border-t-purple-500 shadow-xl">
-        <CardHeader className="bg-purple-50/50">
-          <CardTitle className="text-xl text-purple-700">إعدادات النظام المركزية (OpenAI / ChatGPT)</CardTitle>
-          <CardDescription>ضع هنا مفتاح OpenAI API الخاص بك كمالك للمنصة. هذا المفتاح سيُشغل الذكاء الاصطناعي لجميع العيادات المشتركة.</CardDescription>
+    <motion.div
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="space-y-8"
+      dir="rtl"
+    >
+      {/* 1. Global AI Key Config Card */}
+      <Card className="border-t-4 border-t-purple-500 shadow-xl bg-white rounded-2xl">
+        <CardHeader className="bg-purple-50/50 pb-4">
+          <CardTitle className="text-xl font-black text-purple-800 flex items-center gap-2">
+            <Bot className="w-5 h-5 text-purple-600" />
+            إعدادات النظام المركزية للذكاء الاصطناعي (OpenAI / Gemini)
+          </CardTitle>
+          <CardDescription>
+            المفتاح المركزي الذي يشغل الذكاء الاصطناعي لكافة العيادات المشتركة التي يسمح لها المالك بذلك.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="pt-6 flex gap-4">
+        <CardContent className="pt-4 flex flex-col sm:flex-row gap-3">
           <div className="flex-1">
-            <Input type="password" value={globalApiKey} onChange={e => setGlobalApiKey(e.target.value)} dir="ltr" className="text-right border-purple-200 focus:border-purple-500 font-mono" placeholder="sk-proj-..." />
+            <Input
+              type="password"
+              value={globalApiKey}
+              onChange={e => setGlobalApiKey(e.target.value)}
+              dir="ltr"
+              className="text-right border-purple-200 focus:border-purple-500 font-mono h-11 rounded-xl"
+              placeholder="sk-proj-..."
+            />
           </div>
-          <Button onClick={saveGlobalKey} disabled={isSavingGlobal} className="bg-purple-600 hover:bg-purple-700 w-32 font-bold">
-            {isSavingGlobal ? 'جاري الحفظ...' : 'حفظ المفتاح'}
+          <Button
+            onClick={saveGlobalKey}
+            disabled={isSavingGlobal}
+            className="bg-purple-600 hover:bg-purple-700 h-11 px-6 font-bold rounded-xl text-white"
+          >
+            {isSavingGlobal ? 'جاري الحفظ...' : 'حفظ المفتاح المركزي'}
           </Button>
         </CardContent>
       </Card>
 
-      <Card className={`shadow-2xl border-t-4 overflow-hidden transition-all ${editingId ? 'border-t-blue-500 ring-2 ring-blue-500/20' : 'border-t-amber-500'}`}>
-        <CardHeader className={`${editingId ? 'bg-blue-50' : 'bg-slate-50'} border-b transition-colors`}>
-          <CardTitle className="text-2xl flex items-center gap-2">
-            {editingId ? <Edit className="w-6 h-6 text-blue-500" /> : <Building className="w-6 h-6 text-amber-500" />} 
-            {editingId ? 'تعديل بيانات العيادة' : 'إضافة عيادة جديدة وتكوين النظام'}
+      {/* 2. Add / Edit Clinic Form */}
+      <Card className={`shadow-xl border-t-4 rounded-2xl overflow-hidden bg-white ${
+        editingId ? 'border-t-blue-500 ring-2 ring-blue-500/20' : 'border-t-[#15B8A6]'
+      }`}>
+        <CardHeader className={`${editingId ? 'bg-blue-50/60' : 'bg-teal-50/50'} border-b pb-4`}>
+          <CardTitle className="text-xl font-black flex items-center gap-2 text-[#182230]">
+            {editingId ? <Edit className="w-5 h-5 text-blue-500" /> : <Building className="w-5 h-5 text-[#15B8A6]" />}
+            {editingId ? 'تعديل بيانات العيادة والروشتة والذكاء الاصطناعي' : 'إضافة عيادة جديدة وتكوين النظام'}
           </CardTitle>
           <CardDescription>
-            {editingId ? 'أنت الآن تقوم بتعديل العيادة المحددة. اضغط "تحديث" لحفظ التغييرات.' : 'تحكم كامل في بيانات العيادة، الصلاحيات، الصور، والاشتراكات.'}
+            تحكم كامل في بيانات العيادة، رفع تصميم الروشتة المطبوعة، فتح أو قفل الذكاء الاصطناعي، وإدارة الاشتراك.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-6">
@@ -240,183 +308,347 @@ export default function OwnerDashboard() {
             
             {/* Section 1: Basic Info */}
             <div className="space-y-4">
-              <h3 className="text-lg font-bold flex items-center gap-2 text-slate-700 border-b pb-2"><FileEdit className="w-5 h-5"/> البيانات الأساسية</h3>
+              <h3 className="text-sm font-black text-slate-800 border-b border-slate-200 pb-2 flex items-center gap-2">
+                <FileEdit className="w-4 h-4 text-[#15B8A6]" />
+                البيانات الأساسية
+              </h3>
               <div className="grid md:grid-cols-3 gap-4">
-                <div className="space-y-2"><Label>اسم الطبيب</Label><Input value={doctorName} onChange={e => setDoctorName(e.target.value)} required placeholder="د. أحمد محمد" /></div>
-                <div className="space-y-2"><Label>اسم العيادة</Label><Input value={clinicName} onChange={e => setClinicName(e.target.value)} required placeholder="عيادة الشفاء" /></div>
-                <div className="space-y-2"><Label>الرابط (Slug)</Label><Input value={slug} onChange={e => setSlug(e.target.value)} required placeholder="ahmed-clinic" dir="ltr" className="text-right" disabled={!!editingId} /></div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-600">اسم الطبيب</Label>
+                  <Input value={doctorName} onChange={e => setDoctorName(e.target.value)} required placeholder="د. أحمد محمد" className="h-10 text-xs rounded-xl" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-600">اسم العيادة</Label>
+                  <Input value={clinicName} onChange={e => setClinicName(e.target.value)} required placeholder="عيادة الشفاء التخصصية" className="h-10 text-xs rounded-xl" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-600">الرابط (Slug)</Label>
+                  <Input value={slug} onChange={e => setSlug(e.target.value)} required placeholder="ahmed-clinic" dir="ltr" className="h-10 text-xs rounded-xl text-right font-mono" disabled={!!editingId} />
+                </div>
               </div>
             </div>
 
             {/* Section 2: Contact Info */}
             <div className="space-y-4">
-              <h3 className="text-lg font-bold flex items-center gap-2 text-slate-700 border-b pb-2"><MapPin className="w-5 h-5"/> أرقام التواصل والموقع</h3>
+              <h3 className="text-sm font-black text-slate-800 border-b border-slate-200 pb-2 flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-[#15B8A6]" />
+                أرقام التواصل والموقع
+              </h3>
               <div className="grid md:grid-cols-3 gap-4">
-                <div className="space-y-2"><Label>رقم تليفون الطبيب (شخصي)</Label><Input value={doctorPhone} onChange={e => setDoctorPhone(e.target.value)} dir="ltr" className="text-right" /></div>
-                <div className="space-y-2"><Label>رقم العيادة (واتساب الحجز)</Label><Input value={clinicPhone} onChange={e => setClinicPhone(e.target.value)} required dir="ltr" className="text-right" /></div>
-                <div className="space-y-2"><Label>Location</Label><Input value={mapsLink} onChange={e => setMapsLink(e.target.value)} dir="ltr" className="text-right" placeholder="https://maps.google.com/..." /></div>
-              </div>
-            </div>
-
-            {/* Section 3: Authentication & Accounts */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-bold flex items-center gap-2 text-slate-700 border-b pb-2"><Lock className="w-5 h-5"/> حسابات الدخول (الطبيب والمساعدين)</h3>
-              <div className="grid md:grid-cols-2 gap-8 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <div className="space-y-4">
-                  <h4 className="font-bold text-primary">حساب الطبيب (صلاحيات كاملة)</h4>
-                  <div className="space-y-2"><Label>الإيميل</Label><Input type="email" value={doctorEmail} onChange={e => setDoctorEmail(e.target.value)} required dir="ltr" className="text-right" /></div>
-                  <div className="space-y-2"><Label>الباسورد</Label><Input value={doctorPassword} onChange={e => setDoctorPassword(e.target.value)} required minLength={6} dir="ltr" className="text-right" /></div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-600">رقم تليفون الطبيب (شخصي)</Label>
+                  <Input value={doctorPhone} onChange={e => setDoctorPhone(e.target.value)} dir="ltr" className="h-10 text-xs rounded-xl text-right font-mono" placeholder="010xxxxxxxx" />
                 </div>
-                <div className="space-y-4">
-                  <h4 className="font-bold text-green-600">حساب المساعد (صلاحيات محدودة - مستقبلاً)</h4>
-                  <div className="space-y-2"><Label>إيميل المساعد</Label><Input type="email" value={assistantEmail} onChange={e => setAssistantEmail(e.target.value)} dir="ltr" className="text-right" /></div>
-                  <div className="space-y-2"><Label>باسورد المساعد</Label><Input value={assistantPassword} onChange={e => setAssistantPassword(e.target.value)} minLength={6} dir="ltr" className="text-right" /></div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-600">رقم العيادة (واتساب الحجز والروشتة)</Label>
+                  <Input value={clinicPhone} onChange={e => setClinicPhone(e.target.value)} required dir="ltr" className="h-10 text-xs rounded-xl text-right font-mono" placeholder="01xxxxxxxxx" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-600">رابط موقع العيادة (Google Maps)</Label>
+                  <Input value={mapsLink} onChange={e => setMapsLink(e.target.value)} dir="ltr" className="h-10 text-xs rounded-xl text-right" placeholder="https://maps.google.com/..." />
                 </div>
               </div>
             </div>
 
-            {/* Section 4: Content & UI Customization */}
+            {/* Section 3: Prescription Template & AI Feature Controls */}
             <div className="space-y-4">
-              <h3 className="text-lg font-bold flex items-center gap-2 text-slate-700 border-b pb-2"><ImageIcon className="w-5 h-5"/> تخصيص واجهة المرضى (Landing Page)</h3>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>رابط صورة الغلاف الرئيسية (Hero Image URL)</Label>
-                  <Input value={heroImage} onChange={e => setHeroImage(e.target.value)} dir="ltr" className="text-right" placeholder="https://..." />
-                </div>
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>العنوان الرئيسي العريض</Label>
-                    <Input value={heroTitle} onChange={e => setHeroTitle(e.target.value)} />
+              <h3 className="text-sm font-black text-slate-800 border-b border-slate-200 pb-2 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-[#15B8A6]" />
+                تخصيص الروشتة وميزة الذكاء الاصطناعي (AI Controls)
+              </h3>
+              <div className="grid md:grid-cols-2 gap-6 bg-slate-50 p-5 rounded-2xl border border-slate-200">
+                {/* 1. Prescription Design Upload / URL */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-[#182230]">
+                    <FileSignature className="w-5 h-5 text-[#15B8A6]" />
+                    <h4 className="font-bold text-xs">صورة تصميم ورقة الروشتة المطبوعة (A4 Template)</h4>
                   </div>
-                  <div className="space-y-2">
-                    <Label>نبذة عن الطبيب (النص التعريفي)</Label>
-                    <Textarea value={heroSubtitle} onChange={e => setHeroSubtitle(e.target.value)} rows={3} />
-                  </div>
-                </div>
-                
-                {/* Badges Settings */}
-                <div className="bg-white border rounded-xl p-4 space-y-4">
-                  <h4 className="font-bold text-slate-700">تخصيص الشارات العائمة (Floating Badges)</h4>
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div className="space-y-3 bg-green-50/50 p-4 rounded-lg border border-green-100">
-                      <p className="text-sm font-bold text-green-700">الشارة الأولى (الخضراء)</p>
-                      <div className="space-y-1"><Label>العنوان الصغير</Label><Input value={badge1Title} onChange={e => setBadge1Title(e.target.value)} placeholder="أطباء معتمدون" /></div>
-                      <div className="space-y-1"><Label>القيمة البارزة</Label><Input value={badge1Value} onChange={e => setBadge1Value(e.target.value)} placeholder="خبرة +15 سنة" /></div>
-                    </div>
-                    <div className="space-y-3 bg-amber-50/50 p-4 rounded-lg border border-amber-100">
-                      <p className="text-sm font-bold text-amber-700">الشارة الثانية (الصفراء)</p>
-                      <div className="space-y-1"><Label>العنوان الصغير</Label><Input value={badge2Title} onChange={e => setBadge2Title(e.target.value)} placeholder="تقييم العيادة" /></div>
-                      <div className="space-y-1"><Label>القيمة البارزة</Label><Input value={badge2Value} onChange={e => setBadge2Value(e.target.value)} placeholder="4.9/5.0" /></div>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-
-            {/* Section 5: Subscription & Status */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-bold flex items-center gap-2 text-slate-700 border-b pb-2"><ShieldAlert className="w-5 h-5"/> حالة الاشتراك والتفعيل</h3>
-              <div className="grid md:grid-cols-3 gap-4 items-center bg-amber-50/50 p-4 rounded-xl border border-amber-100">
-                <div className="space-y-2"><Label>تاريخ التفعيل (البداية)</Label><Input type="date" value={activationDate} onChange={e => setActivationDate(e.target.value)} /></div>
-                <div className="space-y-2"><Label>تاريخ الانتهاء</Label><Input type="date" value={expirationDate} onChange={e => setExpirationDate(e.target.value)} placeholder="اختياري" /></div>
-                <div className="space-y-2 flex flex-col justify-center pt-6">
+                  <p className="text-[11px] text-slate-500">
+                    يمكن للمالك رفع صورة من الجهاز مباشرة أو وضع رابط لتصميم الروشتة الخاص بالعيادة، ليتم طباعة بيانات الكشف والأدوية عليها تلقائياً.
+                  </p>
+                  
                   <div className="flex items-center gap-2">
-                    <Switch checked={isActive} onCheckedChange={setIsActive} />
-                    <Label className="font-bold cursor-pointer" onClick={() => setIsActive(!isActive)}>العيادة مفعلة وتعمل الآن</Label>
+                    <label className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-[#E5EAF0] hover:bg-slate-50 cursor-pointer text-xs font-bold text-slate-700 transition-colors shadow-2xs">
+                      <Upload className="w-4 h-4 text-[#15B8A6]" />
+                      <span>رفع صورة من جهازك</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handlePrescriptionUpload}
+                        className="hidden"
+                      />
+                    </label>
+                    <span className="text-[10px] text-slate-400">أو الصق رابط:</span>
+                  </div>
+
+                  <Input
+                    value={prescriptionTemplateUrl}
+                    onChange={e => setPrescriptionTemplateUrl(e.target.value)}
+                    dir="ltr"
+                    placeholder="https://... رابط صورة الروشتة المخصصة"
+                    className="h-10 text-xs rounded-xl bg-white text-right"
+                  />
+
+                  {prescriptionTemplateUrl && (
+                    <div className="p-3 border rounded-xl bg-white space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-slate-500 font-bold">معاينة تصميم الروشتة المعتمد:</span>
+                        <button
+                          type="button"
+                          onClick={() => setPrescriptionTemplateUrl('')}
+                          className="text-[10px] text-rose-500 hover:text-rose-700 font-bold"
+                        >
+                          إزالة الصورة
+                        </button>
+                      </div>
+                      <div className="max-h-40 overflow-hidden rounded-lg border bg-slate-50 flex items-center justify-center p-2">
+                        <img src={prescriptionTemplateUrl} alt="Prescription Template Preview" className="max-h-36 rounded-md object-contain shadow-xs" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. AI Feature Enable/Disable */}
+                <div className="space-y-3 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 text-[#182230]">
+                      <Bot className="w-5 h-5 text-purple-600" />
+                      <h4 className="font-bold text-xs">قفل / فتح المساعد الذكي (AI Assistant) للعيادة</h4>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      عند قفل هذه الميزة، تختفي خانة تدريب المساعد الذكي والفقاعة العائمة تماماً من لوحة تحكم الطبيب وصفحة المرضى.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold block text-slate-800">
+                        {aiEnabled ? 'المساعد الذكي مفعل لهذه العيادة' : 'المساعد الذكي معطل ومخفي'}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {aiEnabled ? 'تظهر خانة AI في القائمة الجانبية وصفحة المرضى' : 'تمت إزالة خانة AI من العيادة بالكامل'}
+                      </span>
+                    </div>
+                    <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} />
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="flex gap-4">
-              <Button type="submit" className={`flex-1 h-14 text-xl font-bold text-white rounded-xl shadow-lg ${editingId ? 'bg-blue-600 hover:bg-blue-700' : 'bg-amber-600 hover:bg-amber-700'}`} disabled={isLoading}>
-                {editingId ? <Edit className="w-6 h-6 ml-2" /> : <Plus className="w-6 h-6 ml-2" />}
-                {isLoading ? 'جاري المعالجة...' : editingId ? 'تحديث بيانات العيادة' : 'حفظ وإضافة العيادة للنظام'}
+            {/* Section 4: Logins */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-black text-slate-800 border-b border-slate-200 pb-2 flex items-center gap-2">
+                <Lock className="w-4 h-4 text-[#15B8A6]" />
+                حسابات الدخول للطبيب والمساعد
+              </h3>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                  <h4 className="font-bold text-xs text-[#15B8A6]">حساب الطبيب الرئيسي</h4>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-slate-600">البريد الإلكتروني</Label>
+                    <Input type="email" value={doctorEmail} onChange={e => setDoctorEmail(e.target.value)} required dir="ltr" className="h-10 text-xs rounded-xl text-right" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-slate-600">كلمة المرور</Label>
+                    <Input type="password" value={doctorPassword} onChange={e => setDoctorPassword(e.target.value)} required minLength={6} dir="ltr" className="h-10 text-xs rounded-xl text-right" />
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                  <h4 className="font-bold text-xs text-emerald-600">حساب المساعد</h4>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-slate-600">البريد الإلكتروني</Label>
+                    <Input type="email" value={assistantEmail} onChange={e => setAssistantEmail(e.target.value)} dir="ltr" className="h-10 text-xs rounded-xl text-right" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-slate-600">كلمة المرور</Label>
+                    <Input type="password" value={assistantPassword} onChange={e => setAssistantPassword(e.target.value)} minLength={6} dir="ltr" className="h-10 text-xs rounded-xl text-right" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 5: Subscription Dates & Active Status */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-black text-slate-800 border-b border-slate-200 pb-2 flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-amber-500" />
+                حالة التفعيل والاشتراك
+              </h3>
+              <div className="grid md:grid-cols-3 gap-4 items-center bg-amber-50/50 p-4 rounded-xl border border-amber-100">
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-slate-600">تاريخ التفعيل</Label>
+                  <Input type="date" value={activationDate} onChange={e => setActivationDate(e.target.value)} className="h-10 text-xs rounded-xl bg-white" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-slate-600">تاريخ الانتهاء</Label>
+                  <Input type="date" value={expirationDate} onChange={e => setExpirationDate(e.target.value)} className="h-10 text-xs rounded-xl bg-white" />
+                </div>
+                <div className="pt-5 flex items-center gap-2">
+                  <Switch checked={isActive} onCheckedChange={setIsActive} />
+                  <Label className="text-xs font-bold text-slate-700 cursor-pointer" onClick={() => setIsActive(!isActive)}>
+                    العيادة نشطة ومفعلة للعمل
+                  </Label>
+                </div>
+              </div>
+            </div>
+
+            {/* Submit Buttons */}
+            <div className="flex gap-3">
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className={`flex-1 h-12 text-sm font-black text-white rounded-xl shadow-lg ${
+                  editingId ? 'bg-blue-600 hover:bg-blue-700' : 'bg-[#15B8A6] hover:bg-[#0D9488]'
+                }`}
+              >
+                {editingId ? <Edit className="w-4 h-4 ml-1.5" /> : <Plus className="w-4 h-4 ml-1.5" />}
+                {isLoading ? 'جاري الحفظ...' : editingId ? 'تحديث وحفظ بيانات العيادة' : 'إضافة وتفعيل العيادة في المنصة'}
               </Button>
               {editingId && (
-                <Button type="button" variant="outline" onClick={cancelEdit} className="h-14 px-8 text-lg font-bold rounded-xl" disabled={isLoading}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={cancelEdit}
+                  className="h-12 px-6 text-xs font-bold rounded-xl"
+                  disabled={isLoading}
+                >
                   إلغاء التعديل
                 </Button>
               )}
             </div>
+
           </form>
         </CardContent>
       </Card>
 
-      {/* Clinics List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>العيادات المسجلة وإدارة الاشتراكات</CardTitle>
+      {/* 3. Clinics Management Table */}
+      <Card className="shadow-lg border border-[#E5EAF0] rounded-2xl overflow-hidden bg-white">
+        <CardHeader className="bg-slate-50/80 border-b pb-4">
+          <CardTitle className="text-lg font-black text-[#182230]">العيادات المسجلة وإدارة الخدمات</CardTitle>
+          <CardDescription>قائمة بجميع العيادات على المنصة مع التحكم في الاشتراك، الروشتات، والذكاء الاصطناعي</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-right border-collapse">
-              <thead className="bg-slate-100 text-slate-700">
+            <table className="w-full text-sm text-right">
+              <thead className="bg-[#F8FAFC] text-slate-400 text-xs font-bold border-b border-[#E5EAF0]">
                 <tr>
-                  <th className="p-4 border-b">اسم العيادة / الطبيب</th>
-                  <th className="p-4 border-b">الرابط</th>
-                  <th className="p-4 border-b">الاشتراك</th>
-                  <th className="p-4 border-b">الحالة</th>
-                  <th className="p-4 border-b">إجراءات</th>
+                  <th className="py-3.5 px-4">العيادة / الطبيب</th>
+                  <th className="py-3.5 px-4">الروابط السريعة</th>
+                  <th className="py-3.5 px-4 text-center">الذكاء الاصطناعي</th>
+                  <th className="py-3.5 px-4 text-center">الروشتة</th>
+                  <th className="py-3.5 px-4 text-center">الحالة</th>
+                  <th className="py-3.5 px-4 text-center">إجراءات المالك</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-[#E5EAF0]">
                 {clinics.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-gray-500">لا يوجد عيادات مضافة حتى الآن.</td>
+                    <td colSpan={6} className="py-12 text-center text-slate-400">
+                      لا توجد عيادات مسجلة حتى الآن.
+                    </td>
                   </tr>
                 ) : (
-                  clinics.map(c => (
-                    <tr key={c.id} className={`border-b last:border-0 hover:bg-slate-50 transition-colors ${editingId === c.id ? 'bg-blue-50/50' : ''}`}>
-                      <td className="p-4">
-                        <div className="font-bold text-slate-900">{c.clinicName}</div>
-                        <div className="text-xs text-gray-500">د. {c.doctorName}</div>
-                      </td>
-                      <td className="p-4 dir-ltr text-right space-y-1">
-                        <div>
-                          <a href={`/clinic/${c.slug}`} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline font-bold text-sm">صفحة المريض</a>
-                        </div>
-                        <div>
-                          <a href={`/clinic/${c.slug}/login`} target="_blank" rel="noreferrer" className="text-amber-600 hover:underline text-xs">بوابة الطاقم</a>
-                        </div>
-                      </td>
-                      <td className="p-4 text-xs space-y-1">
-                        <div>بدأ: {c.activationDate}</div>
-                        <div className="text-red-500">ينتهي: {c.expirationDate || 'مفتوح'}</div>
-                      </td>
-                      <td className="p-4">
-                        {c.isActive ? (
-                          <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none">مفعل</Badge>
-                        ) : (
-                          <Badge className="bg-red-100 text-red-700 hover:bg-red-200 border-none">موقوف</Badge>
-                        )}
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Button variant="outline" size="sm" onClick={() => handleEdit(c)} className="text-blue-600 border-blue-200 hover:bg-blue-50">
-                            <Edit className="w-4 h-4 ml-1" />
-                            تعديل
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={() => toggleStatus(c.id, c.isActive)} className={c.isActive ? "text-amber-600 border-amber-200 hover:bg-amber-50" : "text-green-600 border-green-200 hover:bg-green-50"}>
-                            {c.isActive ? <XCircle className="w-4 h-4 ml-1" /> : <CheckCircle className="w-4 h-4 ml-1" />}
-                            {c.isActive ? 'إيقاف مؤقت' : 'تفعيل'}
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={() => deleteClinic(c.id)} className="text-red-600 border-red-200 hover:bg-red-50">
-                            <Trash2 className="w-4 h-4 ml-1" />
-                            حذف نهائي
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                  clinics.map(c => {
+                    const hasAi = c.aiEnabled !== false
+                    return (
+                      <tr key={c.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="py-3.5 px-4">
+                          <p className="font-bold text-xs text-[#182230]">{c.clinicName}</p>
+                          <span className="text-[11px] text-slate-400">د. {c.doctorName} • {c.clinicPhone}</span>
+                        </td>
+
+                        <td className="py-3.5 px-4 text-xs space-y-0.5">
+                          <div>
+                            <a href={`/clinic/${c.slug}`} target="_blank" rel="noreferrer" className="text-[#15B8A6] font-bold hover:underline">
+                              صفحة المريض
+                            </a>
+                          </div>
+                          <div>
+                            <a href={`/clinic/${c.slug}/patient`} target="_blank" rel="noreferrer" className="text-[#2F80ED] font-bold hover:underline">
+                              بوابة المريض
+                            </a>
+                          </div>
+                          <div>
+                            <a href={`/clinic/${c.slug}/login`} target="_blank" rel="noreferrer" className="text-slate-500 hover:underline">
+                              دخول الطاقم
+                            </a>
+                          </div>
+                        </td>
+
+                        {/* AI Status & Quick Toggle */}
+                        <td className="py-3.5 px-4 text-center">
+                          <button
+                            onClick={() => toggleClinicAi(c.id, hasAi)}
+                            className="cursor-pointer"
+                            title="اضغط للتبديل الفوري للذكاء الاصطناعي"
+                          >
+                            <Badge className={`text-[10px] font-bold border-none ${
+                              hasAi ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-400'
+                            }`}>
+                              {hasAi ? 'AI مفعل' : 'AI معطل'}
+                            </Badge>
+                          </button>
+                        </td>
+
+                        {/* Prescription Template */}
+                        <td className="py-3.5 px-4 text-center">
+                          {c.prescriptionTemplateUrl ? (
+                            <Badge className="bg-teal-50 text-[#0D9488] border-teal-200 text-[10px] font-bold">
+                              تصميم مخصص
+                            </Badge>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 font-semibold">قالب قياسي</span>
+                          )}
+                        </td>
+
+                        {/* Active Status */}
+                        <td className="py-3.5 px-4 text-center">
+                          <Badge className={`text-[10px] font-bold border-none ${
+                            c.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                          }`}>
+                            {c.isActive ? 'مفعل' : 'موقوف'}
+                          </Badge>
+                        </td>
+
+                        {/* Actions */}
+                        <td className="py-3.5 px-4 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleEdit(c)}
+                              className="h-8 px-2.5 text-xs font-bold text-blue-600 border-blue-200 hover:bg-blue-50 rounded-lg"
+                            >
+                              <Edit className="w-3.5 h-3.5 ml-1" />
+                              تعديل
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => toggleStatus(c.id, c.isActive)}
+                              className="h-8 px-2.5 text-xs font-bold rounded-lg"
+                            >
+                              {c.isActive ? 'إيقاف' : 'تفعيل'}
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => deleteClinic(c.id)}
+                              className="h-8 w-8 text-rose-500 hover:bg-rose-50 rounded-lg"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })
                 )}
               </tbody>
             </table>
           </div>
         </CardContent>
       </Card>
-    </div>
+    </motion.div>
   )
 }
-

@@ -14,6 +14,9 @@ import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 import Link from 'next/link'
 
+import { ArrowRight, ShieldCheck } from 'lucide-react'
+import { ClinicLogo } from '@/components/clinic/ClinicLogo'
+
 export default function PatientLogin({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
@@ -54,7 +57,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
           clinic_id: clinicId,
           name,
           phone,
-          password, // In a real prod app, hash this!
+          password,
           createdAt: new Date().toISOString()
         })
         toast.success('تم إنشاء الحساب بنجاح!')
@@ -83,94 +86,134 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 font-sans relative" dir="rtl">
+    <div className="min-h-screen flex items-center justify-center bg-[#F6F8FB] font-sans relative p-4 text-[#182230]" dir="rtl">
       {/* Floating Back Button */}
       <Link href={`/clinic/${slug}`} className="absolute top-6 right-6 z-50">
-        <Button variant="outline" className="rounded-full shadow-sm bg-white/80 backdrop-blur font-bold text-slate-700 hover:text-primary hover:bg-white border-slate-200">
-          العودة للصفحة الرئيسية
+        <Button variant="outline" className="rounded-xl shadow-xs bg-white text-xs font-bold text-slate-700 hover:text-[#15B8A6] hover:bg-slate-50 border-[#E5EAF0] h-9 px-4">
+          <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+          العودة للعيادة
         </Button>
       </Link>
 
-      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl mix-blend-multiply opacity-70 pointer-events-none -translate-y-1/2 translate-x-1/3"></div>
+      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#15B8A6]/5 rounded-full blur-3xl pointer-events-none -translate-y-1/2 translate-x-1/3"></div>
       
-      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="w-full max-w-md p-4 relative z-10">
-        <div className="text-center mb-8">
-          <Link href={`/clinic/${slug}`}>
-            <div className="mx-auto w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/30 mb-4 rotate-3 hover:rotate-0 transition-transform cursor-pointer">
-              <HeartPulse className="w-8 h-8 text-white" />
-            </div>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="w-full max-w-md relative z-10"
+      >
+        <div className="text-center mb-6 space-y-2">
+          <Link href={`/clinic/${slug}`} className="inline-block">
+            <ClinicLogo size="md" variant="light" />
           </Link>
-          <h1 className="text-3xl font-bold text-slate-900">بوابة المريض</h1>
-          <p className="text-slate-500 mt-2">تابع تاريخك الطبي وروشتاتك بكل سهولة</p>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-50 text-[#15B8A6] text-xs font-bold border border-teal-100 mt-2">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>بوابة المريض المعتمدة</span>
+          </div>
+          <p className="text-xs text-slate-400 mt-1">
+            تابع تاريخك الطبي وكشوفاتك وروشتاتك السابقة برقم هاتفك
+          </p>
         </div>
 
-        <Card className="shadow-2xl border-t-4 border-t-primary">
-          <CardHeader>
-            <CardTitle className="text-xl text-center">
-              {isRegistering ? 'إنشاء حساب جديد' : 'تسجيل الدخول'}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {isRegistering && (
-                <div className="space-y-2">
-                  <Label>الاسم بالكامل</Label>
-                  <div className="relative">
-                    <User className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                    <Input 
-                      required 
-                      value={name} 
-                      onChange={e => setName(e.target.value)} 
-                      placeholder="اكتب اسمك الثلاثي" 
-                      className="pr-10 h-12 bg-slate-50"
-                    />
-                  </div>
-                </div>
-              )}
-              <div className="space-y-2">
-                <Label>رقم التليفون</Label>
+        {/* Auth Card */}
+        <div className="medical-card p-6 sm:p-8 bg-white border border-[#E5EAF0] shadow-xl rounded-3xl space-y-6">
+          
+          {/* Mode Switcher Tabs */}
+          <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setIsRegistering(false)}
+              className={`py-2 text-xs font-black rounded-lg transition-all cursor-pointer ${
+                !isRegistering ? 'bg-white text-[#15B8A6] shadow-xs' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              تسجيل الدخول
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsRegistering(true)}
+              className={`py-2 text-xs font-black rounded-lg transition-all cursor-pointer ${
+                isRegistering ? 'bg-white text-[#15B8A6] shadow-xs' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              مريض جديد (حساب جديد)
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {isRegistering && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600">الاسم بالكامل</Label>
                 <div className="relative">
-                  <Phone className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <User className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <Input 
                     required 
-                    type="tel"
-                    value={phone} 
-                    onChange={e => setPhone(e.target.value)} 
-                    placeholder="01xxxxxxxxx" 
-                    className="pr-10 h-12 bg-slate-50 text-left"
-                    dir="ltr"
+                    value={name} 
+                    onChange={e => setName(e.target.value)} 
+                    placeholder="اكتب اسمك الثلاثي" 
+                    className="pr-10 h-11 text-xs bg-slate-50 rounded-xl border-[#E5EAF0] focus:bg-white"
                   />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label>كلمة المرور</Label>
-                <div className="relative">
-                  <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 z-10" />
-                  <PasswordInput 
-                    required 
-                    value={password} 
-                    onChange={e => setPassword(e.target.value)} 
-                    placeholder="••••••••" 
-                    className="pr-10 h-12 bg-slate-50"
-                  />
-                </div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-600">رقم التليفون المحمول</Label>
+              <div className="relative">
+                <Phone className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Input 
+                  required 
+                  type="tel"
+                  value={phone} 
+                  onChange={e => setPhone(e.target.value)} 
+                  placeholder="01xxxxxxxxx" 
+                  className="pr-10 h-11 text-xs bg-slate-50 rounded-xl border-[#E5EAF0] focus:bg-white text-left font-mono"
+                  dir="ltr"
+                />
               </div>
-              <Button type="submit" className="w-full h-12 text-lg font-bold shadow-lg" disabled={isLoading}>
-                {isLoading ? 'جاري التحميل...' : (isRegistering ? 'إنشاء حساب' : 'دخول')}
-              </Button>
-            </form>
-            
-            <div className="mt-6 text-center">
-              <button 
-                type="button" 
-                onClick={() => setIsRegistering(!isRegistering)}
-                className="text-primary font-bold hover:underline"
-              >
-                {isRegistering ? 'لديك حساب بالفعل؟ سجل دخولك' : 'مريض جديد؟ إنشاء حساب الآن'}
-              </button>
             </div>
-          </CardContent>
-        </Card>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-600">كلمة المرور</Label>
+              <div className="relative">
+                <Lock className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 z-10" />
+                <PasswordInput 
+                  required 
+                  value={password} 
+                  onChange={e => setPassword(e.target.value)} 
+                  placeholder="••••••••" 
+                  className="pr-10 h-11 text-xs bg-slate-50 rounded-xl border-[#E5EAF0] focus:bg-white"
+                />
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full h-11 text-xs font-black bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-lg shadow-[#15B8A6]/25 transition-all cursor-pointer"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>جاري التحقق...</span>
+                </div>
+              ) : (
+                isRegistering ? 'إنشاء حساب والدخول' : 'تسجيل الدخول للملف الطبي'
+              )}
+            </Button>
+          </form>
+          
+          <div className="pt-2 border-t border-[#E5EAF0] text-center">
+            <button 
+              type="button" 
+              onClick={() => setIsRegistering(!isRegistering)}
+              className="text-xs text-[#15B8A6] font-bold hover:underline cursor-pointer"
+            >
+              {isRegistering ? 'لديك ملف مسجل بالفعل؟ سجل دخولك الآن' : 'أول زيارة للعيادة؟ أنشئ حسابك الطبي في ثوانٍ'}
+            </button>
+          </div>
+        </div>
       </motion.div>
     </div>
   )

@@ -39,6 +39,8 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   ])
   const [clinicId, setClinicId] = useState<string | null>(null)
   const [clinic, setClinic] = useState<any>(null)
+  const [templateMode, setTemplateMode] = useState<'standard' | 'custom'>('standard')
+  const [topOffset, setTopOffset] = useState<number>(140)
   const [isSaving, setIsSaving] = useState(false)
   const [todayPatients, setTodayPatients] = useState<any[]>([])
   const dateStr = new Date().toISOString().split('T')[0]
@@ -53,6 +55,9 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           const data = cDoc.data()
           setClinic({ id: cDoc.id, ...data })
           setClinicId(cDoc.id)
+          if (data.prescriptionTemplateUrl) {
+            setTemplateMode('custom')
+          }
           if (data.favoriteDrugs && data.favoriteDrugs.length > 0) {
             setFavoriteDrugs(data.favoriteDrugs)
           }
@@ -372,53 +377,134 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
         </div>
 
         {/* LEFT COLUMN: Realistic A4 Prescription Sheet Preview (5 cols on screen, full on print) */}
-        <div className="lg:col-span-5 print:w-full print:block">
-          <div className="medical-card bg-white p-6 sm:p-8 space-y-6 shadow-lg border border-[#E5EAF0] relative min-h-[580px] flex flex-col justify-between rounded-2xl">
-            
-            {/* Top Sheet Header */}
-            <div>
-              <div className="flex items-start justify-between border-b-2 border-slate-900 pb-4">
-                <div>
-                  <h2 className="text-xl font-black text-[#182230]">
-                    {clinic?.doctorName ? `د. ${clinic.doctorName}` : 'د. محمد علي'}
-                  </h2>
-                  <p className="text-xs font-bold text-[#15B8A6] mt-0.5">
-                    {clinic?.specialty || 'استشاري الطب الباطني والجهاز الهضمي'}
-                  </p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">
-                    عضو الجمعية الطبية المصرية
-                  </p>
-                </div>
+        <div className="lg:col-span-5 print:w-full print:block space-y-3">
+          
+          {/* Template Switcher Bar (Hidden on print) */}
+          <div className="print:hidden p-3 bg-white rounded-xl border border-[#E5EAF0] space-y-2 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-700">قالب ورقة الروشتة:</span>
+              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setTemplateMode('standard')}
+                  className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
+                    templateMode === 'standard'
+                      ? 'bg-white text-[#15B8A6] shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  القالب القياسي
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!clinic?.prescriptionTemplateUrl) {
+                      toast.info('لم يتم رفع تصميم روشتة مخصص لهذه العيادة من لوحة المالك بعد')
+                    } else {
+                      setTemplateMode('custom')
+                    }
+                  }}
+                  className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
+                    templateMode === 'custom'
+                      ? 'bg-white text-[#15B8A6] shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  تصميم العيادة المخصص {clinic?.prescriptionTemplateUrl && '✓'}
+                </button>
+              </div>
+            </div>
 
-                <div className="text-left flex flex-col items-end">
-                  <ClinicLogo size="sm" variant="light" showSubtitle={false} />
-                  <span className="text-[10px] font-bold text-slate-400 mt-1 font-mono">
-                    {clinic?.clinicName || 'Clinic OS'}
-                  </span>
+            {templateMode === 'custom' && clinic?.prescriptionTemplateUrl && (
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                <span className="font-medium text-[11px]">إزاحة البداية من أعلى (لهامش الترويسة):</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="range"
+                    min="60"
+                    max="280"
+                    step="10"
+                    value={topOffset}
+                    onChange={e => setTopOffset(Number(e.target.value))}
+                    className="w-24 accent-[#15B8A6]"
+                  />
+                  <span className="font-mono text-[11px] text-[#15B8A6] font-bold">{topOffset}px</span>
                 </div>
               </div>
+            )}
+          </div>
+
+          {/* Print CSS Exact Colors */}
+          <style dangerouslySetInnerHTML={{ __html: '@media print { * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } }' }} />
+
+          {/* Actual Sheet */}
+          <div
+            className="medical-card bg-white p-6 sm:p-8 space-y-6 shadow-lg border border-[#E5EAF0] relative min-h-[620px] flex flex-col justify-between rounded-2xl print:shadow-none print:border-none print:p-8"
+            style={
+              templateMode === 'custom' && clinic?.prescriptionTemplateUrl
+                ? {
+                    backgroundImage: `url("${clinic.prescriptionTemplateUrl}")`,
+                    backgroundSize: '100% 100%',
+                    backgroundPosition: 'top center',
+                    backgroundRepeat: 'no-repeat',
+                    paddingTop: `${topOffset}px`,
+                  }
+                : undefined
+            }
+          >
+            
+            {/* Top Sheet Header (Only in Standard Mode) */}
+            <div>
+              {templateMode === 'standard' && (
+                <div className="flex items-start justify-between border-b-2 border-slate-900 pb-4">
+                  <div>
+                    <h2 className="text-xl font-black text-[#182230]">
+                      {clinic?.doctorName ? `د. ${clinic.doctorName}` : 'د. محمد علي'}
+                    </h2>
+                    <p className="text-xs font-bold text-[#15B8A6] mt-0.5">
+                      {clinic?.specialty || 'استشاري الطب الباطني والجهاز الهضمي'}
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      عضو الجمعية الطبية المصرية
+                    </p>
+                  </div>
+
+                  <div className="text-left flex flex-col items-end">
+                    <ClinicLogo size="sm" variant="light" showSubtitle={false} />
+                    <span className="text-[10px] font-bold text-slate-400 mt-1 font-mono">
+                      {clinic?.clinicName || 'Clinic OS'}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* Patient Meta Strip */}
-              <div className="flex items-center justify-between py-3 border-b border-slate-200 text-xs font-bold text-slate-700 bg-slate-50/70 px-3 rounded-lg mt-3">
+              <div
+                className={`flex items-center justify-between py-2.5 text-xs font-bold rounded-lg ${
+                  templateMode === 'custom'
+                    ? 'bg-white/85 backdrop-blur-2xs border border-slate-200/80 px-3 shadow-2xs mt-1'
+                    : 'bg-slate-50/70 border-b border-slate-200 text-slate-700 px-3 mt-3'
+                }`}
+              >
                 <div className="flex items-center gap-1.5">
                   <span className="text-slate-400">الاسم:</span>
-                  <span>{patientName || '................................'}</span>
+                  <span className="text-[#182230]">{patientName || '................................'}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="text-slate-400">السن:</span>
-                  <span>{age || '28'} سنة</span>
+                  <span className="text-[#182230]">{age || '28'} سنة</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="text-slate-400">التاريخ:</span>
-                  <span className="font-mono">{dateStr}</span>
+                  <span className="font-mono text-[#182230]">{dateStr}</span>
                 </div>
               </div>
 
               {/* Diagnosis if any */}
               {diagnosis && (
-                <div className="mt-2.5 text-xs text-slate-500 font-semibold px-1">
-                  <span className="text-slate-400">التشخيص: </span>
-                  <span className="text-[#182230]">{diagnosis}</span>
+                <div className="mt-2.5 text-xs text-slate-600 font-semibold px-1 flex items-baseline gap-1.5 bg-white/70 backdrop-blur-2xs py-1 rounded">
+                  <span className="text-slate-400 font-bold">التشخيص:</span>
+                  <span className="text-[#182230] font-bold">{diagnosis}</span>
                 </div>
               )}
 
@@ -432,14 +518,14 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
               {/* Medicines List */}
               <div className="space-y-4 pr-3 min-h-[220px]">
                 {drugs.filter(d => d.name.trim()).map((drug, index) => (
-                  <div key={index} className="space-y-0.5">
+                  <div key={index} className="space-y-0.5 bg-white/60 backdrop-blur-2xs p-1.5 rounded-lg">
                     <div className="flex items-baseline gap-2">
                       <span className="text-xs font-black text-[#15B8A6]">{index + 1}.</span>
                       <h4 className="font-black text-sm text-[#182230] tracking-wide font-sans">
                         {drug.name}
                       </h4>
                     </div>
-                    <p className="text-xs text-slate-600 font-medium pr-5">
+                    <p className="text-xs text-slate-700 font-medium pr-5">
                       {drug.dosage} {drug.duration ? `— ${drug.duration}` : ''}
                     </p>
                   </div>
@@ -447,29 +533,41 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
               </div>
             </div>
 
-            {/* Sheet Footer (Doctor signature & clinic contacts) */}
-            <div className="pt-6 border-t border-slate-200 space-y-4">
-              <div className="flex justify-between items-end">
-                <div className="text-[10px] text-slate-400 space-y-0.5">
-                  <p className="flex items-center gap-1">
-                    <MapPin className="w-3 h-3 text-[#15B8A6]" />
-                    {clinic?.clinicAddress || 'شارع التسعين الشمالي، التجمع الخامس، القاهرة'}
-                  </p>
-                  <p className="flex items-center gap-1">
-                    <Phone className="w-3 h-3 text-[#15B8A6]" />
-                    {clinic?.clinicPhone || '01012345678'}
-                  </p>
-                </div>
-
-                {/* Signature Simulation Line */}
-                <div className="text-center">
-                  <div className="w-28 border-b-2 border-slate-400 pb-1 italic font-serif text-slate-500 text-xs">
-                    د. محمد علي
+            {/* Sheet Footer */}
+            {templateMode === 'standard' ? (
+              <div className="pt-6 border-t border-slate-200 space-y-4">
+                <div className="flex justify-between items-end">
+                  <div className="text-[10px] text-slate-400 space-y-0.5">
+                    <p className="flex items-center gap-1">
+                      <MapPin className="w-3 h-3 text-[#15B8A6]" />
+                      {clinic?.clinicAddress || 'شارع التسعين الشمالي، التجمع الخامس، القاهرة'}
+                    </p>
+                    <p className="flex items-center gap-1">
+                      <Phone className="w-3 h-3 text-[#15B8A6]" />
+                      {clinic?.clinicPhone || '01012345678'}
+                    </p>
                   </div>
-                  <span className="text-[9px] text-slate-400 font-bold">توقيع وختم الطبيب</span>
+
+                  {/* Signature Simulation Line */}
+                  <div className="text-center">
+                    <div className="w-28 border-b-2 border-slate-400 pb-1 italic font-serif text-slate-500 text-xs">
+                      {clinic?.doctorName ? `د. ${clinic.doctorName}` : 'د. محمد علي'}
+                    </div>
+                    <span className="text-[9px] text-slate-400 font-bold">توقيع وختم الطبيب</span>
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              /* Minimal Doctor Signature Line for Custom Pre-printed letterhead */
+              <div className="pt-4 flex justify-end items-end">
+                <div className="text-center">
+                  <div className="w-28 border-b-2 border-slate-700 pb-1 italic font-serif text-slate-800 text-xs font-bold">
+                    {clinic?.doctorName ? `د. ${clinic.doctorName}` : ''}
+                  </div>
+                  <span className="text-[9px] text-slate-500 font-bold">توقيع الطبيب</span>
+                </div>
+              </div>
+            )}
 
           </div>
         </div>

@@ -6,7 +6,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   Calendar, PhoneCall, Star, ShieldCheck, Clock,
   Activity, HeartPulse, MapPin, CheckCircle2, Award,
-  Sparkles, ArrowLeft, Stethoscope, ChevronDown, UserCheck
+  Sparkles, ArrowLeft, Stethoscope, ChevronDown, UserCheck,
+  Navigation, ExternalLink, FileText, Phone, MessageCircle
 } from 'lucide-react'
 import Link from 'next/link'
 import { BookingForm } from './BookingForm'
@@ -73,22 +74,26 @@ export function PremiumLanding({
                 </a>
               )}
 
-              {clinic?.mapsLink && (
-                <a
-                  href={clinic.mapsLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hidden md:flex"
+              <a href="#location" className="hidden sm:flex">
+                <Button
+                  variant="outline"
+                  className="rounded-xl text-xs font-bold text-[#2F80ED] border-blue-200 hover:bg-blue-50 h-9 px-3.5"
                 >
-                  <Button
-                    variant="outline"
-                    className="rounded-xl text-xs font-bold text-[#2F80ED] border-blue-200 hover:bg-blue-50 h-9 px-3.5"
-                  >
-                    <MapPin className="w-3.5 h-3.5 ml-1.5" />
-                    موقع العيادة
-                  </Button>
-                </a>
-              )}
+                  <MapPin className="w-3.5 h-3.5 ml-1.5" />
+                  موقع العيادة
+                </Button>
+              </a>
+
+              {/* Patient Portal CTA Button */}
+              <Link href={`/clinic/${clinic?.slug}/patient/login`}>
+                <Button
+                  variant="outline"
+                  className="rounded-xl text-xs font-bold text-[#15B8A6] border-teal-200 hover:bg-teal-50 h-9 px-3.5"
+                >
+                  <UserCheck className="w-3.5 h-3.5 ml-1.5" />
+                  بوابة المريض
+                </Button>
+              </Link>
 
               <Link href={`/clinic/${clinic?.slug}/login`}>
                 <Button className="rounded-xl text-xs font-black bg-[#0B1F33] hover:bg-[#132B45] text-white h-9 px-4 shadow-sm">
@@ -163,8 +168,18 @@ export function PremiumLanding({
                     onClick={scrollToBooking}
                     className="h-12 px-6 text-xs font-bold border-white/20 text-white hover:bg-white/10 rounded-xl"
                   >
-                    تتبع حجزك مباشرة
+                    تتبع دورك مباشرة
                   </Button>
+
+                  <Link href={`/clinic/${clinic?.slug}/patient/login`}>
+                    <Button
+                      variant="outline"
+                      className="h-12 px-6 text-xs font-bold bg-white/10 border-teal-400/40 text-teal-200 hover:bg-white/20 rounded-xl"
+                    >
+                      <UserCheck className="w-4 h-4 ml-2 text-[#15B8A6]" />
+                      بوابة المريض (كشوفاتك السابقة)
+                    </Button>
+                  </Link>
                 </div>
               </div>
 
@@ -297,23 +312,263 @@ export function PremiumLanding({
         </div>
       </section>
 
-      {/* 6. CLINIC FOOTER & LOCATION */}
-      <footer className="bg-white border-t border-[#E5EAF0] py-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-right">
-          <div className="space-y-1">
-            <ClinicLogo size="sm" variant="light" />
-            <p className="text-xs text-slate-400">
-              {clinic?.clinicAddress || 'شارع التسعين الشمالي، التجمع الخامس، القاهرة'}
+      {/* 6. CLINIC LOCATION & DIRECT CONTACT SECTION */}
+      <section id="location" className="py-16 bg-white border-t border-[#E5EAF0]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
+          
+          <div className="text-center space-y-2 max-w-xl mx-auto">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-50 text-[#15B8A6] text-xs font-bold border border-teal-100">
+              <MapPin className="w-3.5 h-3.5" />
+              <span>موقع العيادة والتواصل</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-black text-[#182230]">
+              تفضل بزيارتنا أو تواصل معنا مباشرة
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-400">
+              نحن هنا لخدمتك والإجابة على جميع استفساراتك، يمكنك زيارة موقعنا أو الاتصال المباشر
             </p>
           </div>
 
-          <div className="text-xs text-slate-400 font-medium">
-            جميع الحقوق محفوظة © {new Date().getFullYear()} Clinic OS — نظام تشغيل العيادات الذكي
+          <div className="grid lg:grid-cols-12 gap-8 items-stretch">
+            
+            {/* Contact Information Cards (7 cols in RTL) */}
+            <div className="lg:col-span-7 space-y-4">
+              
+              {/* Address Card */}
+              <div className="medical-card p-5 flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-teal-50 text-[#15B8A6] flex items-center justify-center shrink-0">
+                  <MapPin className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="font-bold text-sm text-[#182230]">عنوان العيادة</h4>
+                  <p className="text-xs text-slate-600 font-medium leading-relaxed">
+                    {clinic?.clinicAddress || 'شارع التسعين الشمالي، التجمع الخامس، القاهرة'}
+                  </p>
+                  {clinic?.mapsLink && (
+                    <a
+                      href={clinic.mapsLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-bold text-[#15B8A6] hover:underline pt-1"
+                    >
+                      <span>فتح الموقع على خرائط Google</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              {/* Clinic Phone & WhatsApp Card */}
+              <div className="medical-card p-5 flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                  <PhoneCall className="w-6 h-6" />
+                </div>
+                <div className="space-y-2 flex-1">
+                  <div>
+                    <h4 className="font-bold text-sm text-[#182230]">هاتف العيادة والحجز</h4>
+                    <p className="text-xs text-slate-400">للحجز والاستفسار عن المواعيد والأدوار</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-sm font-black text-slate-800 dir-ltr bg-slate-50 px-3 py-1 rounded-xl border border-slate-200">
+                      {clinic?.clinicPhone || '01012345678'}
+                    </span>
+                    {clinic?.clinicPhone && (
+                      <a
+                        href={`https://wa.me/${clinic.clinicPhone.replace(/[^0-9]/g, '').replace(/^0/, '20')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-bold border border-emerald-200 transition-colors"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        <span>محادثة واتساب</span>
+                      </a>
+                    )}
+                    <a
+                      href={`tel:${clinic?.clinicPhone || '01012345678'}`}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold transition-colors"
+                    >
+                      <Phone className="w-3.5 h-3.5" />
+                      <span>اتصال مباشر</span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              {/* Doctor Phone Card (if present) */}
+              {clinic?.doctorPhone && (
+                <div className="medical-card p-5 flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-50 text-[#2F80ED] flex items-center justify-center shrink-0">
+                    <Stethoscope className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-2 flex-1">
+                    <div>
+                      <h4 className="font-bold text-sm text-[#182230]">هاتف الطبيب المعالج</h4>
+                      <p className="text-xs text-slate-400">للحالات الطارئة والتواصل الطبي المباشر</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-sm font-black text-slate-800 dir-ltr bg-slate-50 px-3 py-1 rounded-xl border border-slate-200">
+                        {clinic.doctorPhone}
+                      </span>
+                      <a
+                        href={`tel:${clinic.doctorPhone}`}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-50 text-[#2F80ED] hover:bg-blue-100 text-xs font-bold border border-blue-200 transition-colors"
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                        <span>اتصال بالطبيب</span>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Patient Portal Card */}
+              <div className="medical-card p-5 bg-gradient-to-r from-teal-50/70 to-blue-50/70 border-teal-200 flex items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <h4 className="font-bold text-sm text-[#182230] flex items-center gap-2">
+                    <UserCheck className="w-4 h-4 text-[#15B8A6]" />
+                    بوابة المريض الإلكترونية
+                  </h4>
+                  <p className="text-xs text-slate-500 font-medium">
+                    سجل دخولك برقم الهاتف للاطلاع على روشتاتك وكشوفاتك السابقة وتتبع دورك
+                  </p>
+                </div>
+                <Link href={`/clinic/${clinic?.slug}/patient/login`}>
+                  <Button className="h-10 px-5 text-xs font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-xs whitespace-nowrap">
+                    دخول البوابة
+                  </Button>
+                </Link>
+              </div>
+
+            </div>
+
+            {/* Map / Directions Interactive Card (5 cols in RTL) */}
+            <div className="lg:col-span-5 flex flex-col">
+              <div className="medical-card p-6 flex-1 flex flex-col justify-between bg-gradient-to-b from-[#0B1F33] to-[#081827] text-white rounded-3xl overflow-hidden relative shadow-xl">
+                <div className="space-y-4 relative z-10">
+                  <div className="w-12 h-12 rounded-2xl bg-[#15B8A6]/20 text-[#15B8A6] border border-[#15B8A6]/30 flex items-center justify-center">
+                    <Navigation className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-white">الوصول السريع للعيادة</h3>
+                    <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                      انقر على الزر أدناه لفتح موقع العيادة مباشرة عبر تطبيق خرائط Google لتوجيهك بنظام الملاحة GPS خطوة بخطوة.
+                    </p>
+                  </div>
+                  
+                  <div className="p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 space-y-1">
+                    <div className="flex items-center gap-2 text-xs font-bold text-teal-300">
+                      <Clock className="w-4 h-4" />
+                      <span>مواعيد الحضور والعمل:</span>
+                    </div>
+                    <p className="text-xs text-slate-200">
+                      يومياً من السبت إلى الخميس (من 2:00 ظهراً حتى 10:00 مساءً)
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-6 relative z-10 space-y-3">
+                  <a
+                    href={clinic?.mapsLink || 'https://maps.google.com'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block w-full"
+                  >
+                    <Button className="w-full h-12 font-black text-xs bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-lg shadow-[#15B8A6]/30">
+                      <Navigation className="w-4 h-4 ml-2" />
+                      فتح الاتجاهات على خرائط Google
+                    </Button>
+                  </a>
+
+                  <p className="text-[11px] text-center text-slate-400">
+                    متاح مواقف سيارات خاصة واستراحة مجهزة للمرضى
+                  </p>
+                </div>
+              </div>
+            </div>
+
           </div>
+
+        </div>
+      </section>
+
+      {/* 7. CLINIC FOOTER WITH PLATFORM OWNER CONTACT */}
+      <footer className="bg-white border-t border-[#E5EAF0] py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+          
+          <div className="grid md:grid-cols-4 gap-8 pb-8 border-b border-[#E5EAF0]">
+            {/* Col 1: Clinic Info */}
+            <div className="md:col-span-2 space-y-3">
+              <ClinicLogo size="sm" variant="light" />
+              <p className="text-xs text-slate-500 max-w-sm leading-relaxed">
+                {clinic?.clinicName || 'عيادة د. محمد علي'} — رعاية صحية متكاملة مدعومة بأحدث التقنيات الطبية ونظام إدارة ذكي للأدوار والروشتات.
+              </p>
+              <p className="text-xs text-slate-400 flex items-center gap-1.5 pt-1">
+                <MapPin className="w-3.5 h-3.5 text-[#15B8A6]" />
+                {clinic?.clinicAddress || 'شارع التسعين الشمالي، التجمع الخامس، القاهرة'}
+              </p>
+            </div>
+
+            {/* Col 2: Quick Links */}
+            <div className="space-y-2.5">
+              <h4 className="font-bold text-xs text-[#182230]">روابط سريعة</h4>
+              <ul className="space-y-1.5 text-xs text-slate-500">
+                <li>
+                  <button onClick={scrollToBooking} className="hover:text-[#15B8A6] cursor-pointer">
+                    حجز كشف جديد
+                  </button>
+                </li>
+                <li>
+                  <Link href={`/clinic/${clinic?.slug}/patient/login`} className="hover:text-[#15B8A6]">
+                    بوابة المريض الإلكترونية
+                  </Link>
+                </li>
+                <li>
+                  <a href="#location" className="hover:text-[#15B8A6]">
+                    موقع العيادة والتواصل
+                  </a>
+                </li>
+                <li>
+                  <Link href={`/clinic/${clinic?.slug}/login`} className="hover:text-[#15B8A6]">
+                    تسجيل دخول الكادر الطبي
+                  </Link>
+                </li>
+              </ul>
+            </div>
+
+            {/* Col 3: Platform Support & Owner Contact */}
+            <div className="space-y-2.5">
+              <h4 className="font-bold text-xs text-[#182230]">الدعم الفني والمنصة</h4>
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5">
+                <span className="text-[11px] font-bold text-slate-500 block">للدعم الفني وتجديد الاشتراك:</span>
+                <a
+                  href="https://wa.me/201551007018"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono text-xs font-black text-[#15B8A6] hover:underline flex items-center gap-1.5"
+                >
+                  <Phone className="w-3.5 h-3.5" />
+                  <span>01551007018</span>
+                </a>
+                <span className="text-[10px] text-slate-400 block">متاح طوال أيام الأسبوع</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400 font-medium">
+            <div>
+              جميع الحقوق محفوظة © {new Date().getFullYear()} Clinic OS — نظام تشغيل العيادات الذكي
+            </div>
+            <div className="flex items-center gap-4">
+              <Link href="/owner" className="hover:text-slate-600">لوحة مالك المنصة</Link>
+              <span>•</span>
+              <a href="tel:01551007018" className="hover:text-[#15B8A6]">تواصل مع المالك: 01551007018</a>
+            </div>
+          </div>
+
         </div>
       </footer>
 
-      {/* 7. FLOATING AI ASSISTANT WIDGET */}
+      {/* 8. FLOATING AI ASSISTANT WIDGET */}
       <AIChatWidget clinic={clinic} />
     </div>
   )

@@ -14,6 +14,10 @@ import { BookingForm } from '@/components/clinic/BookingForm'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { doc, getDoc } from 'firebase/firestore'
 
+import { motion } from 'framer-motion'
+import { ClinicLogo } from '@/components/clinic/ClinicLogo'
+import { Printer, User, ArrowRight } from 'lucide-react'
+
 export default function PatientDashboard({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
@@ -96,37 +100,86 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
   }
 
   if (loading || !patientData) {
-    return <div className="min-h-screen flex items-center justify-center font-bold text-slate-500">جاري تحميل ملفك الطبي...</div>
+    return (
+      <div className="min-h-screen bg-[#F6F8FB] flex flex-col items-center justify-center gap-4" dir="rtl">
+        <ClinicLogo size="lg" variant="light" />
+        <div className="flex items-center gap-2 text-sm font-semibold text-slate-500">
+          <div className="w-5 h-5 border-2 border-[#15B8A6] border-t-transparent rounded-full animate-spin"></div>
+          جاري تحميل ملفك الطبي...
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-12 font-sans" dir="rtl">
-      {/* Header */}
-      <header className="bg-white border-b sticky top-0 z-40 shadow-sm">
+    <div className="min-h-screen bg-[#F6F8FB] pb-16 font-sans text-[#182230]" dir="rtl">
+      
+      {/* 1. Header Topbar */}
+      <header className="bg-white border-b border-[#E5EAF0] sticky top-0 z-40 shadow-xs">
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-6 h-6 text-primary" />
-            <span className="font-bold text-lg text-slate-800">بوابة المريض</span>
+          <div className="flex items-center gap-3">
+            <Link href={`/clinic/${slug}`}>
+              <ClinicLogo size="sm" variant="light" showSubtitle={false} />
+            </Link>
+            <div className="hidden sm:block border-r border-slate-200 pr-3">
+              <span className="font-black text-sm text-[#182230]">بوابة المريض الإلكترونية</span>
+              <span className="text-[10px] text-slate-400 block font-medium">
+                {clinic?.clinicName || 'عيادة د. محمد علي'}
+              </span>
+            </div>
           </div>
-          <Button variant="ghost" className="text-red-600 hover:bg-red-50 hover:text-red-700 font-bold" onClick={handleLogout}>
-            تسجيل الخروج <LogOut className="w-4 h-4 mr-2" />
-          </Button>
+
+          <div className="flex items-center gap-2">
+            <Link href={`/clinic/${slug}`}>
+              <Button variant="ghost" size="sm" className="text-xs font-bold text-slate-600 hover:text-[#15B8A6]">
+                الصفحة الرئيسية
+                <ArrowRight className="w-3.5 h-3.5 mr-1" />
+              </Button>
+            </Link>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs font-bold text-rose-600 border-rose-200 hover:bg-rose-50 rounded-xl"
+              onClick={handleLogout}
+            >
+              <LogOut className="w-3.5 h-3.5 ml-1.5" />
+              تسجيل الخروج
+            </Button>
+          </div>
         </div>
       </header>
 
       <main className="max-w-5xl mx-auto px-4 mt-8 space-y-8">
-        {/* Welcome Section */}
-        <div className="bg-gradient-to-l from-primary to-blue-600 rounded-3xl p-8 text-white shadow-lg relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
-          <div className="relative z-10 flex-1">
-            <h1 className="text-3xl md:text-4xl font-black mb-2">مرحباً بك، {patientData.name} 👋</h1>
-            <p className="text-blue-100 text-lg">يمكنك هنا متابعة جميع كشوفاتك وروشتاتك الطبية بكل سهولة.</p>
+        
+        {/* 2. Welcome Hero Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="medical-card bg-gradient-to-br from-[#0B1F33] via-[#0F2840] to-[#0B1F33] rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6"
+        >
+          {/* Ambient Glow */}
+          <div className="absolute top-0 right-0 w-80 h-80 bg-[#15B8A6]/20 rounded-full blur-3xl pointer-events-none"></div>
+
+          <div className="relative z-10 space-y-2 flex-1">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-500/20 text-teal-300 border border-teal-500/30 text-xs font-bold">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>الملف الطبي الشخصي المعتمد</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-black text-white">
+              أهلاً بك، {patientData.name} 👋
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-xl">
+              يمكنك متابعة رقم دورك اللحظي في العيادة، ومراجعة سجل زياراتك الطبية والروشتات السابقة المصروفة لك.
+            </p>
           </div>
           
-          <div className="relative z-10">
+          <div className="relative z-10 shrink-0">
             <Dialog>
-              <DialogTrigger className="inline-flex items-center justify-center bg-white text-primary hover:bg-slate-50 font-bold text-lg h-14 px-8 rounded-full shadow-xl hover:scale-105 transition-transform">
-                <Plus className="w-5 h-5 ml-2" /> حجز كشف جديد
+              <DialogTrigger className="inline-flex items-center justify-center bg-[#15B8A6] hover:bg-[#0D9488] text-white font-black text-xs h-11 px-6 rounded-xl shadow-lg shadow-[#15B8A6]/30 transition-all cursor-pointer">
+                <Plus className="w-4 h-4 ml-1.5" />
+                حجز كشف جديد بالعيادة
               </DialogTrigger>
               <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden bg-transparent border-none shadow-none">
                 {clinic && services.length > 0 && (
@@ -140,83 +193,141 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
               </DialogContent>
             </Dialog>
           </div>
-        </div>
+        </motion.div>
 
-        {/* Live Turn Tracking Banner */}
-        <PatientLiveTurn clinicId={patientData.clinic_id} patientPhone={patientData.phone} />
+        {/* 3. Live Turn Tracking Banner */}
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+        >
+          <PatientLiveTurn clinicId={patientData.clinic_id} patientPhone={patientData.phone} />
+        </motion.div>
 
-        {/* Timeline */}
+        {/* 4. Visits Timeline & Prescriptions */}
         <div className="space-y-6">
-          <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-            <Activity className="w-6 h-6 text-primary" /> السجل الطبي الخاص بك
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-black text-[#182230] flex items-center gap-2">
+              <Activity className="w-5 h-5 text-[#15B8A6]" />
+              سجل الزيارات والروشتات الطبية
+            </h2>
+            <span className="text-xs font-bold text-slate-400">
+              إجمالي الزيارات: {appointments.length}
+            </span>
+          </div>
           
           {appointments.length === 0 ? (
-            <Card className="border-dashed border-2 shadow-none bg-transparent">
-              <CardContent className="p-12 text-center text-slate-500 font-semibold">
-                لا توجد زيارات سابقة مسجلة برقم هاتفك.
-              </CardContent>
-            </Card>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="medical-card p-12 text-center space-y-3 bg-white"
+            >
+              <div className="w-14 h-14 rounded-2xl bg-teal-50 text-[#15B8A6] flex items-center justify-center mx-auto">
+                <Calendar className="w-7 h-7" />
+              </div>
+              <h3 className="font-bold text-sm text-[#182230]">لا توجد زيارات سابقة مسجلة برقم هاتفك حتى الآن</h3>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                عند إتمام كشفك الأول بالعيادة، ستظهر كافة التشخيصات والروشتات الطبية الخاصة بك في هذه الصفحة تلقائياً.
+              </p>
+            </motion.div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-5">
               {appointments.map((appt, idx) => {
-                // Find prescription for this specific date
                 const relatedRx = prescriptions.find(rx => rx.date === appt.date)
 
                 return (
-                  <Card key={appt.id} className={`shadow-md border-r-4 ${idx === 0 ? 'border-r-green-500 bg-white' : 'border-r-slate-300 bg-slate-50'}`}>
-                    <CardHeader className="pb-3 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div>
-                        <CardTitle className="text-xl flex items-center gap-2 text-slate-800">
-                          <Calendar className="w-5 h-5 text-slate-500" />
-                          زيارة بتاريخ: <span dir="ltr">{appt.date}</span>
-                        </CardTitle>
-                        <CardDescription className="mt-1 font-bold text-primary text-base">
-                          {appt.serviceName}
-                        </CardDescription>
+                  <motion.div
+                    key={appt.id}
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: idx * 0.05 }}
+                    className="medical-card p-5 sm:p-6 space-y-4 hover:shadow-md transition-shadow"
+                  >
+                    {/* Visit Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#E5EAF0]">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-black text-[#15B8A6]">زيارة #{appointments.length - idx}</span>
+                          <span className="text-slate-300">•</span>
+                          <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                            <span dir="ltr" className="font-mono">{appt.date}</span>
+                          </span>
+                        </div>
+                        <h3 className="font-black text-base text-[#182230]">
+                          {appt.serviceName || 'كشف عام'}
+                        </h3>
                       </div>
-                      <Badge variant="outline" className={`text-sm px-3 py-1 ${appt.status === 'completed' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
-                        {appt.status === 'completed' ? 'تم الكشف' : 'في الانتظار'}
-                      </Badge>
-                    </CardHeader>
-                    
-                    <CardContent className="pt-4 space-y-4">
-                      {/* Diagnosis */}
-                      {appt.diagnosis && (
-                        <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
-                          <h4 className="font-bold text-blue-900 flex items-center gap-2 mb-2">
-                            <Activity className="w-4 h-4" /> تشخيص الطبيب
-                          </h4>
-                          <p className="text-slate-700 whitespace-pre-wrap">{appt.diagnosis}</p>
-                        </div>
-                      )}
 
-                      {/* Prescription */}
-                      {relatedRx ? (
-                        <div className="bg-slate-100/50 p-4 rounded-xl border border-slate-200">
-                          <h4 className="font-bold text-slate-800 flex items-center gap-2 mb-3">
-                            <FileText className="w-4 h-4" /> الروشتة والأدوية المصروفة
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`text-xs font-bold px-3 py-1 rounded-full border ${
+                            appt.status === 'completed'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : 'bg-amber-50 text-amber-700 border-amber-200'
+                          }`}
+                        >
+                          {appt.status === 'completed' ? 'تم الكشف الطبي' : 'في قائمة الانتظار'}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {/* Diagnosis Strip */}
+                    {appt.diagnosis && (
+                      <div className="p-3.5 rounded-xl bg-teal-50/60 border border-teal-100 space-y-1">
+                        <h4 className="font-bold text-xs text-[#0D9488] flex items-center gap-1.5">
+                          <Activity className="w-3.5 h-3.5" />
+                          تشخيص الطبيب المعالج:
+                        </h4>
+                        <p className="text-xs text-slate-700 font-medium whitespace-pre-wrap leading-relaxed pr-5">
+                          {appt.diagnosis}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Prescription Section */}
+                    {relatedRx ? (
+                      <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-bold text-xs text-[#182230] flex items-center gap-1.5">
+                            <FileText className="w-4 h-4 text-[#15B8A6]" />
+                            الروشتة الطبية والعلاج المطلوب (Rx)
                           </h4>
-                          {relatedRx.drugs && relatedRx.drugs.length > 0 ? (
-                            <div className="grid gap-2">
-                              {relatedRx.drugs.map((drug: any, dIdx: number) => (
-                                <div key={dIdx} className="bg-white p-3 rounded-lg shadow-sm border border-slate-100 flex justify-between items-center">
-                                  <div className="font-bold text-primary">{drug.name}</div>
-                                  <div className="text-sm text-slate-600 font-medium bg-slate-50 px-2 py-1 rounded">{drug.dosage} - {drug.duration}</div>
+                          <span className="text-[10px] font-bold text-slate-400">
+                            {relatedRx.drugs?.length || 0} أصناف دوائية
+                          </span>
+                        </div>
+
+                        {relatedRx.drugs && relatedRx.drugs.length > 0 ? (
+                          <div className="grid sm:grid-cols-2 gap-2">
+                            {relatedRx.drugs.map((drug: any, dIdx: number) => (
+                              <div
+                                key={dIdx}
+                                className="bg-white p-3 rounded-xl border border-[#E5EAF0] flex items-start justify-between gap-2 shadow-2xs"
+                              >
+                                <div>
+                                  <div className="font-bold text-xs text-[#182230]">{drug.name}</div>
+                                  <div className="text-[11px] text-slate-500 font-medium mt-0.5">
+                                    {drug.dosage} {drug.duration ? `— ${drug.duration}` : ''}
+                                  </div>
                                 </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="text-sm text-slate-500">لا توجد أدوية محددة في هذه الروشتة.</p>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="text-sm text-slate-400 italic flex items-center gap-2 px-2">
-                          <Clock className="w-4 h-4" /> لم يتم تسجيل روشتة إلكترونية لهذه الزيارة.
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
+                                <span className="text-[10px] font-mono font-bold text-[#15B8A6] bg-teal-50 px-2 py-0.5 rounded-md">
+                                  #{dIdx + 1}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-slate-400">لا توجد أدوية مسجلة في هذه الروشتة.</p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-slate-400 flex items-center gap-1.5 px-1">
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>لم يتم تسجيل روشتة إلكترونية لهذه الزيارة.</span>
+                      </div>
+                    )}
+                  </motion.div>
                 )
               })}
             </div>

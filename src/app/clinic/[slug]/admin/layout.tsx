@@ -138,6 +138,7 @@ export default function AdminLayout({
 
   // Filter based on role and permissions
   const filteredNav = navItems.filter(item => {
+    if (item.id === 'ai-training' && clinic?.aiEnabled === false) return false
     if (role === 'doctor') return true
     if (role === 'assistant') return assistantPermissions.includes(item.id)
     return false

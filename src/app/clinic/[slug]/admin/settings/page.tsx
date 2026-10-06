@@ -31,8 +31,11 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const [primaryColor, setPrimaryColor] = useState('#15B8A6')
   const [averageVisitTime, setAverageVisitTime] = useState<number>(15)
 
-  // Contacts
+  // Contacts & Location
   const [address, setAddress] = useState('')
+  const [doctorPhone, setDoctorPhone] = useState('')
+  const [clinicPhone, setClinicPhone] = useState('')
+  const [mapsLink, setMapsLink] = useState('')
   const [phones, setPhones] = useState<string[]>(['01012345678'])
 
   // Services
@@ -56,7 +59,8 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const [newAssistantPassword, setNewAssistantPassword] = useState('')
   const [assistantPermissions, setAssistantPermissions] = useState<string[]>(['appointments'])
 
-  // AI Config
+  // AI Config & Toggle
+  const [aiEnabled, setAiEnabled] = useState(true)
   const [aiInstructions, setAiInstructions] = useState(
     'أنت مساعد ذكي لعيادة طبية. مهمتك الإجابة على استفسارات المرضى باختصار ولطف بناءً على مواعيد وخدمات العيادة.'
   )
@@ -81,7 +85,11 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           setAssistantPermissions(data.assistantPermissions || ['appointments'])
           setAverageVisitTime(data.averageVisitTime || 15)
           setAddress(data.clinicAddress || 'شارع التسعين الشمالي، التجمع الخامس، القاهرة')
+          setDoctorPhone(data.doctorPhone || '')
+          setClinicPhone(data.clinicPhone || (data.clinicPhones?.[0] || '01012345678'))
+          setMapsLink(data.mapsLink || '')
           setPhones(data.clinicPhones?.length ? data.clinicPhones : [data.clinicPhone || '01012345678'])
+          setAiEnabled(data.aiEnabled !== false)
           setAiInstructions(data.aiInstructions || aiInstructions)
           setOnlinePaymentEnabled(data.onlinePaymentEnabled || false)
           setWalletNumber(data.walletNumber || '')
@@ -114,7 +122,10 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         assistantPermissions,
         averageVisitTime: Number(averageVisitTime),
         clinicAddress: address,
-        clinicPhones: phones.filter(p => p.trim() !== ''),
+        clinicPhone,
+        doctorPhone,
+        mapsLink,
+        clinicPhones: clinicPhone ? [clinicPhone] : phones.filter(p => p.trim() !== ''),
         aiInstructions,
         onlinePaymentEnabled,
         walletNumber,
@@ -181,7 +192,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
     { id: 'payment', label: 'طرق الدفع', icon: Wallet },
     { id: 'staff', label: 'المساعدين والصلاحيات', icon: Users },
     { id: 'print', label: 'الروشتة والطباعة', icon: Printer },
-    { id: 'ai', label: 'المساعد الذكي', icon: Bot },
+    ...(aiEnabled ? [{ id: 'ai', label: 'المساعد الذكي', icon: Bot }] : []),
   ]
 
   return (
@@ -308,12 +319,36 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               />
             </div>
 
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600">رقم هاتف العيادة (للحجز والواتساب والروشتة)</Label>
+                <Input
+                  value={clinicPhone}
+                  onChange={e => setClinicPhone(e.target.value)}
+                  placeholder="01012345678"
+                  className="h-10 text-xs rounded-xl font-mono text-right"
+                  dir="ltr"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600">رقم هاتف الطبيب (اتصال مباشر)</Label>
+                <Input
+                  value={doctorPhone}
+                  onChange={e => setDoctorPhone(e.target.value)}
+                  placeholder="01112345678"
+                  className="h-10 text-xs rounded-xl font-mono text-right"
+                  dir="ltr"
+                />
+              </div>
+            </div>
+
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-slate-600">أرقام هواتف التواصل (للمرضى والروشتة)</Label>
+              <Label className="text-xs font-bold text-slate-600">رابط موقع العيادة (Google Maps)</Label>
               <Input
-                value={phones[0] || ''}
-                onChange={e => setPhones([e.target.value])}
-                placeholder="01012345678"
+                value={mapsLink}
+                onChange={e => setMapsLink(e.target.value)}
+                placeholder="https://maps.google.com/..."
                 className="h-10 text-xs rounded-xl font-mono text-right"
                 dir="ltr"
               />
@@ -554,7 +589,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       )}
 
       {/* TAB 7: AI Assistant */}
-      {activeTab === 'ai' && (
+      {activeTab === 'ai' && aiEnabled && (
         <div className="medical-card p-6 max-w-3xl space-y-4">
           <div className="pb-3 border-b border-[#E5EAF0]">
             <h3 className="font-bold text-sm text-[#182230] flex items-center gap-2">
