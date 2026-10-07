@@ -413,7 +413,7 @@ export default function AdminLayout({
         {(() => {
           if (!clinic?.expirationDate) return null;
           const days = daysUntilExpiration;
-          if (days > 3) return null;
+          if (days === null || days > 3) return null;
           if (days >= 0) {
             return (
               <div className="bg-rose-500 text-white p-2.5 text-center text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-sm shrink-0">

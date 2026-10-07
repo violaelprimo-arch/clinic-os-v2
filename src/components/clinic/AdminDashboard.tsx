@@ -33,14 +33,14 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     )
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
+      const data = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
       
-      const completed = data.filter(d => d.status === 'completed' || d.status === 'cancelled').sort((a: any, b: any) => (a.queue_number || 0) - (b.queue_number || 0))
-      const inProgress = data.filter(d => d.status === 'in_progress')
-      const waiting = data.filter(d => d.status === 'waiting' || !d.status).sort((a: any, b: any) => (a.queue_number || 0) - (b.queue_number || 0))
+      const completed = data.filter((d: any) => d.status === 'completed' || d.status === 'cancelled').sort((a: any, b: any) => (a.queue_number || 0) - (b.queue_number || 0))
+      const inProgress = data.filter((d: any) => d.status === 'in_progress')
+      const waiting = data.filter((d: any) => d.status === 'waiting' || !d.status).sort((a: any, b: any) => (a.queue_number || 0) - (b.queue_number || 0))
 
-      const regularQueue = waiting.filter(d => !d.isUrgent)
-      const urgentQueue = waiting.filter(d => d.isUrgent)
+      const regularQueue = waiting.filter((d: any) => !d.isUrgent)
+      const urgentQueue = waiting.filter((d: any) => d.isUrgent)
       
       let orderedWaiting: any[] = []
       let rIndex = 0, uIndex = 0;
@@ -94,6 +94,16 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
   // Action Handlers
   const handleStartExam = async (patient: any) => {
     if (!patient || isProcessing) return
+
+    // التأكد من الدفع قبل الدخول
+    if (patient.paymentStatus !== 'paid' && patient.status !== 'completed') {
+      const confirmPayment = window.confirm(`⚠️ المريض لم يقم بتأكيد الدفع (المبلغ المطلوب: ${patient.servicePrice || 0} ج.م).\n\nهل استلمت المبلغ وتريد تأكيد الدفع وإدخال المريض؟`);
+      if (!confirmPayment) {
+        toast.info('تم إلغاء دخول المريض بانتظار الدفع.');
+        return;
+      }
+    }
+
     setIsProcessing(true)
     try {
       // If someone is currently in progress, complete them first or switch
@@ -106,6 +116,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
 
       await updateDoc(doc(db, 'appointments', patient.id), {
         status: 'in_progress',
+        paymentStatus: 'paid', // Confirm payment if it wasn't
         startedAt: new Date().toISOString()
       })
       toast.success(`بدأ كشف المريض: ${patient.patientName}`)
@@ -192,6 +203,43 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto" dir="rtl">
       
+      {/* Clinic Status Toggle */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-5 bg-white border border-[#E5EAF0] rounded-2xl shadow-sm mb-6 gap-4">
+        <div className="flex items-center gap-3">
+          <div className={`w-3.5 h-3.5 rounded-full ${clinic?.isClinicOpen !== false ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+          <div>
+            <h3 className="font-black text-sm text-[#182230]">
+              {clinic?.isClinicOpen !== false ? 'العيادة مفتوحة حالياً (أونلاين)' : 'العيادة مغلقة حالياً (أوفلاين)'}
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {clinic?.isClinicOpen !== false ? 'يمكن للمرضى الحجز والدخول في الدور الآن' : 'تم إيقاف الحجز من الموقع ولا يمكن استقبال حجوزات جديدة'}
+            </p>
+          </div>
+        </div>
+        <Button
+          onClick={async () => {
+            if (isProcessing) return;
+            setIsProcessing(true);
+            try {
+              await updateDoc(doc(db, 'clinics', clinic.id), {
+                isClinicOpen: clinic?.isClinicOpen === false ? true : false,
+                updatedAt: new Date().toISOString()
+              });
+              toast.success(clinic?.isClinicOpen === false ? 'تم فتح العيادة وتفعيل الحجوزات' : 'تم إغلاق العيادة وإيقاف الحجوزات');
+            } catch (err) {
+              toast.error('حدث خطأ');
+            } finally {
+              setIsProcessing(false);
+            }
+          }}
+          variant={clinic?.isClinicOpen !== false ? 'destructive' : 'default'}
+          className={`font-bold text-xs h-10 px-5 rounded-xl w-full sm:w-auto ${clinic?.isClinicOpen !== false ? '' : 'bg-[#15B8A6] hover:bg-[#0D9488] text-white'}`}
+          disabled={isProcessing}
+        >
+          {clinic?.isClinicOpen !== false ? 'إغلاق العيادة (إيقاف الحجز)' : 'فتح العيادة (بدء الحجز)'}
+        </Button>
+      </div>
+
       {/* 1. TOP STATS CARDS (4 Cards Grid matching Mockup) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Total Bookings */}
