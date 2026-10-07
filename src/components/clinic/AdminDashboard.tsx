@@ -34,8 +34,25 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
-      data.sort((a: any, b: any) => (a.queue_number || 0) - (b.queue_number || 0))
-      setBookings(data)
+      
+      const completed = data.filter(d => d.status === 'completed' || d.status === 'cancelled').sort((a: any, b: any) => (a.queue_number || 0) - (b.queue_number || 0))
+      const inProgress = data.filter(d => d.status === 'in_progress')
+      const waiting = data.filter(d => d.status === 'waiting' || !d.status).sort((a: any, b: any) => (a.queue_number || 0) - (b.queue_number || 0))
+
+      const regularQueue = waiting.filter(d => !d.isUrgent)
+      const urgentQueue = waiting.filter(d => d.isUrgent)
+      
+      let orderedWaiting: any[] = []
+      let rIndex = 0, uIndex = 0;
+      const rRatio = clinic.regularPerUrgent || 2;
+      const uRatio = clinic.urgentPerRegular || 1;
+      
+      while(rIndex < regularQueue.length || uIndex < urgentQueue.length) {
+         for(let i=0; i<rRatio && rIndex < regularQueue.length; i++) orderedWaiting.push(regularQueue[rIndex++]);
+         for(let i=0; i<uRatio && uIndex < urgentQueue.length; i++) orderedWaiting.push(urgentQueue[uIndex++]);
+      }
+
+      setBookings([...inProgress, ...orderedWaiting, ...completed])
       setIsLoading(false)
     })
     return () => unsubscribe()

@@ -64,6 +64,7 @@ export default function OwnerDashboard() {
   const getLocalDate = () => new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0]
   const [activationDate, setActivationDate] = useState(getLocalDate())
   const [expirationDate, setExpirationDate] = useState('')
+  const [ownerMessage, setOwnerMessage] = useState('')
   const [isActive, setIsActive] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -169,6 +170,7 @@ export default function OwnerDashboard() {
         badge2Value,
         activationDate,
         expirationDate,
+        ownerMessage,
         isActive,
         updatedAt: new Date().toISOString()
       }
@@ -237,6 +239,7 @@ export default function OwnerDashboard() {
     setBadge2Value(c.badge2Value || '4.9/5.0')
     setActivationDate(c.activationDate || getLocalDate())
     setExpirationDate(c.expirationDate || '')
+    setOwnerMessage(c.ownerMessage || '')
     setIsActive(c.isActive !== false)
 
     setActiveTab('add')
@@ -996,6 +999,16 @@ export default function OwnerDashboard() {
                     </Label>
                     <Switch checked={isActive} onCheckedChange={setIsActive} />
                   </div>
+                </div>
+
+                <div className="space-y-1.5 mt-4">
+                  <Label className="text-xs font-bold text-slate-600">رسالة إشعار (تظهر للطبيب في الجرس)</Label>
+                  <Input
+                    value={ownerMessage}
+                    onChange={e => setOwnerMessage(e.target.value)}
+                    placeholder="اكتب رسالة للتنبيه حول الاشتراك..."
+                    className="h-10 text-xs bg-slate-50 border border-slate-200"
+                  />
                 </div>
               </div>
 

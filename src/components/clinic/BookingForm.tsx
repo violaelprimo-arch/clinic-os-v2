@@ -99,6 +99,7 @@ export function BookingForm({
         serviceId: selectedService.id,
         serviceName: selectedService.name,
         servicePrice: selectedService.price || 0,
+        isUrgent: selectedService.name.includes('مستعجل') || selectedService.name.includes('طوارئ'),
         date: selectedDate,
         queue_number: myQueueNumber,
         status: 'waiting',
@@ -348,9 +349,11 @@ export function BookingForm({
                     </div>
                   </div>
 
-                  <span className="text-sm font-black text-[#15B8A6] shrink-0">
-                    {service.price} ج.م
-                  </span>
+                  {clinic.showPrices !== false && (
+                    <span className="text-sm font-black text-[#15B8A6] shrink-0">
+                      {service.price} ج.م
+                    </span>
+                  )}
                 </div>
               )
             })}
@@ -399,7 +402,11 @@ export function BookingForm({
             </div>
             <div className="flex justify-between pt-1">
               <span className="text-slate-600 font-bold">الإجمالي المستحق:</span>
-              <span className="font-black text-base text-[#15B8A6]">{selectedService.price} ج.م</span>
+              {clinic.showPrices !== false ? (
+                <span className="font-black text-base text-[#15B8A6]">{selectedService.price} ج.م</span>
+              ) : (
+                <span className="font-black text-base text-[#15B8A6]">يحدد بالعيادة</span>
+              )}
             </div>
           </div>
 
@@ -420,31 +427,35 @@ export function BookingForm({
                 <span className="text-xs">كاش بالعيادة</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('instapay')}
-                className={`p-3 rounded-xl border text-center transition-all ${
-                  paymentMethod === 'instapay'
-                    ? 'border-[#15B8A6] bg-teal-50 text-[#15B8A6] font-black'
-                    : 'border-[#E5EAF0] bg-white text-slate-600 font-bold'
-                }`}
-              >
-                <CreditCard className="w-5 h-5 mx-auto mb-1" />
-                <span className="text-xs">انستاباي</span>
-              </button>
+              {clinic.isInstapayEnabled && (
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('instapay')}
+                  className={`p-3 rounded-xl border text-center transition-all ${
+                    paymentMethod === 'instapay'
+                      ? 'border-[#15B8A6] bg-teal-50 text-[#15B8A6] font-black'
+                      : 'border-[#E5EAF0] bg-white text-slate-600 font-bold'
+                  }`}
+                >
+                  <CreditCard className="w-5 h-5 mx-auto mb-1" />
+                  <span className="text-xs">انستاباي</span>
+                </button>
+              )}
 
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('wallet')}
-                className={`p-3 rounded-xl border text-center transition-all ${
-                  paymentMethod === 'wallet'
-                    ? 'border-[#15B8A6] bg-teal-50 text-[#15B8A6] font-black'
-                    : 'border-[#E5EAF0] bg-white text-slate-600 font-bold'
-                }`}
-              >
-                <Wallet className="w-5 h-5 mx-auto mb-1" />
-                <span className="text-xs">محفظة إلكترونية</span>
-              </button>
+              {clinic.isWalletEnabled && (
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('wallet')}
+                  className={`p-3 rounded-xl border text-center transition-all ${
+                    paymentMethod === 'wallet'
+                      ? 'border-[#15B8A6] bg-teal-50 text-[#15B8A6] font-black'
+                      : 'border-[#E5EAF0] bg-white text-slate-600 font-bold'
+                  }`}
+                >
+                  <Wallet className="w-5 h-5 mx-auto mb-1" />
+                  <span className="text-xs">محفظة إلكترونية</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -460,22 +471,35 @@ export function BookingForm({
             </div>
           )}
 
-          <div className="flex gap-2.5 pt-2">
-            <Button
-              onClick={handleBooking}
-              disabled={isBooking}
-              className="flex-1 h-12 text-sm font-black bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-lg shadow-[#15B8A6]/25"
-            >
-              {isBooking ? 'جاري تأكيد الحجز...' : 'تأكيد الحجز النهائي'}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setStep(2)}
-              className="h-12 px-5 text-xs font-bold border-[#E5EAF0] text-slate-700 rounded-xl"
-            >
-              رجوع
-            </Button>
-          </div>
+          {clinic.isClinicOpen === false ? (
+            <div className="p-4 mt-4 rounded-xl bg-rose-50 border border-rose-200 text-center w-full">
+              <p className="font-bold text-rose-700">عذراً، العيادة مغلقة حالياً ولا تستقبل حجوزات جديدة عبر الموقع.</p>
+              <Button
+                variant="outline"
+                onClick={() => setStep(2)}
+                className="mt-3 h-10 px-5 text-xs font-bold border-[#E5EAF0] text-slate-700 rounded-xl bg-white w-full"
+              >
+                رجوع
+              </Button>
+            </div>
+          ) : (
+            <div className="flex gap-2.5 pt-2">
+              <Button
+                onClick={handleBooking}
+                disabled={isBooking}
+                className="flex-1 h-12 text-sm font-black bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-lg shadow-[#15B8A6]/25"
+              >
+                {isBooking ? 'جاري تأكيد الحجز...' : 'تأكيد الحجز النهائي'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setStep(2)}
+                className="h-12 px-5 text-xs font-bold border-[#E5EAF0] text-slate-700 rounded-xl"
+              >
+                رجوع
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

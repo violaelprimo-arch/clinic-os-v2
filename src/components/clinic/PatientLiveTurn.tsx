@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { db } from '@/lib/firebase'
-import { collection, query, where, onSnapshot } from 'firebase/firestore'
+import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore'
 import { Card, CardContent } from '@/components/ui/card'
 import { Activity, Clock, CheckCircle } from 'lucide-react'
 
@@ -27,35 +27,54 @@ export function PatientLiveTurn({ clinicId, patientPhone }: { clinicId: string, 
       where('date', '==', today)
     )
 
-    const unsubscribe = onSnapshot(q, (snap) => {
-      let allAppts = snap.docs.map(d => ({ id: d.id, ...d.data() } as any))
+      const qClinic = query(collection(db, 'clinics'), where('id', '==', clinicId))
       
-      // Filter out urgent so they are invisible to the normal sequence tracker
-      allAppts = allAppts.filter(a => a.serviceType !== 'urgent')
+      const unsubscribeAppts = onSnapshot(q, async (snap) => {
+        // Fetch clinic settings to know ratios
+        let rRatio = 2;
+        let uRatio = 1;
+        const clinicSnap = await getDocs(query(collection(db, 'clinics')));
+        const clinicDoc = clinicSnap.docs.find(d => d.id === clinicId || d.data().slug === clinicId);
+        if (clinicDoc) {
+          rRatio = clinicDoc.data().regularPerUrgent || 2;
+          uRatio = clinicDoc.data().urgentPerRegular || 1;
+        }
 
-      // Sort by queue number
-      allAppts.sort((a, b) => a.queue_number - b.queue_number)
-      
-      // Find current turn (first waiting normal/consult)
-      const waitingAppts = allAppts.filter(a => a.status === 'waiting')
-      const currentTurn = waitingAppts.length > 0 ? waitingAppts[0].queue_number : 0
-      
-      // Find my turn
-      const myAppt = allAppts.find(a => a.phone === patientPhone)
+        let allAppts = snap.docs.map(d => ({ id: d.id, ...d.data() } as any))
+        
+        const myAppt = allAppts.find(a => a.phone === patientPhone)
 
-      if (!myAppt) {
-        setTurnData(null)
-      } else {
+        if (!myAppt) {
+          setTurnData(null)
+          setLoading(false)
+          return
+        }
+
         if (myAppt.status === 'completed') {
           setTurnData({
             status: 'completed',
             myTurn: myAppt.queue_number,
-            currentTurn: currentTurn,
+            currentTurn: myAppt.queue_number,
             remaining: 0
           })
         } else {
-          // Calculate remaining (how many waiting people are ahead of me)
-          const remaining = waitingAppts.filter(a => a.queue_number < myAppt.queue_number).length
+          const waitingAppts = allAppts.filter(a => a.status === 'waiting' || !a.status).sort((a,b) => a.queue_number - b.queue_number)
+          
+          const regularQueue = waitingAppts.filter(d => !d.isUrgent)
+          const urgentQueue = waitingAppts.filter(d => d.isUrgent)
+          
+          let orderedWaiting: any[] = []
+          let rIndex = 0, uIndex = 0;
+          
+          while(rIndex < regularQueue.length || uIndex < urgentQueue.length) {
+             for(let i=0; i<rRatio && rIndex < regularQueue.length; i++) orderedWaiting.push(regularQueue[rIndex++]);
+             for(let i=0; i<uRatio && uIndex < urgentQueue.length; i++) orderedWaiting.push(urgentQueue[uIndex++]);
+          }
+
+          const myIndex = orderedWaiting.findIndex(a => a.id === myAppt.id)
+          const remaining = myIndex >= 0 ? myIndex : 0
+          const currentTurn = orderedWaiting.length > 0 ? orderedWaiting[0].queue_number : myAppt.queue_number
+
           setTurnData({
             status: 'waiting',
             myTurn: myAppt.queue_number,
@@ -63,14 +82,13 @@ export function PatientLiveTurn({ clinicId, patientPhone }: { clinicId: string, 
             remaining: remaining
           })
         }
-      }
-      setLoading(false)
-    }, (err) => {
-      console.error(err)
-      setLoading(false)
-    })
+        setLoading(false)
+      }, (err) => {
+        console.error(err)
+        setLoading(false)
+      })
 
-    return () => unsubscribe()
+      return () => unsubscribeAppts()
   }, [clinicId, patientPhone])
 
   if (loading) return null // Hide while checking

@@ -87,6 +87,14 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
   const [aiLockedByOwner, setAiLockedByOwner] = useState(false)
 
+  // New Toggles Phase 1
+  const [isClinicOpen, setIsClinicOpen] = useState(true)
+  const [showPrices, setShowPrices] = useState(true)
+  const [isWalletEnabled, setIsWalletEnabled] = useState(false)
+  const [isInstapayEnabled, setIsInstapayEnabled] = useState(false)
+  const [regularPerUrgent, setRegularPerUrgent] = useState<number>(2)
+  const [urgentPerRegular, setUrgentPerRegular] = useState<number>(1)
+
   useEffect(() => {
     const fetchSettings = async () => {
       try {
@@ -118,6 +126,12 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           setOnlinePaymentEnabled(data.onlinePaymentEnabled || false)
           setWalletNumber(data.walletNumber || '')
           setInstapayHandle(data.instapayHandle || '')
+          setIsClinicOpen(data.isClinicOpen !== false) // default true
+          setShowPrices(data.showPrices !== false) // default true
+          setIsWalletEnabled(data.isWalletEnabled || false)
+          setIsInstapayEnabled(data.isInstapayEnabled || false)
+          setRegularPerUrgent(data.regularPerUrgent || 2)
+          setUrgentPerRegular(data.urgentPerRegular || 1)
           setAssistants(data.assistants || [])
           if (data.services && data.services.length > 0) {
             setServices(data.services)
@@ -155,6 +169,12 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         onlinePaymentEnabled: Boolean(onlinePaymentEnabled),
         walletNumber: walletNumber || '',
         instapayHandle: instapayHandle || '',
+        isClinicOpen,
+        showPrices,
+        isWalletEnabled,
+        isInstapayEnabled,
+        regularPerUrgent: Number(regularPerUrgent) || 2,
+        urgentPerRegular: Number(urgentPerRegular) || 1,
         assistants: assistants || [],
         updatedAt: new Date().toISOString()
       }
@@ -396,6 +416,22 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
 
             <div className="space-y-1.5 pt-2">
+              <Label className="text-xs font-bold text-slate-600">حالة العيادة (مفتوحة / مغلقة)</Label>
+              <div className="flex items-center gap-2">
+                <Switch checked={isClinicOpen} onCheckedChange={setIsClinicOpen} />
+                <span className="text-sm text-slate-600 font-bold">{isClinicOpen ? 'العيادة تستقبل حجوزات' : 'العيادة مغلقة حالياً'}</span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5 pt-2">
+              <Label className="text-xs font-bold text-slate-600">إظهار أسعار الكشوفات للمرضى</Label>
+              <div className="flex items-center gap-2">
+                <Switch checked={showPrices} onCheckedChange={setShowPrices} />
+                <span className="text-sm text-slate-600 font-bold">{showPrices ? 'الأسعار ظاهرة' : 'الأسعار مخفية'}</span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5 pt-2">
               <Label className="text-xs font-bold text-slate-600">عنوان العيادة التفصيلي</Label>
               <Input
                 value={address}
@@ -502,21 +538,51 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
             <h3 className="font-bold text-sm text-[#182230]">تنظيم المواعيد وسرعة الكشف</h3>
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-xs font-bold text-slate-600">
-              متوسط وقت الكشف المتوقع لكل مريض (بالدقائق)
-            </Label>
-            <Input
-              type="number"
-              value={averageVisitTime}
-              onChange={e => setAverageVisitTime(Number(e.target.value))}
-              className="h-10 text-sm rounded-xl max-w-xs font-bold"
-              min={3}
-              max={60}
-            />
-            <p className="text-[11px] text-slate-400">
-              يُستخدم لحساب الوقت التقريبي المتبقي لشاشة تتبع دور المريض الذكية تلقائياً.
-            </p>
+          <div className="space-y-4">
+            <div className="space-y-2 pb-4 border-b border-[#E5EAF0]">
+              <Label className="text-xs font-bold text-slate-600">
+                متوسط وقت الكشف المتوقع لكل مريض (بالدقائق)
+              </Label>
+              <Input
+                type="number"
+                value={averageVisitTime}
+                onChange={e => setAverageVisitTime(Number(e.target.value))}
+                className="h-10 text-sm rounded-xl max-w-xs font-bold"
+                min={3}
+                max={60}
+              />
+              <p className="text-[11px] text-slate-400">
+                يُستخدم لحساب الوقت التقريبي المتبقي لشاشة تتبع دور المريض الذكية تلقائياً.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <h4 className="font-bold text-sm text-[#182230]">نظام دخول الطوارئ / الكشف المستعجل</h4>
+              <p className="text-xs text-slate-500">يحدد كم كشف عادي يدخل بعده كشف مستعجل تلقائياً في شاشة الدور</p>
+              
+              <div className="grid grid-cols-2 gap-4 max-w-sm">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-600">عدد الكشوفات العادية</Label>
+                  <Input
+                    type="number"
+                    value={regularPerUrgent}
+                    onChange={e => setRegularPerUrgent(Number(e.target.value))}
+                    className="h-10 text-sm rounded-xl font-bold"
+                    min={1}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-rose-600">يتبعها (كشف مستعجل)</Label>
+                  <Input
+                    type="number"
+                    value={urgentPerRegular}
+                    onChange={e => setUrgentPerRegular(Number(e.target.value))}
+                    className="h-10 text-sm rounded-xl font-bold border-rose-200 bg-rose-50 text-rose-700"
+                    min={1}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -597,28 +663,48 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           </div>
 
           {onlinePaymentEnabled && (
-            <div className="space-y-4 pt-2">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-600">رقم محفظة محفظة إلكترونية (للتحويل)</Label>
-                <Input
-                  value={walletNumber}
-                  onChange={e => setWalletNumber(e.target.value)}
-                  placeholder="010xxxxxxxx"
-                  className="h-10 text-xs rounded-xl font-mono text-right"
-                  dir="ltr"
-                />
+            <div className="space-y-4 pt-4 border-t">
+              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border">
+                <div className="flex items-center gap-3">
+                  <Switch checked={isWalletEnabled} onCheckedChange={setIsWalletEnabled} />
+                  <div>
+                    <p className="font-bold text-sm text-slate-800">تفعيل الدفع بالمحفظة الإلكترونية (فودافون كاش وغيرها)</p>
+                  </div>
+                </div>
               </div>
+              {isWalletEnabled && (
+                <div className="space-y-1.5 pl-14">
+                  <Label className="text-xs font-bold text-slate-600">رقم المحفظة</Label>
+                  <Input
+                    value={walletNumber}
+                    onChange={e => setWalletNumber(e.target.value)}
+                    placeholder="010xxxxxxxx"
+                    className="h-10 text-xs rounded-xl font-mono text-right"
+                    dir="ltr"
+                  />
+                </div>
+              )}
 
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-600">عنوان الدفع اللحظي (InstaPay Handle)</Label>
-                <Input
-                  value={instapayHandle}
-                  onChange={e => setInstapayHandle(e.target.value)}
-                  placeholder="name@instapay"
-                  className="h-10 text-xs rounded-xl font-mono text-right"
-                  dir="ltr"
-                />
+              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border">
+                <div className="flex items-center gap-3">
+                  <Switch checked={isInstapayEnabled} onCheckedChange={setIsInstapayEnabled} />
+                  <div>
+                    <p className="font-bold text-sm text-slate-800">تفعيل الدفع عبر إنستاباي (InstaPay)</p>
+                  </div>
+                </div>
               </div>
+              {isInstapayEnabled && (
+                <div className="space-y-1.5 pl-14">
+                  <Label className="text-xs font-bold text-slate-600">معرف إنستاباي (InstaPay Handle)</Label>
+                  <Input
+                    value={instapayHandle}
+                    onChange={e => setInstapayHandle(e.target.value)}
+                    placeholder="name@instapay"
+                    className="h-10 text-xs rounded-xl font-mono text-right"
+                    dir="ltr"
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>

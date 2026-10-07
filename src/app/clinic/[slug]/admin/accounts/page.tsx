@@ -11,7 +11,7 @@ import {
   ArrowUpRight, Users, Calendar
 } from 'lucide-react'
 import { db } from '@/lib/firebase'
-import { collection, query, where, getDocs, onSnapshot } from 'firebase/firestore'
+import { collection, query, where, getDocs, onSnapshot, updateDoc, doc } from 'firebase/firestore'
 import { toast } from 'sonner'
 
 export default function AccountsPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -23,6 +23,7 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
   const [methodFilter, setMethodFilter] = useState('ALL')
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [search, setSearch] = useState('')
+  const [isProcessing, setIsProcessing] = useState(false)
 
   useEffect(() => {
     const fetchTransactions = async () => {
@@ -47,6 +48,40 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
     }
     fetchTransactions()
   }, [slug])
+
+  const handleConfirmPayment = async (item: any) => {
+    if (!item.id || isProcessing) return;
+    setIsProcessing(true);
+    try {
+      await updateDoc(doc(db, 'appointments', item.id), {
+        paymentStatus: 'paid',
+        confirmedAt: new Date().toISOString()
+      });
+      toast.success('تم تأكيد الدفع بنجاح وتسجيله في الحسابات');
+    } catch (err) {
+      toast.error('خطأ في تأكيد الدفع');
+    } finally {
+      setIsProcessing(false);
+    }
+  }
+
+  const applyDiscount = async (item: any, discountAmount: number) => {
+    if (!item.id || isProcessing) return;
+    setIsProcessing(true);
+    try {
+      const currentPrice = Number(item.servicePrice) || 0;
+      const newPrice = Math.max(0, currentPrice - discountAmount);
+      await updateDoc(doc(db, 'appointments', item.id), {
+        servicePrice: newPrice,
+        discountApplied: discountAmount
+      });
+      toast.success('تم تطبيق الخصم بنجاح وتحديث الإجمالي');
+    } catch (err) {
+      toast.error('خطأ في تطبيق الخصم');
+    } finally {
+      setIsProcessing(false);
+    }
+  }
 
   // Aggregate metrics
   const metrics = useMemo(() => {
@@ -279,7 +314,7 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
                       <td className="py-3.5 px-4 text-center font-bold text-xs text-[#182230]">
                         {item.servicePrice || 250} ج.م
                       </td>
-                      <td className="py-3.5 px-4 text-center">
+                      <td className="py-3.5 px-4 text-center flex items-center justify-center gap-2">
                         <Badge
                           className={`text-[10px] font-bold px-2 py-0.5 border-none ${
                             isPaid
@@ -289,6 +324,32 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
                         >
                           {isPaid ? 'مدفوع' : 'معلق'}
                         </Badge>
+                        {!isPaid && (
+                          <div className="flex flex-col gap-1">
+                            <Button
+                              size="sm"
+                              disabled={isProcessing}
+                              onClick={() => handleConfirmPayment(item)}
+                              className="h-6 text-[10px] bg-[#15B8A6] hover:bg-[#0D9488] text-white px-2"
+                            >
+                              تأكيد الدفع
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={isProcessing}
+                              onClick={() => {
+                                const val = prompt('أدخل قيمة الخصم (ج.م):');
+                                if (val && !isNaN(Number(val))) {
+                                  applyDiscount(item, Number(val));
+                                }
+                              }}
+                              className="h-6 text-[10px] px-2"
+                            >
+                              خصم
+                            </Button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   )

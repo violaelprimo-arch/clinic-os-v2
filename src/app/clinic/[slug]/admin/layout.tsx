@@ -75,6 +75,10 @@ export default function AdminLayout({
   }
 
   // Get current Arabic formatted date
+  const daysUntilExpiration = clinic?.expirationDate 
+    ? Math.ceil((new Date(clinic.expirationDate).getTime() - new Date().getTime()) / (1000 * 3600 * 24))
+    : null;
+
   const todayArabic = new Intl.DateTimeFormat('ar-EG', {
     weekday: 'long',
     day: 'numeric',
@@ -370,11 +374,21 @@ export default function AdminLayout({
 
             {/* Notification Bell */}
             <button
-              onClick={() => toast.info('لا توجد إشعارات جديدة حالياً')}
+              onClick={() => {
+                if (clinic?.ownerMessage) {
+                  toast.info(clinic.ownerMessage, { duration: 10000 });
+                } else {
+                  toast.info('لا توجد إشعارات جديدة حالياً');
+                }
+              }}
               className="relative p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
             >
               <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#15B8A6] ring-2 ring-white"></span>
+              {clinic?.ownerMessage ? (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white animate-pulse"></span>
+              ) : (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#15B8A6] ring-2 ring-white"></span>
+              )}
             </button>
 
             {/* User Avatar & Info */}
@@ -394,6 +408,27 @@ export default function AdminLayout({
             </div>
           </div>
         </header>
+
+        {/* SUBSCRIPTION BANNER */}
+        {(() => {
+          if (!clinic?.expirationDate) return null;
+          const days = daysUntilExpiration;
+          if (days > 3) return null;
+          if (days >= 0) {
+            return (
+              <div className="bg-rose-500 text-white p-2.5 text-center text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-sm shrink-0">
+                <Bell className="w-4 h-4" />
+                تنبيه هام: اشتراك العيادة الخاص بك سينتهي خلال {days} أيام. يرجى التواصل مع الإدارة لتجديد الاشتراك.
+              </div>
+            );
+          }
+          return (
+            <div className="bg-red-600 text-white p-2.5 text-center text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-sm shrink-0">
+              <Bell className="w-4 h-4" />
+              تنبيه: لقد انتهى اشتراك العيادة! قد تتوقف بعض الخدمات، يرجى التجديد فوراً.
+            </div>
+          );
+        })()}
 
         {/* Scrollable Page Body */}
         <main className="flex-1 overflow-y-auto bg-[#F6F8FB] pb-20 lg:pb-8 relative">
