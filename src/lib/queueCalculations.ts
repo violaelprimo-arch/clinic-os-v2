@@ -1,8 +1,8 @@
-export function calculateWaitTime(aheadCount, averageServiceMins = 15) {
+export function calculateWaitTime(aheadCount: number, averageServiceMins = 15) {
   return aheadCount * averageServiceMins;
 }
 
-export function formatEstimatedTime(minutesToAdd) {
+export function formatEstimatedTime(minutesToAdd: number) {
   const future = new Date(Date.now() + minutesToAdd * 60000);
   return new Intl.DateTimeFormat('ar-EG', {
     hour: '2-digit',
@@ -12,7 +12,7 @@ export function formatEstimatedTime(minutesToAdd) {
   }).format(future);
 }
 
-export function formatWaitDuration(mins) {
+export function formatWaitDuration(mins: number) {
   if (mins <= 0) return 'دورك الآن';
   if (mins < 60) return `حوالي ${mins} دقيقة`;
   const hours = Math.floor(mins / 60);
@@ -25,15 +25,15 @@ export function formatWaitDuration(mins) {
   return `حوالي ${days} يوم و ${remHours} ساعة`;
 }
 
-export function sortQueue(appointments, clinic) {
+export function sortQueue(appointments: any[], clinic: any) {
   const normalCount = clinic?.queueNormal || 3;
   const consultCount = clinic?.queueConsult || 2;
   const urgentCount = clinic?.queueUrgent !== undefined ? clinic.queueUrgent : 1;
 
-  const normalQueue = [];
-  const consultQueue = [];
-  const urgentQueue = [];
-  const otherQueue = [];
+  const normalQueue: any[] = [];
+  const consultQueue: any[] = [];
+  const urgentQueue: any[] = [];
+  const otherQueue: any[] = [];
 
   const sorted = [...appointments].sort((a, b) => (a.queue_number || 0) - (b.queue_number || 0));
 

@@ -47,6 +47,14 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   }, [])
   const [primaryColor, setPrimaryColor] = useState('#15B8A6')
   const [averageVisitTime, setAverageVisitTime] = useState<number>(15)
+  const [allowPatientMedicalView, setAllowPatientMedicalView] = useState(false)
+  const [hidePrices, setHidePrices] = useState(false)
+  const [workingDays, setWorkingDays] = useState<string[]>([])
+  const [workingHoursStart, setWorkingHoursStart] = useState('09:00')
+  const [workingHoursEnd, setWorkingHoursEnd] = useState('22:00')
+  const [queueNormal, setQueueNormal] = useState(2)
+  const [queueConsult, setQueueConsult] = useState(1)
+  const [queueUrgent, setQueueUrgent] = useState(0)
 
   // Contacts & Location
   const [address, setAddress] = useState('')

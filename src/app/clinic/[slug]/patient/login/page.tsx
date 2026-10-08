@@ -56,7 +56,6 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
           clinic_id: clinicId,
           name,
           phone,
-          phone,
           createdAt: new Date().toISOString()
         })
         toast.success('تم إنشاء الحساب بنجاح!')
@@ -66,7 +65,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
         router.push(`/clinic/${slug}/patient`)
       } else {
         // Login
-        const loginQ = query(collection(db, 'patient_accounts'), where('clinic_id', '==', clinicId), where('phone', '==', phone), where('phone', '==', phone))
+        const loginQ = query(collection(db, 'patient_accounts'), where('clinic_id', '==', clinicId), where('phone', '==', phone))
         const loginSnap = await getDocs(loginQ)
         if (loginSnap.empty) {
           toast.error('رقم الهاتف أو كلمة المرور غير صحيحة')
@@ -173,19 +172,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-slate-600">كلمة المرور</Label>
-              <div className="relative">
-                <Lock className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 z-10" />
-                <PasswordInput 
-                  required 
-                  value={phone} 
-                  onChange={e => setPassword(e.target.value)} 
-                  placeholder="••••••••" 
-                  className="pr-10 h-11 text-xs bg-slate-50 rounded-xl border-[#E5EAF0] focus:bg-white"
-                />
-              </div>
-            </div>
+            
 
             <Button
               type="submit"

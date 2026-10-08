@@ -40,7 +40,7 @@ export default function PatientProfilePage({ params }: { params: Promise<{ slug:
     
     const unsub = onSnapshot(qAppt, (snap) => {
       if (!snap.empty) {
-        const appts = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        const appts = snap.docs.map(d => ({ id: d.id, ...d.data() } as any))
         .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
         
         setAppointments(appts)
