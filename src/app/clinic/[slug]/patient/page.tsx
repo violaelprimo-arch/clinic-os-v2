@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { db } from '@/lib/firebase'
-import { collection, query, where, getDocs, onSnapshot } from 'firebase/firestore'
+import { collection, query, where, getDocs, onSnapshot, updateDoc, doc } from 'firebase/firestore'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -12,7 +12,7 @@ import Link from 'next/link'
 import { PatientLiveTurn } from '@/components/clinic/PatientLiveTurn'
 import { BookingForm } from '@/components/clinic/BookingForm'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { doc, getDoc } from 'firebase/firestore'
+import { getDoc } from 'firebase/firestore'
 
 import { motion } from 'framer-motion'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
@@ -27,6 +27,9 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
   const [appointments, setAppointments] = useState<any[]>([])
   const [prescriptions, setPrescriptions] = useState<any[]>([])
   const [clinic, setClinic] = useState<any>(null)
+  const [isEditingProfile, setIsEditingProfile] = useState(false)
+  const [editAge, setEditAge] = useState('')
+  const [editName, setEditName] = useState('')
   const [services, setServices] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -57,8 +60,8 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
       } else if (slug === 'demo') {
         setClinic({
           id: 'demo',
-          clinicName: 'عيادة د. محمد علي التخصصية',
-          doctorName: 'محمد علي',
+          clinicName: 'العيادة التخصصية',
+          doctorName: 'الطبيب',
           specialty: 'استشاري الطب المتخصص',
           primaryColor: '#15B8A6'
         })
@@ -136,7 +139,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
             <div className="hidden sm:block border-r border-slate-200 pr-3">
               <span className="font-black text-sm text-[#182230]">بوابة المريض الإلكترونية</span>
               <span className="text-[10px] text-slate-400 block font-medium">
-                {clinic?.clinicName || 'عيادة د. محمد علي'}
+                {clinic?.clinicName || 'العيادة'}
               </span>
             </div>
           </div>

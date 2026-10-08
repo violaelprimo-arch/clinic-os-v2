@@ -115,6 +115,11 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           setPrimaryColor(data.primaryColor || '#15B8A6')
           setAssistantPermissions(data.assistantPermissions || ['appointments'])
           setAverageVisitTime(data.averageVisitTime || 15)
+        setAllowPatientMedicalView(data.allowPatientMedicalView !== false)
+        setHidePrices(data.hidePrices === true)
+        setWorkingDays(data.workingDays || ['Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'])
+        setWorkingHoursStart(data.workingHoursStart || '09:00')
+        setWorkingHoursEnd(data.workingHoursEnd || '22:00')
           setAddress(data.clinicAddress || '')
           setDoctorPhone(data.doctorPhone || '')
           setClinicPhone(data.clinicPhone || (data.clinicPhones?.[0] || ''))
@@ -130,8 +135,10 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           setShowPrices(data.showPrices !== false) // default true
           setIsWalletEnabled(data.isWalletEnabled || false)
           setIsInstapayEnabled(data.isInstapayEnabled || false)
-          setRegularPerUrgent(data.regularPerUrgent || 2)
-          setUrgentPerRegular(data.urgentPerRegular || 1)
+          setQueueNormal(data.queueNormal ?? 3)
+        setQueueConsult(data.queueConsult ?? 2)
+        setQueueUrgent(data.queueUrgent ?? 1)
+          
           setAssistants(data.assistants || [])
           if (data.services && data.services.length > 0) {
             setServices(data.services)
@@ -161,6 +168,11 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         primaryColor: primaryColor || '#15B8A6',
         assistantPermissions: assistantPermissions || [],
         averageVisitTime: Number(averageVisitTime) || 15,
+      allowPatientMedicalView,
+      hidePrices,
+      workingDays,
+      workingHoursStart,
+      workingHoursEnd,
         clinicAddress: address || '',
         clinicPhone: phones[0] || '',
         doctorPhone: doctorPhone || '',
@@ -173,8 +185,10 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         showPrices,
         isWalletEnabled,
         isInstapayEnabled,
-        regularPerUrgent: Number(regularPerUrgent) || 2,
-        urgentPerRegular: Number(urgentPerRegular) || 1,
+        queueNormal: Number(queueNormal) ?? 3,
+      queueConsult: Number(queueConsult) ?? 2,
+      queueUrgent: Number(queueUrgent) ?? 1,
+        
         assistants: assistants || [],
         updatedAt: new Date().toISOString()
       }
@@ -349,7 +363,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                   <Input
                     value={doctorName}
                     onChange={e => setDoctorName(e.target.value)}
-                    placeholder="محمد علي"
+                    placeholder="الطبيب"
                     className="h-10 text-xs rounded-xl flex-1"
                   />
                 </div>

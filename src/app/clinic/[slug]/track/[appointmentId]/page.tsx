@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState } from 'react'
 import { db } from '@/lib/firebase'
+import { calculateWaitTime, formatEstimatedTime, formatWaitDuration } from '@/lib/queueCalculations'
 import { doc, onSnapshot, collection, query, where } from 'firebase/firestore'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -90,7 +91,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
 
   const isCompleted = appointment.status === 'completed'
   const isInProgress = appointment.status === 'in_progress'
-  const estimatedMins = isCompleted ? 0 : isInProgress ? 0 : peopleAhead * averageTime
+  const estimatedMins = isCompleted ? 0 : isInProgress ? 0 : calculateWaitTime(peopleAhead, averageTime)
 
   return (
     <div className="min-h-screen bg-[#F6F8FB] flex flex-col items-center justify-center p-4 font-sans" dir="rtl">
@@ -103,7 +104,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
           <ClinicLogo size="md" variant="light" />
           <div className="pt-2">
             <h1 className="text-lg font-black text-[#182230]">
-              {clinic?.clinicName || 'عيادة د. محمد علي'}
+              {clinic?.clinicName || 'العيادة'}
             </h1>
             <p className="text-xs text-slate-400">
               مرحباً {appointment.patientName} • شاشة متابعة الدور المباشرة
@@ -148,7 +149,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
               <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#E5EAF0] text-right space-y-1">
                 <span className="text-[11px] font-bold text-slate-400">وقت الانتظار المتوقع</span>
                 <p className="text-lg font-black text-[#15B8A6]">
-                  {estimatedMins > 0 ? `حوالي ${estimatedMins} دقيقة` : 'اقترب دورك جداً'}
+                  {formatWaitDuration(estimatedMins)}
                 </p>
               </div>
 

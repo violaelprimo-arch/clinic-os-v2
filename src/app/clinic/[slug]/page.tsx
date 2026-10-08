@@ -25,8 +25,8 @@ export default function ClinicPage({ params }: { params: Promise<{ slug: string 
             setClinic({
               id: 'demo',
               slug: 'demo',
-              clinicName: 'عيادة د. محمد علي التخصصية',
-              doctorName: 'محمد علي',
+              clinicName: 'العيادة التخصصية',
+              doctorName: 'الطبيب',
               specialty: 'استشاري الطب المتخصص وعلاج الحالات المتقدمة',
               heroImage: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=1000&auto=format&fit=crop',
               clinicPhone: '01012345678',

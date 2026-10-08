@@ -15,6 +15,7 @@ import Link from 'next/link'
 import { db } from '@/lib/firebase'
 import { collection, query, where, onSnapshot, updateDoc, doc, Timestamp } from 'firebase/firestore'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { sortQueue } from '@/lib/queueCalculations'
 
 export function AdminDashboard({ clinic }: { clinic: any }) {
   const [bookings, setBookings] = useState<any[]>([])

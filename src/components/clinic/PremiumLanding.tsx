@@ -102,7 +102,7 @@ export function PremiumLanding({
               <ClinicLogo size="sm" variant="light" showSubtitle={false} />
               <div className="hidden sm:block border-r border-slate-200 pr-3">
                 <h1 className="text-sm font-black text-[#182230]">
-                  {clinic?.clinicName || `عيادة ${clinic?.doctorTitle || 'د.'} محمد علي`}
+                  {clinic?.clinicName || `عيادة ${clinic?.doctorTitle || 'د.'} الطبيب`}
                 </h1>
                 <p className="text-[10px] font-bold text-[#15B8A6]">
                   {clinic?.doctorName ? `${clinic?.doctorTitle || 'د.'} ${clinic.doctorName}` : (clinic?.specialty || 'استشاري الطب الباطني')}
@@ -198,7 +198,7 @@ export function PremiumLanding({
                     transition={{ delay: 0.3 }}
                     className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight"
                   >
-                    {clinic?.doctorName ? `${clinic?.doctorTitle || 'د.'} ${clinic.doctorName}` : `${clinic?.doctorTitle || 'د.'} محمد علي`}
+                    {clinic?.doctorName ? `${clinic?.doctorTitle || 'د.'} ${clinic.doctorName}` : `${clinic?.doctorTitle || 'د.'} الطبيب`}
                   </motion.h1>
                   <motion.p
                     initial={{ opacity: 0, y: 15 }}
@@ -623,7 +623,7 @@ export function PremiumLanding({
             <div className="md:col-span-2 space-y-3">
               <ClinicLogo size="sm" variant="light" />
               <p className="text-xs text-slate-500 max-w-sm leading-relaxed">
-                {clinic?.clinicName || 'عيادة د. محمد علي'} — رعاية صحية متكاملة مدعومة بأحدث التقنيات الطبية ونظام إدارة ذكي للأدوار والروشتات.
+                {clinic?.clinicName || 'العيادة'} — رعاية صحية متكاملة مدعومة بأحدث التقنيات الطبية ونظام إدارة ذكي للأدوار والروشتات.
               </p>
               <p className="text-xs text-slate-400 flex items-center gap-1.5 pt-1">
                 <MapPin className="w-3.5 h-3.5 text-[#15B8A6]" />

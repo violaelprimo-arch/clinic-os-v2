@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { db } from '@/lib/firebase'
-import { collection, query, where, getDocs, addDoc } from 'firebase/firestore'
+import { collection, query, where, getDocs, addDoc, onSnapshot } from 'firebase/firestore'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -31,9 +31,32 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [newPhone, setNewPhone] = useState('')
+  const [newDob, setNewDob] = useState('')
+  const [newAge, setNewAge] = useState('')
   const [newService, setNewService] = useState('كشف عادي')
   const [newPrice, setNewPrice] = useState(250)
   const [isAdding, setIsAdding] = useState(false)
+
+  const handleAgeChange = (val: string) => {
+    setNewAge(val)
+    if (val) {
+      const year = new Date().getFullYear() - parseInt(val)
+      setNewDob(year + '-01-01')
+    } else {
+      setNewDob('')
+    }
+  }
+
+  const handleDobChange = (val: string) => {
+    setNewDob(val)
+    if (val) {
+      const birthYear = new Date(val).getFullYear()
+      const currentYear = new Date().getFullYear()
+      setNewAge((currentYear - birthYear).toString())
+    } else {
+      setNewAge('')
+    }
+  }
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1)
@@ -77,19 +100,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
           }
         })
 
-        // If no records in Firebase, populate clean realistic demo patient records
-        let loadedPatients = Array.from(patientMap.values())
-        if (loadedPatients.length === 0) {
-          loadedPatients = [
-            { id: '01557540188', name: 'محمد محمود', phone: '01557540188', visitsCount: 2, lastVisit: '2026-10-05', lastService: 'كشف عادي', status: 'نشط' },
-            { id: '01111111111', name: 'حسين علي', phone: '01111111111', visitsCount: 1, lastVisit: '2026-10-05', lastService: 'استشارة', status: 'نشط' },
-            { id: '0123456789', name: 'أحمد محمد', phone: '0123456789', visitsCount: 2, lastVisit: '2026-10-04', lastService: 'مستعجل', status: 'مستعجل' },
-            { id: '0123456798', name: 'علي السيد', phone: '0123456798', visitsCount: 1, lastVisit: '2026-10-03', lastService: 'متابعة', status: 'نشط' },
-            { id: '01121320507', name: 'محمود خالد', phone: '01121320507', visitsCount: 1, lastVisit: '2026-10-01', lastService: 'كشف عادي', status: 'نشط' },
-            { id: '01098765432', name: 'إسلام رمضان', phone: '01098765432', visitsCount: 3, lastVisit: '2026-09-28', lastService: 'استشارة', status: 'نشط' },
-            { id: '01012345678', name: 'سارة إبراهيم', phone: '01012345678', visitsCount: 4, lastVisit: '2026-09-25', lastService: 'كشف عادي', status: 'نشط' },
-            { id: '01098234711', name: 'طارق حسام', phone: '01098234711', visitsCount: 1, lastVisit: '2026-09-20', lastService: 'استشارة', status: 'خامل' }
-          ]
+                  ]
         }
 
         setPatients(loadedPatients.sort((a, b) => new Date(b.lastVisit).getTime() - new Date(a.lastVisit).getTime()))
@@ -262,6 +273,27 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                   dir="ltr"
                   required
                 />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-600">تاريخ الميلاد</Label>
+                  <Input
+                    type="date"
+                    value={newDob}
+                    onChange={e => handleDobChange(e.target.value)}
+                    className="h-10 text-sm rounded-xl"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-600">العمر</Label>
+                  <Input
+                    type="number"
+                    value={newAge}
+                    onChange={e => handleAgeChange(e.target.value)}
+                    placeholder="25"
+                    className="h-10 text-sm rounded-xl"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

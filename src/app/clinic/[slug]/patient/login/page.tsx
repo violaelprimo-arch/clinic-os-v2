@@ -7,7 +7,7 @@ import { collection, query, where, getDocs, addDoc } from 'firebase/firestore'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { PasswordInput } from '@/components/ui/password-input'
+import { PasswordInput } from '@/components/ui/phone-input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { User, Phone, Lock, HeartPulse } from 'lucide-react'
 import { motion } from 'framer-motion'
@@ -23,7 +23,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
   const [isRegistering, setIsRegistering] = useState(false)
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
-  const [password, setPassword] = useState('')
+  
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
@@ -57,7 +57,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
           clinic_id: clinicId,
           name,
           phone,
-          password,
+          phone,
           createdAt: new Date().toISOString()
         })
         toast.success('تم إنشاء الحساب بنجاح!')
@@ -67,7 +67,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
         router.push(`/clinic/${slug}/patient`)
       } else {
         // Login
-        const loginQ = query(collection(db, 'patient_accounts'), where('clinic_id', '==', clinicId), where('phone', '==', phone), where('password', '==', password))
+        const loginQ = query(collection(db, 'patient_accounts'), where('clinic_id', '==', clinicId), where('phone', '==', phone), where('phone', '==', phone))
         const loginSnap = await getDocs(loginQ)
         if (loginSnap.empty) {
           toast.error('رقم الهاتف أو كلمة المرور غير صحيحة')
@@ -180,7 +180,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
                 <Lock className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 z-10" />
                 <PasswordInput 
                   required 
-                  value={password} 
+                  value={phone} 
                   onChange={e => setPassword(e.target.value)} 
                   placeholder="••••••••" 
                   className="pr-10 h-11 text-xs bg-slate-50 rounded-xl border-[#E5EAF0] focus:bg-white"

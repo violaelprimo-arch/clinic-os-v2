@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // By default, deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Clinics Collection
+    match /clinics/{clinicId} {
+      // Anyone can read clinic public info for booking
+      allow read: if true;
+      // Only authenticated users (admins) can write to their clinic
+      // In a real app, verify request.auth.uid == resource.data.owner_uid
+      // For this SaaS demo, we allow write for authenticated users
+      allow write: if request.auth != null;
+    }
+
+    // Appointments Collection
+    match /appointments/{apptId} {
+      // Patients can read their own appointments, admins can read all for their clinic
+      allow read: if true; // In production: if request.auth != null || resource.data.phone == request.auth.token.phone
+      // Anyone can create an appointment (online booking)
+      allow create: if true;
+      // Only admins can update/delete (change status, add diagnosis, etc.)
+      allow update, delete: if true; // In production: restrict to clinic admin
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow read, write: if true; // Simplified for demo
+    }
+  }
+}

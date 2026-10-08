@@ -44,8 +44,8 @@ export default function AdminLayout({
           setClinic({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() })
         } else if (slug === 'demo') {
           setClinic({
-            clinicName: 'عيادة د. محمد علي التخصصية',
-            doctorName: 'محمد علي',
+            clinicName: 'العيادة التخصصية',
+            doctorName: 'الطبيب',
             specialty: 'استشاري الطب الباطني',
             primaryColor: '#15B8A6',
             aiEnabled: true,

@@ -33,7 +33,29 @@ export function BookingForm({
   const [name, setName] = useState(defaultName)
   const [phone, setPhone] = useState(defaultPhone)
   const [age, setAge] = useState('')
+  const [dob, setDob] = useState('')
   
+  const handleAgeChange = (val: string) => {
+    setAge(val)
+    if (val) {
+      const year = new Date().getFullYear() - parseInt(val)
+      setDob(year + '-01-01')
+    } else {
+      setDob('')
+    }
+  }
+
+  const handleDobChange = (val: string) => {
+    setDob(val)
+    if (val) {
+      const birthYear = new Date(val).getFullYear()
+      const currentYear = new Date().getFullYear()
+      setAge((currentYear - birthYear).toString())
+    } else {
+      setAge('')
+    }
+  }
+
   // Available services fallback
   const availableServices = services.length > 0 ? services : [
     { id: '1', name: 'كشف عادي', price: 250, desc: 'كشف طبي عام شامل', duration: 'حوالي 15 دقيقة' },
@@ -95,7 +117,7 @@ export function BookingForm({
         clinic_id: clinic.id || clinic.slug,
         patientName: name,
         phone,
-        age: age || null,
+        age: age || null, dob: dob || null,
         serviceId: selectedService.id,
         serviceName: selectedService.name,
         servicePrice: selectedService.price || 0,
@@ -104,7 +126,7 @@ export function BookingForm({
         queue_number: myQueueNumber,
         status: 'waiting',
         paymentMethod,
-        paymentStatus: paymentMethod === 'cash' ? 'pending' : 'paid',
+        paymentStatus: 'pending',
         transferNumber: paymentMethod !== 'cash' ? transferNumber : '',
         createdAt: new Date().toISOString()
       }

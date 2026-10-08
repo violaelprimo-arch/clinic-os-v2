@@ -17,6 +17,7 @@ import { collection, addDoc, query, where, getDocs, doc, updateDoc, onSnapshot }
 import { useSearchParams } from 'next/navigation'
 import { EGYPTIAN_DRUGS, STRUCTURED_DRUGS } from '@/lib/egyptian-drugs'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
+import { A4Prescription } from '@/components/clinic/A4Prescription'
 
 export default function PrescriptionsPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -77,8 +78,8 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
         } else if (slug === 'demo') {
           setClinic({
             id: 'demo',
-            clinicName: 'عيادة د. محمد علي التخصصية',
-            doctorName: 'محمد علي',
+            clinicName: 'العيادة التخصصية',
+            doctorName: 'الطبيب',
             specialty: 'استشاري الطب الباطني والجهاز الهضمي',
             clinicAddress: 'شارع التسعين الشمالي، التجمع الخامس، القاهرة',
             clinicPhone: '01012345678'
@@ -146,7 +147,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       .join('\n')
 
     const message = encodeURIComponent(
-      `الروشتة الطبية الإلكترونية 📋\nالعيادة: ${clinic?.clinicName || 'عيادة د. محمد علي'}\nالمريض: ${patientName}\nالتاريخ: ${dateStr}\n\nالعلاج المطلوب:\n${drugsList}\n\nنتمنى لك الشفاء العاجل!`
+      `الروشتة الطبية الإلكترونية 📋\nالعيادة: ${clinic?.clinicName || 'العيادة'}\nالمريض: ${patientName}\nالتاريخ: ${dateStr}\n\nالعلاج المطلوب:\n${drugsList}\n\nنتمنى لك الشفاء العاجل!`
     )
     window.open(`https://wa.me/${formattedPhone}?text=${message}`, '_blank')
   }
@@ -243,7 +244,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                 <Input
                   value={patientName}
                   onChange={e => setPatientName(e.target.value)}
-                  placeholder="محمد محمود"
+                  placeholder="المريض"
                   className="h-10 text-xs rounded-xl"
                 />
               </div>
@@ -474,7 +475,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                 <div className="flex items-start justify-between border-b-2 border-slate-900 pb-4">
                   <div>
                     <h2 className="text-xl font-black text-[#182230]">
-                      {clinic?.doctorName ? `د. ${clinic.doctorName}` : 'د. محمد علي'}
+                      {clinic?.doctorName ? `د. ${clinic.doctorName}` : 'د. الطبيب'}
                     </h2>
                     <p className="text-xs font-bold text-[#15B8A6] mt-0.5">
                       {clinic?.specialty || 'استشاري الطب الباطني والجهاز الهضمي'}
@@ -566,7 +567,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                   {/* Signature Simulation Line */}
                   <div className="text-center">
                     <div className="w-28 border-b-2 border-slate-400 pb-1 italic font-serif text-slate-500 text-xs">
-                      {clinic?.doctorName ? `د. ${clinic.doctorName}` : 'د. محمد علي'}
+                      {clinic?.doctorName ? `د. ${clinic.doctorName}` : 'د. الطبيب'}
                     </div>
                     <span className="text-[9px] text-slate-400 font-bold">توقيع وختم الطبيب</span>
                   </div>
