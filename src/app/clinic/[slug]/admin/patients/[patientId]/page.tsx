@@ -209,7 +209,7 @@ export default function PatientProfilePage({ params }: { params: Promise<{ slug:
                           </div>
                         ) : (
                           <div className="bg-white p-4 rounded-xl border border-[#E5EAF0] text-sm text-slate-700 min-h-[60px]">
-                            {appt.diagnosis || <span className="text-slate-400 italic">لا يوجد تشخيص مسجل لهذه الزيارة.</span>}
+                            {appt.diagnosis ? appt.diagnosis : <span className="text-slate-400 italic">لا يوجد تشخيص مسجل لهذه الزيارة.</span>}
                           </div>
                         )}
                       </div>

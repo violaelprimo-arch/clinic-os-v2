@@ -63,6 +63,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
   const itemsPerPage = 8
 
   useEffect(() => {
+    let unsubAppts: any = null;
     const fetchPatients = async () => {
       try {
         const clinicQ = query(collection(db, 'clinics'), where('slug', '==', slug))
@@ -71,46 +72,44 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
         const cId = clinicSnap.docs[0].id
         setClinicId(cId)
 
-        // Fetch all appointments for this clinic
         const apptQ = query(collection(db, 'appointments'), where('clinic_id', '==', cId))
-        const apptSnap = await getDocs(apptQ)
-        
-        // Group by phone number
-        const patientMap = new Map()
-        apptSnap.docs.forEach(doc => {
-          const data = doc.data()
-          if (!data.phone) return
-          if (!patientMap.has(data.phone)) {
-            patientMap.set(data.phone, {
-              id: data.phone,
-              name: data.patientName,
-              phone: data.phone,
-              visitsCount: 1,
-              lastVisit: data.date,
-              lastService: data.serviceName || 'كشف',
-              status: data.visitsCount > 3 ? 'نشط' : (data.serviceName?.includes('مستعجل') ? 'مستعجل' : 'نشط')
-            })
-          } else {
-            const existing = patientMap.get(data.phone)
-            existing.visitsCount += 1
-            if (new Date(data.date) > new Date(existing.lastVisit)) {
-              existing.lastVisit = data.date
-              existing.lastService = data.serviceName || 'كشف'
+        unsubAppts = onSnapshot(apptQ, (apptSnap) => {
+          const pMap = new Map()
+          apptSnap.docs.forEach(doc => {
+            const d = doc.data()
+            if (!d.phone) return
+            if (!pMap.has(d.phone)) {
+              pMap.set(d.phone, {
+                id: d.phone,
+                name: d.patientName,
+                phone: d.phone,
+                visitsCount: 1,
+                lastVisit: d.date,
+                lastService: d.serviceName || 'كشف',
+                status: 'نشط'
+              })
+            } else {
+              const existing = pMap.get(d.phone)
+              existing.visitsCount += 1
+              if (new Date(d.date) > new Date(existing.lastVisit)) {
+                existing.lastVisit = d.date
+                existing.name = d.patientName
+              }
             }
-          }
+          })
+          setPatients(Array.from(pMap.values()).sort((a: any, b: any) => new Date(b.lastVisit).getTime() - new Date(a.lastVisit).getTime()))
+          setLoading(false)
         })
-
-                  ]
-        }
-
-        setPatients(loadedPatients.sort((a, b) => new Date(b.lastVisit).getTime() - new Date(a.lastVisit).getTime()))
-      } catch (err) {
-        console.error(err)
-      } finally {
+      } catch (error) {
+        console.error("Error fetching patients:", error)
         setLoading(false)
       }
     }
     fetchPatients()
+
+    return () => {
+      if (unsubAppts) unsubAppts()
+    }
   }, [slug])
 
   const filtered = useMemo(() => {
