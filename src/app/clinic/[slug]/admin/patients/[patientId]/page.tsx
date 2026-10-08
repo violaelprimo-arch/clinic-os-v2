@@ -76,7 +76,7 @@ export default function PatientProfilePage({ params }: { params: Promise<{ slug:
     <div className="max-w-5xl mx-auto space-y-6" dir="rtl">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Link href={\`/clinic/\${slug}/admin/patients\`}>
+        <Link href={`/clinic/${slug}/admin/patients`}>
           <Button variant="outline" size="icon" className="h-10 w-10 rounded-xl border-[#E5EAF0]">
             <ArrowRight className="w-5 h-5 text-slate-600" />
           </Button>
@@ -106,7 +106,7 @@ export default function PatientProfilePage({ params }: { params: Promise<{ slug:
                     {(patientData.age || patientData.dob) && (
                       <span className="flex items-center gap-1.5 text-sm font-bold text-slate-600">
                         <Calendar className="w-4 h-4 text-slate-400" />
-                        <span>{patientData.age ? \`\${patientData.age} سنة\` : patientData.dob}</span>
+                        <span>{patientData.age ? `${patientData.age} سنة` : patientData.dob}</span>
                       </span>
                     )}
                   </div>
@@ -147,7 +147,7 @@ export default function PatientProfilePage({ params }: { params: Promise<{ slug:
               const isExpanded = expandedVisitId === appt.id;
               
               return (
-                <div key={appt.id} className={\`bg-white border rounded-2xl transition-all duration-300 \${isExpanded ? 'border-[#15B8A6] shadow-md' : 'border-[#E5EAF0] hover:border-slate-300'}\`}>
+                <div key={appt.id} className={`bg-white border rounded-2xl transition-all duration-300 ${isExpanded ? 'border-[#15B8A6] shadow-md' : 'border-[#E5EAF0] hover:border-slate-300'}`}>
                   
                   {/* Visit Header (Clickable) */}
                   <div 
@@ -155,7 +155,7 @@ export default function PatientProfilePage({ params }: { params: Promise<{ slug:
                     className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer"
                   >
                     <div className="flex items-center gap-4">
-                      <div className={\`w-12 h-12 rounded-xl flex items-center justify-center font-black transition-colors \${isExpanded ? 'bg-[#15B8A6] text-white' : 'bg-slate-50 text-slate-600'}\`}>
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black transition-colors ${isExpanded ? 'bg-[#15B8A6] text-white' : 'bg-slate-50 text-slate-600'}`}>
                         #{appointments.length - idx}
                       </div>
                       <div>
@@ -222,7 +222,7 @@ export default function PatientProfilePage({ params }: { params: Promise<{ slug:
                             الروشتة الدوائية
                           </h5>
                           <div className="flex items-center gap-2">
-                            <Link href={\`/clinic/\${slug}/admin/prescriptions?appointmentId=\${appt.id}&phone=\${phone}\`}>
+                            <Link href={`/clinic/${slug}/admin/prescriptions?appointmentId=${appt.id}&phone=${phone}`}>
                               <Button variant="outline" size="sm" className="h-8 text-xs font-bold border-indigo-200 text-indigo-700 hover:bg-indigo-50">
                                 {appt.drugs ? 'تعديل الروشتة' : 'كتابة روشتة جديدة'}
                               </Button>
