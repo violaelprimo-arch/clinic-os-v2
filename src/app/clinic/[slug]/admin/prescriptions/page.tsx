@@ -523,10 +523,10 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                 </div>
               )}
 
-              {/* The Iconic R/ Symbol */}
-              <div className="pt-4 pb-2">
+              {/* The Iconic Rx/ Symbol */}
+              <div className="pt-4 pb-2 text-left" dir="ltr">
                 <span className="text-3xl font-black font-serif text-[#182230] tracking-wider select-none">
-                  R/
+                  Rx/
                 </span>
               </div>
 
