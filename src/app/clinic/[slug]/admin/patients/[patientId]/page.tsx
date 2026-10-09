@@ -4,17 +4,40 @@ import { use, useEffect, useState } from 'react'
 import { db } from '@/lib/firebase'
 import { collection, query, where, getDocs, updateDoc, doc, onSnapshot } from 'firebase/firestore'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Clock, Phone, ArrowRight, User, Calendar, Pill, DollarSign, Printer, Activity, ChevronDown, ChevronUp, Stethoscope, CheckCircle, Save } from 'lucide-react'
+import { Clock, Phone, ArrowRight, User, Calendar, Pill, DollarSign, Printer, Activity, ChevronDown, ChevronUp, Stethoscope, CheckCircle, Save, MessageCircle, FileText } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
 
-export default function PatientProfilePage({ params }: { params: Promise<{ slug: string, patientId: string }> }) {
+export default function PatientProfilePage({
+ params }: { params: Promise<{ slug: string, patientId: string }> }) {
   const resolvedParams = use(params)
   const { slug, patientId } = resolvedParams
+
+  const handlePrint = () => {
+    window.print()
+  }
+
+  const sendWhatsAppRx = (appt: any) => {
+    if (!phone) return toast.error('يرجى إدخال رقم هاتف المريض')
+    let formattedPhone = phone.replace(/[^0-9]/g, '')
+    if (formattedPhone.startsWith('0')) formattedPhone = '2' + formattedPhone
+
+    const drugsList = appt.drugs
+      .filter((d: any) => d.name)
+      .map((d: any, i: number) => `${i + 1}. ${d.name} (${d.dosage} - ${d.duration})`)
+      .join('\n')
+
+    const message = encodeURIComponent(
+      `الروشتة الطبية الإلكترونية 📋\nالعيادة: ${clinic?.clinicName || 'العيادة'}\nالمريض: ${patientData?.name}\nالتاريخ: ${appt.date}\n\nالعلاج المطلوب:\n${drugsList}\n\nنتمنى لك الشفاء العاجل!`
+    )
+    window.open(`https://wa.me/${formattedPhone}?text=${message}`, '_blank')
+  }
+
   const phone = decodeURIComponent(patientId)
 
   const [appointments, setAppointments] = useState<any[]>([])
@@ -222,7 +245,7 @@ export default function PatientProfilePage({ params }: { params: Promise<{ slug:
                             الروشتة الدوائية
                           </h5>
                           <div className="flex items-center gap-2">
-                            <Link href={`/clinic/${slug}/admin/prescriptions?appointmentId=${appt.id}&phone=${phone}`}>
+                            <Link href={`/clinic/${slug}/admin/prescriptions?appointmentId=${appt.id}&phone=${phone}&patientName=${patientData?.name}&age=${patientData?.age || patientData?.dob}`}>
                               <Button variant="outline" size="sm" className="h-8 text-xs font-bold border-indigo-200 text-indigo-700 hover:bg-indigo-50">
                                 {appt.drugs ? 'تعديل الروشتة' : 'كتابة روشتة جديدة'}
                               </Button>
@@ -231,18 +254,46 @@ export default function PatientProfilePage({ params }: { params: Promise<{ slug:
                         </div>
 
                         {appt.drugs && appt.drugs.length > 0 ? (
-                          <div className="bg-white rounded-xl border border-indigo-100 overflow-hidden p-4">
-                            <A4Prescription 
-                              clinic={clinic}
-                              patientName={patientData.name}
-                              age={patientData.age || patientData.dob}
-                              date={appt.date}
-                              diagnosis={appt.diagnosis}
-                              drugs={appt.drugs}
-                              templateMode={clinic?.prescriptionTemplateUrl ? 'custom' : 'standard'}
-                              topOffset={180}
-                            />
-                          </div>
+                          <Dialog>
+                            <DialogTrigger>
+                              <Button variant="outline" className="w-full h-12 bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100">
+                                <FileText className="w-4 h-4 ml-2" />
+                                عرض الروشتة وإرسالها
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                              <DialogHeader className="print:hidden">
+                                <DialogTitle>الروشتة الطبية - {appt.date}</DialogTitle>
+                              </DialogHeader>
+                              <div className="flex flex-wrap gap-2 mb-4 print:hidden">
+                                <Button onClick={handlePrint} className="bg-[#15B8A6] hover:bg-[#0D9488] text-white">
+                                  <Printer className="w-4 h-4 ml-2" />
+                                  طباعة الروشتة
+                                </Button>
+                                <Button onClick={() => sendWhatsAppRx(appt)} className="bg-[#25D366] hover:bg-[#128C7E] text-white">
+                                  <MessageCircle className="w-4 h-4 ml-2" />
+                                  إرسال واتساب
+                                </Button>
+                                <Link href={`/clinic/${slug}/admin/prescriptions?appointmentId=${appt.id}&phone=${phone}&patientName=${patientData.name}&age=${patientData.age || patientData.dob}`}>
+                                  <Button variant="outline">
+                                    تعديل الروشتة
+                                  </Button>
+                                </Link>
+                              </div>
+                              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden print:border-0 print:m-0">
+                                <A4Prescription 
+                                  clinic={clinic}
+                                  patientName={patientData.name}
+                                  age={patientData.age || patientData.dob}
+                                  date={appt.date}
+                                  diagnosis={appt.diagnosis}
+                                  drugs={appt.drugs}
+                                  templateMode={clinic?.prescriptionTemplateUrl ? 'custom' : 'standard'}
+                                  topOffset={180}
+                                />
+                              </div>
+                            </DialogContent>
+                          </Dialog>
                         ) : (
                           <div className="bg-white p-4 rounded-xl border border-[#E5EAF0] text-sm text-slate-400 italic">
                             لم يتم صرف روشتة لهذه الزيارة.

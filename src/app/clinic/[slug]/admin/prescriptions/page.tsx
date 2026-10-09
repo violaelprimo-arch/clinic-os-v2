@@ -25,9 +25,9 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const searchParams = useSearchParams()
 
   const [patientName, setPatientName] = useState(searchParams?.get('patientName') || '')
-  const [patientPhone, setPatientPhone] = useState(searchParams?.get('patientPhone') || '')
+  const [patientPhone, setPatientPhone] = useState(searchParams?.get('phone') || searchParams?.get('patientPhone') || '')
   const [diagnosis, setDiagnosis] = useState('')
-  const [age, setAge] = useState('28')
+  const [age, setAge] = useState(searchParams?.get('age') || '')
 
   const [drugs, setDrugs] = useState<any[]>([
     { id: 1, name: searchParams?.get('drug') || '', dosage: '', duration: '' }
