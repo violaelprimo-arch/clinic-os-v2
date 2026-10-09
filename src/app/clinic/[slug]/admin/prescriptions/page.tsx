@@ -30,8 +30,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const [age, setAge] = useState('28')
 
   const [drugs, setDrugs] = useState<any[]>([
-    { id: 1, name: searchParams?.get('drug') || 'Augmentin 1g', dosage: 'قرص كل 12 ساعة', duration: 'لمدة 5 أيام' },
-    { id: 2, name: 'Catafast 50 mg', dosage: 'كيس عند اللزوم', duration: 'بعد الأكل' }
+    { id: 1, name: searchParams?.get('drug') || '', dosage: '', duration: '' }
   ])
 
   const [drugSearch, setDrugSearch] = useState('')
@@ -287,7 +286,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             <div className="flex items-center justify-between pb-3 border-b border-[#E5EAF0]">
               <h3 className="font-bold text-sm text-[#182230] flex items-center gap-2">
                 <FileText className="w-4 h-4 text-[#15B8A6]" />
-                الأدوية والجرعات (Rx)
+                الأدوية والجرعات (R)
               </h3>
               <Button
                 size="sm"
@@ -365,7 +364,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                       <Input
                         value={drug.name}
                         onChange={e => updateDrug(drug.id, 'name', e.target.value)}
-                        placeholder="اسم الدواء (مثال: Augmentin 1g)"
+                        placeholder="اسم الدواء"
                         className="h-9 text-xs rounded-lg bg-white"
                       />
                     </div>
