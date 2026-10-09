@@ -1,42 +1,13 @@
-'use client'
+const fs = require('fs');
+let c = fs.readFileSync('src/hooks/useEgyptianDrugs.ts', 'utf8');
 
-import { useState, useEffect } from 'react'
+const importStr = `import { useState, useEffect } from 'react'
 import { db } from '@/lib/firebase'
-import { collection, getDocs } from 'firebase/firestore'
+import { collection, getDocs } from 'firebase/firestore'`;
 
-export interface EgyptianDrug {
-  commercial_name_en: string
-  commercial_name_ar: string
-  scientific_name: string
-  manufacturer: string
-  drug_class: string
-  route: string
-  price_egp: number
-}
+c = c.replace(`import { useState, useEffect } from 'react'`, importStr);
 
-// Global cache outside the hook so it persists across component mounts
-let cachedDrugs: EgyptianDrug[] | null = null
-let fetchPromise: Promise<EgyptianDrug[]> | null = null
-
-export function useEgyptianDrugs() {
-  const [drugs, setDrugs] = useState<EgyptianDrug[]>([])
-  const [loading, setLoading] = useState<boolean>(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let isMounted = true
-
-    const loadDrugs = async () => {
-      if (cachedDrugs) {
-        if (isMounted) {
-          setDrugs(cachedDrugs)
-          setLoading(false)
-        }
-        return
-      }
-
-      if (!fetchPromise) {
-        fetchPromise = Promise.all([
+const fetchLogic = `fetchPromise = Promise.all([
           fetch('https://raw.githubusercontent.com/karem505/egyptian-drug-database/main/data/egyptian-drugs.json').then(res => res.json()),
           getDocs(collection(db, 'market_prices')).then(snap => snap.docs.map(d => d.data())).catch(() => [])
         ]).then(([staticData, liveMarketData]) => {
@@ -76,38 +47,8 @@ export function useEgyptianDrugs() {
           console.error(err);
           fetchPromise = null;
           throw err;
-        })
-          .then((data: EgyptianDrug[]) => {
-            cachedDrugs = data
-            return data
-          })
-          .catch(err => {
-            console.error(err)
-            fetchPromise = null // Reset so we can try again
-            throw err
-          })
-      }
+        })`;
 
-      try {
-        const data = await fetchPromise
-        if (isMounted) {
-          setDrugs(data)
-          setLoading(false)
-        }
-      } catch (err: any) {
-        if (isMounted) {
-          setError(err.message)
-          setLoading(false)
-        }
-      }
-    }
+c = c.replace(/fetchPromise = fetch\([\s\S]*?\}\)/, fetchLogic);
 
-    loadDrugs()
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
-
-  return { drugs, loading, error }
-}
+fs.writeFileSync('src/hooks/useEgyptianDrugs.ts', c);
