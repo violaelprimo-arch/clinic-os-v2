@@ -108,19 +108,16 @@ export function BookingForm({
   const handleBooking = async () => {
     setIsBooking(true)
     try {
-      const q = query(
-        collection(db, 'appointments'),
-        where('clinic_id', '==', clinic.id || clinic.slug),
-        where('date', '==', selectedDate)
-      )
+      const q = query(collection(db, 'appointments'), where('clinic_id', '==', clinic.id || clinic.slug))
 
       const querySnapshot = await getDocs(q)
-      const currentQueueLength = querySnapshot.size
+      const todaysAppts = querySnapshot.docs.filter(d => d.data().date === selectedDate)
+      const currentQueueLength = todaysAppts.length
       const myQueueNumber = currentQueueLength + 1
 
       // Count waiting ahead
       let waitingCount = 0
-      querySnapshot.docs.forEach(docSnap => {
+      todaysAppts.forEach(docSnap => {
         if (docSnap.data().status === 'waiting') waitingCount++
       })
 

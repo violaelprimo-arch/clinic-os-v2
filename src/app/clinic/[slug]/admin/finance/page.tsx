@@ -53,11 +53,15 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
 
       const q = query(
         collection(db, 'appointments'),
-        where('clinic_id', '==', cId),
-        where('date', '>=', fromDate),
-        where('date', '<=', toDate)
+        where('clinic_id', '==', cId)
       )
       const snapshot = await getDocs(q)
+      
+      const allAppts = snapshot.docs.filter(d => {
+        const date = d.data().date;
+        if (!date) return false;
+        return date >= fromDate && date <= toDate;
+      })
 
       let rev = 0
       let csh = 0
@@ -69,7 +73,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
       let servicesMap: any = {}
       let daysMap: any = { 'Saturday': 0, 'Sunday': 0, 'Monday': 0, 'Tuesday': 0, 'Wednesday': 0, 'Thursday': 0, 'Friday': 0 }
       
-      const appts = snapshot.docs.map(d => {
+      const appts = allAppts.map(d => {
         const data = d.data()
         const price = Number(data.servicePrice) || 0
         
@@ -142,6 +146,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
       ])
       toast.success('تم تحديث التقرير المالي بنجاح')
     } catch (err) {
+      console.error(err)
       toast.error('حدث خطأ أثناء تحميل التقرير')
     } finally {
       setIsLoading(false)
