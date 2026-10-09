@@ -16,6 +16,7 @@ import { db } from '@/lib/firebase'
 import { collection, addDoc, query, where, getDocs, doc, updateDoc, onSnapshot } from 'firebase/firestore'
 import { useSearchParams } from 'next/navigation'
 import { EGYPTIAN_DRUGS, STRUCTURED_DRUGS } from '@/lib/egyptian-drugs'
+import { useEgyptianDrugs } from '@/hooks/useEgyptianDrugs'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
 
@@ -29,6 +30,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const [diagnosis, setDiagnosis] = useState('')
   const [age, setAge] = useState(searchParams?.get('age') || '')
 
+  const { drugs: apiDrugs, loading: apiDrugsLoading } = useEgyptianDrugs()
   const [drugs, setDrugs] = useState<any[]>([
     { id: 1, name: searchParams?.get('drug') || '', dosage: '', duration: '' }
   ])
