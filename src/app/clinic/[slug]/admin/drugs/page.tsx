@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
   Search, Pill, Star, Filter, Plus, FileSignature,
-  Building2, Sparkles, Check, ChevronLeft, ChevronRight
+  Building2, Sparkles, Check, ChevronLeft, ChevronRight, CloudDownload, RefreshCw
 } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -24,6 +24,44 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
   const [drugs, setDrugs] = useState<DrugItem[]>(STRUCTURED_DRUGS)
   const [favoriteList, setFavoriteList] = useState<string[]>([])
   const [clinicId, setClinicId] = useState<string | null>(null)
+  
+  const [isUpdating, setIsUpdating] = useState(false)
+
+  const handleUpdateFromAPI = async () => {
+    setIsUpdating(true)
+    const tid = toast.loading('جاري استيراد وتحديث قاعدة بيانات الأدوية من السيرفر المركزي...')
+    try {
+      const res = await fetch('https://raw.githubusercontent.com/karem505/egyptian-drug-database/main/data/egyptian-drugs.json')
+      if (!res.ok) throw new Error('فشل الاتصال بقاعدة البيانات')
+      const data = await res.json()
+      
+      const mappedDrugs = data.map((d: any) => ({
+        id: Math.random().toString(36).substr(2, 9),
+        name: d.commercial_name_en || d.commercial_name_ar,
+        activeIngredient: d.scientific_name || 'غير محدد',
+        company: d.manufacturer || 'مجهول',
+        form: d.route === 'ORAL' ? 'أقراص' : d.route === 'INJECTION' || d.route === 'INTRAMUSCULAR' || d.route === 'INTRAVENOUS' ? 'حقن' : 'أخرى',
+        price: d.price_egp || 0
+      }))
+
+      const newDrugs = [...drugs]
+      let added = 0
+      mappedDrugs.forEach((md: any) => {
+        if (!newDrugs.find(nd => nd.name.toLowerCase() === md.name.toLowerCase())) {
+          newDrugs.push(md)
+          added++
+        }
+      })
+      
+      setDrugs(newDrugs)
+      toast.success(`تم التحديث بنجاح! تم إضافة ${added} صنف دوائي جديد للقاعدة.`, { id: tid })
+    } catch (e: any) {
+      toast.error(e.message || 'حدث خطأ أثناء التحديث', { id: tid })
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
   const [search, setSearch] = useState('')
   const [companyFilter, setCompanyFilter] = useState('ALL')
   const [formFilter, setFormFilter] = useState('ALL')
@@ -165,7 +203,16 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
         </div>
 
         {/* Add Custom Drug Dialog */}
-        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+        <div className="flex gap-2">
+          <Button 
+            onClick={handleUpdateFromAPI} 
+            disabled={isUpdating}
+            className="h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-md shadow-indigo-500/20"
+          >
+            {isUpdating ? <RefreshCw className="w-4 h-4 ml-1.5 animate-spin" /> : <CloudDownload className="w-4 h-4 ml-1.5" />}
+            تحديث الأدوية
+          </Button>
+          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
           <DialogTrigger className="h-10 px-4 bg-[#15B8A6] hover:bg-[#0D9488] text-white font-bold rounded-xl text-xs shadow-md shadow-[#15B8A6]/20 inline-flex items-center justify-center cursor-pointer">
             <Plus className="w-4 h-4 ml-1.5" />
             إضافة دواء جديد
@@ -254,6 +301,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* 2. Search & Multi-Filters Bar (Matching Mockup) */}
