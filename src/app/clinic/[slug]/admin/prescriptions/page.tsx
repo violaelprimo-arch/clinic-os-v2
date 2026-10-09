@@ -15,7 +15,7 @@ import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
 import { collection, addDoc, query, where, getDocs, doc, updateDoc, onSnapshot } from 'firebase/firestore'
 import { useSearchParams } from 'next/navigation'
-import { EGYPTIAN_DRUGS, STRUCTURED_DRUGS } from '@/lib/egyptian-drugs'
+import { EGYPTIAN_DRUGS } from '@/lib/egyptian-drugs'
 import { useEgyptianDrugs } from '@/hooks/useEgyptianDrugs'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
@@ -157,7 +157,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const filteredSearchDrugs = useMemo(() => {
     if (!drugSearch.trim()) return []
     const queryTerm = drugSearch.toLowerCase()
-    return EGYPTIAN_DRUGS.filter(d => d.toLowerCase().includes(queryTerm)).slice(0, 8)
+    return Array.from(new Set([...EGYPTIAN_DRUGS, ...apiDrugs.map(a => a.commercial_name_en || a.commercial_name_ar)])).filter(d => d.toLowerCase().includes(queryTerm)).slice(0, 8)
   }, [drugSearch])
 
   return (

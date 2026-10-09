@@ -7,13 +7,14 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
   Search, Pill, Star, Filter, Plus, FileSignature,
-  Building2, Sparkles, Check, ChevronLeft, ChevronRight, CloudDownload, RefreshCw
+  Building2, Sparkles, Check, ChevronLeft, ChevronRight, CloudDownload, RefreshCw, Loader2
 } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
 import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore'
-import { STRUCTURED_DRUGS, DrugItem } from '@/lib/egyptian-drugs'
+import { DrugItem } from '@/lib/egyptian-drugs'
+import { useEgyptianDrugs } from '@/hooks/useEgyptianDrugs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 
@@ -21,154 +22,117 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
 
-  const [drugs, setDrugs] = useState<DrugItem[]>(STRUCTURED_DRUGS)
+  // Load massive DB + daily updates instantly using our global hook
+  const { drugs: apiDrugs, loading: isApiLoading } = useEgyptianDrugs()
+  
+  // Local custom drugs if the clinic adds manual entries
+  const [customDrugs, setCustomDrugs] = useState<DrugItem[]>([])
+
   const [favoriteList, setFavoriteList] = useState<string[]>([])
   const [clinicId, setClinicId] = useState<string | null>(null)
   
-  const [isUpdating, setIsUpdating] = useState(false)
-
-  const handleUpdateFromAPI = async () => {
-    setIsUpdating(true)
-    const tid = toast.loading('جاري استيراد وتحديث قاعدة بيانات الأدوية من السيرفر المركزي...')
-    try {
-      const res = await fetch('https://raw.githubusercontent.com/karem505/egyptian-drug-database/main/data/egyptian-drugs.json')
-      if (!res.ok) throw new Error('فشل الاتصال بقاعدة البيانات')
-      const data = await res.json()
-      
-      const mappedDrugs = data.map((d: any) => ({
-        id: Math.random().toString(36).substr(2, 9),
-        name: d.commercial_name_en || d.commercial_name_ar,
-        activeIngredient: d.scientific_name || 'غير محدد',
-        company: d.manufacturer || 'مجهول',
-        form: d.route === 'ORAL' ? 'أقراص' : d.route === 'INJECTION' || d.route === 'INTRAMUSCULAR' || d.route === 'INTRAVENOUS' ? 'حقن' : 'أخرى',
-        price: d.price_egp || 0
-      }))
-
-      const newDrugs = [...drugs]
-      let added = 0
-      mappedDrugs.forEach((md: any) => {
-        if (!newDrugs.find(nd => nd.name.toLowerCase() === md.name.toLowerCase())) {
-          newDrugs.push(md)
-          added++
-        }
-      })
-      
-      setDrugs(newDrugs)
-      toast.success(`تم التحديث بنجاح! تم إضافة ${added} صنف دوائي جديد للقاعدة.`, { id: tid })
-    } catch (e: any) {
-      toast.error(e.message || 'حدث خطأ أثناء التحديث', { id: tid })
-    } finally {
-      setIsUpdating(false)
-    }
-  }
-
   const [search, setSearch] = useState('')
   const [companyFilter, setCompanyFilter] = useState('ALL')
   const [formFilter, setFormFilter] = useState('ALL')
-
-  // Add Custom Drug modal
-  const [isAddOpen, setIsAddOpen] = useState(false)
-  const [newDrugName, setNewDrugName] = useState('')
-  const [newActiveIngredient, setNewActiveIngredient] = useState('')
-  const [newCompany, setNewCompany] = useState('')
-  const [newForm, setNewForm] = useState<any>('أقراص')
-  const [newPrice, setNewPrice] = useState<number>(50)
-
-  // Pagination
+  
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 8
 
+  // New Drug State
+  const [isAddOpen, setIsAddOpen] = useState(false)
+  const [newDrug, setNewDrug] = useState<Partial<DrugItem>>({
+    name: '', activeIngredient: '', company: '', form: 'أقراص', price: 0
+  })
+
+  // 1. Fetch clinic favorites
   useEffect(() => {
-    const fetchClinic = async () => {
+    const fetchClinicSettings = async () => {
       try {
         const q = query(collection(db, 'clinics'), where('slug', '==', slug))
-        const snapshot = await getDocs(q)
-        if (!snapshot.empty) {
-          const cDoc = snapshot.docs[0]
-          setClinicId(cDoc.id)
-          const data = cDoc.data()
-          if (data.favoriteDrugs) {
-            setFavoriteList(data.favoriteDrugs)
-          } else {
-            const defaults = STRUCTURED_DRUGS.filter(d => d.isFavorite).map(d => d.name)
-            setFavoriteList(defaults)
-          }
-          if (data.customDrugsRecords) {
-            setDrugs([...data.customDrugsRecords, ...STRUCTURED_DRUGS])
+        const snap = await getDocs(q)
+        if (!snap.empty) {
+          const cId = snap.docs[0].id
+          setClinicId(cId)
+          const data = snap.docs[0].data()
+          if (data.favorite_drugs) {
+            setFavoriteList(data.favorite_drugs)
           }
         }
       } catch (err) {
         console.error(err)
       }
     }
-    fetchClinic()
+    fetchClinicSettings()
   }, [slug])
 
+  // Merge the massive API db with the custom clinic drugs
+  const allDrugs = useMemo(() => {
+    // Map API drugs to our DrugItem UI format
+    const mappedApi: DrugItem[] = apiDrugs.map((api, idx) => ({
+      id: `api-${idx}`,
+      name: api.commercial_name_en || api.commercial_name_ar,
+      activeIngredient: api.scientific_name || 'غير متوفر',
+      company: api.manufacturer || 'غير محددة',
+      form: (api.route || 'غير محدد') as any,
+      price: api.price_egp || 0,
+      isFavorite: false
+    }))
+    
+    return [...mappedApi, ...customDrugs]
+  }, [apiDrugs, customDrugs])
+
   const toggleFavorite = async (drugName: string) => {
-    let newFavs = [...favoriteList]
-    if (newFavs.includes(drugName)) {
-      newFavs = newFavs.filter(d => d !== drugName)
-      toast.info(`تمت إزالة ${drugName} من المفضلة`)
-    } else {
-      newFavs.push(drugName)
-      toast.success(`تمت إضافة ${drugName} إلى المفضلة`)
-    }
-    setFavoriteList(newFavs)
-
-    if (clinicId) {
-      try {
-        await updateDoc(doc(db, 'clinics', clinicId), { favoriteDrugs: newFavs })
-      } catch (err) {
-        console.error(err)
-      }
+    if (!clinicId) return
+    const isFav = favoriteList.includes(drugName)
+    const newList = isFav
+      ? favoriteList.filter(d => d !== drugName)
+      : [...favoriteList, drugName]
+    
+    setFavoriteList(newList)
+    try {
+      await updateDoc(doc(db, 'clinics', clinicId), {
+        favorite_drugs: newList
+      })
+      toast.success(isFav ? 'تم الإزالة من المفضلة' : 'تمت الإضافة للمفضلة')
+    } catch (err) {
+      toast.error('حدث خطأ أثناء حفظ المفضلة')
+      setFavoriteList(favoriteList) // Revert
     }
   }
 
-  const handleAddCustomDrug = async (e: React.FormEvent) => {
+  const handleAddDrug = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newDrugName.trim()) return toast.error('يرجى إدخال اسم الدواء')
-
-    const newDrug: DrugItem = {
-      id: String(Date.now()),
-      name: newDrugName,
-      activeIngredient: newActiveIngredient || 'غير محدد',
-      company: newCompany || 'محلي',
-      form: newForm,
-      price: Number(newPrice) || 0,
-      isFavorite: true
+    if (!newDrug.name || !newDrug.price) {
+      toast.error('برجاء إدخال اسم الدواء والسعر')
+      return
+    }
+    
+    const drug: DrugItem = {
+      id: Math.random().toString(),
+      name: newDrug.name,
+      activeIngredient: newDrug.activeIngredient || 'غير متوفر',
+      company: newDrug.company || 'مخصصة',
+      form: newDrug.form as any || 'أقراص',
+      price: Number(newDrug.price),
+      isFavorite: false
     }
 
-    const updated = [newDrug, ...drugs]
-    setDrugs(updated)
-    setFavoriteList(prev => [...prev, newDrugName])
+    setCustomDrugs([...customDrugs, drug])
     setIsAddOpen(false)
-    setNewDrugName('')
-    setNewActiveIngredient('')
-    setNewCompany('')
-
-    if (clinicId) {
-      try {
-        await updateDoc(doc(db, 'clinics', clinicId), {
-          customDrugsRecords: updated.filter(d => Number(d.id) > 100)
-        })
-        toast.success('تمت إضافة الدواء لقاعدة بيانات العيادة بنجاح')
-      } catch (err) {
-        toast.error('حدث خطأ أثناء الحفظ')
-      }
-    }
+    setNewDrug({ name: '', activeIngredient: '', company: '', form: 'أقراص', price: 0 })
+    toast.success('تمت إضافة الدواء بنجاح لقاعدة بيانات العيادة المحلية')
   }
 
-  // Filter options
   const companies = useMemo(() => {
-    return Array.from(new Set(drugs.map(d => d.company))).filter(Boolean)
-  }, [drugs])
+    return Array.from(new Set(allDrugs.map(d => d.company))).filter(Boolean)
+  }, [allDrugs])
 
   const forms = useMemo(() => {
-    return Array.from(new Set(drugs.map(d => d.form))).filter(Boolean)
-  }, [drugs])
+    return Array.from(new Set(allDrugs.map(d => d.form))).filter(Boolean)
+  }, [allDrugs])
 
   const filtered = useMemo(() => {
-    return drugs.filter(d => {
+    return allDrugs.filter(d => {
       const matchSearch =
         d.name.toLowerCase().includes(search.toLowerCase()) ||
         d.activeIngredient.toLowerCase().includes(search.toLowerCase()) ||
@@ -177,7 +141,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
       const matchForm = formFilter === 'ALL' || d.form === formFilter
       return matchSearch && matchCompany && matchForm
     })
-  }, [drugs, search, companyFilter, formFilter])
+  }, [allDrugs, search, companyFilter, formFilter])
 
   // Pagination slice
   const paginated = useMemo(() => {
@@ -198,87 +162,86 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
             دليل الأدوية المركزي
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            قاعدة بيانات الأدوية المصرية المصنفة بالمواد الفعالة والشركات والأسعار
+            قاعدة بيانات الأدوية المصرية المصنفة بالمواد الفعالة والشركات وتحديث الأسعار التلقائي
           </p>
         </div>
 
         {/* Add Custom Drug Dialog */}
         <div className="flex gap-2">
-          <Button 
-            onClick={handleUpdateFromAPI} 
-            disabled={isUpdating}
-            className="h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-md shadow-indigo-500/20"
-          >
-            {isUpdating ? <RefreshCw className="w-4 h-4 ml-1.5 animate-spin" /> : <CloudDownload className="w-4 h-4 ml-1.5" />}
-            تحديث الأدوية
-          </Button>
-          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-          <DialogTrigger className="h-10 px-4 bg-[#15B8A6] hover:bg-[#0D9488] text-white font-bold rounded-xl text-xs shadow-md shadow-[#15B8A6]/20 inline-flex items-center justify-center cursor-pointer">
-            <Plus className="w-4 h-4 ml-1.5" />
-            إضافة دواء جديد
+        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+          <DialogTrigger>
+            <Button className="bg-[#15B8A6] hover:bg-[#0D9488] text-white font-bold h-10 px-4 rounded-xl text-xs">
+              <Plus className="w-4 h-4 ml-1.5" />
+              إضافة دواء جديد
+            </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-md" dir="rtl">
+          <DialogContent className="max-w-md bg-white border-none shadow-xl rounded-2xl" dir="rtl">
             <DialogHeader>
-              <DialogTitle className="text-lg font-bold text-[#182230]">إضافة دواء لقاعدة بيانات العيادة</DialogTitle>
+              <DialogTitle className="text-lg font-black text-[#182230] flex items-center gap-2">
+                <Pill className="w-5 h-5 text-[#15B8A6]" />
+                إضافة دواء محلي للعيادة
+              </DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleAddCustomDrug} className="space-y-4 pt-2">
+            <form onSubmit={handleAddDrug} className="space-y-4 py-4">
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-600">اسم الدواء التجاري والتركيز</Label>
+                <Label className="text-xs font-bold text-slate-700">الاسم التجاري للدواء *</Label>
                 <Input
-                  value={newDrugName}
-                  onChange={e => setNewDrugName(e.target.value)}
-                  placeholder="مثال: Augmentin 1g"
-                  className="h-10 text-sm rounded-xl"
                   required
+                  value={newDrug.name}
+                  onChange={e => setNewDrug({...newDrug, name: e.target.value})}
+                  placeholder="مثال: Congestal"
+                  className="h-10 text-sm bg-slate-50 border-slate-200 rounded-xl"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-600">المادة الفعالة (Active Ingredient)</Label>
+                <Label className="text-xs font-bold text-slate-700">المادة الفعالة</Label>
                 <Input
-                  value={newActiveIngredient}
-                  onChange={e => setNewActiveIngredient(e.target.value)}
-                  placeholder="مثال: Amoxicillin + Clavulanic Acid"
-                  className="h-10 text-sm rounded-xl"
+                  value={newDrug.activeIngredient}
+                  onChange={e => setNewDrug({...newDrug, activeIngredient: e.target.value})}
+                  placeholder="مثال: Paracetamol"
+                  className="h-10 text-sm bg-slate-50 border-slate-200 rounded-xl"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-600">الشركة المصنعة</Label>
+                  <Label className="text-xs font-bold text-slate-700">الشركة المصنعة</Label>
                   <Input
-                    value={newCompany}
-                    onChange={e => setNewCompany(e.target.value)}
-                    placeholder="مثال: GSK"
-                    className="h-10 text-sm rounded-xl"
+                    value={newDrug.company}
+                    onChange={e => setNewDrug({...newDrug, company: e.target.value})}
+                    placeholder="مثال: Sigma"
+                    className="h-10 text-sm bg-slate-50 border-slate-200 rounded-xl"
                   />
                 </div>
-
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-600">الشكل الدوائي</Label>
+                  <Label className="text-xs font-bold text-slate-700">الشكل الدوائي</Label>
                   <select
-                    value={newForm}
-                    onChange={e => setNewForm(e.target.value)}
-                    className="w-full h-10 px-3 rounded-xl border border-[#E5EAF0] text-xs font-bold text-slate-700 bg-white"
+                    value={newDrug.form}
+                    onChange={e => setNewDrug({...newDrug, form: e.target.value as any})}
+                    className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#15B8A6]/20"
                   >
                     <option value="أقراص">أقراص</option>
                     <option value="كبسولات">كبسولات</option>
                     <option value="شراب">شراب</option>
-                    <option value="أكياس">أكياس</option>
                     <option value="حقن">حقن</option>
+                    <option value="مرهم / دهان">مرهم / دهان</option>
                     <option value="نقط">نقط</option>
-                    <option value="دهان / مرهم">دهان / مرهم</option>
                   </select>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-600">السعر التقديري (ج.م)</Label>
+                <Label className="text-xs font-bold text-slate-700">السعر (جنيه مصري) *</Label>
                 <Input
+                  required
                   type="number"
-                  value={newPrice}
-                  onChange={e => setNewPrice(Number(e.target.value))}
-                  className="h-10 text-sm rounded-xl"
+                  min="0"
+                  step="0.5"
+                  value={newDrug.price || ''}
+                  onChange={e => setNewDrug({...newDrug, price: Number(e.target.value)})}
+                  placeholder="0.00"
+                  className="h-10 text-sm bg-slate-50 border-slate-200 rounded-xl"
                 />
               </div>
 
@@ -349,7 +312,14 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
       </div>
 
       {/* 3. Drug Directory Table (Columns matching Mockup) */}
-      <div className="medical-card overflow-hidden">
+      <div className="medical-card overflow-hidden relative min-h-[400px]">
+        {isApiLoading ? (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm">
+            <Loader2 className="w-8 h-8 text-[#15B8A6] animate-spin" />
+            <p className="mt-4 text-sm font-bold text-slate-600">جاري تحميل بيانات الأدوية وأحدث الأسعار...</p>
+          </div>
+        ) : null}
+
         <div className="overflow-x-auto">
           <table className="w-full text-right text-sm">
             <thead className="bg-[#F8FAFC] border-b border-[#E5EAF0] text-slate-400 text-xs font-bold select-none">
@@ -364,7 +334,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E5EAF0]">
-              {paginated.length === 0 ? (
+              {paginated.length === 0 && !isApiLoading ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-slate-400">
                     لا توجد أدوية مطابقة للبحث أو الفلتر المحدد.
