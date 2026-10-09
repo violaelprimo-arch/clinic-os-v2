@@ -68,7 +68,7 @@ export function A4Prescription({ clinic, patientName, age, date, diagnosis, drug
 
         {/* Rx Symbol */}
         <div className="pt-2 pb-2 text-left" dir="ltr">
-          <span className="text-3xl font-black font-serif text-[#182230] tracking-wider select-none">Rx/</span>
+          <span className="text-3xl font-black font-serif text-[#182230] tracking-wider select-none">R/</span>
         </div>
 
         {/* Medicines */}

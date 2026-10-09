@@ -85,6 +85,17 @@ export function BookingForm({
   const handleNextStep1 = () => {
     if (!name.trim()) return toast.error('يرجى إدخال اسم المريض')
     if (!phone.trim() || phone.length < 10) return toast.error('يرجى إدخال رقم هاتف صحيح')
+    
+    if (selectedDate && clinic?.weeklySchedule) {
+      const d = new Date(selectedDate);
+      const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      const dayName = days[d.getDay()];
+      const daySched = clinic.weeklySchedule.find((s: any) => s.id === dayName);
+      if (daySched && !daySched.isOpen) {
+        return toast.error(`عذراً، العيادة لا تعمل يوم ${daySched.day}`);
+      }
+    }
+    
     setStep(2)
   }
 

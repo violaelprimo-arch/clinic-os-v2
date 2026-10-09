@@ -49,9 +49,15 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const [averageVisitTime, setAverageVisitTime] = useState<number>(15)
   const [allowPatientMedicalView, setAllowPatientMedicalView] = useState(false)
   const [hidePrices, setHidePrices] = useState(false)
-  const [workingDays, setWorkingDays] = useState<string[]>([])
-  const [workingHoursStart, setWorkingHoursStart] = useState('09:00')
-  const [workingHoursEnd, setWorkingHoursEnd] = useState('22:00')
+  const [weeklySchedule, setWeeklySchedule] = useState([
+    { day: 'السبت', isOpen: true, start: '09:00', end: '22:00', id: 'saturday' },
+    { day: 'الأحد', isOpen: true, start: '09:00', end: '22:00', id: 'sunday' },
+    { day: 'الاثنين', isOpen: true, start: '09:00', end: '22:00', id: 'monday' },
+    { day: 'الثلاثاء', isOpen: true, start: '09:00', end: '22:00', id: 'tuesday' },
+    { day: 'الأربعاء', isOpen: true, start: '09:00', end: '22:00', id: 'wednesday' },
+    { day: 'الخميس', isOpen: true, start: '09:00', end: '22:00', id: 'thursday' },
+    { day: 'الجمعة', isOpen: false, start: '09:00', end: '22:00', id: 'friday' }
+  ])
   const [queueNormal, setQueueNormal] = useState(2)
   const [queueConsult, setQueueConsult] = useState(1)
   const [queueUrgent, setQueueUrgent] = useState(0)
@@ -125,9 +131,9 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           setAverageVisitTime(data.averageVisitTime || 15)
         setAllowPatientMedicalView(data.allowPatientMedicalView !== false)
         setHidePrices(data.hidePrices === true)
-        setWorkingDays(data.workingDays || ['Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'])
-        setWorkingHoursStart(data.workingHoursStart || '09:00')
-        setWorkingHoursEnd(data.workingHoursEnd || '22:00')
+        
+        
+        
           setAddress(data.clinicAddress || '')
           setDoctorPhone(data.doctorPhone || '')
           setClinicPhone(data.clinicPhone || (data.clinicPhones?.[0] || ''))
@@ -178,9 +184,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         averageVisitTime: Number(averageVisitTime) || 15,
       allowPatientMedicalView,
       hidePrices,
-      workingDays,
-      workingHoursStart,
-      workingHoursEnd,
+      weeklySchedule,
         clinicAddress: address || '',
         clinicPhone: phones[0] || '',
         doctorPhone: doctorPhone || '',
@@ -579,28 +583,38 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
             </div>
 
             <div className="space-y-3">
-              <h4 className="font-bold text-sm text-[#182230]">نظام دخول الطوارئ / الكشف المستعجل</h4>
-              <p className="text-xs text-slate-500">يحدد كم كشف عادي يدخل بعده كشف مستعجل تلقائياً في شاشة الدور</p>
+              <h4 className="font-bold text-sm text-[#182230]">نظام ترتيب الأدوار (نمط الدخول)</h4>
+              <p className="text-xs text-slate-500">حدد عدد الحالات التي تدخل بالترتيب قبل إعادة الدورة. اكتب (0) للمستعجل ليدخل فوراً قبل أي خدمة أخرى.</p>
               
-              <div className="grid grid-cols-2 gap-4 max-w-sm">
+              <div className="grid grid-cols-3 gap-4 max-w-lg">
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-600">عدد الكشوفات العادية</Label>
+                  <Label className="text-xs font-bold text-slate-600 text-rose-600">كشف مستعجل</Label>
                   <Input
                     type="number"
-                    value={regularPerUrgent}
-                    onChange={e => setRegularPerUrgent(Number(e.target.value))}
-                    className="h-10 text-sm rounded-xl font-bold"
-                    min={1}
+                    value={queueUrgent}
+                    onChange={e => setQueueUrgent(Number(e.target.value))}
+                    className="h-10 text-sm rounded-xl font-bold border-rose-200 bg-rose-50 text-rose-900"
+                    min={0}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-rose-600">يتبعها (كشف مستعجل)</Label>
+                  <Label className="text-xs font-bold text-slate-600">كشف عادي</Label>
                   <Input
                     type="number"
-                    value={urgentPerRegular}
-                    onChange={e => setUrgentPerRegular(Number(e.target.value))}
-                    className="h-10 text-sm rounded-xl font-bold border-rose-200 bg-rose-50 text-rose-700"
-                    min={1}
+                    value={queueNormal}
+                    onChange={e => setQueueNormal(Number(e.target.value))}
+                    className="h-10 text-sm rounded-xl font-bold"
+                    min={0}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-600 text-blue-600">استشارة</Label>
+                  <Input
+                    type="number"
+                    value={queueConsult}
+                    onChange={e => setQueueConsult(Number(e.target.value))}
+                    className="h-10 text-sm rounded-xl font-bold border-blue-200 bg-blue-50 text-blue-900"
+                    min={0}
                   />
                 </div>
               </div>

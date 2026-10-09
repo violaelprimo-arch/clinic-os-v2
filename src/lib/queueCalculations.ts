@@ -60,9 +60,9 @@ export function sortQueue(appointments: any[], clinic: any) {
   let nIdx = 0, cIdx = 0, uIdx = 0, oIdx = 0;
   
   while(nIdx < normalQueue.length || cIdx < consultQueue.length || uIdx < urgentQueue.length || oIdx < otherQueue.length) {
+    for (let i = 0; i < urgentCount && uIdx < urgentQueue.length; i++) finalQueue.push(urgentQueue[uIdx++]);
     for (let i = 0; i < normalCount && nIdx < normalQueue.length; i++) finalQueue.push(normalQueue[nIdx++]);
     for (let i = 0; i < consultCount && cIdx < consultQueue.length; i++) finalQueue.push(consultQueue[cIdx++]);
-    for (let i = 0; i < urgentCount && uIdx < urgentQueue.length; i++) finalQueue.push(urgentQueue[uIdx++]);
     if (oIdx < otherQueue.length) finalQueue.push(otherQueue[oIdx++]);
   }
 
