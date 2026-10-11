@@ -21,6 +21,18 @@ import { BookingForm } from './BookingForm'
 import { AIChatWidget } from './AIChatWidget'
 import { ClinicLogo } from './ClinicLogo'
 
+function formatTime12(timeStr?: string) {
+  if (!timeStr) return ''
+  const [hStr, mStr] = timeStr.split(':')
+  const h = Number(hStr)
+  const m = Number(mStr)
+  if (isNaN(h)) return timeStr
+  const period = h >= 12 ? 'م' : 'ص'
+  const hour12 = h % 12 === 0 ? 12 : h % 12
+  const minute = m !== undefined && m !== 0 ? `:${String(m).padStart(2, '0')}` : ':00'
+  return `${hour12}${minute} ${period}`
+}
+
 export function PremiumLanding({
   clinic,
   services = []
@@ -580,14 +592,27 @@ export function PremiumLanding({
                     </p>
                   </div>
                   
-                  <div className="p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 space-y-1">
+                  <div className="p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 space-y-2">
                     <div className="flex items-center gap-2 text-xs font-bold text-teal-300">
                       <Clock className="w-4 h-4" />
                       <span>مواعيد الحضور والعمل:</span>
                     </div>
-                    <p className="text-xs text-slate-200">
-                      يومياً من السبت إلى الخميس (من 2:00 ظهراً حتى 10:00 مساءً)
-                    </p>
+                    {clinic?.weeklySchedule && clinic.weeklySchedule.filter((d: any) => d.isOpen).length > 0 ? (
+                      <div className="space-y-1.5 text-xs text-slate-200 max-h-40 overflow-y-auto no-scrollbar">
+                        {clinic.weeklySchedule.filter((d: any) => d.isOpen).map((d: any) => (
+                          <div key={d.id} className="flex justify-between items-center text-[11px] border-b border-white/5 pb-0.5">
+                            <span className="font-bold text-white">{d.day}:</span>
+                            <span className="font-mono text-teal-200" dir="ltr">
+                              {formatTime12(d.start)} — {formatTime12(d.end)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-200">
+                        يومياً من السبت إلى الخميس (من 2:00 ظهراً حتى 10:00 مساءً)
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -681,10 +706,21 @@ export function PremiumLanding({
                     {clinic?.clinicPhone || '01012345678'}
                   </span>
                 </div>
-                <div className="pt-1.5 border-t border-slate-200/60">
-                  <span className="text-[10px] text-slate-400 block">
-                    السبت إلى الخميس: 2:00 م — 10:00 م
-                  </span>
+                <div className="pt-1.5 border-t border-slate-200/60 space-y-1">
+                  {clinic?.weeklySchedule && clinic.weeklySchedule.filter((d: any) => d.isOpen).length > 0 ? (
+                    clinic.weeklySchedule.filter((d: any) => d.isOpen).map((d: any) => (
+                      <div key={d.id} className="flex justify-between items-center text-[10px] text-slate-600">
+                        <span className="font-bold text-slate-800">{d.day}:</span>
+                        <span className="font-mono text-slate-500" dir="ltr">
+                          {formatTime12(d.start)} — {formatTime12(d.end)}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <span className="text-[10px] text-slate-400 block">
+                      السبت إلى الخميس: 2:00 م — 10:00 م
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

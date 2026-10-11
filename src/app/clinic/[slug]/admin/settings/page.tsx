@@ -135,6 +135,9 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           setAssistantPermissions(data.assistantPermissions || ['appointments'])
           setAverageVisitTime(data.averageVisitTime || 15)
           setMaxDailyBookings(data.maxDailyBookings || 0)
+          if (data.weeklySchedule && Array.isArray(data.weeklySchedule)) {
+            setWeeklySchedule(data.weeklySchedule)
+          }
         setAllowPatientMedicalView(data.allowPatientMedicalView !== false)
         setHidePrices(data.hidePrices === true)
         
