@@ -283,13 +283,13 @@ export default function PatientProfilePage({
                               <div className="bg-white rounded-xl border border-slate-200 overflow-hidden print:overflow-visible print:border-0 print:m-0 print:p-0 print:w-[100vw] print:h-[100vh]">
                                 <A4Prescription 
                                   clinic={clinic}
-                                  patientName={patientData.name}
-                                  age={patientData.age || patientData.dob}
+                                  patientName={patientData?.name || appt?.patientName || 'المريض'}
+                                  age={patientData?.age || appt?.age || patientData?.dob || appt?.dob || ''}
                                   date={appt.date}
                                   diagnosis={appt.diagnosis}
                                   drugs={appt.drugs}
                                   templateMode={clinic?.prescriptionTemplateUrl ? 'custom' : 'standard'}
-                                  topOffset={180}
+                                  topOffset={25}
                                 />
                               </div>
                             </DialogContent>

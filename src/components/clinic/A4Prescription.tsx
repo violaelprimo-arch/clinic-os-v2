@@ -1,6 +1,8 @@
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 
 export function A4Prescription({ clinic, patientName, age, date, diagnosis, drugs, templateMode = 'standard', topOffset = 25 }: any) {
+  const safeOffset = (typeof topOffset === 'number' && topOffset <= 60 && topOffset >= 0) ? topOffset : 25
+
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: `
@@ -10,7 +12,7 @@ export function A4Prescription({ clinic, patientName, age, date, diagnosis, drug
             print-color-adjust: exact !important;
           }
           #patient-a4-print-sheet {
-            padding-top: ${templateMode === 'custom' ? `${topOffset}%` : '2rem'} !important;
+            padding-top: ${templateMode === 'custom' ? `${safeOffset}%` : '2rem'} !important;
             padding-left: 2rem !important;
             padding-right: 2rem !important;
             padding-bottom: 2rem !important;
@@ -33,7 +35,7 @@ export function A4Prescription({ clinic, patientName, age, date, diagnosis, drug
                backgroundSize: '100% 100%',
                backgroundPosition: 'top center',
                backgroundRepeat: 'no-repeat',
-               paddingTop: `${topOffset}%`
+               paddingTop: `${safeOffset}%`
              } : { paddingTop: '2rem', paddingBottom: '2rem', paddingLeft: '2rem', paddingRight: '2rem' })
            }}
            dir="rtl"
@@ -63,10 +65,10 @@ export function A4Prescription({ clinic, patientName, age, date, diagnosis, drug
           )}
 
           {/* Clean Patient Meta Strip */}
-          <div className={`flex items-center justify-between py-2 text-sm font-bold mb-4 ${templateMode === 'custom' ? 'bg-transparent' : 'border-b-2 border-slate-100 px-2'}`}>
+          <div className={`flex items-center justify-between py-2 text-sm font-bold mb-4 ${templateMode === 'custom' ? 'bg-transparent text-slate-900' : 'border-b-2 border-slate-100 px-2'}`}>
             <div className="flex items-center gap-1.5">
               {templateMode === 'standard' && <span className="text-slate-400">الاسم:</span>}
-              <span className="text-[#182230]">{patientName}</span>
+              <span className="text-[#182230]">{patientName || 'المريض'}</span>
             </div>
             {age && (
               <div className="flex items-center gap-1.5">
