@@ -25,6 +25,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const slug = resolvedParams.slug
   const searchParams = useSearchParams()
 
+  const [appointmentId, setAppointmentId] = useState(searchParams?.get('appointmentId') || '');
   const [patientName, setPatientName] = useState(searchParams?.get('patientName') || '')
   const [patientPhone, setPatientPhone] = useState(searchParams?.get('phone') || searchParams?.get('patientPhone') || '')
   const [diagnosis, setDiagnosis] = useState('')
@@ -129,8 +130,8 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           createdAt: new Date().toISOString()
         })
       }
-      if (searchParams?.get('appointmentId')) {
-        await updateDoc(doc(db, 'appointments', searchParams.get('appointmentId') as string), {
+      if (appointmentId) {
+        await updateDoc(doc(db, 'appointments', appointmentId), {
           diagnosis,
           drugs: drugs.filter(d => d.name.trim() !== '')
         })
@@ -231,6 +232,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                     const selected = todayPatients.find(p => p.id === e.target.value)
                     if (selected) {
                         setPatientName(selected.patientName || '')
+                        setAppointmentId(selected.id)
                         setPatientPhone(selected.phone || '')
                         setAge(selected.age || selected.dob || '')
                       }

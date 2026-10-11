@@ -476,7 +476,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                           )}
 
                           {/* Rx Shortcut */}
-                          <Link href={`/clinic/${clinic.slug}/admin/prescriptions?patientName=${encodeURIComponent(b.patientName)}&patientPhone=${encodeURIComponent(b.phone)}`}>
+                          <Link href={`/clinic/${clinic.slug}/admin/prescriptions?appointmentId=${b.id}&patientName=${encodeURIComponent(b.patientName)}&patientPhone=${encodeURIComponent(b.phone)}&age=${encodeURIComponent(b.age || b.dob || '')}`}>
                             <Button
                               size="sm"
                               variant="ghost"
@@ -563,7 +563,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                     </Button>
                   </div>
 
-                  <Link href={`/clinic/${clinic.slug}/admin/prescriptions?patientName=${encodeURIComponent(currentPatient.patientName)}&patientPhone=${encodeURIComponent(currentPatient.phone)}`}>
+                  <Link href={`/clinic/${clinic.slug}/admin/prescriptions?appointmentId=${currentPatient.id}&patientName=${encodeURIComponent(currentPatient.patientName)}&patientPhone=${encodeURIComponent(currentPatient.phone)}&age=${encodeURIComponent(currentPatient.age || currentPatient.dob || '')}`}>
                     <Button
                       variant="ghost"
                       className="w-full h-9 text-xs font-bold text-[#15B8A6] hover:bg-teal-50 rounded-xl mt-1"
