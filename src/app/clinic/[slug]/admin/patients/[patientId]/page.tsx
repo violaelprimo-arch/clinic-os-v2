@@ -96,7 +96,7 @@ export default function PatientProfilePage({
   if (loading) return <div className="p-8 text-center text-slate-400 font-bold" dir="rtl">جاري تحميل الملف الطبي...</div>
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6" dir="rtl">
+    <div className="max-w-5xl mx-auto space-y-6 print:hidden" dir="rtl">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Link href={`/clinic/${slug}/admin/patients`}>
@@ -261,7 +261,7 @@ export default function PatientProfilePage({
                                 عرض الروشتة وإرسالها
                               </Button>
                             </DialogTrigger>
-                            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto print:max-w-none print:w-full print:h-auto print:max-h-none print:overflow-visible print:border-none print:shadow-none print:bg-transparent print:p-0 print:m-0">
                               <DialogHeader className="print:hidden">
                                 <DialogTitle>الروشتة الطبية - {appt.date}</DialogTitle>
                               </DialogHeader>
@@ -280,7 +280,7 @@ export default function PatientProfilePage({
                                   </Button>
                                 </Link>
                               </div>
-                              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden print:border-0 print:m-0">
+                              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden print:overflow-visible print:border-0 print:m-0 print:p-0 print:w-[100vw] print:h-[100vh]">
                                 <A4Prescription 
                                   clinic={clinic}
                                   patientName={patientData.name}

@@ -441,7 +441,7 @@ export default function AdminLayout({
         </main>
 
         {/* 4. MOBILE BOTTOM NAVIGATION (Fixed at bottom for phones) */}
-        <nav className="lg:hidden fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-md border-t border-[#E5EAF0] px-3 py-2 z-40 flex justify-around items-center shadow-lg">
+        <nav className="lg:hidden fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-md border-t border-[#E5EAF0] px-3 py-2 z-40 flex justify-around items-center shadow-lg print:hidden">
           {bottomNavItems.map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href
