@@ -51,6 +51,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   }, [])
   const [primaryColor, setPrimaryColor] = useState('#15B8A6')
   const [averageVisitTime, setAverageVisitTime] = useState<number>(15)
+  const [maxDailyBookings, setMaxDailyBookings] = useState<number>(0)
   const [allowPatientMedicalView, setAllowPatientMedicalView] = useState(false)
   const [hidePrices, setHidePrices] = useState(false)
   const [weeklySchedule, setWeeklySchedule] = useState([
@@ -133,6 +134,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           setPrimaryColor(data.primaryColor || '#15B8A6')
           setAssistantPermissions(data.assistantPermissions || ['appointments'])
           setAverageVisitTime(data.averageVisitTime || 15)
+          setMaxDailyBookings(data.maxDailyBookings || 0)
         setAllowPatientMedicalView(data.allowPatientMedicalView !== false)
         setHidePrices(data.hidePrices === true)
         
@@ -186,6 +188,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         primaryColor: primaryColor || '#15B8A6',
         assistantPermissions: assistantPermissions || [],
         averageVisitTime: Number(averageVisitTime) || 15,
+        maxDailyBookings: Number(maxDailyBookings) || 0,
       allowPatientMedicalView,
       hidePrices,
       weeklySchedule,
