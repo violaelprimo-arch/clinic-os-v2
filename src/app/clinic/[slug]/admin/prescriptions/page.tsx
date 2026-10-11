@@ -230,9 +230,10 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                   onChange={(e) => {
                     const selected = todayPatients.find(p => p.id === e.target.value)
                     if (selected) {
-                      setPatientName(selected.patientName || '')
-                      setPatientPhone(selected.phone || '')
-                    }
+                        setPatientName(selected.patientName || '')
+                        setPatientPhone(selected.phone || '')
+                        setAge(selected.age || selected.dob || '')
+                      }
                   }}
                 >
                   <option value="">-- اختر من كشوفات اليوم --</option>
@@ -272,7 +273,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                 <Input
                   value={age}
                   onChange={e => setAge(e.target.value)}
-                  placeholder="28 سنة"
+                  placeholder="مثال: 25 سنة"
                   className="h-10 text-xs rounded-xl"
                 />
               </div>
@@ -515,7 +516,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="text-slate-400">السن:</span>
-                  <span className="text-[#182230]">{age || '28'} سنة</span>
+                  <span className="text-[#182230]">{age ? age + " سنة" : "....................."}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="text-slate-400">التاريخ:</span>
