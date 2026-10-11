@@ -78,12 +78,26 @@ export async function sendWhatsAppNotification(payload: WhatsAppPayload): Promis
   // 2. Prepare message text and template data
   const messageBody = buildMessageContent(payload)
 
-  // 3. Check Meta Cloud API credentials
-  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
+  // 3. Check Meta Cloud API credentials (from environment OR Firestore clinic settings)
+  let accessToken = process.env.WHATSAPP_ACCESS_TOKEN || process.env.META_WHATSAPP_TOKEN
+  let phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.META_PHONE_NUMBER_ID
   const apiVersion = process.env.WHATSAPP_API_VERSION || 'v21.0'
 
-  // If credentials are not configured, record in outbox as CONFIG_MISSING / MOCK_SENT
+  if (!accessToken || !phoneNumberId) {
+    try {
+      const cQ = query(collection(db, 'clinics'), where('slug', '==', 'zizo'))
+      const cSnap = await getDocs(cQ)
+      if (!cSnap.empty) {
+        const cData = cSnap.docs[0].data()
+        accessToken = accessToken || cData.whatsappAccessToken
+        phoneNumberId = phoneNumberId || cData.whatsappPhoneNumberId
+      }
+    } catch (e) {
+      console.warn('Fallback fetching clinic WhatsApp credentials error:', e)
+    }
+  }
+
+  // If credentials are still not configured, record in outbox as CONFIG_MISSING
   if (!accessToken || !phoneNumberId) {
     const outboxRef = await addDoc(collection(db, 'notification_outbox'), {
       appointmentId: payload.appointmentId,
@@ -93,7 +107,7 @@ export async function sendWhatsAppNotification(payload: WhatsAppPayload): Promis
       idempotencyKey: payload.idempotencyKey,
       body: messageBody,
       status: 'config_missing',
-      errorMessage: 'Meta WhatsApp Cloud API credentials (WHATSAPP_ACCESS_TOKEN or WHATSAPP_PHONE_NUMBER_ID) not configured in environment.',
+      errorMessage: 'Meta WhatsApp Cloud API credentials (WHATSAPP_ACCESS_TOKEN or WHATSAPP_PHONE_NUMBER_ID) not configured in environment or clinic settings.',
       createdAt: new Date().toISOString()
     })
 
@@ -101,7 +115,7 @@ export async function sendWhatsAppNotification(payload: WhatsAppPayload): Promis
       success: false,
       outboxId: outboxRef.id,
       status: 'config_missing',
-      error: 'لم يتم إعداد بيانات Meta WhatsApp Cloud API في السيرفر بعد. تم تسجيل الرسالة في صندوق الإشعارات.'
+      error: 'يرجى إدخال Phone Number ID و Access Token في تبويب إعدادات واتساب لحسابك على Meta.'
     }
   }
 

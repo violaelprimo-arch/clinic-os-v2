@@ -121,6 +121,8 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const [waFiveAheadEnabled, setWaFiveAheadEnabled] = useState(true)
   const [waInvoiceEnabled, setWaInvoiceEnabled] = useState(true)
   const [waPrescriptionEnabled, setWaPrescriptionEnabled] = useState(true)
+  const [whatsappAccessToken, setWhatsappAccessToken] = useState('')
+  const [whatsappPhoneNumberId, setWhatsappPhoneNumberId] = useState('')
   const [testPhoneNumber, setTestPhoneNumber] = useState('')
   const [isSendingTest, setIsSendingTest] = useState(false)
   const [outboxLogs, setOutboxLogs] = useState<any[]>([])
@@ -191,6 +193,8 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           if (data.waFiveAheadEnabled !== undefined) setWaFiveAheadEnabled(data.waFiveAheadEnabled)
           if (data.waInvoiceEnabled !== undefined) setWaInvoiceEnabled(data.waInvoiceEnabled)
           if (data.waPrescriptionEnabled !== undefined) setWaPrescriptionEnabled(data.waPrescriptionEnabled)
+          if (data.whatsappAccessToken) setWhatsappAccessToken(data.whatsappAccessToken)
+          if (data.whatsappPhoneNumberId) setWhatsappPhoneNumberId(data.whatsappPhoneNumberId)
           if (data.services && data.services.length > 0) {
             setServices(data.services)
           }
@@ -256,6 +260,8 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         waFiveAheadEnabled,
         waInvoiceEnabled,
         waPrescriptionEnabled,
+        whatsappAccessToken: whatsappAccessToken.trim(),
+        whatsappPhoneNumberId: whatsappPhoneNumberId.trim(),
         updatedAt: new Date().toISOString()
       }
 
@@ -1201,6 +1207,49 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                   onCheckedChange={setWaPrescriptionEnabled}
                 />
               </div>
+            </div>
+          </div>
+          {/* Credentials Card */}
+          <div className="medical-card p-6 bg-white space-y-4 border border-[#E5EAF0] rounded-2xl">
+            <div className="pb-3 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h4 className="font-bold text-sm text-[#182230]">مفاتيح ربط واتساب السحابي (Meta Cloud API Keys)</h4>
+                <p className="text-xs text-slate-400">احصل عليها مجاناً من developers.facebook.com لربط رقم واتساب العيادة</p>
+              </div>
+              <Badge className="bg-blue-50 text-blue-700 border-none font-bold text-xs">
+                مفتاح واحد لكل العيادة
+              </Badge>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600">Phone Number ID (معرف رقم الهاتف)</Label>
+                <Input
+                  placeholder="مثال: 104523789012345"
+                  value={whatsappPhoneNumberId}
+                  onChange={e => setWhatsappPhoneNumberId(e.target.value)}
+                  dir="ltr"
+                  className="h-10 text-xs font-mono text-left rounded-xl bg-slate-50"
+                />
+                <p className="text-[10px] text-slate-400">تجد هذا الرقم في صفحة WhatsApp &gt; API Setup في لوحة مطوري فيسبوك.</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600">Access Token (رمز الوصول الدائم أو المؤقت)</Label>
+                <Input
+                  type="password"
+                  placeholder="EAAG... (رمز الوصول السري)"
+                  value={whatsappAccessToken}
+                  onChange={e => setWhatsappAccessToken(e.target.value)}
+                  dir="ltr"
+                  className="h-10 text-xs font-mono text-left rounded-xl bg-slate-50"
+                />
+                <p className="text-[10px] text-slate-400">يبدأ عادةً بـ EAAG... من صفحة API Setup أو System Users.</p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold rounded-xl flex items-center justify-between">
+              <span>💡 بعد كتابة المفاتيح اضغط &quot;حفظ التعديلات&quot; بالأعلى، ثم اضغط &quot;إرسال رسالة تجريبية&quot; للتأكد من وصولها فوراً!</span>
             </div>
           </div>
 
