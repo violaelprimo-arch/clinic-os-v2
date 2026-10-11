@@ -387,13 +387,15 @@ export function PremiumLanding({
                   </p>
                 </div>
 
-                <div className="pt-3 border-t border-[#E5EAF0] flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-400 block">التكلفة</span>
-                    <span className="text-lg font-black text-[#15B8A6]">
-                      {service.price} <span className="text-xs font-bold text-slate-500">ج.م</span>
-                    </span>
-                  </div>
+                <div className={`pt-3 border-t border-[#E5EAF0] flex items-center ${clinic?.showPrices === false ? 'justify-end' : 'justify-between'}`}>
+                  {clinic?.showPrices !== false && (
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 block">التكلفة</span>
+                      <span className="text-lg font-black text-[#15B8A6]">
+                        {service.price} <span className="text-xs font-bold text-slate-500">ج.م</span>
+                      </span>
+                    </div>
+                  )}
 
                   <Button
                     size="sm"
