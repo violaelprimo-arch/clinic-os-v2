@@ -43,7 +43,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const [clinicId, setClinicId] = useState<string | null>(null)
   const [clinic, setClinic] = useState<any>(null)
   const [templateMode, setTemplateMode] = useState<'standard' | 'custom'>('standard')
-  const [topOffset, setTopOffset] = useState<number>(140)
+  const [topOffset, setTopOffset] = useState<number>(25)
   const [isSaving, setIsSaving] = useState(false)
   const [todayPatients, setTodayPatients] = useState<any[]>([])
   const dateStr = new Date().toISOString().split('T')[0]
@@ -446,15 +446,15 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                 <span className="font-medium text-[11px]">إزاحة البداية من أعلى (لهامش الترويسة):</span>
                 <div className="flex items-center gap-2">
                   <input
-                    type="range"
-                    min="60"
-                    max="280"
-                    step="10"
-                    value={topOffset}
-                    onChange={e => setTopOffset(Number(e.target.value))}
-                    className="w-24 accent-[#15B8A6]"
-                  />
-                  <span className="font-mono text-[11px] text-[#15B8A6] font-bold">{topOffset}px</span>
+                      type="range"
+                      min="5"
+                      max="55"
+                      step="1"
+                      value={topOffset}
+                      onChange={e => setTopOffset(Number(e.target.value))}
+                      className="w-28 accent-[#15B8A6]"
+                    />
+                    <span className="font-mono text-[11px] text-[#15B8A6] font-bold">{topOffset}%</span>
                 </div>
               </div>
             )}
@@ -465,7 +465,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
 
           {/* Actual Sheet */}
           <div
-            className="medical-card bg-white p-6 sm:p-8 space-y-6 shadow-lg border border-[#E5EAF0] relative min-h-[620px] flex flex-col justify-between rounded-2xl print:shadow-none print:border-none print:!p-8 print:!w-[210mm] print:!h-[297mm] print:!max-w-none print:!rounded-none print:m-0"
+            className="medical-card bg-white p-6 sm:p-8 space-y-6 shadow-lg border border-[#E5EAF0] relative flex flex-col justify-between rounded-2xl aspect-[1/1.414] max-w-[800px] mx-auto print:shadow-none print:border-none print:!px-8 print:!pb-8 print:!pt-0 print:!w-[210mm] print:!h-[297mm] print:!max-w-none print:!rounded-none print:m-0"
             style={
               templateMode === 'custom' && clinic?.prescriptionTemplateUrl
                 ? {
@@ -473,10 +473,9 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                     backgroundSize: '100% 100%',
                     backgroundPosition: 'top center',
                     backgroundRepeat: 'no-repeat',
-                    paddingTop: `${topOffset}px`,
+                    paddingTop: `${topOffset}%`,
                   }
-                : undefined
-            }
+                : { paddingTop: '2rem' } }
           >
             
             {/* Top Sheet Header (Only in Standard Mode) */}
@@ -507,21 +506,19 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
               {/* Patient Meta Strip */}
               <div
                 className={`flex items-center justify-between py-2.5 text-xs font-bold rounded-lg ${
-                  templateMode === 'custom'
-                    ? 'bg-white/85 backdrop-blur-2xs border border-slate-200/80 px-3 shadow-2xs mt-1'
-                    : 'bg-slate-50/70 border-b border-slate-200 text-slate-700 px-3 mt-3'
+                  templateMode === 'custom' ? 'bg-transparent text-slate-900 px-1 mt-1' : 'bg-slate-50/70 border-b border-slate-200 text-slate-700 px-3 mt-3'
                 }`}
               >
                 <div className="flex items-center gap-1.5">
-                  <span className="text-slate-400">الاسم:</span>
+                  {templateMode === 'standard' && <span className="text-slate-400">الاسم:</span>}
                   <span className="text-[#182230]">{patientName || '................................'}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-slate-400">السن:</span>
+                  {templateMode === 'standard' && <span className="text-slate-400">السن:</span>}
                   <span className="text-[#182230]">{age ? age + " سنة" : "....................."}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-slate-400">التاريخ:</span>
+                  {templateMode === 'standard' && <span className="text-slate-400">التاريخ:</span>}
                   <span className="font-mono text-[#182230]">{dateStr}</span>
                 </div>
               </div>
