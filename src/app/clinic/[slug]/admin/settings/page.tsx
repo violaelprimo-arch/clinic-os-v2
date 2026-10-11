@@ -636,6 +636,24 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               </p>
             </div>
 
+            <div className="space-y-2 pb-4 border-b border-[#E5EAF0]">
+              <Label className="text-xs font-bold text-slate-600">
+                الحد الأقصى لعدد الكشوفات يومياً
+              </Label>
+              <Input
+                type="number"
+                value={maxDailyBookings || ''}
+                onChange={e => setMaxDailyBookings(Number(e.target.value) || 0)}
+                placeholder="مثال: 50 (أو 0 لعدد غير محدود)"
+                className="h-10 text-sm rounded-xl max-w-xs font-bold"
+                min={0}
+                max={500}
+              />
+              <p className="text-[11px] text-slate-400">
+                عند اكتمال هذا العدد من الحجوزات في أي يوم، يتم إغلاق الحجز لذلك اليوم تلقائياً وإتاحة اليوم التالي للمرضى.
+              </p>
+            </div>
+
             <div className="space-y-4 pt-4 border-t border-[#E5EAF0]">
     <h4 className="font-bold text-sm text-[#182230]">مواعيد العمل الأسبوعية</h4>
     <p className="text-xs text-slate-500">تحديد أيام العمل ومواعيد استقبال المرضى</p>
