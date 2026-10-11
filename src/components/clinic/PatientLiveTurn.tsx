@@ -5,6 +5,7 @@ import { db } from '@/lib/firebase'
 import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore'
 import { Card, CardContent } from '@/components/ui/card'
 import { Activity, Clock, CheckCircle } from 'lucide-react'
+import { sortQueue } from '@/lib/queueCalculations'
 
 export function PatientLiveTurn({ clinicId, patientPhone }: { clinicId: string, patientPhone: string }) {
   const [turnData, setTurnData] = useState<{
@@ -30,14 +31,11 @@ export function PatientLiveTurn({ clinicId, patientPhone }: { clinicId: string, 
       const qClinic = query(collection(db, 'clinics'), where('id', '==', clinicId))
       
       const unsubscribeAppts = onSnapshot(q, async (snap) => {
-        // Fetch clinic settings to know ratios
-        let rRatio = 2;
-        let uRatio = 1;
+        let clinicData: any = null
         const clinicSnap = await getDocs(query(collection(db, 'clinics')));
         const clinicDoc = clinicSnap.docs.find(d => d.id === clinicId || d.data().slug === clinicId);
         if (clinicDoc) {
-          rRatio = clinicDoc.data().regularPerUrgent || 2;
-          uRatio = clinicDoc.data().urgentPerRegular || 1;
+          clinicData = clinicDoc.data();
         }
 
         let allAppts = snap.docs.map(d => ({ id: d.id, ...d.data() } as any))
@@ -58,19 +56,7 @@ export function PatientLiveTurn({ clinicId, patientPhone }: { clinicId: string, 
             remaining: 0
           })
         } else {
-          const waitingAppts = allAppts.filter(a => a.status === 'waiting' || !a.status).sort((a,b) => a.queue_number - b.queue_number)
-          
-          const regularQueue = waitingAppts.filter(d => !d.isUrgent)
-          const urgentQueue = waitingAppts.filter(d => d.isUrgent)
-          
-          let orderedWaiting: any[] = []
-          let rIndex = 0, uIndex = 0;
-          
-          while(rIndex < regularQueue.length || uIndex < urgentQueue.length) {
-             for(let i=0; i<rRatio && rIndex < regularQueue.length; i++) orderedWaiting.push(regularQueue[rIndex++]);
-             for(let i=0; i<uRatio && uIndex < urgentQueue.length; i++) orderedWaiting.push(urgentQueue[uIndex++]);
-          }
-
+          const orderedWaiting = sortQueue(allAppts, clinicData)
           const myIndex = orderedWaiting.findIndex(a => a.id === myAppt.id)
           const remaining = myIndex >= 0 ? myIndex : 0
           const currentTurn = orderedWaiting.length > 0 ? orderedWaiting[0].queue_number : myAppt.queue_number

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
@@ -36,7 +36,29 @@ export function BookingForm({
   const [name, setName] = useState(defaultName)
   const [phone, setPhone] = useState(defaultPhone)
   const [age, setAge] = useState('')
+  const [dob, setDob] = useState('')
   
+  const handleAgeChange = (val: string) => {
+    setAge(val)
+    if (val) {
+      const year = new Date().getFullYear() - parseInt(val)
+      setDob(year + '-01-01')
+    } else {
+      setDob('')
+    }
+  }
+
+  const handleDobChange = (val: string) => {
+    setDob(val)
+    if (val) {
+      const birthYear = new Date(val).getFullYear()
+      const currentYear = new Date().getFullYear()
+      setAge((currentYear - birthYear).toString())
+    } else {
+      setAge('')
+    }
+  }
+
   // Available services fallback
   const availableServices = services.length > 0 ? services : [
     { id: '1', name: 'كشف عادي', price: 250, desc: 'كشف طبي عام شامل', duration: 'حوالي 15 دقيقة', durationMinutes: 15 },
@@ -54,7 +76,103 @@ export function BookingForm({
       setSelectedServiceId(preselectedServiceId)
     }
   }, [preselectedServiceId])
+  const [dailyBookingCounts, setDailyBookingCounts] = useState<{ [date: string]: number }>({})
+
+  // Fetch existing appointments count to enforce maxDailyBookings limit
+  useEffect(() => {
+    if (!clinic?.id && !clinic?.slug) return
+    const fetchCounts = async () => {
+      try {
+        const q = query(
+          collection(db, 'appointments'),
+          where('clinic_id', '==', clinic.id || clinic.slug)
+        )
+        const snap = await getDocs(q)
+        const counts: { [date: string]: number } = {}
+        snap.docs.forEach(docSnap => {
+          const d = docSnap.data()
+          if (d.date && d.status !== 'cancelled') {
+            counts[d.date] = (counts[d.date] || 0) + 1
+          }
+        })
+        setDailyBookingCounts(counts)
+      } catch (err) {
+        console.error('Error fetching booking counts:', err)
+      }
+    }
+    fetchCounts()
+  }, [clinic?.id, clinic?.slug])
+
+  // Compute available days: only open days in weeklySchedule & not exceeding maxDailyBookings
+  const availableDays = useMemo(() => {
+    const list: { iso: string; label: string; formattedDate: string }[] = []
+    const dayNamesAr = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
+    const dayKeys = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+    const monthNamesAr = [
+      'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+      'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+    ]
+
+    const maxLimit = Number(clinic?.maxDailyBookings) || 0
+
+    // Scan up to 14 days ahead
+    for (let i = 0; i < 14; i++) {
+      const d = new Date()
+      d.setDate(d.getDate() + i)
+
+      const year = d.getFullYear()
+      const month = String(d.getMonth() + 1).padStart(2, '0')
+      const dayNum = String(d.getDate()).padStart(2, '0')
+      const iso = `${year}-${month}-${dayNum}`
+
+      const dayIndex = d.getDay()
+      const dayKey = dayKeys[dayIndex]
+      const dayNameAr = dayNamesAr[dayIndex]
+
+      // Check weeklySchedule: if clinic is closed on this day, SKIP
+      if (clinic?.weeklySchedule && clinic.weeklySchedule.length > 0) {
+        const sched = clinic.weeklySchedule.find((s: any) => s.id === dayKey)
+        if (sched && sched.isOpen === false) {
+          continue
+        }
+      }
+
+      // Check max daily bookings: if day is full, SKIP
+      const bookedCount = dailyBookingCounts[iso] || 0
+      if (maxLimit > 0 && bookedCount >= maxLimit) {
+        continue
+      }
+
+      let label = dayNameAr
+      if (i === 0) label = 'اليوم'
+      else if (i === 1) label = 'غداً'
+
+      const formattedDate = `${d.getDate()} ${monthNamesAr[d.getMonth()]}`
+
+      list.push({
+        iso,
+        label,
+        formattedDate
+      })
+
+      // Show up to 6 active available days
+      if (list.length >= 6) break
+    }
+
+    return list
+  }, [clinic?.weeklySchedule, clinic?.maxDailyBookings, dailyBookingCounts])
+
   const [selectedDate, setSelectedDate] = useState<string>(cairoDate(new Date()))
+
+  // Keep selectedDate pointed to the first valid available day
+  useEffect(() => {
+    if (availableDays.length > 0) {
+      const isSelectedAvailable = availableDays.some(d => d.iso === selectedDate)
+      if (!isSelectedAvailable) {
+        setSelectedDate(availableDays[0].iso)
+      }
+    }
+  }, [availableDays, selectedDate])
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'instapay' | 'wallet'>('cash')
   const [transferNumber, setTransferNumber] = useState('')
   const [isBooking, setIsBooking] = useState(false)
@@ -75,6 +193,16 @@ export function BookingForm({
   const handleNextStep1 = () => {
     if (!name.trim()) return toast.error('يرجى إدخال اسم المريض')
     if (!phone.trim() || phone.length < 10) return toast.error('يرجى إدخال رقم هاتف صحيح')
+    if (!age.trim()) return toast.error('يرجى إدخال السن')
+    
+    if (!selectedDate) {
+      return toast.error('يرجى اختيار يوم الحجز');
+    }
+    const maxLimit = Number(clinic?.maxDailyBookings) || 0;
+    if (maxLimit > 0 && (dailyBookingCounts[selectedDate] || 0) >= maxLimit) {
+      return toast.error('عذراً، اكتمل الحد الأقصى لحجوزات هذا اليوم. يرجى اختيار يوم آخر.');
+    }
+    
     setStep(2)
   }
 
@@ -85,6 +213,9 @@ export function BookingForm({
 
   // Final Booking Submit with Firestore Transaction
   const handleBooking = async () => {
+    if (paymentMethod !== 'cash' && !transferNumber.trim()) {
+      return toast.error('يرجى كتابة رقم الهاتف أو المعاملة المحول منها لتأكيد الحجز');
+    }
     setIsBooking(true)
     try {
       const clinicIdentifier = clinic.id || clinic.slug
@@ -129,8 +260,9 @@ export function BookingForm({
         where('date', '==', selectedDate)
       )
       const querySnapshot = await getDocs(qWaiting)
+      const todaysAppts = querySnapshot.docs
       let waitingCount = 0
-      querySnapshot.docs.forEach(docSnap => {
+      todaysAppts.forEach(docSnap => {
         if (docSnap.data().status === 'waiting') waitingCount++
       })
 
@@ -144,7 +276,7 @@ export function BookingForm({
         clinic_id: clinicIdentifier,
         patientName: name,
         phone,
-        age: age || null,
+        age: age || null, dob: dob || null,
         serviceId: selectedService.id,
         serviceName: selectedService.name,
         servicePrice: selectedService.price || 0,
@@ -154,7 +286,7 @@ export function BookingForm({
         invoiceNumber,
         status: 'waiting',
         paymentMethod,
-        paymentStatus: paymentMethod === 'cash' ? 'pending' : 'paid',
+        paymentStatus: 'pending',
         transferNumber: paymentMethod !== 'cash' ? transferNumber : '',
         createdAt: new Date().toISOString()
       }
@@ -189,7 +321,6 @@ export function BookingForm({
         estimatedWaitMinutes,
         invoiceData
       })
-
       // Dispatch automated WhatsApp notification
       try {
         fetch('/api/whatsapp/send', {
@@ -216,7 +347,7 @@ export function BookingForm({
         console.warn('WhatsApp alert error:', waErr)
       }
 
-      toast.success(`تم تسجيل حجزك بنجاح! دورك: ${myQueueNumber}`)
+      toast.success(paymentMethod !== 'cash' ? `تم تسجيل حجزك بنجاح! دورك: ${myQueueNumber} (سيتم تأكيد الدفع من إدارة العيادة)` : `تم تسجيل حجزك بنجاح! دورك: ${myQueueNumber}`)
     } catch (error) {
       toast.error('حدث خطأ أثناء إتمام الحجز، يرجى المحاولة ثانيةً.')
     } finally {
@@ -401,7 +532,7 @@ export function BookingForm({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-bold text-slate-600">السن (اختياري)</Label>
+            <Label className="text-xs font-bold text-slate-600">السن (مطلوب للروشتة)</Label>
             <Input
               value={age}
               onChange={e => setAge(e.target.value)}
@@ -411,15 +542,49 @@ export function BookingForm({
             />
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs font-bold text-slate-600">تاريخ الحجز</Label>
-            <Input
-              type="date"
-              value={selectedDate}
-              min={new Date().toISOString().split('T')[0]}
-              onChange={e => setSelectedDate(e.target.value)}
-              className="h-12 text-sm rounded-xl bg-[#F6F8FB] border-[#E5EAF0] focus:bg-white"
-            />
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <Calendar className="w-4 h-4 text-[#15B8A6]" />
+                يوم الحجز (المواعيد المتاحة)
+              </Label>
+              {selectedDate && (
+                <span className="text-[11px] font-bold text-[#15B8A6]">
+                  {availableDays.find(d => d.iso === selectedDate)?.label} ({availableDays.find(d => d.iso === selectedDate)?.formattedDate})
+                </span>
+              )}
+            </div>
+
+            {availableDays.length > 0 ? (
+              <div className="grid grid-cols-3 gap-2">
+                {availableDays.map((d) => {
+                  const isSelected = selectedDate === d.iso
+                  return (
+                    <button
+                      key={d.iso}
+                      type="button"
+                      onClick={() => setSelectedDate(d.iso)}
+                      className={`p-3 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                        isSelected
+                          ? 'bg-[#15B8A6] text-white border-[#15B8A6] shadow-md shadow-[#15B8A6]/20 ring-2 ring-[#15B8A6]/30'
+                          : 'bg-white text-slate-700 border-[#E5EAF0] hover:border-[#15B8A6] hover:bg-teal-50/20'
+                      }`}
+                    >
+                      <span className={`text-xs font-black ${isSelected ? 'text-white' : 'text-[#182230]'}`}>
+                        {d.label}
+                      </span>
+                      <span className={`text-[10px] font-bold ${isSelected ? 'text-white/90' : 'text-slate-400 font-mono'}`}>
+                        {d.formattedDate}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-center text-xs text-amber-800 font-bold">
+                لا توجد مواعيد متاحة للحجز حالياً. يرجى التواصل مع إدارة العيادة.
+              </div>
+            )}
           </div>
 
           <Button
@@ -586,15 +751,95 @@ export function BookingForm({
             </div>
           </div>
 
-          {paymentMethod !== 'cash' && (
-            <div className="space-y-1.5 p-3 rounded-xl bg-slate-50 border border-slate-200">
-              <Label className="text-xs font-bold text-slate-600">رقم المحفظة / المعاملة المحول منها</Label>
-              <Input
-                value={transferNumber}
-                onChange={e => setTransferNumber(e.target.value)}
-                placeholder="010xxxxxxxx"
-                className="h-10 text-xs bg-white rounded-lg"
-              />
+          {paymentMethod === 'instapay' && (
+            <div className="p-4 rounded-2xl bg-teal-50/70 border-2 border-teal-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-bold text-teal-800">
+                  <CreditCard className="w-4 h-4 text-[#15B8A6]" />
+                  <span>بيانات التحويل عبر انستاباي (InstaPay):</span>
+                </div>
+                <Badge className="bg-[#15B8A6] text-white border-none font-bold text-[10px]">
+                  تحويل فوري
+                </Badge>
+              </div>
+
+              <div className="p-3 bg-white rounded-xl border border-teal-100 space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-500 font-bold">حساب / عنوان انستاباي للطبيب:</span>
+                  <span className="font-mono font-black text-sm text-[#182230] select-all bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200" dir="ltr">
+                    {clinic.instapayHandle || clinic.doctorPhone || clinic.clinicPhone || 'يرجى التواصل مع العيادة'}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center text-xs pt-1.5 border-t border-slate-100">
+                  <span className="text-slate-500 font-bold">المبلغ المطلوب تحويله:</span>
+                  <span className="font-black text-base text-[#15B8A6]">
+                    {selectedService.price} ج.م
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-700">رقم الهاتف أو المعاملة المحول منها (لتأكيد الدفع):</Label>
+                <Input
+                  value={transferNumber}
+                  onChange={e => setTransferNumber(e.target.value)}
+                  placeholder="مثال: 010xxxxxxxx أو اسم حساب انستاباي"
+                  className="h-11 text-xs bg-white rounded-xl border-teal-200 focus:border-[#15B8A6]"
+                  dir="ltr"
+                  required
+                />
+              </div>
+
+              <div className="p-2.5 bg-teal-100/60 rounded-xl text-[11px] text-teal-800 font-medium leading-relaxed">
+                💡 سيتم تسجيل دورك فوراً ولن يتأثر بالدور، وسيتم تأكيد استلام الدفع من خلال إدارة العيادة.
+              </div>
+            </div>
+          )}
+
+          {paymentMethod === 'wallet' && (
+            <div className="p-4 rounded-2xl bg-amber-50/70 border-2 border-amber-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-bold text-amber-900">
+                  <Wallet className="w-4 h-4 text-amber-600" />
+                  <span>بيانات التحويل عبر المحفظة الإلكترونية (فودافون كاش وغيرها):</span>
+                </div>
+                <Badge className="bg-amber-600 text-white border-none font-bold text-[10px]">
+                  محفظة ذكية
+                </Badge>
+              </div>
+
+              <div className="p-3 bg-white rounded-xl border border-amber-100 space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-500 font-bold">رقم محفظة الطبيب / العيادة:</span>
+                  <span className="font-mono font-black text-sm text-[#182230] select-all bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200" dir="ltr">
+                    {clinic.walletNumber || clinic.doctorPhone || clinic.clinicPhone || 'يرجى التواصل مع العيادة'}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center text-xs pt-1.5 border-t border-slate-100">
+                  <span className="text-slate-500 font-bold">المبلغ المطلوب تحويله:</span>
+                  <span className="font-black text-base text-[#15B8A6]">
+                    {selectedService.price} ج.م
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-700">رقم المحفظة المحول منها (لتأكيد الدفع):</Label>
+                <Input
+                  value={transferNumber}
+                  onChange={e => setTransferNumber(e.target.value)}
+                  placeholder="مثال: 010xxxxxxxx"
+                  className="h-11 text-xs bg-white rounded-xl border-amber-200 focus:border-[#15B8A6]"
+                  dir="ltr"
+                  required
+                />
+              </div>
+
+              <div className="p-2.5 bg-amber-100/60 rounded-xl text-[11px] text-amber-900 font-medium leading-relaxed">
+                💡 سيتم تسجيل دورك فوراً ولن يتأثر بالدور، وسيتم تأكيد استلام الدفع من خلال إدارة العيادة.
+              </div>
             </div>
           )}
 

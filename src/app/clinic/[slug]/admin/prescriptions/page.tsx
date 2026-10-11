@@ -15,22 +15,25 @@ import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
 import { collection, addDoc, query, where, getDocs, doc, updateDoc, onSnapshot } from 'firebase/firestore'
 import { useSearchParams } from 'next/navigation'
-import { EGYPTIAN_DRUGS, STRUCTURED_DRUGS } from '@/lib/egyptian-drugs'
+import { EGYPTIAN_DRUGS } from '@/lib/egyptian-drugs'
+import { useEgyptianDrugs } from '@/hooks/useEgyptianDrugs'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
+import { A4Prescription } from '@/components/clinic/A4Prescription'
 
 export default function PrescriptionsPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
   const searchParams = useSearchParams()
 
+  const [appointmentId, setAppointmentId] = useState(searchParams?.get('appointmentId') || '');
   const [patientName, setPatientName] = useState(searchParams?.get('patientName') || '')
-  const [patientPhone, setPatientPhone] = useState(searchParams?.get('patientPhone') || '')
+  const [patientPhone, setPatientPhone] = useState(searchParams?.get('phone') || searchParams?.get('patientPhone') || '')
   const [diagnosis, setDiagnosis] = useState('')
-  const [age, setAge] = useState('28')
+  const [age, setAge] = useState(searchParams?.get('age') || '')
 
+  const { drugs: apiDrugs, loading: apiDrugsLoading } = useEgyptianDrugs()
   const [drugs, setDrugs] = useState<any[]>([
-    { id: 1, name: searchParams?.get('drug') || 'Augmentin 1g', dosage: 'قرص كل 12 ساعة', duration: 'لمدة 5 أيام' },
-    { id: 2, name: 'Catafast 50 mg', dosage: 'كيس عند اللزوم', duration: 'بعد الأكل' }
+    { id: 1, name: searchParams?.get('drug') || '', dosage: '', duration: '' }
   ])
 
   const [drugSearch, setDrugSearch] = useState('')
@@ -40,7 +43,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const [clinicId, setClinicId] = useState<string | null>(null)
   const [clinic, setClinic] = useState<any>(null)
   const [templateMode, setTemplateMode] = useState<'standard' | 'custom'>('standard')
-  const [topOffset, setTopOffset] = useState<number>(140)
+  const [topOffset, setTopOffset] = useState<number>(25)
   const [isSaving, setIsSaving] = useState(false)
   const [todayPatients, setTodayPatients] = useState<any[]>([])
   const dateStr = new Date().toISOString().split('T')[0]
@@ -77,8 +80,8 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
         } else if (slug === 'demo') {
           setClinic({
             id: 'demo',
-            clinicName: 'عيادة د. محمد علي التخصصية',
-            doctorName: 'محمد علي',
+            clinicName: 'العيادة التخصصية',
+            doctorName: 'الطبيب',
             specialty: 'استشاري الطب الباطني والجهاز الهضمي',
             clinicAddress: 'شارع التسعين الشمالي، التجمع الخامس، القاهرة',
             clinicPhone: '01012345678'
@@ -162,6 +165,14 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           }).catch(err => console.warn('WhatsApp Rx alert warning:', err))
         } catch (e) {}
       }
+      if (appointmentId) {
+        try {
+          await updateDoc(doc(db, 'appointments', appointmentId), {
+            diagnosis,
+            drugs: drugs.filter(d => d.name.trim() !== '')
+          })
+        } catch (e) {}
+      }
       toast.success('تم اعتماد الروشتة وإرسال إشعار للمريض بملفه الطبي الآمن بنجاح!')
     } catch (error) {
       toast.error('حدث خطأ أثناء حفظ الروشتة')
@@ -193,25 +204,34 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       const result = await res.json()
       if (result.success) {
         toast.success('تم إرسال إشعار الروشتة للمريض بنجاح!')
-      } else if (result.status === 'config_missing') {
-        toast.warning(result.error || 'بانتظار إدخال بيانات Meta WhatsApp API')
-      } else {
-        toast.error(`فشل الإرسال: ${result.error}`)
+        return
       }
-    } catch (e: any) {
-      toast.error('حدث خطأ أثناء الإرسال')
-    }
+    } catch (e: any) {}
+
+    // Fallback to direct wa.me
+    let formattedPhone = patientPhone.replace(/[^0-9]/g, '')
+    if (formattedPhone.startsWith('0')) formattedPhone = '2' + formattedPhone
+
+    const drugsList = drugs
+      .filter(d => d.name)
+      .map((d, i) => `${i + 1}. ${d.name} (${d.dosage} - ${d.duration})`)
+      .join('\n')
+
+    const message = encodeURIComponent(
+      `الروشتة الطبية الإلكترونية 📋\nالعيادة: ${clinic?.clinicName || 'العيادة'}\nالمريض: ${patientName}\nالتاريخ: ${dateStr}\n\nالعلاج المطلوب:\n${drugsList}\n\nنتمنى لك الشفاء العاجل!`
+    )
+    window.open(`https://wa.me/${formattedPhone}?text=${message}`, '_blank')
   }
 
   // Filtered drugs for quick search
   const filteredSearchDrugs = useMemo(() => {
     if (!drugSearch.trim()) return []
     const queryTerm = drugSearch.toLowerCase()
-    return EGYPTIAN_DRUGS.filter(d => d.toLowerCase().includes(queryTerm)).slice(0, 8)
+    return Array.from(new Set([...EGYPTIAN_DRUGS, ...apiDrugs.map(a => a.commercial_name_en || a.commercial_name_ar)])).filter(d => d.toLowerCase().includes(queryTerm)).slice(0, 8)
   }, [drugSearch])
 
   return (
-    <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto" dir="rtl">
+    <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto print:p-0 print:m-0 print:max-w-none print:w-full" dir="rtl">
       
       {/* 1. Header Toolbar (Hidden on Print) */}
       <div className="print:hidden flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-2xl border border-[#E5EAF0] shadow-xs">
@@ -274,9 +294,11 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                   onChange={(e) => {
                     const selected = todayPatients.find(p => p.id === e.target.value)
                     if (selected) {
-                      setPatientName(selected.patientName || '')
-                      setPatientPhone(selected.phone || '')
-                    }
+                        setPatientName(selected.patientName || '')
+                        setAppointmentId(selected.id)
+                        setPatientPhone(selected.phone || '')
+                        setAge(selected.age || selected.dob || '')
+                      }
                   }}
                 >
                   <option value="">-- اختر من كشوفات اليوم --</option>
@@ -295,7 +317,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                 <Input
                   value={patientName}
                   onChange={e => setPatientName(e.target.value)}
-                  placeholder="محمد محمود"
+                  placeholder="المريض"
                   className="h-10 text-xs rounded-xl"
                 />
               </div>
@@ -316,7 +338,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                 <Input
                   value={age}
                   onChange={e => setAge(e.target.value)}
-                  placeholder="28 سنة"
+                  placeholder="مثال: 25 سنة"
                   className="h-10 text-xs rounded-xl"
                 />
               </div>
@@ -338,7 +360,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             <div className="flex items-center justify-between pb-3 border-b border-[#E5EAF0]">
               <h3 className="font-bold text-sm text-[#182230] flex items-center gap-2">
                 <FileText className="w-4 h-4 text-[#15B8A6]" />
-                الأدوية والجرعات (Rx)
+                الأدوية والجرعات (R)
               </h3>
               <Button
                 size="sm"
@@ -416,7 +438,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                       <Input
                         value={drug.name}
                         onChange={e => updateDrug(drug.id, 'name', e.target.value)}
-                        placeholder="اسم الدواء (مثال: Augmentin 1g)"
+                        placeholder="اسم الدواء"
                         className="h-9 text-xs rounded-lg bg-white"
                       />
                     </div>
@@ -444,7 +466,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
         </div>
 
         {/* LEFT COLUMN: Realistic A4 Prescription Sheet Preview (5 cols on screen, full on print) */}
-        <div className="lg:col-span-5 print:w-full print:block space-y-3">
+        <div className="lg:col-span-5 print:w-full print:block print:p-0 print:m-0 space-y-3">
           
           {/* Template Switcher Bar (Hidden on print) */}
           <div className="print:hidden p-3 bg-white rounded-xl border border-[#E5EAF0] space-y-2 shadow-2xs">
@@ -487,26 +509,47 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                 <span className="font-medium text-[11px]">إزاحة البداية من أعلى (لهامش الترويسة):</span>
                 <div className="flex items-center gap-2">
                   <input
-                    type="range"
-                    min="60"
-                    max="280"
-                    step="10"
-                    value={topOffset}
-                    onChange={e => setTopOffset(Number(e.target.value))}
-                    className="w-24 accent-[#15B8A6]"
-                  />
-                  <span className="font-mono text-[11px] text-[#15B8A6] font-bold">{topOffset}px</span>
+                      type="range"
+                      min="5"
+                      max="55"
+                      step="1"
+                      value={topOffset}
+                      onChange={e => setTopOffset(Number(e.target.value))}
+                      className="w-28 accent-[#15B8A6]"
+                    />
+                    <span className="font-mono text-[11px] text-[#15B8A6] font-bold">{topOffset}%</span>
                 </div>
               </div>
             )}
           </div>
 
           {/* Print CSS Exact Colors */}
-          <style dangerouslySetInnerHTML={{ __html: '@media print { * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } }' }} />
+          <style dangerouslySetInnerHTML={{ __html: `
+            @media print {
+              * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
+              #a4-print-sheet {
+                padding-top: ${templateMode === 'custom' ? `${topOffset}%` : '2rem'} !important;
+                padding-left: 2rem !important;
+                padding-right: 2rem !important;
+                padding-bottom: 2rem !important;
+                width: 210mm !important;
+                height: 297mm !important;
+                max-width: none !important;
+                aspect-ratio: 1 / 1.414 !important;
+                border: none !important;
+                box-shadow: none !important;
+                border-radius: 0 !important;
+                margin: 0 !important;
+              }
+            }
+          ` }} />
 
           {/* Actual Sheet */}
           <div
-            className="medical-card bg-white p-6 sm:p-8 space-y-6 shadow-lg border border-[#E5EAF0] relative min-h-[620px] flex flex-col justify-between rounded-2xl print:shadow-none print:border-none print:p-8"
+            id="a4-print-sheet" className="medical-card bg-white p-6 sm:p-8 space-y-6 shadow-lg border border-[#E5EAF0] relative flex flex-col justify-between rounded-2xl aspect-[1/1.414] max-w-[800px] mx-auto"
             style={
               templateMode === 'custom' && clinic?.prescriptionTemplateUrl
                 ? {
@@ -514,10 +557,9 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                     backgroundSize: '100% 100%',
                     backgroundPosition: 'top center',
                     backgroundRepeat: 'no-repeat',
-                    paddingTop: `${topOffset}px`,
+                    paddingTop: `${topOffset}%`,
                   }
-                : undefined
-            }
+                : { paddingTop: '2rem' } }
           >
             
             {/* Top Sheet Header (Only in Standard Mode) */}
@@ -526,7 +568,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                 <div className="flex items-start justify-between border-b-2 border-slate-900 pb-4">
                   <div>
                     <h2 className="text-xl font-black text-[#182230]">
-                      {clinic?.doctorName ? `د. ${clinic.doctorName}` : 'د. محمد علي'}
+                      {clinic?.doctorName ? `د. ${clinic.doctorName}` : 'د. الطبيب'}
                     </h2>
                     <p className="text-xs font-bold text-[#15B8A6] mt-0.5">
                       {clinic?.specialty || 'استشاري الطب الباطني والجهاز الهضمي'}
@@ -548,21 +590,19 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
               {/* Patient Meta Strip */}
               <div
                 className={`flex items-center justify-between py-2.5 text-xs font-bold rounded-lg ${
-                  templateMode === 'custom'
-                    ? 'bg-white/85 backdrop-blur-2xs border border-slate-200/80 px-3 shadow-2xs mt-1'
-                    : 'bg-slate-50/70 border-b border-slate-200 text-slate-700 px-3 mt-3'
+                  templateMode === 'custom' ? 'bg-transparent text-slate-900 px-1 mt-1' : 'bg-slate-50/70 border-b border-slate-200 text-slate-700 px-3 mt-3'
                 }`}
               >
                 <div className="flex items-center gap-1.5">
-                  <span className="text-slate-400">الاسم:</span>
+                  {templateMode === 'standard' && <span className="text-slate-400">الاسم:</span>}
                   <span className="text-[#182230]">{patientName || '................................'}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-slate-400">السن:</span>
-                  <span className="text-[#182230]">{age || '28'} سنة</span>
+                  {templateMode === 'standard' && <span className="text-slate-400">السن:</span>}
+                  <span className="text-[#182230]">{age ? age + " سنة" : "....................."}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-slate-400">التاريخ:</span>
+                  {templateMode === 'standard' && <span className="text-slate-400">التاريخ:</span>}
                   <span className="font-mono text-[#182230]">{dateStr}</span>
                 </div>
               </div>
@@ -575,11 +615,9 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                 </div>
               )}
 
-              {/* The Iconic R/ Symbol */}
-              <div className="pt-4 pb-2">
-                <span className="text-3xl font-black font-serif text-[#182230] tracking-wider select-none">
-                  R/
-                </span>
+              {/* The Iconic Rx/ Symbol */}
+              <div className="pt-4 pb-2 text-left" dir="ltr">
+                <span className="text-3xl font-black font-serif text-[#182230] tracking-wider select-none">R/</span>
               </div>
 
               {/* Medicines List */}
@@ -618,7 +656,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                   {/* Signature Simulation Line */}
                   <div className="text-center">
                     <div className="w-28 border-b-2 border-slate-400 pb-1 italic font-serif text-slate-500 text-xs">
-                      {clinic?.doctorName ? `د. ${clinic.doctorName}` : 'د. محمد علي'}
+                      {clinic?.doctorName ? `د. ${clinic.doctorName}` : 'د. الطبيب'}
                     </div>
                     <span className="text-[9px] text-slate-400 font-bold">توقيع وختم الطبيب</span>
                   </div>

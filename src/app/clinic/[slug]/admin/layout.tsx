@@ -57,11 +57,16 @@ export default function AdminLayout({
       q,
       (snapshot) => {
         if (!snapshot.empty) {
-          setClinic({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() })
-        } else if (slug === 'demo') {
+            const clinicData = snapshot.docs[0].data();
+            if (clinicData.isActive === false || (clinicData.expirationDate && new Date(clinicData.expirationDate) < new Date())) {
+              window.location.href = `/clinic/${slug}/login?error=subscription_ended`;
+              return;
+            }
+            setClinic({ id: snapshot.docs[0].id, ...clinicData });
+          } else if (slug === 'demo') {
           setClinic({
-            clinicName: 'عيادة د. محمد علي التخصصية',
-            doctorName: 'محمد علي',
+            clinicName: 'العيادة التخصصية',
+            doctorName: 'الطبيب',
             specialty: 'استشاري الطب الباطني',
             primaryColor: '#15B8A6',
             aiEnabled: true,
@@ -195,13 +200,13 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="flex h-screen bg-[#F6F8FB] font-sans overflow-hidden text-[#182230]" dir="rtl">
+    <div className="flex h-screen bg-[#F6F8FB] font-sans overflow-hidden text-[#182230] print:block print:h-auto print:overflow-visible print:bg-white" dir="rtl">
       {/* Dynamic Primary Color injection */}
       <DynamicTheme color={primaryColor} />
       <style dangerouslySetInnerHTML={{ __html: `:root { --primary: ${primaryColor}; }` }} />
 
       {/* 1. DESKTOP SIDEBAR */}
-      <aside className="w-64 bg-[#0B1F33] text-slate-300 hidden lg:flex flex-col border-l border-[#132B45] relative z-30 shrink-0 select-none shadow-xl">
+      <aside className="w-64 bg-[#0B1F33] text-slate-300 hidden lg:flex flex-col border-l border-[#132B45] relative z-30 shrink-0 select-none shadow-xl print:hidden">
         {/* Brand Header */}
         <div className="p-5 border-b border-[#132B45] bg-[#081827]/80">
           <Link href={`/clinic/${slug}/admin`} className="flex items-center gap-3">
@@ -347,9 +352,9 @@ export default function AdminLayout({
       )}
 
       {/* 3. MAIN WORKSPACE AREA */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col h-screen overflow-hidden print:h-auto print:overflow-visible print:block">
         {/* Sticky Topbar */}
-        <header className="h-16 bg-white border-b border-[#E5EAF0] px-4 md:px-8 flex items-center justify-between gap-4 z-20 shrink-0">
+        <header className="h-16 bg-white border-b border-[#E5EAF0] px-4 md:px-8 flex items-center justify-between gap-4 z-20 shrink-0 print:hidden">
           {/* Right side: Mobile Menu Button & Search */}
           <div className="flex items-center gap-3 flex-1 max-w-lg">
             <button
@@ -449,12 +454,12 @@ export default function AdminLayout({
         })()}
 
         {/* Scrollable Page Body */}
-        <main className="flex-1 overflow-y-auto bg-[#F6F8FB] pb-20 lg:pb-8 relative">
+        <main className="flex-1 overflow-y-auto bg-[#F6F8FB] pb-20 lg:pb-8 relative print:overflow-visible print:bg-white print:p-0">
           {children}
         </main>
 
         {/* 4. MOBILE BOTTOM NAVIGATION (Fixed at bottom for phones) */}
-        <nav className="lg:hidden fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-md border-t border-[#E5EAF0] px-3 py-2 z-40 flex justify-around items-center shadow-lg">
+        <nav className="lg:hidden fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-md border-t border-[#E5EAF0] px-3 py-2 z-40 flex justify-around items-center shadow-lg print:hidden">
           {bottomNavItems.map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href

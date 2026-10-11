@@ -32,6 +32,7 @@ export default function OwnerDashboard() {
   // Edit mode
   const [editingId, setEditingId] = useState<string | null>(null)
   const [globalApiKey, setGlobalApiKey] = useState('')
+  const [resendApiKey, setResendApiKey] = useState('')
   const [supportNumbers, setSupportNumbers] = useState<any[]>([{phone: '01551007018', label: 'دعم المنصة', isActive: true}])
   const [isSavingGlobal, setIsSavingGlobal] = useState(false)
   const [previewTemplateModal, setPreviewTemplateModal] = useState<string | null>(null)
@@ -89,8 +90,9 @@ export default function OwnerDashboard() {
       try {
         const snap = await getDocs(collection(db, 'system'))
         const configDoc = snap.docs.find(d => d.id === 'config')
-        if (configDoc && configDoc.data().globalAiKey) {
-          setGlobalApiKey(configDoc.data().globalAiKey)
+        if (configDoc) {
+          if (configDoc.data().globalAiKey) setGlobalApiKey(configDoc.data().globalAiKey)
+          if (configDoc.data().resendApiKey) setResendApiKey(configDoc.data().resendApiKey)
         }
         
         const pSnap = await getDocs(collection(db, 'platformSettings'))
@@ -135,7 +137,7 @@ export default function OwnerDashboard() {
   const saveGlobalKey = async () => {
     setIsSavingGlobal(true)
     try {
-      await setDoc(doc(db, 'system', 'config'), { globalAiKey: globalApiKey }, { merge: true })
+      await setDoc(doc(db, 'system', 'config'), { globalAiKey: globalApiKey, resendApiKey }, { merge: true })
       await setDoc(doc(db, 'platformSettings', 'main'), { supportNumbers }, { merge: true })
       toast.success('تم حفظ إعدادات المنصة بنجاح!')
     } catch (err) {
@@ -440,6 +442,8 @@ export default function OwnerDashboard() {
           </Button>
         </div>
       </div>
+
+
 
       {/* 2. KPI Metrics Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1013,7 +1017,8 @@ export default function OwnerDashboard() {
               </div>
 
               {/* Section 4: Login Accounts */}
-              <div className="space-y-3">
+              {!editingId && (
+<div className="space-y-3">
                 <h3 className="text-xs font-black text-slate-700 flex items-center gap-2">
                   <Users className="w-4 h-4 text-[#15B8A6]" />
                   حسابات دخول الكادر الطبي
@@ -1056,6 +1061,7 @@ export default function OwnerDashboard() {
                   </div>
                 </div>
               </div>
+)}
 
               {/* Section 5: Subscription & Active Status */}
               <div className="space-y-3">
@@ -1162,6 +1168,21 @@ export default function OwnerDashboard() {
               />
               <p className="text-[11px] text-slate-400">
                 يتم حفظ المفتاح بأمان تام واستخدامه في الرد على استفسارات المرضى حول مواعيد وكشوفات العيادات المسموح لها.
+              </p>
+            </div>
+
+            <div className="space-y-3 pt-3">
+              <Label className="text-xs font-bold text-slate-700">مفتاح إرسال الإيميلات (Resend API Key لرمز OTP)</Label>
+              <Input
+                type="password"
+                value={resendApiKey}
+                onChange={e => setResendApiKey(e.target.value)}
+                dir="ltr"
+                placeholder="re_..."
+                className="h-11 text-xs font-mono rounded-xl bg-slate-50 border-[#E5EAF0] focus:bg-white text-right"
+              />
+              <p className="text-[11px] text-slate-400">
+                يُستخدم لإرسال كود الـ OTP إلى جيميل الطبيب مباشرة عند طلب استعادة كلمة المرور (احصل عليه مجاناً من resend.com).
               </p>
 
             <div className="pb-4 mt-8 border-b border-[#E5EAF0]">

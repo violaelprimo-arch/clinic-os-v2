@@ -21,8 +21,8 @@ export default function AdminPage({ params }: { params: Promise<{ slug: string }
           setClinic({
             id: 'demo',
             slug: 'demo',
-            clinicName: 'عيادة د. محمد علي التخصصية',
-            doctorName: 'محمد علي',
+            clinicName: 'العيادة التخصصية',
+            doctorName: 'الطبيب',
             specialty: 'استشاري الطب المتخصص',
             primaryColor: '#15B8A6'
           })

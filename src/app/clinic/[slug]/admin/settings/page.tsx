@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   Save, Plus, Trash2, Palette, Phone, MapPin, Bot,
-  Wallet, Users, Clock, Printer, ShieldCheck, Settings,
+  Wallet, Users, Clock, Printer, ShieldCheck, Settings, Lock,
   CheckCircle2, Bell, Sparkles, Building2
 } from 'lucide-react'
 import { db } from '@/lib/firebase'
@@ -24,8 +24,12 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'queue' | 'services' | 'payment' | 'staff' | 'print' | 'ai' | 'whatsapp'>('profile')
+  const [activeTab, setActiveTab] = useState<'profile' | 'queue' | 'services' | 'payment' | 'staff' | 'print' | 'ai' | 'security' | 'whatsapp'>('profile')
   const [supportNumbers, setSupportNumbers] = useState<any[]>([])
+  const [newDoctorEmail, setNewDoctorEmail] = useState('')
+  const [newDoctorPassword, setNewDoctorPassword] = useState('')
+  const [newDoctorPasswordConfirm, setNewDoctorPasswordConfirm] = useState('')
+  const [currentRole, setCurrentRole] = useState('')
 
   const [clinicId, setClinicId] = useState<string | null>(null)
   const [photoUrl, setPhotoUrl] = useState('')
@@ -38,6 +42,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const [certificationEntity, setCertificationEntity] = useState('')
   
   useEffect(() => {
+    setCurrentRole(localStorage.getItem('clinic_role') || 'doctor');
     const fetchSupport = async () => {
       const snap = await getDocs(query(collection(db, 'platformSettings')));
       if (!snap.empty) {
@@ -48,6 +53,21 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   }, [])
   const [primaryColor, setPrimaryColor] = useState('#15B8A6')
   const [averageVisitTime, setAverageVisitTime] = useState<number>(15)
+  const [maxDailyBookings, setMaxDailyBookings] = useState<number>(0)
+  const [allowPatientMedicalView, setAllowPatientMedicalView] = useState(false)
+  const [hidePrices, setHidePrices] = useState(false)
+  const [weeklySchedule, setWeeklySchedule] = useState([
+    { day: 'السبت', isOpen: true, start: '09:00', end: '22:00', id: 'saturday' },
+    { day: 'الأحد', isOpen: true, start: '09:00', end: '22:00', id: 'sunday' },
+    { day: 'الاثنين', isOpen: true, start: '09:00', end: '22:00', id: 'monday' },
+    { day: 'الثلاثاء', isOpen: true, start: '09:00', end: '22:00', id: 'tuesday' },
+    { day: 'الأربعاء', isOpen: true, start: '09:00', end: '22:00', id: 'wednesday' },
+    { day: 'الخميس', isOpen: true, start: '09:00', end: '22:00', id: 'thursday' },
+    { day: 'الجمعة', isOpen: false, start: '09:00', end: '22:00', id: 'friday' }
+  ])
+  const [queueNormal, setQueueNormal] = useState(2)
+  const [queueConsult, setQueueConsult] = useState(1)
+  const [queueUrgent, setQueueUrgent] = useState(0)
 
   // Contacts & Location
   const [address, setAddress] = useState('')
@@ -138,6 +158,15 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           setPrimaryColor(data.primaryColor || '#15B8A6')
           setAssistantPermissions(data.assistantPermissions || ['appointments'])
           setAverageVisitTime(data.averageVisitTime || 15)
+          setMaxDailyBookings(data.maxDailyBookings || 0)
+          if (data.weeklySchedule && Array.isArray(data.weeklySchedule)) {
+            setWeeklySchedule(data.weeklySchedule)
+          }
+        setAllowPatientMedicalView(data.allowPatientMedicalView !== false)
+        setHidePrices(data.hidePrices === true)
+        
+        
+        
           setAddress(data.clinicAddress || '')
           setDoctorPhone(data.doctorPhone || '')
           setClinicPhone(data.clinicPhone || (data.clinicPhones?.[0] || ''))
@@ -153,8 +182,10 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           setShowPrices(data.showPrices !== false) // default true
           setIsWalletEnabled(data.isWalletEnabled || false)
           setIsInstapayEnabled(data.isInstapayEnabled || false)
-          setRegularPerUrgent(data.regularPerUrgent || 2)
-          setUrgentPerRegular(data.urgentPerRegular || 1)
+          setQueueNormal(data.queueNormal ?? 3)
+        setQueueConsult(data.queueConsult ?? 2)
+        setQueueUrgent(data.queueUrgent ?? 1)
+          
           setAssistants(data.assistants || [])
           if (data.waBookingConfirmedEnabled !== undefined) setWaBookingConfirmedEnabled(data.waBookingConfirmedEnabled)
           if (data.waFiveAheadEnabled !== undefined) setWaFiveAheadEnabled(data.waFiveAheadEnabled)
@@ -174,6 +205,16 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   }, [slug])
 
   const handleSave = async () => {
+    if (newDoctorPassword) {
+      if (newDoctorPassword.length < 6) {
+        toast.error('يجب ألا تقل كلمة المرور الجديدة عن 6 خانات')
+        return
+      }
+      if (newDoctorPassword !== newDoctorPasswordConfirm) {
+        toast.error('كلمتا المرور غير متطابقتين، يرجى التأكد من تطابق كلمة المرور وتأكيدها')
+        return
+      }
+    }
     setIsSaving(true)
     try {
       const rawPayload = {
@@ -188,6 +229,10 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         primaryColor: primaryColor || '#15B8A6',
         assistantPermissions: assistantPermissions || [],
         averageVisitTime: Number(averageVisitTime) || 15,
+        maxDailyBookings: Number(maxDailyBookings) || 0,
+      allowPatientMedicalView,
+      hidePrices,
+      weeklySchedule,
         clinicAddress: address || '',
         clinicPhone: phones[0] || '',
         doctorPhone: doctorPhone || '',
@@ -198,10 +243,14 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         instapayHandle: instapayHandle || '',
         isClinicOpen,
         showPrices,
+        ...(newDoctorEmail ? { doctorEmail: newDoctorEmail } : {}),
+        ...(newDoctorPassword ? { doctorPassword: newDoctorPassword } : {}),
         isWalletEnabled,
         isInstapayEnabled,
-        regularPerUrgent: Number(regularPerUrgent) || 2,
-        urgentPerRegular: Number(urgentPerRegular) || 1,
+        queueNormal: Number(queueNormal) ?? 3,
+      queueConsult: Number(queueConsult) ?? 2,
+      queueUrgent: Number(queueUrgent) ?? 1,
+        
         assistants: assistants || [],
         waBookingConfirmedEnabled,
         waFiveAheadEnabled,
@@ -226,7 +275,14 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       } else {
         await updateDoc(doc(db, 'clinics', clinicId), payload)
       }
-      toast.success('تم حفظ كافة إعدادات العيادة بنجاح وتطبيقها فورياً')
+      toast.success('تم حفظ كافة إعدادات العيادة بنجاح وتطبيقها فورياً');
+      if (newDoctorEmail || newDoctorPassword) {
+        toast.info('تم تغيير بيانات الدخول، يرجى تسجيل الدخول مجدداً.');
+        setTimeout(() => {
+          localStorage.removeItem('clinic_role');
+          window.location.href = `/clinic/${slug}/login`;
+        }, 2000);
+      }
     } catch (err: any) {
       console.error('Save Error:', err)
       toast.error('حدث خطأ أثناء الحفظ: ' + (err.message || ''))
@@ -321,6 +377,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   }
 
   const baseTabs = [
+    { id: 'security', label: 'الأمان والحساب', icon: Lock },
     { id: 'profile', label: 'الهوية والبيانات', icon: Building2 },
     { id: 'queue', label: 'المواعيد والدور', icon: Clock },
     { id: 'services', label: 'الخدمات والأسعار', icon: ShieldCheck },
@@ -360,7 +417,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
       {/* 2. Structured Settings Tabs */}
       <div className="flex border-b border-[#E5EAF0] gap-2 overflow-x-auto no-scrollbar">
-        {tabs.map((tab) => {
+        {tabs.filter(t => t.id !== 'security' || currentRole === 'doctor').map((tab) => {
           const Icon = tab.icon
           const isActive = activeTab === tab.id
           return (
@@ -382,6 +439,57 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
       {/* 3. Tab Contents */}
       
+      {/* TAB SECURITY */}
+      {activeTab === 'security' && currentRole === 'doctor' && (
+        <div className="medical-card p-6 max-w-2xl space-y-5">
+          <div className="pb-3 border-b border-[#E5EAF0]">
+            <h3 className="font-bold text-sm text-[#182230]">إعدادات حساب الطبيب</h3>
+            <p className="text-xs text-slate-400">يمكنك هنا تغيير البريد الإلكتروني وكلمة المرور الخاصة بك. هذه البيانات لا تظهر لمالك المنصة.</p>
+          </div>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-600">البريد الإلكتروني الجديد</Label>
+              <Input
+                type="email"
+                value={newDoctorEmail}
+                onChange={e => setNewDoctorEmail(e.target.value)}
+                placeholder="doctor@clinic.com"
+                className="h-10 text-xs rounded-xl text-left"
+                dir="ltr"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-600">كلمة المرور الجديدة</Label>
+              <Input
+                type="password"
+                value={newDoctorPassword}
+                onChange={e => setNewDoctorPassword(e.target.value)}
+                placeholder="••••••••"
+                className="h-10 text-xs rounded-xl text-left"
+                dir="ltr"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-600">تأكيد كلمة المرور الجديدة</Label>
+              <Input
+                type="password"
+                value={newDoctorPasswordConfirm}
+                onChange={e => setNewDoctorPasswordConfirm(e.target.value)}
+                placeholder="••••••••"
+                className="h-10 text-xs rounded-xl text-left"
+                dir="ltr"
+              />
+              {newDoctorPassword && newDoctorPasswordConfirm && newDoctorPassword !== newDoctorPasswordConfirm && (
+                <p className="text-[11px] font-bold text-rose-500">كلمتا المرور غير متطابقتين</p>
+              )}
+            </div>
+            <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold rounded-xl">
+              تنبيه: سيتم تسجيل خروجك بعد الحفظ وستحتاج لتسجيل الدخول بالبيانات الجديدة.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* TAB 1: Profile & Visual Identity */}
       {activeTab === 'profile' && (
         <div className="grid lg:grid-cols-2 gap-6">
@@ -421,7 +529,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                   <Input
                     value={doctorName}
                     onChange={e => setDoctorName(e.target.value)}
-                    placeholder="محمد علي"
+                    placeholder="الطبيب"
                     className="h-10 text-xs rounded-xl flex-1"
                   />
                 </div>
@@ -628,29 +736,104 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               </p>
             </div>
 
-            <div className="space-y-3">
-              <h4 className="font-bold text-sm text-[#182230]">نظام دخول الطوارئ / الكشف المستعجل</h4>
-              <p className="text-xs text-slate-500">يحدد كم كشف عادي يدخل بعده كشف مستعجل تلقائياً في شاشة الدور</p>
+            <div className="space-y-2 pb-4 border-b border-[#E5EAF0]">
+              <Label className="text-xs font-bold text-slate-600">
+                الحد الأقصى لعدد الكشوفات يومياً
+              </Label>
+              <Input
+                type="number"
+                value={maxDailyBookings || ''}
+                onChange={e => setMaxDailyBookings(Number(e.target.value) || 0)}
+                placeholder="مثال: 50 (أو 0 لعدد غير محدود)"
+                className="h-10 text-sm rounded-xl max-w-xs font-bold"
+                min={0}
+                max={500}
+              />
+              <p className="text-[11px] text-slate-400">
+                عند اكتمال هذا العدد من الحجوزات في أي يوم، يتم إغلاق الحجز لذلك اليوم تلقائياً وإتاحة اليوم التالي للمرضى.
+              </p>
+            </div>
+
+            <div className="space-y-4 pt-4 border-t border-[#E5EAF0]">
+    <h4 className="font-bold text-sm text-[#182230]">مواعيد العمل الأسبوعية</h4>
+    <p className="text-xs text-slate-500">تحديد أيام العمل ومواعيد استقبال المرضى</p>
+    <div className="space-y-3">
+      {weeklySchedule.map((day, idx) => (
+        <div key={day.id} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl">
+          <div className="flex items-center gap-3 w-32">
+            <Switch
+              checked={day.isOpen}
+              onCheckedChange={(val) => {
+                const newS = [...weeklySchedule];
+                newS[idx].isOpen = val;
+                setWeeklySchedule(newS);
+              }}
+            />
+            <span className="text-xs font-bold text-slate-700">{day.day}</span>
+          </div>
+          {day.isOpen && (
+            <div className="flex items-center gap-2">
+              <Input
+                type="time"
+                value={day.start}
+                onChange={(e) => {
+                  const newS = [...weeklySchedule];
+                  newS[idx].start = e.target.value;
+                  setWeeklySchedule(newS);
+                }}
+                className="h-9 text-xs w-28"
+              />
+              <span className="text-xs text-slate-400">إلى</span>
+              <Input
+                type="time"
+                value={day.end}
+                onChange={(e) => {
+                  const newS = [...weeklySchedule];
+                  newS[idx].end = e.target.value;
+                  setWeeklySchedule(newS);
+                }}
+                className="h-9 text-xs w-28"
+              />
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  </div>
+
+  <div className="space-y-3 pt-4 border-t border-[#E5EAF0]">
+    <h4 className="font-bold text-sm text-[#182230]">نظام ترتيب الأدوار (نمط الدخول)</h4>
+              <p className="text-xs text-slate-500">حدد عدد الحالات التي تدخل بالترتيب قبل إعادة الدورة. اكتب (0) للمستعجل ليدخل فوراً قبل أي خدمة أخرى.</p>
               
-              <div className="grid grid-cols-2 gap-4 max-w-sm">
+              <div className="grid grid-cols-3 gap-4 max-w-lg">
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-600">عدد الكشوفات العادية</Label>
+                  <Label className="text-xs font-bold text-slate-600 text-rose-600">كشف مستعجل</Label>
                   <Input
                     type="number"
-                    value={regularPerUrgent}
-                    onChange={e => setRegularPerUrgent(Number(e.target.value))}
-                    className="h-10 text-sm rounded-xl font-bold"
-                    min={1}
+                    value={queueUrgent}
+                    onChange={e => setQueueUrgent(Number(e.target.value))}
+                    className="h-10 text-sm rounded-xl font-bold border-rose-200 bg-rose-50 text-rose-900"
+                    min={0}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-rose-600">يتبعها (كشف مستعجل)</Label>
+                  <Label className="text-xs font-bold text-slate-600">كشف عادي</Label>
                   <Input
                     type="number"
-                    value={urgentPerRegular}
-                    onChange={e => setUrgentPerRegular(Number(e.target.value))}
-                    className="h-10 text-sm rounded-xl font-bold border-rose-200 bg-rose-50 text-rose-700"
-                    min={1}
+                    value={queueNormal}
+                    onChange={e => setQueueNormal(Number(e.target.value))}
+                    className="h-10 text-sm rounded-xl font-bold"
+                    min={0}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-600 text-blue-600">استشارة</Label>
+                  <Input
+                    type="number"
+                    value={queueConsult}
+                    onChange={e => setQueueConsult(Number(e.target.value))}
+                    className="h-10 text-sm rounded-xl font-bold border-blue-200 bg-blue-50 text-blue-900"
+                    min={0}
                   />
                 </div>
               </div>

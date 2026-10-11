@@ -4,7 +4,7 @@ import { use, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { auth, db } from '@/lib/firebase'
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'
-import { collection, query, where, getDocs } from 'firebase/firestore'
+import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -20,10 +20,22 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
   const [email, setEmail] = useState('')
+  
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search)
+    if (searchParams.get('error') === 'subscription_ended') {
+      setError('تم انتهاء الاشتراك. يرجى التواصل مع الإدارة.');
+    }
+  }, [])
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isResetMode, setIsResetMode] = useState(false)
+  const [resetOtpSent, setResetOtpSent] = useState(false)
+  const [resetOtp, setResetOtp] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState('')
   const [clinicHero, setClinicHero] = useState('https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=1000&auto=format&fit=crop')
   const router = useRouter()
 
@@ -41,6 +53,93 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
     fetchClinic()
   }, [slug])
 
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      return setError('يرجى إدخال البريد الإلكتروني أولاً');
+    }
+    setIsLoading(true);
+    setError(null);
+    try {
+      const q = query(collection(db, 'clinics'), where('slug', '==', slug));
+      const snapshot = await getDocs(q);
+      if (!snapshot.empty) {
+        const cDoc = snapshot.docs[0];
+        const data = cDoc.data();
+        if ((data.doctorEmail || '').trim().toLowerCase() === email.trim().toLowerCase()) {
+          const otp = Math.floor(100000 + Math.random() * 900000).toString();
+          await updateDoc(doc(db, 'clinics', cDoc.id), {
+            resetPasswordOtp: otp,
+            resetPasswordRequestedAt: new Date().toISOString()
+          });
+
+          // Send OTP directly to doctor's email
+          try {
+            await fetch('/api/send-otp', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                email: email.trim(),
+                otp,
+                doctorName: data.doctorName,
+                clinicName: data.clinicName
+              })
+            });
+          } catch (sendErr) {
+            console.warn('send-otp error:', sendErr);
+          }
+
+          setResetOtpSent(true);
+          toast.success('تم إرسال رمز التحقق (OTP) إلى بريدك الإلكتروني (Gmail) بنجاح.');
+        } else {
+          setError('البريد الإلكتروني غير مسجل.');
+        }
+      }
+    } catch (err) {
+      setError('حدث خطأ أثناء طلب استعادة كلمة المرور.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetOtp.trim() || !newPassword.trim()) {
+      return setError('يرجى إدخال الكود وكلمة المرور الجديدة');
+    }
+    if (newPassword.length < 6) {
+      return setError('يجب ألا تقل كلمة المرور الجديدة عن 6 خانات');
+    }
+    if (newPassword !== newPasswordConfirm) {
+      return setError('كلمتا المرور غير متطابقتين، يرجى التأكد من تطابق كلمة المرور وتأكيدها');
+    }
+    setIsLoading(true);
+    setError(null);
+    try {
+      const q = query(collection(db, 'clinics'), where('slug', '==', slug));
+      const snapshot = await getDocs(q);
+      if (!snapshot.empty) {
+        const cDoc = snapshot.docs[0];
+        const data = cDoc.data();
+        if (data.resetPasswordOtp === resetOtp.trim()) {
+          await updateDoc(doc(db, 'clinics', cDoc.id), {
+            doctorPassword: newPassword,
+            resetPasswordOtp: null,
+            resetPasswordRequestedAt: null
+          });
+          toast.success('تم تغيير كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول.');
+          setIsResetMode(false);
+          setResetOtpSent(false);
+          setPassword(newPassword);
+        } else {
+          setError('رمز التحقق (OTP) غير صحيح أو منتهي الصلاحية.');
+        }
+      }
+    } catch (err) {
+      setError('حدث خطأ أثناء تغيير كلمة المرور.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -153,7 +252,75 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
 
           {/* Form */}
           <form onSubmit={handleLogin} className="space-y-5">
-            {error && (
+            {isResetMode ? (
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600">البريد الإلكتروني (للتأكيد)</Label>
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="h-12 text-sm bg-slate-50 border-slate-200"
+                  dir="ltr"
+                  disabled={resetOtpSent}
+                />
+              </div>
+              
+              {!resetOtpSent ? (
+                <Button onClick={handleForgotPassword} disabled={isLoading} className="w-full h-12 bg-[#15B8A6] hover:bg-[#0D9488] text-white font-bold rounded-xl shadow-lg">
+                  {isLoading ? 'جاري الإرسال...' : 'طلب رمز التحقق عبر البريد الإلكتروني (Gmail)'}
+                </Button>
+              ) : (
+                <>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-slate-600">رمز التحقق (OTP) من البريد الإلكتروني</Label>
+                    <Input
+                      type="text"
+                      value={resetOtp}
+                      onChange={(e) => setResetOtp(e.target.value)}
+                      className="h-12 text-sm text-center tracking-widest font-mono"
+                      dir="ltr"
+                      placeholder="123456"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-slate-600">كلمة المرور الجديدة</Label>
+                    <PasswordInput
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="h-12 text-sm"
+                      dir="ltr"
+                      placeholder="••••••••"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-slate-600">تأكيد كلمة المرور الجديدة</Label>
+                    <PasswordInput
+                      value={newPasswordConfirm}
+                      onChange={(e) => setNewPasswordConfirm(e.target.value)}
+                      className="h-12 text-sm"
+                      dir="ltr"
+                      placeholder="••••••••"
+                    />
+                    {newPassword && newPasswordConfirm && newPassword !== newPasswordConfirm && (
+                      <p className="text-[11px] font-bold text-rose-500">كلمتا المرور غير متطابقتين</p>
+                    )}
+                  </div>
+                  <Button onClick={handleResetPassword} disabled={isLoading} className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg">
+                    {isLoading ? 'جاري الحفظ...' : 'تأكيد وتغيير كلمة المرور'}
+                  </Button>
+                </>
+              )}
+              
+              <div className="text-center">
+                <button type="button" onClick={() => setIsResetMode(false)} className="text-xs font-bold text-slate-500 hover:text-slate-800">
+                  العودة لتسجيل الدخول
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {error && (
               <Alert variant="destructive" className="bg-rose-50 border-rose-200 text-rose-800 rounded-xl text-xs">
                 <AlertCircle className="h-4 w-4 text-rose-600" />
                 <AlertTitle className="font-bold">خطأ في الدخول</AlertTitle>
@@ -253,6 +420,8 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
               </svg>
               تسجيل الدخول عبر Google
             </Button>
+                    </>
+            )}
           </form>
 
           {/* Footer Contact */}

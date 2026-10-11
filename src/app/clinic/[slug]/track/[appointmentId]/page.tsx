@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState } from 'react'
 import { db } from '@/lib/firebase'
+import { calculateWaitTime, formatEstimatedTime, formatWaitDuration, sortQueue } from '@/lib/queueCalculations'
 import { doc, onSnapshot, collection, query, where } from 'firebase/firestore'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -25,10 +26,14 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
   const [showInvoiceModal, setShowInvoiceModal] = useState(false)
 
   useEffect(() => {
+    let clinicData: any = null
     // 1. Fetch clinic data
     const qClinic = query(collection(db, 'clinics'), where('slug', '==', slug))
     const unsubClinic = onSnapshot(qClinic, (snapshot) => {
-      if (!snapshot.empty) setClinic(snapshot.docs[0].data())
+      if (!snapshot.empty) {
+        clinicData = snapshot.docs[0].data()
+        setClinic(clinicData)
+      }
     })
 
     // 2. Listen to this appointment
@@ -45,13 +50,10 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
             where('date', '==', apptData.date)
           )
           onSnapshot(qQueue, (queueSnap) => {
-            let aheadCount = 0
-            queueSnap.docs.forEach(d => {
-              const item = d.data()
-              if (item.status === 'waiting' && item.queue_number < apptData.queue_number) {
-                aheadCount++
-              }
-            })
+            const data = queueSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
+            const orderedWaiting = sortQueue(data, clinicData)
+            const myIndex = orderedWaiting.findIndex(d => d.id === appointmentId)
+            const aheadCount = myIndex >= 0 ? myIndex : 0
             setPeopleAhead(aheadCount)
             setLoading(false)
           })
@@ -93,7 +95,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
 
   const isCompleted = appointment.status === 'completed'
   const isInProgress = appointment.status === 'in_progress'
-  const estimatedMins = isCompleted ? 0 : isInProgress ? 0 : peopleAhead * averageTime
+  const estimatedMins = isCompleted ? 0 : isInProgress ? 0 : calculateWaitTime(peopleAhead, averageTime)
 
   return (
     <div className="min-h-screen bg-[#F6F8FB] flex flex-col items-center justify-center p-4 font-sans" dir="rtl">
@@ -106,7 +108,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
           <ClinicLogo size="md" variant="light" />
           <div className="pt-2">
             <h1 className="text-lg font-black text-[#182230]">
-              {clinic?.clinicName || 'عيادة د. محمد علي'}
+              {clinic?.clinicName || 'العيادة'}
             </h1>
             <p className="text-xs text-slate-400">
               مرحباً {appointment.patientName} • شاشة متابعة الدور المباشرة
@@ -151,7 +153,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
               <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#E5EAF0] text-right space-y-1">
                 <span className="text-[11px] font-bold text-slate-400">وقت الانتظار المتوقع</span>
                 <p className="text-lg font-black text-[#15B8A6]">
-                  {estimatedMins > 0 ? `حوالي ${estimatedMins} دقيقة` : 'اقترب دورك جداً'}
+                  {formatWaitDuration(estimatedMins)}
                 </p>
               </div>
 
@@ -232,6 +234,12 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
               </Button>
             </a>
           )}
+          
+          <a href={`/clinic/${slug}`} className="block w-full">
+            <Button variant="ghost" className="w-full h-11 text-xs font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl">
+              خروج والعودة للرئيسية
+            </Button>
+          </a>
         </div>
 
       </div>

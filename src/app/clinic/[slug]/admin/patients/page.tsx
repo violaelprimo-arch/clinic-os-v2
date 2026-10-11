@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { db } from '@/lib/firebase'
-import { collection, query, where, getDocs, addDoc } from 'firebase/firestore'
+import { collection, query, where, getDocs, addDoc, onSnapshot } from 'firebase/firestore'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -31,15 +31,39 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [newPhone, setNewPhone] = useState('')
+  const [newDob, setNewDob] = useState('')
+  const [newAge, setNewAge] = useState('')
   const [newService, setNewService] = useState('كشف عادي')
   const [newPrice, setNewPrice] = useState(250)
   const [isAdding, setIsAdding] = useState(false)
+
+  const handleAgeChange = (val: string) => {
+    setNewAge(val)
+    if (val) {
+      const year = new Date().getFullYear() - parseInt(val)
+      setNewDob(year + '-01-01')
+    } else {
+      setNewDob('')
+    }
+  }
+
+  const handleDobChange = (val: string) => {
+    setNewDob(val)
+    if (val) {
+      const birthYear = new Date(val).getFullYear()
+      const currentYear = new Date().getFullYear()
+      setNewAge((currentYear - birthYear).toString())
+    } else {
+      setNewAge('')
+    }
+  }
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 8
 
   useEffect(() => {
+    let unsubAppts: any = null;
     const fetchPatients = async () => {
       try {
         const clinicQ = query(collection(db, 'clinics'), where('slug', '==', slug))
@@ -48,45 +72,44 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
         const cId = clinicSnap.docs[0].id
         setClinicId(cId)
 
-        // Fetch all appointments for this clinic
         const apptQ = query(collection(db, 'appointments'), where('clinic_id', '==', cId))
-        const apptSnap = await getDocs(apptQ)
-        
-        // Group by phone number
-        const patientMap = new Map()
-        apptSnap.docs.forEach(doc => {
-          const data = doc.data()
-          if (!data.phone) return
-          if (!patientMap.has(data.phone)) {
-            patientMap.set(data.phone, {
-              id: data.phone,
-              name: data.patientName,
-              phone: data.phone,
-              visitsCount: 1,
-              lastVisit: data.date,
-              lastService: data.serviceName || 'كشف',
-              status: data.visitsCount > 3 ? 'نشط' : (data.serviceName?.includes('مستعجل') ? 'مستعجل' : 'نشط')
-            })
-          } else {
-            const existing = patientMap.get(data.phone)
-            existing.visitsCount += 1
-            if (new Date(data.date) > new Date(existing.lastVisit)) {
-              existing.lastVisit = data.date
-              existing.lastService = data.serviceName || 'كشف'
+        unsubAppts = onSnapshot(apptQ, (apptSnap) => {
+          const pMap = new Map()
+          apptSnap.docs.forEach(doc => {
+            const d = doc.data()
+            if (!d.phone) return
+            if (!pMap.has(d.phone)) {
+              pMap.set(d.phone, {
+                id: d.phone,
+                name: d.patientName,
+                phone: d.phone,
+                visitsCount: 1,
+                lastVisit: d.date,
+                lastService: d.serviceName || 'كشف',
+                status: 'نشط'
+              })
+            } else {
+              const existing = pMap.get(d.phone)
+              existing.visitsCount += 1
+              if (new Date(d.date) > new Date(existing.lastVisit)) {
+                existing.lastVisit = d.date
+                existing.name = d.patientName
+              }
             }
-          }
+          })
+          setPatients(Array.from(pMap.values()).sort((a: any, b: any) => new Date(b.lastVisit).getTime() - new Date(a.lastVisit).getTime()))
+          setLoading(false)
         })
-
-        // Real patients sorted by last visit
-        const loadedPatients = Array.from(patientMap.values())
-        setPatients(loadedPatients.sort((a, b) => new Date(b.lastVisit).getTime() - new Date(a.lastVisit).getTime()))
-      } catch (err) {
-        console.error(err)
-      } finally {
+      } catch (error) {
+        console.error("Error fetching patients:", error)
         setLoading(false)
       }
     }
     fetchPatients()
+
+    return () => {
+      if (unsubAppts) unsubAppts()
+    }
   }, [slug])
 
   const filtered = useMemo(() => {
@@ -249,6 +272,27 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                   dir="ltr"
                   required
                 />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-600">تاريخ الميلاد</Label>
+                  <Input
+                    type="date"
+                    value={newDob}
+                    onChange={e => handleDobChange(e.target.value)}
+                    className="h-10 text-sm rounded-xl"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-600">العمر</Label>
+                  <Input
+                    type="number"
+                    value={newAge}
+                    onChange={e => handleAgeChange(e.target.value)}
+                    placeholder="25"
+                    className="h-10 text-sm rounded-xl"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
