@@ -35,6 +35,7 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
   const [resetOtpSent, setResetOtpSent] = useState(false)
   const [resetOtp, setResetOtp] = useState('')
   const [newPassword, setNewPassword] = useState('')
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState('')
   const [clinicHero, setClinicHero] = useState('https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=1000&auto=format&fit=crop')
   const router = useRouter()
 
@@ -58,20 +59,38 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
       return setError('يرجى إدخال البريد الإلكتروني أولاً');
     }
     setIsLoading(true);
+    setError(null);
     try {
       const q = query(collection(db, 'clinics'), where('slug', '==', slug));
       const snapshot = await getDocs(q);
       if (!snapshot.empty) {
         const cDoc = snapshot.docs[0];
         const data = cDoc.data();
-        if (data.doctorEmail === email.trim()) {
+        if ((data.doctorEmail || '').trim().toLowerCase() === email.trim().toLowerCase()) {
           const otp = Math.floor(100000 + Math.random() * 900000).toString();
           await updateDoc(doc(db, 'clinics', cDoc.id), {
             resetPasswordOtp: otp,
             resetPasswordRequestedAt: new Date().toISOString()
           });
+
+          // Send OTP directly to doctor's email
+          try {
+            await fetch('/api/send-otp', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                email: email.trim(),
+                otp,
+                doctorName: data.doctorName,
+                clinicName: data.clinicName
+              })
+            });
+          } catch (sendErr) {
+            console.warn('send-otp error:', sendErr);
+          }
+
           setResetOtpSent(true);
-          toast.success('تم إرسال كود استعادة كلمة المرور لمالك المنصة بنجاح.');
+          toast.success('تم إرسال رمز التحقق (OTP) إلى بريدك الإلكتروني (Gmail) بنجاح.');
         } else {
           setError('البريد الإلكتروني غير مسجل.');
         }
@@ -87,14 +106,21 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
     if (!resetOtp.trim() || !newPassword.trim()) {
       return setError('يرجى إدخال الكود وكلمة المرور الجديدة');
     }
+    if (newPassword.length < 6) {
+      return setError('يجب ألا تقل كلمة المرور الجديدة عن 6 خانات');
+    }
+    if (newPassword !== newPasswordConfirm) {
+      return setError('كلمتا المرور غير متطابقتين، يرجى التأكد من تطابق كلمة المرور وتأكيدها');
+    }
     setIsLoading(true);
+    setError(null);
     try {
       const q = query(collection(db, 'clinics'), where('slug', '==', slug));
       const snapshot = await getDocs(q);
       if (!snapshot.empty) {
         const cDoc = snapshot.docs[0];
         const data = cDoc.data();
-        if (data.resetPasswordOtp === resetOtp) {
+        if (data.resetPasswordOtp === resetOtp.trim()) {
           await updateDoc(doc(db, 'clinics', cDoc.id), {
             doctorPassword: newPassword,
             resetPasswordOtp: null,
@@ -105,7 +131,7 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
           setResetOtpSent(false);
           setPassword(newPassword);
         } else {
-          setError('الكود غير صحيح.');
+          setError('رمز التحقق (OTP) غير صحيح أو منتهي الصلاحية.');
         }
       }
     } catch (err) {
@@ -267,12 +293,12 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
               
               {!resetOtpSent ? (
                 <Button onClick={handleForgotPassword} disabled={isLoading} className="w-full h-12 bg-[#15B8A6] hover:bg-[#0D9488] text-white font-bold rounded-xl shadow-lg">
-                  {isLoading ? 'جاري الإرسال...' : 'طلب كود الاستعادة (يُرسل للمالك)'}
+                  {isLoading ? 'جاري الإرسال...' : 'طلب رمز التحقق عبر البريد الإلكتروني (Gmail)'}
                 </Button>
               ) : (
                 <>
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-bold text-slate-600">كود OTP (من المالك)</Label>
+                    <Label className="text-xs font-bold text-slate-600">رمز التحقق (OTP) من البريد الإلكتروني</Label>
                     <Input
                       type="text"
                       value={resetOtp}
@@ -289,7 +315,21 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
                       onChange={(e) => setNewPassword(e.target.value)}
                       className="h-12 text-sm"
                       dir="ltr"
+                      placeholder="••••••••"
                     />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-slate-600">تأكيد كلمة المرور الجديدة</Label>
+                    <PasswordInput
+                      value={newPasswordConfirm}
+                      onChange={(e) => setNewPasswordConfirm(e.target.value)}
+                      className="h-12 text-sm"
+                      dir="ltr"
+                      placeholder="••••••••"
+                    />
+                    {newPassword && newPasswordConfirm && newPassword !== newPasswordConfirm && (
+                      <p className="text-[11px] font-bold text-rose-500">كلمتا المرور غير متطابقتين</p>
+                    )}
                   </div>
                   <Button onClick={handleResetPassword} disabled={isLoading} className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg">
                     {isLoading ? 'جاري الحفظ...' : 'تأكيد وتغيير كلمة المرور'}

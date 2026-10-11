@@ -30,6 +30,7 @@ export default function OwnerDashboard() {
   // Edit mode
   const [editingId, setEditingId] = useState<string | null>(null)
   const [globalApiKey, setGlobalApiKey] = useState('')
+  const [resendApiKey, setResendApiKey] = useState('')
   const [supportNumbers, setSupportNumbers] = useState<any[]>([{phone: '01551007018', label: 'دعم المنصة', isActive: true}])
   const [isSavingGlobal, setIsSavingGlobal] = useState(false)
   const [previewTemplateModal, setPreviewTemplateModal] = useState<string | null>(null)
@@ -87,8 +88,9 @@ export default function OwnerDashboard() {
       try {
         const snap = await getDocs(collection(db, 'system'))
         const configDoc = snap.docs.find(d => d.id === 'config')
-        if (configDoc && configDoc.data().globalAiKey) {
-          setGlobalApiKey(configDoc.data().globalAiKey)
+        if (configDoc) {
+          if (configDoc.data().globalAiKey) setGlobalApiKey(configDoc.data().globalAiKey)
+          if (configDoc.data().resendApiKey) setResendApiKey(configDoc.data().resendApiKey)
         }
         
         const pSnap = await getDocs(collection(db, 'platformSettings'))
@@ -133,7 +135,7 @@ export default function OwnerDashboard() {
   const saveGlobalKey = async () => {
     setIsSavingGlobal(true)
     try {
-      await setDoc(doc(db, 'system', 'config'), { globalAiKey: globalApiKey }, { merge: true })
+      await setDoc(doc(db, 'system', 'config'), { globalAiKey: globalApiKey, resendApiKey }, { merge: true })
       await setDoc(doc(db, 'platformSettings', 'main'), { supportNumbers }, { merge: true })
       toast.success('تم حفظ إعدادات المنصة بنجاح!')
     } catch (err) {
@@ -367,41 +369,7 @@ export default function OwnerDashboard() {
         </div>
       </div>
 
-      {/* Active Password Reset OTPs Notification Banner */}
-      {clinics.some(c => c.resetPasswordOtp) && (
-        <div className="bg-amber-50 border-2 border-amber-300 p-4 rounded-2xl flex flex-col gap-3 shadow-sm">
-          <div className="flex items-center gap-2 text-amber-900 font-black text-sm">
-            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
-            <span>تنبيه: يوجد طلب استعادة كلمة مرور معلق من أحد الأطباء (OTP):</span>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {clinics.filter(c => c.resetPasswordOtp).map(c => (
-              <div key={c.id} className="bg-white border border-amber-200 p-3.5 rounded-xl flex items-center justify-between shadow-xs">
-                <div>
-                  <h4 className="font-bold text-xs text-slate-900">{c.clinicName}</h4>
-                  <p className="text-[11px] text-slate-600 font-medium">{c.doctorName ? `د. ${c.doctorName}` : 'طبيب العيادة'}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-base font-black tracking-widest text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 font-mono">
-                    {c.resetPasswordOtp}
-                  </span>
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    className="h-8 px-2.5 text-xs font-bold border-amber-300 text-amber-900 hover:bg-amber-100 rounded-lg cursor-pointer"
-                    onClick={() => {
-                      navigator.clipboard.writeText(c.resetPasswordOtp);
-                      toast.success('تم نسخ رمز التحقق بنجاح!');
-                    }}
-                  >
-                    نسخ الكود
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+
 
       {/* 2. KPI Metrics Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -574,15 +542,6 @@ export default function OwnerDashboard() {
                           <td className="py-4 px-4">
                             <div className="space-y-0.5">
                               <h4 className="font-black text-sm text-[#182230]">{c.clinicName}</h4>
-                                {c.resetPasswordOtp && (
-                                  <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
-                                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                                    <div>
-                                      <span className="text-[10px] font-bold text-amber-800 block">طلب استعادة كلمة المرور:</span>
-                                      <span className="text-xs font-black text-amber-900 tracking-widest">{c.resetPasswordOtp}</span>
-                                    </div>
-                                  </div>
-                                )}
                               <p className="text-slate-500 font-semibold text-[11px]">
                                 {c.doctorName ? `د. ${c.doctorName}` : 'طبيب العيادة'}
                               </p>
@@ -1121,6 +1080,21 @@ export default function OwnerDashboard() {
               />
               <p className="text-[11px] text-slate-400">
                 يتم حفظ المفتاح بأمان تام واستخدامه في الرد على استفسارات المرضى حول مواعيد وكشوفات العيادات المسموح لها.
+              </p>
+            </div>
+
+            <div className="space-y-3 pt-3">
+              <Label className="text-xs font-bold text-slate-700">مفتاح إرسال الإيميلات (Resend API Key لرمز OTP)</Label>
+              <Input
+                type="password"
+                value={resendApiKey}
+                onChange={e => setResendApiKey(e.target.value)}
+                dir="ltr"
+                placeholder="re_..."
+                className="h-11 text-xs font-mono rounded-xl bg-slate-50 border-[#E5EAF0] focus:bg-white text-right"
+              />
+              <p className="text-[11px] text-slate-400">
+                يُستخدم لإرسال كود الـ OTP إلى جيميل الطبيب مباشرة عند طلب استعادة كلمة المرور (احصل عليه مجاناً من resend.com).
               </p>
 
             <div className="pb-4 mt-8 border-b border-[#E5EAF0]">

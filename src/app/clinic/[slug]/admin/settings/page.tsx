@@ -27,6 +27,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const [supportNumbers, setSupportNumbers] = useState<any[]>([]);
   const [newDoctorEmail, setNewDoctorEmail] = useState('');
   const [newDoctorPassword, setNewDoctorPassword] = useState('');
+  const [newDoctorPasswordConfirm, setNewDoctorPasswordConfirm] = useState('');
   const [currentRole, setCurrentRole] = useState('');
 
   const [clinicId, setClinicId] = useState<string | null>(null)
@@ -177,6 +178,16 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   }, [slug])
 
   const handleSave = async () => {
+    if (newDoctorPassword) {
+      if (newDoctorPassword.length < 6) {
+        toast.error('يجب ألا تقل كلمة المرور الجديدة عن 6 خانات')
+        return
+      }
+      if (newDoctorPassword !== newDoctorPasswordConfirm) {
+        toast.error('كلمتا المرور غير متطابقتين، يرجى التأكد من تطابق كلمة المرور وتأكيدها')
+        return
+      }
+    }
     setIsSaving(true)
     try {
       const rawPayload = {
@@ -385,6 +396,20 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                 className="h-10 text-xs rounded-xl text-left"
                 dir="ltr"
               />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-600">تأكيد كلمة المرور الجديدة</Label>
+              <Input
+                type="password"
+                value={newDoctorPasswordConfirm}
+                onChange={e => setNewDoctorPasswordConfirm(e.target.value)}
+                placeholder="••••••••"
+                className="h-10 text-xs rounded-xl text-left"
+                dir="ltr"
+              />
+              {newDoctorPassword && newDoctorPasswordConfirm && newDoctorPassword !== newDoctorPasswordConfirm && (
+                <p className="text-[11px] font-bold text-rose-500">كلمتا المرور غير متطابقتين</p>
+              )}
             </div>
             <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold rounded-xl">
               تنبيه: سيتم تسجيل خروجك بعد الحفظ وستحتاج لتسجيل الدخول بالبيانات الجديدة.

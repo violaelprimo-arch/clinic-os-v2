@@ -80,15 +80,31 @@ export default function UpdatePassword({ params }: { params: Promise<{ slug: str
       // Generate 6-digit OTP
       const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString()
 
-      // Save OTP to Firestore so Owner can see it in real-time
+      // Save OTP to Firestore
       await updateDoc(doc(db, 'clinics', cDoc.id), {
         resetPasswordOtp: generatedOtp,
         resetPasswordRequestedAt: new Date().toISOString()
       })
 
+      // Send OTP to Doctor's Gmail via API
+      try {
+        await fetch('/api/send-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: cleanInputEmail,
+            otp: generatedOtp,
+            doctorName: data.doctorName,
+            clinicName: data.clinicName
+          })
+        })
+      } catch (sendErr) {
+        console.warn('send-otp fetch warning:', sendErr)
+      }
+
       setClinic((prev: any) => ({ ...prev, resetPasswordOtp: generatedOtp }))
       setStep('verify')
-      toast.success('تم إنشاء طلب رمز التحقق (OTP) وإرساله لمالك المنصة بنجاح!')
+      toast.success('تم إرسال رمز التحقق (OTP) إلى بريدك الإلكتروني (Gmail) بنجاح!')
     } catch (err: any) {
       setError('حدث خطأ أثناء إرسال الطلب: ' + (err.message || ''))
     } finally {
@@ -102,7 +118,7 @@ export default function UpdatePassword({ params }: { params: Promise<{ slug: str
     setError(null)
 
     if (!otp.trim()) {
-      setError('يرجى إدخال رمز التحقق OTP الذي استلمته من مالك المنصة.')
+      setError('يرجى إدخال رمز التحقق OTP المرسل إلى بريدك الإلكتروني.')
       return
     }
     if (password.length < 6) {
@@ -128,7 +144,7 @@ export default function UpdatePassword({ params }: { params: Promise<{ slug: str
       const data = cDoc.data()
 
       if (!data.resetPasswordOtp || data.resetPasswordOtp.trim() !== otp.trim()) {
-        setError('رمز التحقق (OTP) غير صحيح أو منتهي الصلاحية. تواصل مع مالك المنصة.')
+        setError('رمز التحقق (OTP) غير صحيح أو منتهي الصلاحية. يرجى التأكد من الرمز المستلم على بريدك الإلكتروني.')
         return
       }
 
@@ -161,8 +177,8 @@ export default function UpdatePassword({ params }: { params: Promise<{ slug: str
             <h1 className="text-xl font-black text-[#182230]">استعادة كلمة المرور (OTP)</h1>
             <p className="text-xs text-slate-500 mt-1">
               {step === 'request'
-                ? 'أدخل بريدك الإلكتروني لطلب رمز التحقق من مالك المنصة'
-                : 'أدخل رمز التحقق (OTP) المستلم من المالك مع كلمة المرور الجديدة'}
+                ? 'أدخل بريدك الإلكتروني المسجل لاستلام رمز التحقق (OTP) على الجيميل'
+                : 'أدخل رمز التحقق (OTP) المرسل إلى بريدك الإلكتروني مع كلمة المرور الجديدة'}
             </p>
           </div>
         </div>
@@ -197,7 +213,7 @@ export default function UpdatePassword({ params }: { params: Promise<{ slug: str
               className="w-full h-12 text-sm font-black bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-lg shadow-[#15B8A6]/20 transition-all cursor-pointer"
             >
               <KeyRound className="w-4 h-4 ml-2" />
-              {isLoading ? 'جاري إرسال الطلب...' : 'إرسال طلب رمز OTP للمالك'}
+              {isLoading ? 'جاري إرسال الرمز...' : 'إرسال رمز التحقق (OTP) إلى بريدي الإلكتروني'}
             </Button>
           </form>
         )}
@@ -205,15 +221,15 @@ export default function UpdatePassword({ params }: { params: Promise<{ slug: str
         {/* STEP 2: Verify OTP & Enter New Password */}
         {step === 'verify' && (
           <form onSubmit={handleResetPassword} className="space-y-4">
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5">
-              <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-xs text-amber-800 font-medium leading-relaxed">
-                تم تسجيل طلب استعادة كلمة المرور بنجاح. تواصل مع <strong>مالك المنصة</strong> للحصول على رمز الـ <strong>OTP</strong> وأدخله بالأسفل.
+            <div className="p-3.5 bg-teal-50 border border-teal-200 rounded-xl flex items-start gap-2.5">
+              <ShieldCheck className="w-5 h-5 text-teal-600 shrink-0 mt-0.5" />
+              <p className="text-xs text-teal-900 font-medium leading-relaxed">
+                تم إرسال كود التحقق <strong>OTP</strong> إلى بريدك الإلكتروني (Gmail). يرجى تفقد صندوق الوارد أو مجلد الرسائل غير المرغوب فيها (Spam) وكتابة الرمز بالأسفل.
               </p>
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-slate-600">رمز التحقق (OTP) من المالك</Label>
+              <Label className="text-xs font-bold text-slate-600">رمز التحقق (OTP) من البريد الإلكتروني</Label>
               <Input
                 type="text"
                 value={otp}
@@ -264,7 +280,7 @@ export default function UpdatePassword({ params }: { params: Promise<{ slug: str
               onClick={() => setStep('request')}
               className="w-full text-center text-xs font-bold text-slate-400 hover:text-slate-600 pt-1"
             >
-              طلب رمز OTP جديد
+              إعادة إرسال رمز OTP إلى البريد الإلكتروني
             </button>
           </form>
         )}
