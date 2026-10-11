@@ -168,7 +168,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   }, [drugSearch])
 
   return (
-    <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto" dir="rtl">
+    <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto print:p-0 print:m-0 print:max-w-none print:w-full" dir="rtl">
       
       {/* 1. Header Toolbar (Hidden on Print) */}
       <div className="print:hidden flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-2xl border border-[#E5EAF0] shadow-xs">
@@ -403,7 +403,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
         </div>
 
         {/* LEFT COLUMN: Realistic A4 Prescription Sheet Preview (5 cols on screen, full on print) */}
-        <div className="lg:col-span-5 print:w-full print:block space-y-3">
+        <div className="lg:col-span-5 print:w-full print:block print:p-0 print:m-0 space-y-3">
           
           {/* Template Switcher Bar (Hidden on print) */}
           <div className="print:hidden p-3 bg-white rounded-xl border border-[#E5EAF0] space-y-2 shadow-2xs">
@@ -465,7 +465,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
 
           {/* Actual Sheet */}
           <div
-            className="medical-card bg-white p-6 sm:p-8 space-y-6 shadow-lg border border-[#E5EAF0] relative min-h-[620px] flex flex-col justify-between rounded-2xl print:shadow-none print:border-none print:p-8"
+            className="medical-card bg-white p-6 sm:p-8 space-y-6 shadow-lg border border-[#E5EAF0] relative min-h-[620px] flex flex-col justify-between rounded-2xl print:shadow-none print:border-none print:!p-8 print:!w-[210mm] print:!h-[297mm] print:!max-w-none print:!rounded-none print:m-0"
             style={
               templateMode === 'custom' && clinic?.prescriptionTemplateUrl
                 ? {
