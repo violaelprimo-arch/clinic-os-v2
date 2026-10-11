@@ -93,6 +93,24 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
   }, [bookings, serviceFilter, searchQuery])
 
   // Action Handlers
+  const handleConfirmPaymentOnly = async (patient: any) => {
+    if (!patient || isProcessing) return;
+    const confirmPayment = window.confirm(`تأكيد استلام مبلغ ${patient.servicePrice || 0} ج.م من المريض ${patient.patientName}؟`);
+    if (!confirmPayment) return;
+    
+    setIsProcessing(true);
+    try {
+      await updateDoc(doc(db, 'appointments', patient.id), {
+        paymentStatus: 'paid'
+      });
+      toast.success(`تم تأكيد الدفع للمريض ${patient.patientName}`);
+    } catch (err) {
+      toast.error('حدث خطأ أثناء تأكيد الدفع.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleStartExam = async (patient: any) => {
     if (!patient || isProcessing) return
 
@@ -416,7 +434,22 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                         <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
                           {getStatusBadge(b.status)}
 
-                          {/* WhatsApp alert button */}
+                          {/* Quick Confirm Payment */}
+                            {b.paymentStatus !== 'paid' && b.status !== 'completed' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleConfirmPaymentOnly(b)}
+                                className="h-8 px-2.5 text-xs font-bold text-amber-600 border-amber-200 hover:bg-amber-50 rounded-xl"
+                                title="تأكيد الدفع"
+                                disabled={isProcessing}
+                              >
+                                <DollarSign className="w-4 h-4 ml-1" />
+                                تأكيد الدفع
+                              </Button>
+                            )}
+                            
+                            {/* WhatsApp alert button */}
                           {b.status === 'waiting' && b.phone && (
                             <Button
                               size="sm"
