@@ -9,7 +9,7 @@ import {
   Calendar, Users, Clock, CheckCircle2, DollarSign,
   Play, MessageCircle, ArrowLeft, ArrowRight, UserCheck,
   UserX, SkipForward, FileSignature, Phone, Filter,
-  Sparkles, AlertCircle, ChevronDown, RefreshCw
+  Sparkles, AlertCircle, ChevronDown, RefreshCw, ArrowUpDown, X
 } from 'lucide-react'
 import Link from 'next/link'
 import { db } from '@/lib/firebase'
@@ -18,11 +18,15 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { sortQueue } from '@/lib/queueCalculations'
 
 export function AdminDashboard({ clinic }: { clinic: any }) {
-  const [bookings, setBookings] = useState<any[]>([])
+  const [rawAppointments, setRawAppointments] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isProcessing, setIsProcessing] = useState(false)
   const [serviceFilter, setServiceFilter] = useState('ALL')
   const [searchQuery, setSearchQuery] = useState('')
+  const [editingPatient, setEditingPatient] = useState<any | null>(null)
+  const [editQueueNumber, setEditQueueNumber] = useState<string>('')
+  const [editServiceName, setEditServiceName] = useState<string>('')
+  const [isUpdatingQueue, setIsUpdatingQueue] = useState(false)
 
   useEffect(() => {
     if (!clinic?.id) return
@@ -35,29 +39,20 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
-      
-      const completed = data.filter((d: any) => d.status === 'completed' || d.status === 'cancelled').sort((a: any, b: any) => (a.queue_number || 0) - (b.queue_number || 0))
-      const inProgress = data.filter((d: any) => d.status === 'in_progress')
-      const waiting = data.filter((d: any) => d.status === 'waiting' || !d.status).sort((a: any, b: any) => (a.queue_number || 0) - (b.queue_number || 0))
-
-      const regularQueue = waiting.filter((d: any) => !d.isUrgent)
-      const urgentQueue = waiting.filter((d: any) => d.isUrgent)
-      
-      let orderedWaiting: any[] = []
-      let rIndex = 0, uIndex = 0;
-      const rRatio = clinic.regularPerUrgent || 2;
-      const uRatio = clinic.urgentPerRegular || 1;
-      
-      while(rIndex < regularQueue.length || uIndex < urgentQueue.length) {
-         for(let i=0; i<rRatio && rIndex < regularQueue.length; i++) orderedWaiting.push(regularQueue[rIndex++]);
-         for(let i=0; i<uRatio && uIndex < urgentQueue.length; i++) orderedWaiting.push(urgentQueue[uIndex++]);
-      }
-
-      setBookings([...inProgress, ...orderedWaiting, ...completed])
+      setRawAppointments(data)
       setIsLoading(false)
     })
     return () => unsubscribe()
   }, [clinic?.id])
+
+  // Intelligent Queue Sorting adhering to clinic settings (queueUrgent, queueNormal, queueConsult)
+  const bookings = useMemo(() => {
+    const data = rawAppointments
+    const completed = data.filter((d: any) => d.status === 'completed' || d.status === 'cancelled').sort((a: any, b: any) => (a.queue_number || 0) - (b.queue_number || 0))
+    const inProgress = data.filter((d: any) => d.status === 'in_progress')
+    const orderedWaiting = sortQueue(data, clinic)
+    return [...inProgress, ...orderedWaiting, ...completed]
+  }, [rawAppointments, clinic])
 
   // Categorize bookings
   const currentPatient = useMemo(() => {
@@ -65,7 +60,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
   }, [bookings])
 
   const waitingPatients = useMemo(() => {
-    return bookings.filter(b => b.status === 'waiting')
+    return bookings.filter(b => b.status === 'waiting' || !b.status)
   }, [bookings])
 
   const nextPatient = useMemo(() => {
@@ -93,6 +88,31 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
   }, [bookings, serviceFilter, searchQuery])
 
   // Action Handlers
+  const handleOpenEditTurn = (patient: any) => {
+    setEditingPatient(patient)
+    setEditQueueNumber(String(patient.queue_number || ''))
+    setEditServiceName(patient.serviceName || 'كشف عادي')
+  }
+
+  const handleSaveEditTurn = async () => {
+    if (!editingPatient || isUpdatingQueue) return
+    setIsUpdatingQueue(true)
+    try {
+      const isUrgent = editServiceName.includes('مستعجل') || editServiceName.includes('طوارئ')
+      await updateDoc(doc(db, 'appointments', editingPatient.id), {
+        queue_number: Number(editQueueNumber) || editingPatient.queue_number,
+        serviceName: editServiceName || editingPatient.serviceName,
+        isUrgent: isUrgent,
+      })
+      toast.success(`تم تعديل دور المريض ${editingPatient.patientName} بنجاح`)
+      setEditingPatient(null)
+    } catch (err) {
+      toast.error('حدث خطأ أثناء تعديل دور المريض.')
+    } finally {
+      setIsUpdatingQueue(false)
+    }
+  }
+
   const handleConfirmPaymentOnly = async (patient: any) => {
     if (!patient || isProcessing) return;
     const confirmPayment = window.confirm(`تأكيد استلام مبلغ ${patient.servicePrice || 0} ج.م من المريض ${patient.patientName}؟`);
@@ -469,6 +489,20 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                             </Button>
                           )}
 
+                          {/* Edit Turn button */}
+                          {b.status === 'waiting' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 px-2.5 text-xs font-bold text-indigo-600 border-indigo-200 hover:bg-indigo-50 rounded-xl"
+                              onClick={() => handleOpenEditTurn(b)}
+                              title="تعديل الدور وترتيب المريض"
+                            >
+                              <ArrowUpDown className="w-3.5 h-3.5 ml-1" />
+                              تعديل الدور
+                            </Button>
+                          )}
+
                           {/* Start exam button if waiting */}
                           {b.status === 'waiting' && (
                             <Button
@@ -651,6 +685,114 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
         </div>
 
       </div>
+
+      {/* Edit Turn Modal */}
+      {editingPatient && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md p-6 space-y-5" dir="rtl">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <ArrowUpDown className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-[#182230]">تعديل دور المريض</h3>
+                  <p className="text-xs text-slate-500 font-medium">{editingPatient.patientName} (دور #{editingPatient.queue_number})</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingPatient(null)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="space-y-4">
+              {/* Quick Urgent Priority Banner */}
+              <div className="bg-gradient-to-r from-rose-50 to-orange-50 border border-rose-200 rounded-xl p-3 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-rose-900">أولوية عاجلة فورية</p>
+                  <p className="text-[11px] text-rose-600">تحويل الحالة لمستعجل ليدخل المريض التالي فوراً</p>
+                </div>
+                <Button
+                  size="sm"
+                  type="button"
+                  onClick={() => setEditServiceName('كشف مستعجل')}
+                  className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg h-8 px-3"
+                >
+                  تقديم كمستعجل
+                </Button>
+              </div>
+
+              {/* Queue Number */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700">رقم الدور (Queue Number)</label>
+                <input
+                  type="number"
+                  value={editQueueNumber}
+                  onChange={(e) => setEditQueueNumber(e.target.value)}
+                  className="w-full h-11 px-3.5 rounded-xl border border-slate-200 font-mono font-black text-base focus:outline-none focus:ring-2 focus:ring-indigo-500 text-right"
+                  dir="ltr"
+                />
+                <p className="text-[11px] text-slate-400">يمكنك تعديل رقم الدور ليأخذ المريض الترتيب المطلوب يدوياً.</p>
+              </div>
+
+              {/* Service Type */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700">نوع الكشف والخدمة</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'normal', name: 'كشف عادي' },
+                    { id: 'urgent', name: 'كشف مستعجل' },
+                    { id: 'consult', name: 'استشارة' },
+                  ].map(svc => {
+                    const isSelected = editServiceName.includes(svc.name)
+                    return (
+                      <button
+                        key={svc.id}
+                        type="button"
+                        onClick={() => setEditServiceName(svc.name)}
+                        className={`py-2 px-2 text-xs font-bold rounded-xl border transition-all ${
+                          isSelected
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        {svc.name}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+              <Button
+                type="button"
+                onClick={handleSaveEditTurn}
+                disabled={isUpdatingQueue}
+                className="flex-1 bg-[#15B8A6] hover:bg-[#0D9488] text-white font-bold h-11 rounded-xl"
+              >
+                {isUpdatingQueue ? 'جاري الحفظ...' : 'حفظ تعديل الدور'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditingPatient(null)}
+                disabled={isUpdatingQueue}
+                className="h-11 rounded-xl text-slate-600 font-bold"
+              >
+                إلغاء
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -25,46 +25,78 @@ export function formatWaitDuration(mins: number) {
   return `حوالي ${days} يوم و ${remHours} ساعة`;
 }
 
+export const isUrgentCase = (d: any) => Boolean(
+  d?.isUrgent ||
+  (d?.serviceName && (d.serviceName.includes('مستعجل') || d.serviceName.includes('طوارئ'))) ||
+  String(d?.serviceId) === '3'
+)
+
+export const isConsultCase = (d: any) => Boolean(
+  !isUrgentCase(d) && (
+    (d?.serviceName && (d.serviceName.includes('استشارة') || d.serviceName.includes('متابعة'))) ||
+    String(d?.serviceId) === '2' ||
+    String(d?.serviceId) === '4'
+  )
+)
+
+export const isNormalCase = (d: any) => Boolean(!isUrgentCase(d) && !isConsultCase(d))
+
 export function sortQueue(appointments: any[], clinic: any) {
-  const normalCount = clinic?.queueNormal || 3;
-  const consultCount = clinic?.queueConsult || 2;
-  const urgentCount = clinic?.queueUrgent !== undefined ? clinic.queueUrgent : 1;
+  const waiting = [...appointments]
+    .filter((d: any) => d.status === 'waiting' || !d.status)
+    .sort((a: any, b: any) => (a.queue_number || 0) - (b.queue_number || 0))
 
-  const normalQueue: any[] = [];
-  const consultQueue: any[] = [];
-  const urgentQueue: any[] = [];
-  const otherQueue: any[] = [];
+  const qUrgent = clinic?.queueUrgent !== undefined ? Number(clinic.queueUrgent) : 0
+  const qNormal = clinic?.queueNormal !== undefined ? Number(clinic.queueNormal) : 3
+  const qConsult = clinic?.queueConsult !== undefined ? Number(clinic.queueConsult) : 2
 
-  const sorted = [...appointments].sort((a, b) => (a.queue_number || 0) - (b.queue_number || 0));
+  const urgentQueue = waiting.filter(isUrgentCase)
+  const normalQueue = waiting.filter(isNormalCase)
+  const consultQueue = waiting.filter(isConsultCase)
 
-  sorted.forEach(appt => {
-    const sName = appt.serviceName || appt.service?.name || '';
-    if (sName.includes('مستعجل') || appt.isUrgent) {
-      urgentQueue.push(appt);
-    } else if (sName.includes('استشارة')) {
-      consultQueue.push(appt);
-    } else if (sName.includes('عادي') || sName === '') {
-      normalQueue.push(appt);
-    } else {
-      otherQueue.push(appt);
+  const orderedWaiting: any[] = []
+
+  if (qUrgent === 0) {
+    // 0 means: Urgent cases enter IMMEDIATELY before ANY other service!
+    orderedWaiting.push(...urgentQueue)
+
+    let nIdx = 0, cIdx = 0
+    while (nIdx < normalQueue.length || cIdx < consultQueue.length) {
+      const prevN = nIdx, prevC = cIdx
+      for (let i = 0; i < (qNormal || 1) && nIdx < normalQueue.length; i++) {
+        orderedWaiting.push(normalQueue[nIdx++])
+      }
+      for (let i = 0; i < (qConsult || 1) && cIdx < consultQueue.length; i++) {
+        orderedWaiting.push(consultQueue[cIdx++])
+      }
+      if (nIdx === prevN && cIdx === prevC) {
+        while (nIdx < normalQueue.length) orderedWaiting.push(normalQueue[nIdx++])
+        while (cIdx < consultQueue.length) orderedWaiting.push(consultQueue[cIdx++])
+        break
+      }
     }
-  });
-
-  const finalQueue = [];
-  
-  if (urgentCount === 0) {
-    finalQueue.push(...urgentQueue);
-    urgentQueue.length = 0;
+  } else {
+    // Round-robin cycle according to configured ratios
+    let uIdx = 0, nIdx = 0, cIdx = 0
+    while (uIdx < urgentQueue.length || nIdx < normalQueue.length || cIdx < consultQueue.length) {
+      const prevU = uIdx, prevN = nIdx, prevC = cIdx
+      for (let i = 0; i < (qUrgent || 1) && uIdx < urgentQueue.length; i++) {
+        orderedWaiting.push(urgentQueue[uIdx++])
+      }
+      for (let i = 0; i < (qNormal || 1) && nIdx < normalQueue.length; i++) {
+        orderedWaiting.push(normalQueue[nIdx++])
+      }
+      for (let i = 0; i < (qConsult || 1) && cIdx < consultQueue.length; i++) {
+        orderedWaiting.push(consultQueue[cIdx++])
+      }
+      if (uIdx === prevU && nIdx === prevN && cIdx === prevC) {
+        while (uIdx < urgentQueue.length) orderedWaiting.push(urgentQueue[uIdx++])
+        while (nIdx < normalQueue.length) orderedWaiting.push(normalQueue[nIdx++])
+        while (cIdx < consultQueue.length) orderedWaiting.push(consultQueue[cIdx++])
+        break
+      }
+    }
   }
 
-  let nIdx = 0, cIdx = 0, uIdx = 0, oIdx = 0;
-  
-  while(nIdx < normalQueue.length || cIdx < consultQueue.length || uIdx < urgentQueue.length || oIdx < otherQueue.length) {
-    for (let i = 0; i < urgentCount && uIdx < urgentQueue.length; i++) finalQueue.push(urgentQueue[uIdx++]);
-    for (let i = 0; i < normalCount && nIdx < normalQueue.length; i++) finalQueue.push(normalQueue[nIdx++]);
-    for (let i = 0; i < consultCount && cIdx < consultQueue.length; i++) finalQueue.push(consultQueue[cIdx++]);
-    if (oIdx < otherQueue.length) finalQueue.push(otherQueue[oIdx++]);
-  }
-
-  return finalQueue;
+  return orderedWaiting
 }

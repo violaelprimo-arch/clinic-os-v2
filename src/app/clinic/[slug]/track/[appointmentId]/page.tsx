@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from 'react'
 import { db } from '@/lib/firebase'
-import { calculateWaitTime, formatEstimatedTime, formatWaitDuration } from '@/lib/queueCalculations'
+import { calculateWaitTime, formatEstimatedTime, formatWaitDuration, sortQueue } from '@/lib/queueCalculations'
 import { doc, onSnapshot, collection, query, where } from 'firebase/firestore'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -23,10 +23,14 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
   const [clinic, setClinic] = useState<any>(null)
 
   useEffect(() => {
+    let clinicData: any = null
     // 1. Fetch clinic data
     const qClinic = query(collection(db, 'clinics'), where('slug', '==', slug))
     const unsubClinic = onSnapshot(qClinic, (snapshot) => {
-      if (!snapshot.empty) setClinic(snapshot.docs[0].data())
+      if (!snapshot.empty) {
+        clinicData = snapshot.docs[0].data()
+        setClinic(clinicData)
+      }
     })
 
     // 2. Listen to this appointment
@@ -43,13 +47,10 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
             where('date', '==', apptData.date)
           )
           onSnapshot(qQueue, (queueSnap) => {
-            let aheadCount = 0
-            queueSnap.docs.forEach(d => {
-              const item = d.data()
-              if (item.status === 'waiting' && item.queue_number < apptData.queue_number) {
-                aheadCount++
-              }
-            })
+            const data = queueSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
+            const orderedWaiting = sortQueue(data, clinicData)
+            const myIndex = orderedWaiting.findIndex(d => d.id === appointmentId)
+            const aheadCount = myIndex >= 0 ? myIndex : 0
             setPeopleAhead(aheadCount)
             setLoading(false)
           })
