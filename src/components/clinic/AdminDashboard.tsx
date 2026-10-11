@@ -421,10 +421,16 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                                 </span>
                               )}
                             </div>
-                            <div className="flex items-center gap-3 text-xs text-slate-400 mt-0.5">
+                            <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5 flex-wrap">
                               <span className="font-mono text-slate-500">{b.phone}</span>
                               {b.createdAt && (
                                 <span>{new Date(b.createdAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</span>
+                              )}
+                              {b.paymentMethod && b.paymentMethod !== 'cash' && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200 inline-flex items-center gap-1 font-mono">
+                                  <span>{b.paymentMethod === 'instapay' ? 'انستاباي' : 'محفظة'}:</span>
+                                  <span>{b.transferNumber || 'بانتظار التأكيد'}</span>
+                                </span>
                               )}
                             </div>
                           </div>

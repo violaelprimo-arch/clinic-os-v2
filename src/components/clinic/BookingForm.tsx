@@ -201,6 +201,9 @@ export function BookingForm({
 
   // Final Booking Submit
   const handleBooking = async () => {
+    if (paymentMethod !== 'cash' && !transferNumber.trim()) {
+      return toast.error('يرجى كتابة رقم الهاتف أو المعاملة المحول منها لتأكيد الحجز');
+    }
     setIsBooking(true)
     try {
       const q = query(collection(db, 'appointments'), where('clinic_id', '==', clinic.id || clinic.slug))
@@ -241,7 +244,7 @@ export function BookingForm({
         trackingId: docRef.id,
         aheadCount: waitingCount
       })
-      toast.success(`تم تسجيل حجزك بنجاح! دورك: ${myQueueNumber}`)
+      toast.success(paymentMethod !== 'cash' ? `تم تسجيل حجزك بنجاح! دورك: ${myQueueNumber} (سيتم تأكيد الدفع من إدارة العيادة)` : `تم تسجيل حجزك بنجاح! دورك: ${myQueueNumber}`)
     } catch (error) {
       toast.error('حدث خطأ أثناء إتمام الحجز، يرجى المحاولة ثانيةً.')
     } finally {
@@ -618,15 +621,95 @@ export function BookingForm({
             </div>
           </div>
 
-          {paymentMethod !== 'cash' && (
-            <div className="space-y-1.5 p-3 rounded-xl bg-slate-50 border border-slate-200">
-              <Label className="text-xs font-bold text-slate-600">رقم المحفظة / المعاملة المحول منها</Label>
-              <Input
-                value={transferNumber}
-                onChange={e => setTransferNumber(e.target.value)}
-                placeholder="010xxxxxxxx"
-                className="h-10 text-xs bg-white rounded-lg"
-              />
+          {paymentMethod === 'instapay' && (
+            <div className="p-4 rounded-2xl bg-teal-50/70 border-2 border-teal-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-bold text-teal-800">
+                  <CreditCard className="w-4 h-4 text-[#15B8A6]" />
+                  <span>بيانات التحويل عبر انستاباي (InstaPay):</span>
+                </div>
+                <Badge className="bg-[#15B8A6] text-white border-none font-bold text-[10px]">
+                  تحويل فوري
+                </Badge>
+              </div>
+
+              <div className="p-3 bg-white rounded-xl border border-teal-100 space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-500 font-bold">حساب / عنوان انستاباي للطبيب:</span>
+                  <span className="font-mono font-black text-sm text-[#182230] select-all bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200" dir="ltr">
+                    {clinic.instapayHandle || clinic.doctorPhone || clinic.clinicPhone || 'يرجى التواصل مع العيادة'}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center text-xs pt-1.5 border-t border-slate-100">
+                  <span className="text-slate-500 font-bold">المبلغ المطلوب تحويله:</span>
+                  <span className="font-black text-base text-[#15B8A6]">
+                    {selectedService.price} ج.م
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-700">رقم الهاتف أو المعاملة المحول منها (لتأكيد الدفع):</Label>
+                <Input
+                  value={transferNumber}
+                  onChange={e => setTransferNumber(e.target.value)}
+                  placeholder="مثال: 010xxxxxxxx أو اسم حساب انستاباي"
+                  className="h-11 text-xs bg-white rounded-xl border-teal-200 focus:border-[#15B8A6]"
+                  dir="ltr"
+                  required
+                />
+              </div>
+
+              <div className="p-2.5 bg-teal-100/60 rounded-xl text-[11px] text-teal-800 font-medium leading-relaxed">
+                💡 سيتم تسجيل دورك فوراً ولن يتأثر بالدور، وسيتم تأكيد استلام الدفع من خلال إدارة العيادة.
+              </div>
+            </div>
+          )}
+
+          {paymentMethod === 'wallet' && (
+            <div className="p-4 rounded-2xl bg-amber-50/70 border-2 border-amber-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-bold text-amber-900">
+                  <Wallet className="w-4 h-4 text-amber-600" />
+                  <span>بيانات التحويل عبر المحفظة الإلكترونية (فودافون كاش وغيرها):</span>
+                </div>
+                <Badge className="bg-amber-600 text-white border-none font-bold text-[10px]">
+                  محفظة ذكية
+                </Badge>
+              </div>
+
+              <div className="p-3 bg-white rounded-xl border border-amber-100 space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-500 font-bold">رقم محفظة الطبيب / العيادة:</span>
+                  <span className="font-mono font-black text-sm text-[#182230] select-all bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200" dir="ltr">
+                    {clinic.walletNumber || clinic.doctorPhone || clinic.clinicPhone || 'يرجى التواصل مع العيادة'}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center text-xs pt-1.5 border-t border-slate-100">
+                  <span className="text-slate-500 font-bold">المبلغ المطلوب تحويله:</span>
+                  <span className="font-black text-base text-[#15B8A6]">
+                    {selectedService.price} ج.م
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-700">رقم المحفظة المحول منها (لتأكيد الدفع):</Label>
+                <Input
+                  value={transferNumber}
+                  onChange={e => setTransferNumber(e.target.value)}
+                  placeholder="مثال: 010xxxxxxxx"
+                  className="h-11 text-xs bg-white rounded-xl border-amber-200 focus:border-[#15B8A6]"
+                  dir="ltr"
+                  required
+                />
+              </div>
+
+              <div className="p-2.5 bg-amber-100/60 rounded-xl text-[11px] text-amber-900 font-medium leading-relaxed">
+                💡 سيتم تسجيل دورك فوراً ولن يتأثر بالدور، وسيتم تأكيد استلام الدفع من خلال إدارة العيادة.
+              </div>
             </div>
           )}
 
