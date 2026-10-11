@@ -2,7 +2,7 @@ import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 
 export function A4Prescription({ clinic, patientName, age, date, diagnosis, drugs, templateMode = 'standard', topOffset = 180 }: any) {
   return (
-    <div className="w-full bg-white relative mx-auto flex flex-col justify-between overflow-hidden shadow-lg border border-[#E5EAF0] print:border-none print:shadow-none print:p-8"
+    <div className="w-full bg-white relative mx-auto flex flex-col justify-between overflow-hidden shadow-lg border border-[#E5EAF0] print:border-none print:shadow-none print:p-0 print:m-0 print:!w-[210mm] print:!h-[297mm] print:!max-w-none print:!aspect-auto"
          style={{
            aspectRatio: '1 / 1.414',
            maxWidth: '800px',
