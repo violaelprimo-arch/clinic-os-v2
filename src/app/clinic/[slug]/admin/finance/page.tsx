@@ -66,12 +66,15 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
     try {
       const q = query(
         collection(db, 'expenses'),
-        where('clinic_id', '==', cId),
-        where('date', '>=', fromDate),
-        where('date', '<=', toDate)
+        where('clinic_id', '==', cId)
       )
       const snap = await getDocs(q)
-      setExpenses(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+      const allExpenses = snap.docs.map(d => ({ id: d.id, ...d.data() } as any))
+      const filtered = allExpenses.filter(e => {
+        if (!e.date) return true
+        return e.date >= fromDate && e.date <= toDate
+      })
+      setExpenses(filtered)
     } catch (e) {
       console.warn('Failed to fetch expenses:', e)
     }
@@ -91,13 +94,31 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
 
       await fetchExpenses(cId)
 
-      const q = query(
-        collection(db, 'appointments'),
-        where('clinic_id', '==', cId),
-        where('date', '>=', fromDate),
-        where('date', '<=', toDate)
-      )
-      const snapshot = await getDocs(q)
+      // Query appointments by clinic without composite index requirement
+      let apptDocs: any[] = []
+      try {
+        const q = query(
+          collection(db, 'appointments'),
+          where('clinic_id', '==', cId)
+        )
+        const snapshot = await getDocs(q)
+        apptDocs = snapshot.docs
+      } catch (err) {
+        console.warn('Fallback querying appointments by slug:', err)
+        const q = query(
+          collection(db, 'appointments'),
+          where('clinic_id', '==', slug)
+        )
+        const snapshot = await getDocs(q)
+        apptDocs = snapshot.docs
+      }
+
+      // Filter date range in-memory (No Firebase composite index needed)
+      const filteredDocs = apptDocs.filter(d => {
+        const dDate = d.data()?.date
+        if (!dDate) return false
+        return dDate >= fromDate && dDate <= toDate
+      })
 
       let rev = 0
       let csh = 0
@@ -113,7 +134,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
       const serviceCountMap = new Map<string, number>()
       const dayAmountMap = new Map<string, number>()
 
-      const appts = snapshot.docs.map(d => {
+      const appts = filteredDocs.map(d => {
         const data = d.data()
         const price = Number(data.servicePrice) || 0
         const itemDiscount = Number(data.discountApplied) || 0
@@ -204,8 +225,9 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
       setDailyRevenue(dayList.slice(-7))
 
       toast.success('تم تحديث التقرير المالي بناءً على البيانات الفعلية')
-    } catch (err) {
-      toast.error('حدث خطأ أثناء تحميل التقرير')
+    } catch (err: any) {
+      console.error('generateReport error:', err)
+      toast.error('حدث خطأ أثناء تحميل التقرير: ' + (err?.message || ''))
     } finally {
       setIsLoading(false)
     }
