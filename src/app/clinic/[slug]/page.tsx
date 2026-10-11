@@ -55,14 +55,14 @@ export default function ClinicPage({ params }: { params: Promise<{ slug: string 
         
         // Subscription Check
         if (clinicData.isActive === false) {
-          setError('تم إيقاف هذه العيادة مؤقتاً من قبل الإدارة.')
+          setError('العيادة غير موجودة')
           setClinic(null)
           setLoading(false)
           return
         }
         
         if (clinicData.expirationDate && new Date(clinicData.expirationDate) < new Date()) {
-          setError('انتهى اشتراك هذه العيادة. يرجى التواصل مع الإدارة.')
+          setError('العيادة غير موجودة')
           setClinic(null)
           setLoading(false)
           return

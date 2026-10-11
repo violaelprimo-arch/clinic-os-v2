@@ -18,6 +18,7 @@ import { collection, addDoc, getDocs, deleteDoc, updateDoc, doc, setDoc, onSnaps
 import { Switch } from '@/components/ui/switch'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
+
 import Link from 'next/link'
 
 export default function OwnerDashboard() {
@@ -537,6 +538,15 @@ export default function OwnerDashboard() {
                           <td className="py-4 px-4">
                             <div className="space-y-0.5">
                               <h4 className="font-black text-sm text-[#182230]">{c.clinicName}</h4>
+                                {c.resetPasswordOtp && (
+                                  <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+                                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                    <div>
+                                      <span className="text-[10px] font-bold text-amber-800 block">طلب استعادة كلمة المرور:</span>
+                                      <span className="text-xs font-black text-amber-900 tracking-widest">{c.resetPasswordOtp}</span>
+                                    </div>
+                                  </div>
+                                )}
                               <p className="text-slate-500 font-semibold text-[11px]">
                                 {c.doctorName ? `د. ${c.doctorName}` : 'طبيب العيادة'}
                               </p>
@@ -924,7 +934,8 @@ export default function OwnerDashboard() {
               </div>
 
               {/* Section 4: Login Accounts */}
-              <div className="space-y-3">
+              {!editingId && (
+<div className="space-y-3">
                 <h3 className="text-xs font-black text-slate-700 flex items-center gap-2">
                   <Users className="w-4 h-4 text-[#15B8A6]" />
                   حسابات دخول الكادر الطبي
@@ -967,6 +978,7 @@ export default function OwnerDashboard() {
                   </div>
                 </div>
               </div>
+)}
 
               {/* Section 5: Subscription & Active Status */}
               <div className="space-y-3">

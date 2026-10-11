@@ -129,6 +129,12 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           createdAt: new Date().toISOString()
         })
       }
+      if (searchParams?.get('appointmentId')) {
+        await updateDoc(doc(db, 'appointments', searchParams.get('appointmentId') as string), {
+          diagnosis,
+          drugs: drugs.filter(d => d.name.trim() !== '')
+        })
+      }
       toast.success('تم حفظ الروشتة وإضافتها لملف المريض بنجاح')
     } catch (error) {
       toast.error('حدث خطأ أثناء حفظ الروشتة')

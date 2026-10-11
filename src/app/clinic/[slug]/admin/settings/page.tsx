@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   Save, Plus, Trash2, Palette, Phone, MapPin, Bot,
-  Wallet, Users, Clock, Printer, ShieldCheck, Settings,
+  Wallet, Users, Clock, Printer, ShieldCheck, Settings, Lock,
   CheckCircle2, Bell, Sparkles, Building2
 } from 'lucide-react'
 import { db } from '@/lib/firebase'
@@ -23,8 +23,11 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'queue' | 'services' | 'payment' | 'staff' | 'print' | 'ai'>('profile')
-  const [supportNumbers, setSupportNumbers] = useState<any[]>([])
+  const [activeTab, setActiveTab] = useState<'profile' | 'queue' | 'services' | 'payment' | 'staff' | 'print' | 'ai' | 'security'>('profile')
+  const [supportNumbers, setSupportNumbers] = useState<any[]>([]);
+  const [newDoctorEmail, setNewDoctorEmail] = useState('');
+  const [newDoctorPassword, setNewDoctorPassword] = useState('');
+  const [currentRole, setCurrentRole] = useState('');
 
   const [clinicId, setClinicId] = useState<string | null>(null)
   const [photoUrl, setPhotoUrl] = useState('')
@@ -37,6 +40,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const [certificationEntity, setCertificationEntity] = useState('')
   
   useEffect(() => {
+    setCurrentRole(localStorage.getItem('clinic_role') || 'doctor');
     const fetchSupport = async () => {
       const snap = await getDocs(query(collection(db, 'platformSettings')));
       if (!snap.empty) {
@@ -195,6 +199,8 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         instapayHandle: instapayHandle || '',
         isClinicOpen,
         showPrices,
+        ...(newDoctorEmail ? { doctorEmail: newDoctorEmail } : {}),
+        ...(newDoctorPassword ? { doctorPassword: newDoctorPassword } : {}),
         isWalletEnabled,
         isInstapayEnabled,
         queueNormal: Number(queueNormal) ?? 3,
@@ -221,7 +227,14 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       } else {
         await updateDoc(doc(db, 'clinics', clinicId), payload)
       }
-      toast.success('تم حفظ كافة إعدادات العيادة بنجاح وتطبيقها فورياً')
+      toast.success('تم حفظ كافة إعدادات العيادة بنجاح وتطبيقها فورياً');
+      if (newDoctorEmail || newDoctorPassword) {
+        toast.info('تم تغيير بيانات الدخول، يرجى تسجيل الدخول مجدداً.');
+        setTimeout(() => {
+          localStorage.removeItem('clinic_role');
+          window.location.href = `/clinic/${slug}/login`;
+        }, 2000);
+      }
     } catch (err: any) {
       console.error('Save Error:', err)
       toast.error('حدث خطأ أثناء الحفظ: ' + (err.message || ''))
@@ -276,6 +289,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   }
 
   const baseTabs = [
+    { id: 'security', label: 'الأمان والحساب', icon: Lock },
     { id: 'profile', label: 'الهوية والبيانات', icon: Building2 },
     { id: 'queue', label: 'المواعيد والدور', icon: Clock },
     { id: 'services', label: 'الخدمات والأسعار', icon: ShieldCheck },
@@ -314,7 +328,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
       {/* 2. Structured Settings Tabs */}
       <div className="flex border-b border-[#E5EAF0] gap-2 overflow-x-auto no-scrollbar">
-        {tabs.map((tab) => {
+        {tabs.filter(t => t.id !== 'security' || currentRole === 'doctor').map((tab) => {
           const Icon = tab.icon
           const isActive = activeTab === tab.id
           return (
@@ -336,6 +350,43 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
       {/* 3. Tab Contents */}
       
+      {/* TAB SECURITY */}
+      {activeTab === 'security' && currentRole === 'doctor' && (
+        <div className="medical-card p-6 max-w-2xl space-y-5">
+          <div className="pb-3 border-b border-[#E5EAF0]">
+            <h3 className="font-bold text-sm text-[#182230]">إعدادات حساب الطبيب</h3>
+            <p className="text-xs text-slate-400">يمكنك هنا تغيير البريد الإلكتروني وكلمة المرور الخاصة بك. هذه البيانات لا تظهر لمالك المنصة.</p>
+          </div>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-600">البريد الإلكتروني الجديد</Label>
+              <Input
+                type="email"
+                value={newDoctorEmail}
+                onChange={e => setNewDoctorEmail(e.target.value)}
+                placeholder="doctor@clinic.com"
+                className="h-10 text-xs rounded-xl text-left"
+                dir="ltr"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-600">كلمة المرور الجديدة</Label>
+              <Input
+                type="password"
+                value={newDoctorPassword}
+                onChange={e => setNewDoctorPassword(e.target.value)}
+                placeholder="••••••••"
+                className="h-10 text-xs rounded-xl text-left"
+                dir="ltr"
+              />
+            </div>
+            <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold rounded-xl">
+              تنبيه: سيتم تسجيل خروجك بعد الحفظ وستحتاج لتسجيل الدخول بالبيانات الجديدة.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* TAB 1: Profile & Visual Identity */}
       {activeTab === 'profile' && (
         <div className="grid lg:grid-cols-2 gap-6">
@@ -582,8 +633,55 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               </p>
             </div>
 
-            <div className="space-y-3">
-              <h4 className="font-bold text-sm text-[#182230]">نظام ترتيب الأدوار (نمط الدخول)</h4>
+            <div className="space-y-4 pt-4 border-t border-[#E5EAF0]">
+    <h4 className="font-bold text-sm text-[#182230]">مواعيد العمل الأسبوعية</h4>
+    <p className="text-xs text-slate-500">تحديد أيام العمل ومواعيد استقبال المرضى</p>
+    <div className="space-y-3">
+      {weeklySchedule.map((day, idx) => (
+        <div key={day.id} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl">
+          <div className="flex items-center gap-3 w-32">
+            <Switch
+              checked={day.isOpen}
+              onCheckedChange={(val) => {
+                const newS = [...weeklySchedule];
+                newS[idx].isOpen = val;
+                setWeeklySchedule(newS);
+              }}
+            />
+            <span className="text-xs font-bold text-slate-700">{day.day}</span>
+          </div>
+          {day.isOpen && (
+            <div className="flex items-center gap-2">
+              <Input
+                type="time"
+                value={day.start}
+                onChange={(e) => {
+                  const newS = [...weeklySchedule];
+                  newS[idx].start = e.target.value;
+                  setWeeklySchedule(newS);
+                }}
+                className="h-9 text-xs w-28"
+              />
+              <span className="text-xs text-slate-400">إلى</span>
+              <Input
+                type="time"
+                value={day.end}
+                onChange={(e) => {
+                  const newS = [...weeklySchedule];
+                  newS[idx].end = e.target.value;
+                  setWeeklySchedule(newS);
+                }}
+                className="h-9 text-xs w-28"
+              />
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  </div>
+
+  <div className="space-y-3 pt-4 border-t border-[#E5EAF0]">
+    <h4 className="font-bold text-sm text-[#182230]">نظام ترتيب الأدوار (نمط الدخول)</h4>
               <p className="text-xs text-slate-500">حدد عدد الحالات التي تدخل بالترتيب قبل إعادة الدورة. اكتب (0) للمستعجل ليدخل فوراً قبل أي خدمة أخرى.</p>
               
               <div className="grid grid-cols-3 gap-4 max-w-lg">

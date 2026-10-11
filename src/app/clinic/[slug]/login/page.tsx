@@ -4,7 +4,7 @@ import { use, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { auth, db } from '@/lib/firebase'
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'
-import { collection, query, where, getDocs } from 'firebase/firestore'
+import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -20,10 +20,21 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
   const [email, setEmail] = useState('')
+  
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search)
+    if (searchParams.get('error') === 'subscription_ended') {
+      setError('تم انتهاء الاشتراك. يرجى التواصل مع الإدارة.');
+    }
+  }, [])
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isResetMode, setIsResetMode] = useState(false)
+  const [resetOtpSent, setResetOtpSent] = useState(false)
+  const [resetOtp, setResetOtp] = useState('')
+  const [newPassword, setNewPassword] = useState('')
   const [clinicHero, setClinicHero] = useState('https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=1000&auto=format&fit=crop')
   const router = useRouter()
 
@@ -41,6 +52,68 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
     fetchClinic()
   }, [slug])
 
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      return setError('يرجى إدخال البريد الإلكتروني أولاً');
+    }
+    setIsLoading(true);
+    try {
+      const q = query(collection(db, 'clinics'), where('slug', '==', slug));
+      const snapshot = await getDocs(q);
+      if (!snapshot.empty) {
+        const cDoc = snapshot.docs[0];
+        const data = cDoc.data();
+        if (data.doctorEmail === email.trim()) {
+          const otp = Math.floor(100000 + Math.random() * 900000).toString();
+          await updateDoc(doc(db, 'clinics', cDoc.id), {
+            resetPasswordOtp: otp,
+            resetPasswordRequestedAt: new Date().toISOString()
+          });
+          setResetOtpSent(true);
+          toast.success('تم إرسال كود استعادة كلمة المرور لمالك المنصة بنجاح.');
+        } else {
+          setError('البريد الإلكتروني غير مسجل.');
+        }
+      }
+    } catch (err) {
+      setError('حدث خطأ أثناء طلب استعادة كلمة المرور.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetOtp.trim() || !newPassword.trim()) {
+      return setError('يرجى إدخال الكود وكلمة المرور الجديدة');
+    }
+    setIsLoading(true);
+    try {
+      const q = query(collection(db, 'clinics'), where('slug', '==', slug));
+      const snapshot = await getDocs(q);
+      if (!snapshot.empty) {
+        const cDoc = snapshot.docs[0];
+        const data = cDoc.data();
+        if (data.resetPasswordOtp === resetOtp) {
+          await updateDoc(doc(db, 'clinics', cDoc.id), {
+            doctorPassword: newPassword,
+            resetPasswordOtp: null,
+            resetPasswordRequestedAt: null
+          });
+          toast.success('تم تغيير كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول.');
+          setIsResetMode(false);
+          setResetOtpSent(false);
+          setPassword(newPassword);
+        } else {
+          setError('الكود غير صحيح.');
+        }
+      }
+    } catch (err) {
+      setError('حدث خطأ أثناء تغيير كلمة المرور.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -67,7 +140,12 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
           const snapshot = await getDocs(q)
 
           if (!snapshot.empty) {
-            const clinicDoc = snapshot.docs[0].data()
+              const clinicDoc = snapshot.docs[0].data()
+              if (clinicDoc.isActive === false || (clinicDoc.expirationDate && new Date(clinicDoc.expirationDate) < new Date())) {
+                setError('تم انتهاء الاشتراك. يرجى التواصل مع الإدارة.')
+                setIsLoading(false)
+                return
+              }
 
             const isDoctor = clinicDoc.doctorEmail === inputEmail && clinicDoc.doctorPassword === password
             let isAssistant = clinicDoc.assistantEmail === inputEmail && clinicDoc.assistantPassword === password
@@ -173,7 +251,61 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
 
           {/* Form */}
           <form onSubmit={handleLogin} className="space-y-5">
-            {error && (
+            {isResetMode ? (
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600">البريد الإلكتروني (للتأكيد)</Label>
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="h-12 text-sm bg-slate-50 border-slate-200"
+                  dir="ltr"
+                  disabled={resetOtpSent}
+                />
+              </div>
+              
+              {!resetOtpSent ? (
+                <Button onClick={handleForgotPassword} disabled={isLoading} className="w-full h-12 bg-[#15B8A6] hover:bg-[#0D9488] text-white font-bold rounded-xl shadow-lg">
+                  {isLoading ? 'جاري الإرسال...' : 'طلب كود الاستعادة (يُرسل للمالك)'}
+                </Button>
+              ) : (
+                <>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-slate-600">كود OTP (من المالك)</Label>
+                    <Input
+                      type="text"
+                      value={resetOtp}
+                      onChange={(e) => setResetOtp(e.target.value)}
+                      className="h-12 text-sm text-center tracking-widest font-mono"
+                      dir="ltr"
+                      placeholder="123456"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-slate-600">كلمة المرور الجديدة</Label>
+                    <PasswordInput
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="h-12 text-sm"
+                      dir="ltr"
+                    />
+                  </div>
+                  <Button onClick={handleResetPassword} disabled={isLoading} className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg">
+                    {isLoading ? 'جاري الحفظ...' : 'تأكيد وتغيير كلمة المرور'}
+                  </Button>
+                </>
+              )}
+              
+              <div className="text-center">
+                <button type="button" onClick={() => setIsResetMode(false)} className="text-xs font-bold text-slate-500 hover:text-slate-800">
+                  العودة لتسجيل الدخول
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {error && (
               <Alert variant="destructive" className="bg-rose-50 border-rose-200 text-rose-800 rounded-xl text-xs">
                 <AlertCircle className="h-4 w-4 text-rose-600" />
                 <AlertTitle className="font-bold">خطأ في الدخول</AlertTitle>
@@ -273,6 +405,8 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
               </svg>
               تسجيل الدخول عبر Google
             </Button>
+                    </>
+            )}
           </form>
 
           {/* Footer Contact */}

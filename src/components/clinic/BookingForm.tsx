@@ -85,6 +85,7 @@ export function BookingForm({
   const handleNextStep1 = () => {
     if (!name.trim()) return toast.error('يرجى إدخال اسم المريض')
     if (!phone.trim() || phone.length < 10) return toast.error('يرجى إدخال رقم هاتف صحيح')
+    if (!age.trim()) return toast.error('يرجى إدخال السن')
     
     if (selectedDate && clinic?.weeklySchedule) {
       const d = new Date(selectedDate);
@@ -185,13 +186,13 @@ export function BookingForm({
 
           <div className="p-3.5 rounded-2xl bg-[#F8FAFC] border border-[#E5EAF0] space-y-1">
             <span className="text-[11px] font-bold text-slate-400">وقت الانتظار المتوقع</span>
-            <p className="text-sm font-black text-[#15B8A6]">حوالي 42 دقيقة</p>
+            <p className="text-sm font-black text-[#15B8A6]">حوالي {successInfo.aheadCount * 15} دقيقة</p>
           </div>
         </div>
 
         <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold flex items-center justify-center gap-2">
           <Users className="w-4 h-4 text-amber-600" />
-          <span>يوجد {successInfo.aheadCount || 3} مرضى قبلك في الدور</span>
+          <span>يوجد {successInfo.aheadCount} مرضى قبلك في الدور</span>
         </div>
 
         {/* Action CTAs */}
@@ -304,7 +305,7 @@ export function BookingForm({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-bold text-slate-600">السن (اختياري)</Label>
+            <Label className="text-xs font-bold text-slate-600">السن (مطلوب للروشتة)</Label>
             <Input
               value={age}
               onChange={e => setAge(e.target.value)}

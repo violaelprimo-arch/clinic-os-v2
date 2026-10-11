@@ -192,6 +192,12 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
               </Button>
             </a>
           )}
+          
+          <a href={`/clinic/${slug}`} className="block w-full">
+            <Button variant="ghost" className="w-full h-11 text-xs font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl">
+              خروج والعودة للرئيسية
+            </Button>
+          </a>
         </div>
 
       </div>
