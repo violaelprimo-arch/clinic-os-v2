@@ -116,18 +116,53 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     setIsSaving(true)
     try {
       if (clinicId) {
-        await addDoc(collection(db, 'prescriptions'), {
+        const docRef = await addDoc(collection(db, 'prescriptions'), {
           clinic_id: clinicId,
           patientName,
           patientPhone,
           age,
           diagnosis,
           date: dateStr,
+          status: 'finalized',
+          doctorName: clinic?.doctorName || 'طبيب العيادة',
+          templateMode,
           drugs: drugs.filter(d => d.name.trim() !== ''),
           createdAt: new Date().toISOString()
         })
+
+        // Record Audit Log
+        try {
+          const { recordAuditLog } = await import('@/lib/audit-logger')
+          recordAuditLog({
+            action: 'PRESCRIPTION_CREATED',
+            actorName: clinic?.doctorName || 'طبيب العيادة',
+            actorRole: 'doctor',
+            clinicId,
+            details: { prescriptionId: docRef.id, patientName, patientPhone }
+          })
+        } catch (e) {}
+
+        // Automated WhatsApp notification: PRESCRIPTION_READY
+        try {
+          fetch('/api/whatsapp/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: patientPhone,
+              type: 'PRESCRIPTION_READY',
+              appointmentId: docRef.id,
+              patientName,
+              clinicName: clinic?.clinicName || 'العيادة',
+              clinicId,
+              idempotencyKey: `rx_ready_${docRef.id}`,
+              data: {
+                portalUrl: `${window.location.origin}/clinic/${slug}/patient`
+              }
+            })
+          }).catch(err => console.warn('WhatsApp Rx alert warning:', err))
+        } catch (e) {}
       }
-      toast.success('تم حفظ الروشتة وإضافتها لملف المريض بنجاح')
+      toast.success('تم اعتماد الروشتة وإرسال إشعار للمريض بملفه الطبي الآمن بنجاح!')
     } catch (error) {
       toast.error('حدث خطأ أثناء حفظ الروشتة')
     } finally {
@@ -135,20 +170,37 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     }
   }
 
-  const sendWhatsAppRx = () => {
+  const sendWhatsAppRx = async () => {
     if (!patientPhone) return toast.error('يرجى إدخال رقم هاتف المريض')
-    let formattedPhone = patientPhone.replace(/[^0-9]/g, '')
-    if (formattedPhone.startsWith('0')) formattedPhone = '2' + formattedPhone
-
-    const drugsList = drugs
-      .filter(d => d.name)
-      .map((d, i) => `${i + 1}. ${d.name} (${d.dosage} - ${d.duration})`)
-      .join('\n')
-
-    const message = encodeURIComponent(
-      `الروشتة الطبية الإلكترونية 📋\nالعيادة: ${clinic?.clinicName || 'عيادة د. محمد علي'}\nالمريض: ${patientName}\nالتاريخ: ${dateStr}\n\nالعلاج المطلوب:\n${drugsList}\n\nنتمنى لك الشفاء العاجل!`
-    )
-    window.open(`https://wa.me/${formattedPhone}?text=${message}`, '_blank')
+    try {
+      toast.info('جاري إرسال إشعار الروشتة عبر واتساب...')
+      const res = await fetch('/api/whatsapp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: patientPhone,
+          type: 'PRESCRIPTION_READY',
+          appointmentId: `rx_manual_${Date.now()}`,
+          patientName,
+          clinicName: clinic?.clinicName || 'العيادة',
+          clinicId: clinicId || slug,
+          idempotencyKey: `rx_manual_${patientPhone}_${Date.now()}`,
+          data: {
+            portalUrl: `${window.location.origin}/clinic/${slug}/patient`
+          }
+        })
+      })
+      const result = await res.json()
+      if (result.success) {
+        toast.success('تم إرسال إشعار الروشتة للمريض بنجاح!')
+      } else if (result.status === 'config_missing') {
+        toast.warning(result.error || 'بانتظار إدخال بيانات Meta WhatsApp API')
+      } else {
+        toast.error(`فشل الإرسال: ${result.error}`)
+      }
+    } catch (e: any) {
+      toast.error('حدث خطأ أثناء الإرسال')
+    }
   }
 
   // Filtered drugs for quick search

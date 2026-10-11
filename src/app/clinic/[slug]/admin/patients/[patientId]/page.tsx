@@ -67,37 +67,19 @@ export default function PatientProfilePage({ params }: { params: Promise<{ slug:
           .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
         setPrescriptions(rxs)
 
-        // If no records from database, set demo data so the doctor sees a complete rich profile
+        // Check if patient registered in patient_accounts if no appointment exists yet
         if (appts.length === 0) {
-          setPatientName('محمد محمود')
-          setAppointments([
-            {
-              id: 'demo-1',
-              date: '2026-10-05',
-              serviceName: 'كشف عادي',
-              servicePrice: 250,
-              status: 'completed',
-              diagnosis: 'التهاب اللوزتين الحاد مع ارتفاع طفيف في درجة الحرارة'
-            },
-            {
-              id: 'demo-2',
-              date: '2026-09-12',
-              serviceName: 'استشارة',
-              servicePrice: 150,
-              status: 'completed',
-              diagnosis: 'متابعة استجابة للعلاج وتحسن عام'
-            }
-          ])
-          setPrescriptions([
-            {
-              id: 'rx-demo-1',
-              date: '2026-10-05',
-              drugs: [
-                { name: 'Augmentin 1g', dosage: 'قرص كل 12 ساعة', duration: 'لمدة 5 أيام' },
-                { name: 'Catafast 50 mg', dosage: 'كيس عند اللزوم', duration: 'بعد الأكل' }
-              ]
-            }
-          ])
+          const accQ = query(
+            collection(db, 'patient_accounts'),
+            where('clinic_id', '==', clinicDataId),
+            where('phone', '==', phone)
+          )
+          const accSnap = await getDocs(accQ)
+          if (!accSnap.empty) {
+            setPatientName(accSnap.docs[0].data().name || 'مريض مسجل')
+          } else {
+            setPatientName('مريض جديد')
+          }
         }
       } catch (err) {
         console.error(err)

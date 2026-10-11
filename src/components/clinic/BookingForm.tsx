@@ -9,11 +9,14 @@ import { Badge } from '@/components/ui/badge'
 import {
   CheckCircle2, Clock, Users, ArrowRight, ArrowLeft,
   Calendar, Phone, User, ShieldCheck, MapPin, Sparkles,
-  Zap, CreditCard, Wallet, Banknote
+  Zap, CreditCard, Wallet, Banknote, Receipt, FileText
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
-import { collection, addDoc, getDocs, query, where } from 'firebase/firestore'
+import { collection, addDoc, getDocs, query, where, doc, runTransaction } from 'firebase/firestore'
+import { cairoDate } from '@/lib/clinic-domain'
+import { formatCairo12Hour } from '@/lib/queue-calculator'
+import { InvoiceView, InvoiceData } from '@/components/clinic/InvoiceView'
 import Link from 'next/link'
 
 export function BookingForm({
@@ -36,10 +39,10 @@ export function BookingForm({
   
   // Available services fallback
   const availableServices = services.length > 0 ? services : [
-    { id: '1', name: 'كشف عادي', price: 250, desc: 'كشف طبي عام شامل', duration: 'حوالي 15 دقيقة' },
-    { id: '2', name: 'استشارة', price: 150, desc: 'استشارة ومتابعة سريعة', duration: 'حوالي 10 دقائق' },
-    { id: '3', name: 'كشف مستعجل', price: 400, desc: 'أولوية فورية في الدور', duration: 'كشف فوري مباشر' },
-    { id: '4', name: 'متابعة', price: 100, desc: 'متابعة لحالة كشف سابقة', duration: 'حوالي 10 دقائق' }
+    { id: '1', name: 'كشف عادي', price: 250, desc: 'كشف طبي عام شامل', duration: 'حوالي 15 دقيقة', durationMinutes: 15 },
+    { id: '2', name: 'استشارة', price: 150, desc: 'استشارة ومتابعة سريعة', duration: 'حوالي 10 دقائق', durationMinutes: 10 },
+    { id: '3', name: 'كشف مستعجل', price: 400, desc: 'أولوية فورية في الدور', duration: 'كشف فوري مباشر', durationMinutes: 15 },
+    { id: '4', name: 'متابعة', price: 100, desc: 'متابعة لحالة كشف سابقة', duration: 'حوالي 10 دقائق', durationMinutes: 10 }
   ]
 
   const [selectedServiceId, setSelectedServiceId] = useState<string>(
@@ -51,11 +54,20 @@ export function BookingForm({
       setSelectedServiceId(preselectedServiceId)
     }
   }, [preselectedServiceId])
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0])
+  const [selectedDate, setSelectedDate] = useState<string>(cairoDate(new Date()))
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'instapay' | 'wallet'>('cash')
   const [transferNumber, setTransferNumber] = useState('')
   const [isBooking, setIsBooking] = useState(false)
-  const [successInfo, setSuccessInfo] = useState<{ queueNumber: number, trackingId: string, aheadCount: number } | null>(null)
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false)
+  const [successInfo, setSuccessInfo] = useState<{
+    queueNumber: number
+    trackingId: string
+    aheadCount: number
+    invoiceNumber: string
+    estimatedEntranceTime: string
+    estimatedWaitMinutes: number
+    invoiceData: InvoiceData
+  } | null>(null)
 
   const selectedService = availableServices.find(s => s.id === selectedServiceId) || availableServices[0]
 
@@ -71,28 +83,65 @@ export function BookingForm({
     setStep(3)
   }
 
-  // Final Booking Submit
+  // Final Booking Submit with Firestore Transaction
   const handleBooking = async () => {
     setIsBooking(true)
     try {
-      const q = query(
+      const clinicIdentifier = clinic.id || clinic.slug
+      const counterRef = doc(db, 'daily_queues', `${clinicIdentifier}_${selectedDate}`)
+
+      let myQueueNumber = 1
+      try {
+        myQueueNumber = await runTransaction(db, async (transaction) => {
+          const counterSnap = await transaction.get(counterRef)
+          let currentNum = 0
+          if (counterSnap.exists()) {
+            currentNum = counterSnap.data().lastQueueNumber || 0
+          }
+          const nextNum = currentNum + 1
+          transaction.set(
+            counterRef,
+            {
+              lastQueueNumber: nextNum,
+              date: selectedDate,
+              clinic_id: clinicIdentifier,
+              updatedAt: new Date().toISOString()
+            },
+            { merge: true }
+          )
+          return nextNum
+        })
+      } catch (txErr) {
+        const qSnap = await getDocs(
+          query(
+            collection(db, 'appointments'),
+            where('clinic_id', '==', clinicIdentifier),
+            where('date', '==', selectedDate)
+          )
+        )
+        myQueueNumber = qSnap.size + 1
+      }
+
+      // Count waiting ahead for wait time estimate
+      const qWaiting = query(
         collection(db, 'appointments'),
-        where('clinic_id', '==', clinic.id || clinic.slug),
+        where('clinic_id', '==', clinicIdentifier),
         where('date', '==', selectedDate)
       )
-
-      const querySnapshot = await getDocs(q)
-      const currentQueueLength = querySnapshot.size
-      const myQueueNumber = currentQueueLength + 1
-
-      // Count waiting ahead
+      const querySnapshot = await getDocs(qWaiting)
       let waitingCount = 0
       querySnapshot.docs.forEach(docSnap => {
         if (docSnap.data().status === 'waiting') waitingCount++
       })
 
+      const avgDuration = Number(clinic.averageVisitTime) || 15
+      const estimatedWaitMinutes = waitingCount * avgDuration
+      const entranceDate = new Date(Date.now() + estimatedWaitMinutes * 60000)
+      const estimatedEntranceTime = formatCairo12Hour(entranceDate)
+      const invoiceNumber = `INV-${selectedDate.replace(/-/g, '')}-${String(myQueueNumber).padStart(3, '0')}`
+
       const newAppt = {
-        clinic_id: clinic.id || clinic.slug,
+        clinic_id: clinicIdentifier,
         patientName: name,
         phone,
         age: age || null,
@@ -102,6 +151,7 @@ export function BookingForm({
         isUrgent: selectedService.name.includes('مستعجل') || selectedService.name.includes('طوارئ'),
         date: selectedDate,
         queue_number: myQueueNumber,
+        invoiceNumber,
         status: 'waiting',
         paymentMethod,
         paymentStatus: paymentMethod === 'cash' ? 'pending' : 'paid',
@@ -111,11 +161,61 @@ export function BookingForm({
 
       const docRef = await addDoc(collection(db, 'appointments'), newAppt)
 
+      const invoiceData: InvoiceData = {
+        invoiceNumber,
+        clinicName: clinic.clinicName || 'عيادة كير',
+        doctorName: clinic.doctorName,
+        clinicAddress: clinic.clinicAddress,
+        clinicPhone: clinic.clinicPhone,
+        patientName: name,
+        patientPhone: phone,
+        date: selectedDate,
+        cairoTime: formatCairo12Hour(new Date()),
+        serviceName: selectedService.name,
+        servicePrice: selectedService.price || 0,
+        netTotal: selectedService.price || 0,
+        paymentMethod,
+        paymentStatus: paymentMethod === 'cash' ? 'pending' : 'paid',
+        transferNumber: paymentMethod !== 'cash' ? transferNumber : undefined,
+        appointmentId: docRef.id
+      }
+
       setSuccessInfo({
         queueNumber: myQueueNumber,
         trackingId: docRef.id,
-        aheadCount: waitingCount
+        aheadCount: waitingCount,
+        invoiceNumber,
+        estimatedEntranceTime,
+        estimatedWaitMinutes,
+        invoiceData
       })
+
+      // Dispatch automated WhatsApp notification
+      try {
+        fetch('/api/whatsapp/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: phone,
+            type: 'BOOKING_CONFIRMED',
+            appointmentId: docRef.id,
+            patientName: name,
+            clinicName: clinic.clinicName || 'العيادة',
+            clinicId: clinicIdentifier,
+            idempotencyKey: `booking_confirm_${docRef.id}`,
+            data: {
+              date: selectedDate,
+              serviceName: selectedService.name,
+              queueNumber: myQueueNumber,
+              price: selectedService.price || 0,
+              trackUrl: `${typeof window !== 'undefined' ? window.location.origin : ''}/clinic/${clinic.slug}/track/${docRef.id}`
+            }
+          })
+        }).catch(err => console.warn('WhatsApp alert warning:', err))
+      } catch (waErr) {
+        console.warn('WhatsApp alert error:', waErr)
+      }
+
       toast.success(`تم تسجيل حجزك بنجاح! دورك: ${myQueueNumber}`)
     } catch (error) {
       toast.error('حدث خطأ أثناء إتمام الحجز، يرجى المحاولة ثانيةً.')
@@ -124,7 +224,7 @@ export function BookingForm({
     }
   }
 
-  // 1. SUCCESS SCREEN (Matching Top Center Screen 3 in Mockup)
+  // 1. SUCCESS SCREEN
   if (successInfo) {
     return (
       <div className="medical-card p-6 sm:p-8 max-w-lg mx-auto text-center space-y-6 shadow-2xl bg-white border border-[#E5EAF0] rounded-3xl" dir="rtl">
@@ -146,23 +246,41 @@ export function BookingForm({
           </div>
         </div>
 
-        {/* Estimation Details Grid */}
+        {/* Dynamic Estimation Details Grid */}
         <div className="grid grid-cols-2 gap-3 text-right">
           <div className="p-3.5 rounded-2xl bg-[#F8FAFC] border border-[#E5EAF0] space-y-1">
             <span className="text-[11px] font-bold text-slate-400">موعدك المتوقع</span>
-            <p className="text-sm font-black text-[#182230]">08:35 م</p>
+            <p className="text-sm font-black text-[#182230]">
+              {successInfo.estimatedEntranceTime}
+            </p>
           </div>
 
           <div className="p-3.5 rounded-2xl bg-[#F8FAFC] border border-[#E5EAF0] space-y-1">
             <span className="text-[11px] font-bold text-slate-400">وقت الانتظار المتوقع</span>
-            <p className="text-sm font-black text-[#15B8A6]">حوالي 42 دقيقة</p>
+            <p className="text-sm font-black text-[#15B8A6]">
+              {successInfo.estimatedWaitMinutes === 0
+                ? 'دورك الآن'
+                : `حوالي ${successInfo.estimatedWaitMinutes} دقيقة`}
+            </p>
           </div>
         </div>
 
         <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold flex items-center justify-center gap-2">
           <Users className="w-4 h-4 text-amber-600" />
-          <span>يوجد {successInfo.aheadCount || 3} مرضى قبلك في الدور</span>
+          <span>يوجد {successInfo.aheadCount} مرضى قبلك في الدور</span>
         </div>
+
+        {/* Modal for Electronic PDF Invoice */}
+        {showInvoiceModal && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-3xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+              <InvoiceView
+                invoice={successInfo.invoiceData}
+                onClose={() => setShowInvoiceModal(false)}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Action CTAs */}
         <div className="space-y-2.5 pt-2">
@@ -174,6 +292,15 @@ export function BookingForm({
               تابع الحجز والدور مباشرة
             </Button>
           </Link>
+
+          <Button
+            variant="outline"
+            onClick={() => setShowInvoiceModal(true)}
+            className="w-full h-11 text-xs font-bold border-[#E5EAF0] text-slate-700 hover:bg-slate-50 rounded-xl flex items-center justify-center gap-2"
+          >
+            <Receipt className="w-4 h-4 text-[#15B8A6]" />
+            عرض وتحميل الفاتورة الإلكترونية PDF
+          </Button>
 
           {clinic.mapsLink ? (
             <a href={clinic.mapsLink} target="_blank" rel="noreferrer" className="block w-full">

@@ -8,9 +8,11 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
   Activity, Clock, CheckCircle2, Zap, MapPin, Phone,
-  Users, Calendar, Sparkles, Navigation, MessageCircle, AlertCircle
+  Users, Calendar, Sparkles, Navigation, MessageCircle, AlertCircle, Receipt
 } from 'lucide-react'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
+import { formatCairo12Hour } from '@/lib/queue-calculator'
+import { InvoiceView, InvoiceData } from '@/components/clinic/InvoiceView'
 
 export default function TrackPatientPage({ params }: { params: Promise<{ slug: string, appointmentId: string }> }) {
   const resolvedParams = use(params)
@@ -20,6 +22,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
   const [averageTime, setAverageTime] = useState<number>(15)
   const [loading, setLoading] = useState(true)
   const [clinic, setClinic] = useState<any>(null)
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false)
 
   useEffect(() => {
     // 1. Fetch clinic data
@@ -167,8 +170,46 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
           </div>
         )}
 
+        {/* Modal for Electronic PDF Invoice */}
+        {showInvoiceModal && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-3xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+              <InvoiceView
+                invoice={{
+                  invoiceNumber: appointment.invoiceNumber || `INV-${appointmentId.slice(0, 8)}`,
+                  clinicName: clinic?.clinicName || 'العيادة',
+                  doctorName: clinic?.doctorName,
+                  clinicAddress: clinic?.clinicAddress,
+                  clinicPhone: clinic?.clinicPhone,
+                  patientName: appointment.patientName,
+                  patientPhone: appointment.phone,
+                  date: appointment.date,
+                  cairoTime: formatCairo12Hour(new Date(appointment.createdAt || Date.now())),
+                  serviceName: appointment.serviceName || 'كشف',
+                  servicePrice: appointment.servicePrice || 0,
+                  netTotal: appointment.servicePrice || 0,
+                  paymentMethod: appointment.paymentMethod || 'cash',
+                  paymentStatus: appointment.paymentStatus || 'pending',
+                  transferNumber: appointment.transferNumber,
+                  appointmentId
+                }}
+                onClose={() => setShowInvoiceModal(false)}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Action CTAs (Matching Mockup) */}
         <div className="space-y-2.5 pt-2 border-t border-[#E5EAF0]">
+          <Button
+            variant="outline"
+            onClick={() => setShowInvoiceModal(true)}
+            className="w-full h-11 text-xs font-bold border-[#E5EAF0] text-slate-700 hover:bg-slate-50 rounded-xl flex items-center justify-center gap-2"
+          >
+            <Receipt className="w-4 h-4 text-[#15B8A6]" />
+            عرض وتحميل الفاتورة الإلكترونية PDF
+          </Button>
+
           {clinic?.mapsLink && (
             <a href={clinic.mapsLink} target="_blank" rel="noreferrer" className="block w-full">
               <Button className="w-full h-12 text-xs font-black bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-md shadow-[#15B8A6]/20">

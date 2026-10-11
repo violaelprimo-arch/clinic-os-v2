@@ -77,21 +77,8 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
           }
         })
 
-        // If no records in Firebase, populate clean realistic demo patient records
-        let loadedPatients = Array.from(patientMap.values())
-        if (loadedPatients.length === 0) {
-          loadedPatients = [
-            { id: '01557540188', name: 'محمد محمود', phone: '01557540188', visitsCount: 2, lastVisit: '2026-10-05', lastService: 'كشف عادي', status: 'نشط' },
-            { id: '01111111111', name: 'حسين علي', phone: '01111111111', visitsCount: 1, lastVisit: '2026-10-05', lastService: 'استشارة', status: 'نشط' },
-            { id: '0123456789', name: 'أحمد محمد', phone: '0123456789', visitsCount: 2, lastVisit: '2026-10-04', lastService: 'مستعجل', status: 'مستعجل' },
-            { id: '0123456798', name: 'علي السيد', phone: '0123456798', visitsCount: 1, lastVisit: '2026-10-03', lastService: 'متابعة', status: 'نشط' },
-            { id: '01121320507', name: 'محمود خالد', phone: '01121320507', visitsCount: 1, lastVisit: '2026-10-01', lastService: 'كشف عادي', status: 'نشط' },
-            { id: '01098765432', name: 'إسلام رمضان', phone: '01098765432', visitsCount: 3, lastVisit: '2026-09-28', lastService: 'استشارة', status: 'نشط' },
-            { id: '01012345678', name: 'سارة إبراهيم', phone: '01012345678', visitsCount: 4, lastVisit: '2026-09-25', lastService: 'كشف عادي', status: 'نشط' },
-            { id: '01098234711', name: 'طارق حسام', phone: '01098234711', visitsCount: 1, lastVisit: '2026-09-20', lastService: 'استشارة', status: 'خامل' }
-          ]
-        }
-
+        // Real patients sorted by last visit
+        const loadedPatients = Array.from(patientMap.values())
         setPatients(loadedPatients.sort((a, b) => new Date(b.lastVisit).getTime() - new Date(a.lastVisit).getTime()))
       } catch (err) {
         console.error(err)

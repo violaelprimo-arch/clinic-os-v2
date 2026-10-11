@@ -15,6 +15,9 @@ import Link from 'next/link'
 import { db } from '@/lib/firebase'
 import { collection, query, where, onSnapshot, updateDoc, doc, Timestamp } from 'firebase/firestore'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { cairoDate } from '@/lib/clinic-domain'
+import { checkAndSendFiveAheadAlerts } from '@/lib/queue-alerts'
+import { recordAuditLog } from '@/lib/audit-logger'
 
 export function AdminDashboard({ clinic }: { clinic: any }) {
   const [bookings, setBookings] = useState<any[]>([])
@@ -25,7 +28,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
 
   useEffect(() => {
     if (!clinic?.id) return
-    const today = new Date().toISOString().split('T')[0]
+    const today = cairoDate(new Date())
     const q = query(
       collection(db, 'appointments'),
       where('clinic_id', '==', clinic.id),
@@ -44,8 +47,8 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
       
       let orderedWaiting: any[] = []
       let rIndex = 0, uIndex = 0;
-      const rRatio = clinic.regularPerUrgent || 2;
-      const uRatio = clinic.urgentPerRegular || 1;
+      const rRatio = clinic.regularPerUrgent ?? 2;
+      const uRatio = clinic.urgentPerRegular ?? 1;
       
       while(rIndex < regularQueue.length || uIndex < urgentQueue.length) {
          for(let i=0; i<rRatio && rIndex < regularQueue.length; i++) orderedWaiting.push(regularQueue[rIndex++]);
@@ -54,6 +57,16 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
 
       setBookings([...inProgress, ...orderedWaiting, ...completed])
       setIsLoading(false)
+
+      // Automated WhatsApp Reconciliation: Checks and sends 5-patients-ahead alerts without any user click
+      checkAndSendFiveAheadAlerts(
+        clinic.id,
+        clinic.slug,
+        clinic.clinicName,
+        clinic.mapsLink,
+        rRatio,
+        uRatio
+      ).catch(e => console.warn('5-ahead reconciliation error:', e))
     })
     return () => unsubscribe()
   }, [clinic?.id])
@@ -119,6 +132,26 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
         paymentStatus: 'paid', // Confirm payment if it wasn't
         startedAt: new Date().toISOString()
       })
+
+      // Record audit log
+      recordAuditLog({
+        action: 'PAYMENT_CONFIRMED',
+        actorName: clinic?.doctorName || 'طبيب العيادة',
+        actorRole: 'doctor',
+        clinicId: clinic?.id,
+        details: { patientId: patient.id, patientName: patient.patientName, amount: patient.servicePrice || 0 }
+      })
+
+      // Trigger automatic 5-ahead reconciliation in background
+      checkAndSendFiveAheadAlerts(
+        clinic.id,
+        clinic.slug,
+        clinic.clinicName,
+        clinic.mapsLink,
+        clinic.regularPerUrgent ?? 2,
+        clinic.urgentPerRegular ?? 1
+      ).catch(e => console.warn(e))
+
       toast.success(`بدأ كشف المريض: ${patient.patientName}`)
     } catch (err) {
       toast.error('حدث خطأ أثناء بدء الكشف.')
@@ -135,6 +168,26 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
         status: 'completed',
         completedAt: new Date().toISOString()
       })
+
+      // Record audit log
+      recordAuditLog({
+        action: 'QUEUE_ORDER_CHANGE',
+        actorName: clinic?.doctorName || 'طبيب العيادة',
+        actorRole: 'doctor',
+        clinicId: clinic?.id,
+        details: { event: 'EXAM_COMPLETED', patientId, patientName }
+      })
+
+      // Trigger automatic 5-ahead reconciliation
+      checkAndSendFiveAheadAlerts(
+        clinic.id,
+        clinic.slug,
+        clinic.clinicName,
+        clinic.mapsLink,
+        clinic.regularPerUrgent ?? 2,
+        clinic.urgentPerRegular ?? 1
+      ).catch(e => console.warn(e))
+
       toast.success(`تم إنهاء كشف: ${patientName}`)
     } catch (err) {
       toast.error('حدث خطأ أثناء إنهاء الكشف.')
@@ -150,6 +203,15 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
       await updateDoc(doc(db, 'appointments', patientId), {
         status: 'skipped'
       })
+
+      recordAuditLog({
+        action: 'QUEUE_ORDER_CHANGE',
+        actorName: clinic?.doctorName || 'طبيب العيادة',
+        actorRole: 'doctor',
+        clinicId: clinic?.id,
+        details: { event: 'PATIENT_SKIPPED', patientId }
+      })
+
       toast.info('تم تخطي دور المريض مؤقتاً.')
     } catch (err) {
       toast.error('حدث خطأ أثناء تخطي المريض.')
@@ -165,6 +227,15 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
       await updateDoc(doc(db, 'appointments', patientId), {
         status: 'no_show'
       })
+
+      recordAuditLog({
+        action: 'QUEUE_ORDER_CHANGE',
+        actorName: clinic?.doctorName || 'طبيب العيادة',
+        actorRole: 'doctor',
+        clinicId: clinic?.id,
+        details: { event: 'PATIENT_NO_SHOW', patientId }
+      })
+
       toast.warning('تم تسجيل المريض: لم يحضر')
     } catch (err) {
       toast.error('حدث خطأ أثناء تسجيل الغياب.')
@@ -173,14 +244,40 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     }
   }
 
-  const sendWhatsApp = (phone: string, name: string) => {
+  const sendWhatsApp = async (phone: string, name: string, patientId?: string) => {
     if (!phone) return
-    let formattedPhone = phone.replace(/[^0-9]/g, '')
-    if (formattedPhone.startsWith('0')) formattedPhone = '2' + formattedPhone
-    const message = encodeURIComponent(
-      `مرحباً ${name}،\nيرجى التوجه إلى عيادة ${clinic?.clinicName || 'الطبيب'} الآن. اقترب دورك للدخول للكشف.\nنتمنى لك دوام الصحة والعافية.`
-    )
-    window.open(`https://wa.me/${formattedPhone}?text=${message}`, '_blank')
+    try {
+      toast.info('جاري إرسال إشعار واتساب التلقائي...')
+      const res = await fetch('/api/whatsapp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: phone,
+          type: 'FIVE_PATIENTS_AHEAD',
+          appointmentId: patientId || 'manual',
+          patientName: name,
+          clinicName: clinic?.clinicName || 'العيادة',
+          clinicId: clinic?.id,
+          idempotencyKey: `manual_alert_${patientId || phone}_${Date.now()}`,
+          data: {
+            remainingCount: 1,
+            estimatedTime: 'الآن',
+            mapsUrl: clinic?.mapsLink || '',
+            trackUrl: `${window.location.origin}/clinic/${clinic?.slug}`
+          }
+        })
+      })
+      const result = await res.json()
+      if (result.success) {
+        toast.success(`تم إرسال تنبيه واتساب بنجاح إلى: ${name}`)
+      } else if (result.status === 'config_missing') {
+        toast.warning(result.error || 'يرجى إعداد بيانات Meta WhatsApp Cloud API في الخادم')
+      } else {
+        toast.error(`فشل الإرسال: ${result.error}`)
+      }
+    } catch (err: any) {
+      toast.error('حدث خطأ في شبكة الاتصال بـ WhatsApp API')
+    }
   }
 
   const getStatusBadge = (status: string) => {
