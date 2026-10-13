@@ -1,6 +1,6 @@
 'use client'
 import { DynamicTheme } from '@/components/DynamicTheme'
-import { use, useEffect, useState, useMemo } from 'react'
+import { use, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -206,31 +206,19 @@ export default function AdminLayout({
   })
 
   // Quick bottom nav shortcuts for mobile (strictly respecting permissions & safe area)
-  const bottomNavItems = useMemo(() => {
-    const items: Array<{ id: string; name: string; href?: string; icon: any; isAction?: boolean }> = [
-      { id: 'dashboard', name: 'الرئيسية', href: `/clinic/${slug}/admin`, icon: Calendar },
-    ]
-
-    // Patients tab
-    if (role === 'doctor' || assistantPermissions.includes('patients')) {
-      items.push({ id: 'patients', name: 'المرضى', href: `/clinic/${slug}/admin/patients`, icon: Users })
-    }
-
-    // Prescriptions tab (doctor only)
-    if (role === 'doctor') {
-      items.push({ id: 'prescriptions', name: 'الروشتات', href: `/clinic/${slug}/admin/prescriptions`, icon: FileText })
-    }
-
-    // Accounts tab (finance)
-    if (role === 'doctor' || assistantPermissions.includes('accounts') || assistantPermissions.includes('finance')) {
-      items.push({ id: 'accounts', name: 'الحسابات', href: `/clinic/${slug}/admin/accounts`, icon: Receipt })
-    }
-
-    // More drawer action
-    items.push({ id: 'more', name: 'المزيد', icon: Menu, isAction: true })
-
-    return items
-  }, [slug, role, assistantPermissions])
+  const bottomNavItems: Array<{ id: string; name: string; href?: string; icon: any; isAction?: boolean }> = [
+    { id: 'dashboard', name: 'الرئيسية', href: `/clinic/${slug}/admin`, icon: Calendar },
+    ...(role === 'doctor' || assistantPermissions.includes('patients')
+      ? [{ id: 'patients', name: 'المرضى', href: `/clinic/${slug}/admin/patients`, icon: Users }]
+      : []),
+    ...(role === 'doctor'
+      ? [{ id: 'prescriptions', name: 'الروشتات', href: `/clinic/${slug}/admin/prescriptions`, icon: FileText }]
+      : []),
+    ...(role === 'doctor' || assistantPermissions.includes('accounts') || assistantPermissions.includes('finance')
+      ? [{ id: 'accounts', name: 'الحسابات', href: `/clinic/${slug}/admin/accounts`, icon: Receipt }]
+      : []),
+    { id: 'more', name: 'المزيد', icon: Menu, isAction: true },
+  ]
 
   const handleGlobalSearch = (e: React.FormEvent) => {
     e.preventDefault()
