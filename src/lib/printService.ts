@@ -236,11 +236,17 @@ export function generateThermalReceiptHtml(data: ThermalReceiptData): string {
       margin: 0;
     }
     @media print {
-      html, body {
-        width: 72mm !important;
-        max-width: 72mm !important;
-        margin: 0 auto !important;
-        padding: 2mm 1mm !important;
+      html {
+        width: 80mm !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      body {
+        width: 70mm !important;
+        max-width: 70mm !important;
+        margin-left: 5mm !important;
+        margin-right: auto !important;
+        padding: 2mm 2mm 2mm 5mm !important;
       }
     }
     * {
@@ -250,10 +256,11 @@ export function generateThermalReceiptHtml(data: ThermalReceiptData): string {
     }
     body {
       font-family: 'Segoe UI', Tahoma, -apple-system, Roboto, Arial, sans-serif;
-      width: 72mm;
-      max-width: 72mm;
-      margin: 0 auto;
-      padding: 2mm 1mm;
+      width: 70mm;
+      max-width: 70mm;
+      margin-left: 5mm;
+      margin-right: auto;
+      padding: 2mm 2mm 2mm 5mm;
       color: #000000;
       background: #ffffff;
       font-size: 11px;
@@ -502,11 +509,17 @@ export function generateExaminationTicketHtml(data: ExaminationTicketData): stri
       margin: 0;
     }
     @media print {
-      html, body {
-        width: 72mm !important;
-        max-width: 72mm !important;
-        margin: 0 auto !important;
-        padding: 2mm 1mm !important;
+      html {
+        width: 80mm !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      body {
+        width: 70mm !important;
+        max-width: 70mm !important;
+        margin-left: 5mm !important;
+        margin-right: auto !important;
+        padding: 2mm 2mm 2mm 5mm !important;
       }
     }
     * {
@@ -516,10 +529,11 @@ export function generateExaminationTicketHtml(data: ExaminationTicketData): stri
     }
     body {
       font-family: 'Segoe UI', Tahoma, -apple-system, Roboto, Arial, sans-serif;
-      width: 72mm;
-      max-width: 72mm;
-      margin: 0 auto;
-      padding: 2mm 1mm;
+      width: 70mm;
+      max-width: 70mm;
+      margin-left: 5mm;
+      margin-right: auto;
+      padding: 2mm 2mm 2mm 5mm;
       color: #000000;
       background: #ffffff;
       font-size: 11px;
