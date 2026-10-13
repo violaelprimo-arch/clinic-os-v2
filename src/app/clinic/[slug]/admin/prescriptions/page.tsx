@@ -49,9 +49,12 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const [clinicId, setClinicId] = useState<string | null>(null)
   const [clinic, setClinic] = useState<any>(null)
   const [templateMode, setTemplateMode] = useState<'standard' | 'custom'>('standard')
+  const [pageSize, setPageSize] = useState<'a4' | 'a5'>('a4')
+  const [showHeaderFooter, setShowHeaderFooter] = useState<boolean>(true)
+  const [printBackground, setPrintBackground] = useState<boolean>(false)
   const [topOffset, setTopOffset] = useState<number>(25)
-  const [primaryColor, setPrimaryColor] = useState('#0f766e')
-  const [secondaryColor, setSecondaryColor] = useState('#14b8a6')
+  const [primaryColor, setPrimaryColor] = useState('#0B1F33')
+  const [secondaryColor, setSecondaryColor] = useState('#15B8A6')
 
   const [isSaving, setIsSaving] = useState(false)
   const [isSharingPdf, setIsSharingPdf] = useState(false)
@@ -204,7 +207,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     setIsSharingPdf(true)
     try {
       toast.info('جاري إنشاء ملف PDF ومشاركته...')
-      const { blob } = await renderElementToPdfBlob(sheetRef.current, { format: 'a4', orientation: 'portrait' })
+      const { blob } = await renderElementToPdfBlob(sheetRef.current, { format: pageSize, orientation: 'portrait' })
 
       const fileName = `روشتة_${patientName || 'المريض'}_${dateStr}.pdf`
       const apptId = searchParams?.get('appointmentId') || appointmentId
@@ -236,7 +239,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       await downloadElementAsPdf(
         sheetRef.current,
         `روشتة_${patientName || 'المريض'}_${dateStr}.pdf`,
-        { format: 'a4', orientation: 'portrait' }
+        { format: pageSize, orientation: 'portrait' }
       )
       toast.success('تم تنزيل الروشتة بصيغة PDF بنجاح')
     } catch (e) {
@@ -264,9 +267,15 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       instructions,
       drugs: drugs.filter(d => d.name && d.name.trim() !== ''),
       primaryColor,
-      secondaryColor
+      secondaryColor,
+      pageSize,
+      showHeaderFooter,
+      printBackground,
+      templateMode,
+      topOffset,
+      prescriptionTemplateUrl: clinic?.prescriptionTemplateUrl
     })
-    printHtmlViaIframe(html, 'a4')
+    printHtmlViaIframe(html, pageSize)
   }
 
   // Filtered drugs for quick search
@@ -325,7 +334,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             className="h-10 text-xs font-bold border-[#15B8A6] text-[#15B8A6] hover:bg-teal-50 rounded-xl"
           >
             <Printer className="w-4 h-4 ml-1.5" />
-            طباعة A4
+            طباعة {pageSize.toUpperCase()}
           </Button>
 
           <Button
@@ -578,21 +587,22 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
         {/* LEFT COLUMN: Live A4 Prescription Preview (5 cols) */}
         <div className="lg:col-span-5 space-y-3">
           
-          {/* Template Switcher Bar */}
-          <div className="p-3 bg-white rounded-xl border border-[#E5EAF0] space-y-2 shadow-2xs">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-700">نمط ورقة الروشتة:</span>
-              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg">
+          {/* Template & Paper Size Designer Controls */}
+          <div className="p-3.5 bg-white rounded-2xl border border-[#E5EAF0] space-y-3 shadow-2xs">
+            {/* Row 1: Option A vs Option B */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+              <span className="text-xs font-black text-slate-800">قالب الروشتة:</span>
+              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
                 <button
                   type="button"
                   onClick={() => setTemplateMode('standard')}
-                  className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                     templateMode === 'standard'
-                      ? 'bg-white text-[#15B8A6] shadow-2xs'
+                      ? 'bg-white text-[#15B8A6] shadow-xs'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
-                  القالب الفاخر المعياري
+                  Option B (النموذج الفاخر)
                 </button>
                 <button
                   type="button"
@@ -603,17 +613,72 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                       setTemplateMode('custom')
                     }
                   }}
-                  className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                     templateMode === 'custom'
-                      ? 'bg-white text-[#15B8A6] shadow-2xs'
+                      ? 'bg-white text-[#15B8A6] shadow-xs'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
-                  تصميم العيادة المخصص {clinic?.prescriptionTemplateUrl && '✓'}
+                  Option A (تصميم العيادة) {clinic?.prescriptionTemplateUrl && '✓'}
                 </button>
               </div>
             </div>
 
+            {/* Row 2: Paper Size A4 vs A5 */}
+            <div className="flex items-center justify-between text-xs pb-2.5 border-b border-slate-100">
+              <span className="font-bold text-slate-700">مقاس الورق:</span>
+              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setPageSize('a4')}
+                  className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
+                    pageSize === 'a4'
+                      ? 'bg-white text-[#15B8A6] shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  A4 (ورق كامل)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPageSize('a5')}
+                  className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
+                    pageSize === 'a5'
+                      ? 'bg-white text-[#15B8A6] shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  A5 (نصف ورقة)
+                </button>
+              </div>
+            </div>
+
+            {/* Row 3: Printing Toggles */}
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-0.5">
+              <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-600 select-none">
+                <input
+                  type="checkbox"
+                  checked={showHeaderFooter}
+                  onChange={(e) => setShowHeaderFooter(e.target.checked)}
+                  className="rounded text-[#15B8A6] focus:ring-[#15B8A6]"
+                />
+                <span>إظهار الترويسة والفوتر (تعطيل للورق الجاهز)</span>
+              </label>
+
+              {templateMode === 'custom' && (
+                <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-600 select-none">
+                  <input
+                    type="checkbox"
+                    checked={printBackground}
+                    onChange={(e) => setPrintBackground(e.target.checked)}
+                    className="rounded text-[#15B8A6] focus:ring-[#15B8A6]"
+                  />
+                  <span>طباعة صورة الخلفية (تفعيل للـ PDF)</span>
+                </label>
+              )}
+            </div>
+
+            {/* Custom Template Top Offset Slider */}
             {templateMode === 'custom' && clinic?.prescriptionTemplateUrl && (
               <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
                 <span className="font-medium text-[11px]">إزاحة البداية من أعلى:</span>
@@ -633,7 +698,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             )}
           </div>
 
-          {/* Render High-Fidelity A4 Sheet */}
+          {/* Render High-Fidelity Prescription Sheet (Live Preview) */}
           <div ref={sheetRef} className="overflow-hidden rounded-2xl shadow-xl">
             <A4Prescription
               clinic={clinic}
@@ -648,6 +713,9 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
               primaryColor={primaryColor}
               secondaryColor={secondaryColor}
               branchName={selectedBranchName || clinic?.branchName}
+              pageSize={pageSize}
+              showHeaderFooter={showHeaderFooter}
+              printBackground={printBackground}
             />
           </div>
         </div>

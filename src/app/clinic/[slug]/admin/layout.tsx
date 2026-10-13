@@ -1,6 +1,6 @@
 'use client'
 import { DynamicTheme } from '@/components/DynamicTheme'
-import { use, useEffect, useState } from 'react'
+import { use, useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -205,14 +205,32 @@ export default function AdminLayout({
     return false
   })
 
-  // Quick bottom nav shortcuts for mobile
-  const bottomNavItems = [
-    { name: 'الرئيسية', href: `/clinic/${slug}/admin`, icon: Calendar },
-    { name: 'المرضى', href: `/clinic/${slug}/admin/patients`, icon: Users },
-    { name: 'الروشتات', href: `/clinic/${slug}/admin/prescriptions`, icon: FileText },
-    { name: 'الحسابات', href: `/clinic/${slug}/admin/accounts`, icon: Receipt },
-    { name: 'المزيد', href: `/clinic/${slug}/admin/settings`, icon: Settings },
-  ]
+  // Quick bottom nav shortcuts for mobile (strictly respecting permissions & safe area)
+  const bottomNavItems = useMemo(() => {
+    const items: Array<{ id: string; name: string; href?: string; icon: any; isAction?: boolean }> = [
+      { id: 'dashboard', name: 'الرئيسية', href: `/clinic/${slug}/admin`, icon: Calendar },
+    ]
+
+    // Patients tab
+    if (role === 'doctor' || assistantPermissions.includes('patients')) {
+      items.push({ id: 'patients', name: 'المرضى', href: `/clinic/${slug}/admin/patients`, icon: Users })
+    }
+
+    // Prescriptions tab (doctor only)
+    if (role === 'doctor') {
+      items.push({ id: 'prescriptions', name: 'الروشتات', href: `/clinic/${slug}/admin/prescriptions`, icon: FileText })
+    }
+
+    // Accounts tab (finance)
+    if (role === 'doctor' || assistantPermissions.includes('accounts') || assistantPermissions.includes('finance')) {
+      items.push({ id: 'accounts', name: 'الحسابات', href: `/clinic/${slug}/admin/accounts`, icon: Receipt })
+    }
+
+    // More drawer action
+    items.push({ id: 'more', name: 'المزيد', icon: Menu, isAction: true })
+
+    return items
+  }, [slug, role, assistantPermissions])
 
   const handleGlobalSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -477,17 +495,34 @@ export default function AdminLayout({
         })()}
 
         {/* Scrollable Page Body */}
-        <main className="flex-1 overflow-y-auto bg-[#F6F8FB] pb-20 lg:pb-8 relative print:overflow-visible print:bg-white print:p-0">
+        <main className="flex-1 overflow-y-auto bg-[#F6F8FB] pb-[calc(5rem+env(safe-area-inset-bottom,0px))] lg:pb-8 relative print:overflow-visible print:bg-white print:p-0">
           {children}
         </main>
 
         {/* 4. MOBILE BOTTOM NAVIGATION (Fixed at bottom for phones) */}
-        <nav className="lg:hidden fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-md border-t border-[#E5EAF0] px-3 py-2 z-40 flex justify-around items-center shadow-lg print:hidden">
-          {bottomNavItems.map((item) => {
+        <nav 
+          className="lg:hidden fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-md border-t border-[#E5EAF0] px-3 z-40 flex justify-around items-center shadow-lg print:hidden"
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 8px) + 6px)', paddingTop: '6px' }}
+        >
+          {bottomNavItems.map((item: any) => {
             const Icon = item.icon
-            const isActive = pathname === item.href
+            const isActive = item.href ? pathname === item.href : false
+            
+            if (item.isAction) {
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setMobileDrawerOpen(true)}
+                  className="flex-1 flex flex-col items-center justify-center py-1 text-slate-500 hover:text-[#15B8A6] font-medium transition-colors"
+                >
+                  <Icon className="w-5 h-5 mb-0.5" />
+                  <span className="text-[10px] font-bold">{item.name}</span>
+                </button>
+              )
+            }
+
             return (
-              <Link key={item.name} href={item.href} className="flex-1">
+              <Link key={item.id} href={item.href || '#'} className="flex-1">
                 <div
                   className={`flex flex-col items-center justify-center py-1 transition-all ${
                     isActive ? 'text-[#15B8A6] font-bold' : 'text-slate-400 hover:text-slate-600 font-medium'

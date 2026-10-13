@@ -1,4 +1,12 @@
-import ExcelJS from 'exceljs'
+import type ExcelJS from 'exceljs'
+
+async function createWorkbook(creator: string = 'Clinic OS V2'): Promise<any> {
+  const { default: ExcelJSClass } = await import('exceljs')
+  const workbook = new ExcelJSClass.Workbook()
+  workbook.creator = creator
+  workbook.created = new Date()
+  return workbook
+}
 
 /**
  * Sanitizes values to prevent Excel Formula Injection (CSV/Formula injection attacks).
@@ -108,9 +116,7 @@ function styleWorksheet(worksheet: ExcelJS.Worksheet) {
  * 1. Export Patients List
  */
 export async function exportPatientsToExcel(patients: any[], clinicName: string = 'العيادة'): Promise<void> {
-  const workbook = new ExcelJS.Workbook()
-  workbook.creator = 'Clinic OS V2'
-  workbook.created = new Date()
+  const workbook = await createWorkbook('Clinic OS V2')
 
   const worksheet = workbook.addWorksheet('سجل المرضى')
   worksheet.columns = [
@@ -150,9 +156,7 @@ export async function exportAppointmentsToExcel(
   branchLabel: string = 'جميع الفروع',
   clinicName: string = 'العيادة'
 ): Promise<void> {
-  const workbook = new ExcelJS.Workbook()
-  workbook.creator = 'Clinic OS V2'
-  workbook.created = new Date()
+  const workbook = await createWorkbook('Clinic OS V2')
 
   const worksheet = workbook.addWorksheet('سجل الحجوزات')
   worksheet.columns = [
@@ -251,9 +255,7 @@ export async function exportComprehensiveFinancialReportExcel({
     netProfit?: number
   }
 }): Promise<void> {
-  const workbook = new ExcelJS.Workbook()
-  workbook.creator = 'Clinic OS V2 — Medical ERP'
-  workbook.created = new Date()
+  const workbook = await createWorkbook('Clinic OS V2 — Medical ERP')
 
   // ─────────────────────────────────────────────
   // SHEET 1: SUMMARY (الملخص التنفيذي)

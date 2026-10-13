@@ -18,6 +18,7 @@ import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
 import { collection, query, where, getDocs } from 'firebase/firestore'
 import { BookingForm } from './BookingForm'
+import { BookingModal } from './BookingModal'
 import { AIChatWidget } from './AIChatWidget'
 import { ClinicLogo } from './ClinicLogo'
 import { TechnicalSupportButton } from './TechnicalSupportButton'
@@ -44,6 +45,8 @@ export function PremiumLanding({
   const router = useRouter()
   const primaryColor = clinic?.primaryColor || '#15B8A6'
 
+  const [bookingModalOpen, setBookingModalOpen] = useState(false)
+  const [modalServiceId, setModalServiceId] = useState<string | null>(null)
   const [trackModalOpen, setTrackModalOpen] = useState(false)
   const [trackPhone, setTrackPhone] = useState('')
   const [isSearchingQueue, setIsSearchingQueue] = useState(false)
@@ -57,13 +60,17 @@ export function PremiumLanding({
     { id: '4', name: 'متابعة', price: 100, desc: 'متابعة لحالة سابقة وتعديل الجرعات', duration: 'حوالي 10 دقائق' },
   ]
 
+  const handleOpenBookingModal = (serviceId?: string) => {
+    if (serviceId) setModalServiceId(serviceId)
+    setBookingModalOpen(true)
+  }
+
   const scrollToBooking = () => {
     document.getElementById('booking')?.scrollIntoView({ behavior: 'smooth' })
   }
 
   const handleSelectService = (serviceId: string) => {
-    setPreselectedServiceId(serviceId)
-    scrollToBooking()
+    handleOpenBookingModal(serviceId)
   }
 
   const handleTrackQueueSearch = async (e: React.FormEvent) => {
@@ -263,7 +270,7 @@ export function PremiumLanding({
                     type="button"
                     whileHover={{ scale: 1.04, y: -2 }}
                     whileTap={{ scale: 0.96 }}
-                    onClick={scrollToBooking}
+                    onClick={() => handleOpenBookingModal()}
                     className="h-12 px-7 w-full sm:w-auto justify-center text-xs sm:text-sm font-black bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-lg shadow-[#15B8A6]/35 flex items-center gap-2 cursor-pointer transition-all"
                   >
                     <Calendar className="w-4 h-4 ml-1 text-white" />
@@ -864,6 +871,15 @@ export function PremiumLanding({
           </div>
         )}
       </AnimatePresence>
+
+      {/* 9. PREMIUM BOOKING MODAL */}
+      <BookingModal
+        isOpen={bookingModalOpen}
+        onClose={() => setBookingModalOpen(false)}
+        clinic={clinic}
+        services={defaultServices}
+        initialServiceId={modalServiceId}
+      />
     </div>
   )
 }

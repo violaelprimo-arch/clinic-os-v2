@@ -98,6 +98,10 @@ export interface PrescriptionPrintData {
   secondaryColor?: string
   prescriptionTemplateUrl?: string
   templateMode?: 'standard' | 'custom'
+  pageSize?: 'a4' | 'a5'
+  showHeaderFooter?: boolean
+  printBackground?: boolean
+  topOffset?: number
 }
 
 export interface FinancialReportPrintData {
@@ -148,9 +152,9 @@ export interface FinancialReportPrintData {
 /**
  * Injects HTML into an isolated invisible iframe and triggers the native browser print dialog.
  * @param htmlContent Full standalone HTML string
- * @param pageSize '80mm' for thermal rolls, 'a4' for standard paper
+ * @param pageSize '80mm' for thermal rolls, 'a4' for standard paper, 'a5' for compact prescriptions
  */
-export function printHtmlViaIframe(htmlContent: string, pageSize: '80mm' | 'a4' = '80mm'): void {
+export function printHtmlViaIframe(htmlContent: string, pageSize: '80mm' | 'a4' | 'a5' = '80mm'): void {
   if (typeof document === 'undefined') return
 
   // Clean up any lingering print iframe
@@ -164,8 +168,8 @@ export function printHtmlViaIframe(htmlContent: string, pageSize: '80mm' | 'a4' 
   iframe.style.position = 'fixed'
   iframe.style.left = '-9999px'
   iframe.style.top = '0'
-  iframe.style.width = pageSize === '80mm' ? '80mm' : '210mm'
-  iframe.style.minHeight = pageSize === '80mm' ? '120mm' : '297mm'
+  iframe.style.width = pageSize === '80mm' ? '80mm' : pageSize === 'a5' ? '148mm' : '210mm'
+  iframe.style.minHeight = pageSize === '80mm' ? '120mm' : pageSize === 'a5' ? '210mm' : '297mm'
   iframe.style.border = 'none'
   iframe.style.visibility = 'hidden'
 
@@ -1125,11 +1129,15 @@ export function generateFinancialReportHtml(data: FinancialReportPrintData): str
 }
 
 /**
- * TASK 8: Modern Premium Medical Prescription A4 HTML
+ * TASK 8 & PHASE 3: Modern Premium Medical Prescription A4 & A5 HTML
  */
 export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string {
-  const pColor = data.primaryColor || '#0f766e'
-  const sColor = data.secondaryColor || '#14b8a6'
+  const pColor = data.primaryColor || '#0B1F33'
+  const sColor = data.secondaryColor || '#15B8A6'
+  const isA5 = data.pageSize === 'a5'
+  const showHeaderFooter = data.showHeaderFooter !== false
+  const isCustom = data.templateMode === 'custom'
+  const safeOffset = typeof data.topOffset === 'number' && data.topOffset <= 60 && data.topOffset >= 0 ? data.topOffset : 25
 
   return `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -1138,106 +1146,108 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
   <title>الروشتة الطبية - ${data.patientName}</title>
   <style>
     @page {
-      size: A4 portrait;
-      margin: 12mm 10mm;
+      size: ${isA5 ? 'A5' : 'A4'} portrait;
+      margin: ${isA5 ? '8mm 6mm' : '12mm 10mm'};
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: 'Segoe UI', Tahoma, -apple-system, Roboto, Arial, sans-serif;
       color: #1e293b;
       background: #ffffff;
-      font-size: 11pt;
+      font-size: ${isA5 ? '9.5pt' : '11pt'};
       line-height: 1.5;
-      padding: 10px;
+      padding: ${isA5 ? '8px' : '10px'};
+      ${isCustom && data.printBackground && data.prescriptionTemplateUrl ? `background-image: url('${data.prescriptionTemplateUrl}'); background-size: 100% 100%; background-repeat: no-repeat;` : ''}
+      ${isCustom ? `padding-top: ${safeOffset}%;` : ''}
     }
     .header {
-      display: flex;
+      display: ${showHeaderFooter && !isCustom ? 'flex' : 'none'};
       justify-content: space-between;
       align-items: flex-start;
-      border-bottom: 2.5px solid ${pColor};
-      padding-bottom: 12px;
-      margin-bottom: 14px;
+      border-bottom: 2.5px solid ${sColor};
+      padding-bottom: ${isA5 ? '8px' : '12px'};
+      margin-bottom: ${isA5 ? '10px' : '14px'};
     }
-    .doctor-name { font-size: 20pt; font-weight: 900; color: ${pColor}; }
-    .doctor-spec { font-size: 12pt; font-weight: bold; color: ${sColor}; margin-top: 2px; }
-    .doctor-deg { font-size: 9.5pt; color: #64748b; margin-top: 2px; }
+    .doctor-name { font-size: ${isA5 ? '15pt' : '20pt'}; font-weight: 900; color: #182230; }
+    .doctor-spec { font-size: ${isA5 ? '9.5pt' : '12pt'}; font-weight: bold; color: ${sColor}; margin-top: 2px; }
+    .doctor-deg { font-size: ${isA5 ? '8pt' : '9.5pt'}; color: #64748b; margin-top: 2px; }
     .clinic-logo-box { text-align: left; direction: ltr; }
-    .clinic-logo { max-height: 55px; margin-bottom: 3px; }
+    .clinic-logo { max-height: ${isA5 ? '40px' : '55px'}; margin-bottom: 3px; }
     
     .patient-strip {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
+      background: ${isCustom ? 'transparent' : '#f8fafc'};
+      border: ${isCustom ? 'none' : '1px solid #e2e8f0'};
       border-radius: 8px;
-      padding: 8px 14px;
-      font-size: 10pt;
-      margin-bottom: 16px;
+      padding: ${isA5 ? '6px 10px' : '8px 14px'};
+      font-size: ${isA5 ? '8.5pt' : '10pt'};
+      margin-bottom: ${isA5 ? '10px' : '16px'};
     }
-    .patient-strip strong { color: #0f172a; font-size: 11pt; }
+    .patient-strip strong { color: #0f172a; font-size: ${isA5 ? '9.5pt' : '11pt'}; }
     
     .rx-title {
       font-family: Georgia, serif;
-      font-size: 30pt;
+      font-size: ${isA5 ? '22pt' : '30pt'};
       font-weight: 900;
-      color: ${pColor};
-      margin: 8px 0 12px 0;
+      color: ${sColor};
+      margin: 4px 0 8px 0;
       line-height: 1;
       direction: ltr;
       text-align: left;
     }
     
     .drugs-list {
-      margin-bottom: 24px;
-      min-height: 380px;
+      margin-bottom: 20px;
+      min-height: ${isA5 ? '220px' : '380px'};
     }
     .drug-item {
       display: flex;
       align-items: flex-start;
-      gap: 12px;
-      padding: 8px 0;
+      gap: 10px;
+      padding: ${isA5 ? '6px 0' : '8px 0'};
       border-bottom: 1px dashed #e2e8f0;
     }
     .drug-num {
       font-weight: 900;
       color: ${sColor};
-      font-size: 12pt;
-      width: 24px;
+      font-size: ${isA5 ? '10pt' : '12pt'};
+      width: 20px;
       direction: ltr;
     }
     .drug-details { flex: 1; }
     .drug-name {
-      font-size: 13pt;
+      font-size: ${isA5 ? '11pt' : '13pt'};
       font-weight: 900;
       color: #0f172a;
       direction: ltr;
       text-align: left;
     }
     .drug-instruction {
-      font-size: 10.5pt;
+      font-size: ${isA5 ? '9pt' : '10.5pt'};
       color: #334155;
       font-weight: 600;
       margin-top: 2px;
     }
     
     .footer {
-      border-top: 2px solid ${pColor};
-      padding-top: 14px;
-      margin-top: 30px;
-      display: flex;
+      display: ${showHeaderFooter && !isCustom ? 'flex' : 'none'};
+      border-top: 2px solid ${sColor};
+      padding-top: ${isA5 ? '8px' : '14px'};
+      margin-top: ${isA5 ? '16px' : '30px'};
       justify-content: space-between;
       align-items: flex-end;
-      font-size: 9pt;
+      font-size: ${isA5 ? '7.5pt' : '9pt'};
       color: #64748b;
     }
     .signature-area {
       text-align: center;
-      width: 150px;
+      width: ${isA5 ? '110px' : '150px'};
     }
     .signature-line {
       border-bottom: 1px solid #000;
-      height: 40px;
+      height: ${isA5 ? '28px' : '40px'};
       margin-bottom: 3px;
     }
   </style>
@@ -1258,7 +1268,7 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
 
   <div class="patient-strip">
     <div><span>الاسم:</span> <strong>${data.patientName}</strong></div>
-    ${data.patientAge ? `<div><span>السن:</span> <strong>${data.patientAge}</strong></div>` : ''}
+    ${data.patientAge ? `<div><span>السن:</span> <strong>${data.patientAge} سنة</strong></div>` : ''}
     <div><span>التاريخ:</span> <strong dir="ltr">${data.date}</strong></div>
     ${data.diagnosis ? `<div><span>التشخيص:</span> <strong>${data.diagnosis}</strong></div>` : ''}
   </div>
@@ -1288,7 +1298,7 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
 
   ${
     data.instructions
-      ? `<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:8px 12px; margin-bottom:14px; font-size:10pt;">
+      ? `<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:8px 12px; margin-bottom:14px; font-size:${isA5 ? '8.5pt' : '10pt'};">
           <strong>إرشادات الطبيب:</strong> ${data.instructions}
         </div>`
       : ''
@@ -1298,7 +1308,7 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
     <div>
       <div>${data.clinicAddress || 'العنوان: مسجل بالعيادة'}</div>
       <div>هاتف: ${data.clinicPhone || 'مسجل بالعيادة'}</div>
-      <div style="font-size:8pt; margin-top:2px;">جميع الحقوق محفوظة © ${new Date().getFullYear()} Clinic OS</div>
+      <div style="font-size:8pt; margin-top:2px;">روشتة موثقة إلكترونياً • Clinic OS © ${new Date().getFullYear()}</div>
     </div>
 
     <div class="signature-area">

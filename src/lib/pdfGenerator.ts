@@ -1,25 +1,28 @@
 'use client'
 
-import jsPDF from 'jspdf'
-import html2canvas from 'html2canvas'
-
 export interface PdfRenderOptions {
   fileName?: string
-  format?: 'a4' | 'thermal'
+  format?: 'a4' | 'a5' | 'thermal'
   orientation?: 'portrait' | 'landscape'
   marginMm?: number
 }
 
 /**
  * High-fidelity Client-Side PDF Renderer for Clinic OS V2
- * Uses html2canvas (scale 2.5 for crisp text & Arabic RTL glyphs) + jsPDF
- * Produces genuine Application/PDF Blobs for Web Share API & Local Download.
+ * Uses dynamic imports for html2canvas & jsPDF for maximum mobile performance.
+ * Supports A4, A5, and Thermal 80mm formats.
  */
 export async function renderElementToPdfBlob(
   element: HTMLElement,
   options: PdfRenderOptions = {}
 ): Promise<{ blob: Blob; url: string }> {
   const { format = 'a4', orientation = 'portrait' } = options
+
+  // Dynamically load html2canvas and jsPDF only when actually generating PDF
+  const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+    import('html2canvas'),
+    import('jspdf')
+  ])
 
   // 1. Capture element to high-res canvas with styling intact
   const canvas = await html2canvas(element, {
@@ -50,16 +53,23 @@ export async function renderElementToPdfBlob(
     return { blob, url }
   }
 
-  // A4 Document
+  // A4 or A5 Document
+  const isA5 = format === 'a5'
   const isLandscape = orientation === 'landscape'
+  
+  const pageWidth = isA5
+    ? (isLandscape ? 210 : 148)
+    : (isLandscape ? 297 : 210)
+    
+  const pageHeight = isA5
+    ? (isLandscape ? 148 : 210)
+    : (isLandscape ? 210 : 297)
+
   const pdf = new jsPDF({
     orientation: isLandscape ? 'landscape' : 'portrait',
     unit: 'mm',
-    format: 'a4'
+    format: isA5 ? 'a5' : 'a4'
   })
-
-  const pageWidth = isLandscape ? 297 : 210
-  const pageHeight = isLandscape ? 210 : 297
 
   const imgWidth = pageWidth
   const imgHeight = (canvas.height * pageWidth) / canvas.width
@@ -71,7 +81,7 @@ export async function renderElementToPdfBlob(
   pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST')
   heightLeft -= pageHeight
 
-  // Multi-page handling if document exceeds A4 height
+  // Multi-page handling if document exceeds page height
   while (heightLeft > 5) {
     position = position - pageHeight
     pdf.addPage()

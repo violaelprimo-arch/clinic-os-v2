@@ -9,7 +9,7 @@ import {
   Calendar, Users, Clock, CheckCircle2, DollarSign,
   Play, MessageCircle, ArrowLeft, ArrowRight, UserCheck,
   UserX, SkipForward, FileSignature, Phone, Filter,
-  Sparkles, AlertCircle, ChevronDown, RefreshCw, ArrowUpDown, X,
+  Sparkles, AlertCircle, ChevronDown, ChevronUp, RefreshCw, ArrowUpDown, X,
   Printer, Download, Tag, Check, Eye, Building2, Percent, FileSpreadsheet
 } from 'lucide-react'
 import Link from 'next/link'
@@ -48,6 +48,9 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
 
   // Image Preview Modal for Receipt Proof
   const [previewProofUrl, setPreviewProofUrl] = useState<string | null>(null)
+
+  // Mobile expandable card
+  const [expandedCardId, setExpandedCardId] = useState<string | null>(null)
 
   // Listen to Branch Switcher events and read initial localStorage
   useEffect(() => {
@@ -818,164 +821,353 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                 <div className="divide-y divide-[#E5EAF0]">
                   {filteredBookings.map((b) => {
                     const isCurrent = b.status === 'in_progress'
+                    const isExpanded = expandedCardId === b.id
+
                     return (
                       <div
                         key={b.id}
-                        className={`p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-colors ${
+                        className={`transition-colors ${
                           isCurrent
                             ? 'bg-[#E6FFFA]/50 border-r-4 border-r-[#15B8A6]'
                             : b.status === 'completed'
-                            ? 'bg-slate-50/60 opacity-75'
+                            ? 'bg-slate-50/60 opacity-80'
                             : 'hover:bg-slate-50/80 bg-white'
                         }`}
                       >
-                        {/* Right Part: Queue Number & Patient Details */}
-                        <div className="flex items-center gap-3.5 flex-1 min-w-0">
-                          {/* Queue Number Badge */}
-                          <div
-                            className={`w-11 h-11 rounded-xl flex flex-col items-center justify-center shrink-0 font-black shadow-xs ${
-                              isCurrent
-                                ? 'bg-[#15B8A6] text-white ring-2 ring-[#15B8A6]/20'
-                                : b.status === 'completed'
-                                ? 'bg-slate-100 text-slate-500'
-                                : 'bg-[#0B1F33] text-white'
-                            }`}
-                          >
-                            <span className="text-[9px] font-bold opacity-80 leading-none">#</span>
-                            <span className="text-base leading-tight font-black">{b.queue_number || '--'}</span>
+                        {/* ================= MOBILE PATIENT CARD (Screen < 640px) ================= */}
+                        <div className="block sm:hidden p-4 space-y-3">
+                          {/* Card Top: Queue # + Name + Status */}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div
+                                className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center shrink-0 font-black shadow-xs ${
+                                  isCurrent
+                                    ? 'bg-[#15B8A6] text-white ring-2 ring-[#15B8A6]/20'
+                                    : b.status === 'completed'
+                                    ? 'bg-slate-100 text-slate-500'
+                                    : 'bg-[#0B1F33] text-white'
+                                }`}
+                              >
+                                <span className="text-[9px] font-bold opacity-80 leading-none">#</span>
+                                <span className="text-sm leading-tight font-black">{b.queue_number || '--'}</span>
+                              </div>
+                              <div className="min-w-0">
+                                <h3 className="font-bold text-sm text-[#182230] truncate">{b.patientName}</h3>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-blue-50 text-[#2F80ED] border border-blue-100">
+                                    {b.serviceName || 'كشف'}
+                                  </span>
+                                  {b.servicePrice !== undefined && (
+                                    <span className="text-[10px] font-bold text-slate-600">
+                                      {b.servicePrice} ج.م
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="shrink-0">{getStatusBadge(b.status)}</div>
                           </div>
 
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="font-bold text-sm text-[#182230] truncate">{b.patientName}</h3>
-                              {/* Service Pill */}
-                              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-blue-50 text-[#2F80ED] border border-blue-100">
-                                {b.serviceName || 'كشف'}
-                              </span>
-                              {b.servicePrice !== undefined && (
-                                <span className="text-[11px] font-bold text-slate-600">
-                                  {b.servicePrice} ج.م
+                          {/* Card Info Row: Phone + Time + Payment Badge */}
+                          <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-100 flex-wrap gap-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-slate-600">{b.phone}</span>
+                              {b.createdAt && (
+                                <span className="text-[10px] text-slate-400">
+                                  {new Date(b.createdAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              {b.paymentStatus === 'paid' ? (
+                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                  مدفوع ✓
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                  غير مدفوع
                                 </span>
                               )}
                               {b.discount && (
                                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                  خصم: {b.discount.amount || b.discount.value} {b.discount.type === 'percentage' ? '%' : 'ج.م'}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5 flex-wrap">
-                              <span className="font-mono text-slate-500">{b.phone}</span>
-                              {b.createdAt && (
-                                <span>{new Date(b.createdAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</span>
-                              )}
-                              {b.paymentMethod && b.paymentMethod !== 'cash' && (
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200 inline-flex items-center gap-1 font-mono">
-                                  <span>{b.paymentMethod === 'instapay' ? 'انستاباي' : 'محفظة'}:</span>
-                                  <span>{b.transferNumber || 'بانتظار التأكيد'}</span>
-                                </span>
-                              )}
-                              {b.paymentStatus === 'paid' && (
-                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                                  مدفوع ✓
+                                  خصم {b.discount.amount || b.discount.value} {b.discount.type === 'percentage' ? '%' : 'ج.م'}
                                 </span>
                               )}
                             </div>
                           </div>
+
+                          {/* Card Primary Actions Bar */}
+                          <div className="flex items-center gap-2 pt-1">
+                            {/* Primary Button */}
+                            {b.status === 'waiting' && (
+                              <Button
+                                size="sm"
+                                className="flex-1 h-9 text-xs font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-xs"
+                                onClick={() => handleStartExam(b)}
+                                disabled={isProcessing}
+                              >
+                                <Play className="w-3.5 h-3.5 ml-1.5" />
+                                دخول المريض
+                              </Button>
+                            )}
+
+                            {isCurrent && (
+                              <Button
+                                size="sm"
+                                className="flex-1 h-9 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs"
+                                onClick={() => handleCompleteExam(b.id, b.patientName)}
+                                disabled={isProcessing}
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5 ml-1.5" />
+                                إنهاء الكشف
+                              </Button>
+                            )}
+
+                            {/* Quick Confirm Payment */}
+                            {b.paymentStatus !== 'paid' && b.status !== 'completed' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleConfirmPayment(b)}
+                                className="h-9 px-3 text-xs font-bold text-amber-600 border-amber-200 hover:bg-amber-50 rounded-xl"
+                                disabled={isProcessing}
+                              >
+                                <DollarSign className="w-3.5 h-3.5 ml-1" />
+                                تأكيد الدفع
+                              </Button>
+                            )}
+
+                            {/* Expand / Collapse Secondary Details */}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setExpandedCardId(isExpanded ? null : b.id)}
+                              className={`h-9 px-2.5 rounded-xl border-slate-200 text-slate-600 transition-colors ${
+                                isExpanded ? 'bg-slate-100 text-[#15B8A6]' : 'hover:bg-slate-50'
+                              }`}
+                              title="المزيد من الخيارات"
+                            >
+                              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                            </Button>
+                          </div>
+
+                          {/* Expandable Section for Secondary Actions */}
+                          {isExpanded && (
+                            <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/80 space-y-2 animate-in fade-in slide-in-from-top-1 duration-150">
+                              <p className="text-[10px] font-bold text-slate-400">إجراءات إضافية:</p>
+                              <div className="grid grid-cols-2 gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 text-xs font-bold text-slate-700 border-slate-200 hover:bg-white rounded-lg justify-start"
+                                  onClick={() => handleOpenDiscountModal(b)}
+                                >
+                                  <Percent className="w-3.5 h-3.5 ml-1.5 text-indigo-500" />
+                                  تطبيق خصم
+                                </Button>
+
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 text-xs font-bold text-slate-700 border-slate-200 hover:bg-white rounded-lg justify-start"
+                                  onClick={() => setSelectedReceiptAppt(b)}
+                                >
+                                  <Printer className="w-3.5 h-3.5 ml-1.5 text-teal-600" />
+                                  إيصال حراري
+                                </Button>
+
+                                {b.phone && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 text-xs font-bold text-emerald-700 border-emerald-200 hover:bg-white rounded-lg justify-start"
+                                    onClick={() => handleManualWhatsApp(b)}
+                                  >
+                                    <MessageCircle className="w-3.5 h-3.5 ml-1.5 text-emerald-500" />
+                                    تنبيه واتساب
+                                  </Button>
+                                )}
+
+                                {b.status === 'waiting' && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 text-xs font-bold text-indigo-700 border-indigo-200 hover:bg-white rounded-lg justify-start"
+                                    onClick={() => handleOpenEditTurn(b)}
+                                  >
+                                    <ArrowUpDown className="w-3.5 h-3.5 ml-1.5 text-indigo-500" />
+                                    تعديل الدور
+                                  </Button>
+                                )}
+
+                                <Link
+                                  href={`/clinic/${clinic.slug}/admin/prescriptions?appointmentId=${b.id}&patientName=${encodeURIComponent(b.patientName)}&patientPhone=${encodeURIComponent(b.phone)}&age=${encodeURIComponent(b.age || b.dob || '')}`}
+                                  className="col-span-2"
+                                >
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="w-full h-8 text-xs font-bold text-[#15B8A6] border-teal-200 hover:bg-white rounded-lg justify-center"
+                                  >
+                                    <FileSignature className="w-3.5 h-3.5 ml-1.5" />
+                                    كتابة روشتة طبية
+                                  </Button>
+                                </Link>
+                              </div>
+                            </div>
+                          )}
                         </div>
 
-                        {/* Left Part: Status & Action Buttons */}
-                        <div className="flex items-center gap-2 self-end sm:self-center shrink-0 flex-wrap">
-                          {getStatusBadge(b.status)}
+                        {/* ================= DESKTOP PATIENT ROW (Screen >= 640px) ================= */}
+                        <div className="hidden sm:flex p-4 items-center justify-between gap-4">
+                          {/* Right Part: Queue Number & Patient Details */}
+                          <div className="flex items-center gap-3.5 flex-1 min-w-0">
+                            {/* Queue Number Badge */}
+                            <div
+                              className={`w-11 h-11 rounded-xl flex flex-col items-center justify-center shrink-0 font-black shadow-xs ${
+                                isCurrent
+                                  ? 'bg-[#15B8A6] text-white ring-2 ring-[#15B8A6]/20'
+                                  : b.status === 'completed'
+                                  ? 'bg-slate-100 text-slate-500'
+                                  : 'bg-[#0B1F33] text-white'
+                              }`}
+                            >
+                              <span className="text-[9px] font-bold opacity-80 leading-none">#</span>
+                              <span className="text-base leading-tight font-black">{b.queue_number || '--'}</span>
+                            </div>
 
-                          {/* Quick Confirm Payment */}
-                          {b.paymentStatus !== 'paid' && b.status !== 'completed' && (
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="font-bold text-sm text-[#182230] truncate">{b.patientName}</h3>
+                                {/* Service Pill */}
+                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-blue-50 text-[#2F80ED] border border-blue-100">
+                                  {b.serviceName || 'كشف'}
+                                </span>
+                                {b.servicePrice !== undefined && (
+                                  <span className="text-[11px] font-bold text-slate-600">
+                                    {b.servicePrice} ج.م
+                                  </span>
+                                )}
+                                {b.discount && (
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    خصم: {b.discount.amount || b.discount.value} {b.discount.type === 'percentage' ? '%' : 'ج.م'}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5 flex-wrap">
+                                <span className="font-mono text-slate-500">{b.phone}</span>
+                                {b.createdAt && (
+                                  <span>{new Date(b.createdAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</span>
+                                )}
+                                {b.paymentMethod && b.paymentMethod !== 'cash' && (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200 inline-flex items-center gap-1 font-mono">
+                                    <span>{b.paymentMethod === 'instapay' ? 'انستاباي' : 'محفظة'}:</span>
+                                    <span>{b.transferNumber || 'بانتظار التأكيد'}</span>
+                                  </span>
+                                )}
+                                {b.paymentStatus === 'paid' && (
+                                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                    مدفوع ✓
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Left Part: Status & Action Buttons */}
+                          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                            {getStatusBadge(b.status)}
+
+                            {/* Quick Confirm Payment */}
+                            {b.paymentStatus !== 'paid' && b.status !== 'completed' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleConfirmPayment(b)}
+                                className="h-8 px-2.5 text-xs font-bold text-amber-600 border-amber-200 hover:bg-amber-50 rounded-xl"
+                                title="تأكيد الدفع"
+                                disabled={isProcessing}
+                              >
+                                <DollarSign className="w-3.5 h-3.5 ml-1" />
+                                تأكيد الدفع
+                              </Button>
+                            )}
+
+                            {/* Discount button */}
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => handleConfirmPayment(b)}
-                              className="h-8 px-2.5 text-xs font-bold text-amber-600 border-amber-200 hover:bg-amber-50 rounded-xl"
-                              title="تأكيد الدفع"
-                              disabled={isProcessing}
+                              className="h-8 px-2 text-xs font-bold text-slate-600 border-slate-200 hover:bg-slate-50 rounded-xl"
+                              onClick={() => handleOpenDiscountModal(b)}
+                              title="تطبيق خصم أو تعديل السعر"
                             >
-                              <DollarSign className="w-3.5 h-3.5 ml-1" />
-                              تأكيد الدفع
+                              <Percent className="w-3.5 h-3.5 ml-1" />
+                              خصم
                             </Button>
-                          )}
 
-                          {/* Discount button */}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 px-2 text-xs font-bold text-slate-600 border-slate-200 hover:bg-slate-50 rounded-xl"
-                            onClick={() => handleOpenDiscountModal(b)}
-                            title="تطبيق خصم أو تعديل السعر"
-                          >
-                            <Percent className="w-3.5 h-3.5 ml-1" />
-                            خصم
-                          </Button>
-
-                          {/* 80mm Thermal Receipt Print */}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 px-2 text-slate-600 hover:text-teal-700 hover:bg-teal-50 border-slate-200 rounded-xl"
-                            onClick={() => setSelectedReceiptAppt(b)}
-                            title="طباعة إيصال حراري (80mm)"
-                          >
-                            <Printer className="w-3.5 h-3.5" />
-                          </Button>
-
-                          {/* WhatsApp alert button (MANUAL click-to-chat) */}
-                          {b.status === 'waiting' && b.phone && (
+                            {/* 80mm Thermal Receipt Print */}
                             <Button
                               size="sm"
                               variant="outline"
-                              className="h-8 px-2.5 text-xs font-bold text-emerald-600 border-emerald-200 hover:bg-emerald-50 rounded-xl"
-                              onClick={() => handleManualWhatsApp(b)}
-                              title="إرسال تنبيه عبر واتساب"
+                              className="h-8 px-2 text-slate-600 hover:text-teal-700 hover:bg-teal-50 border-slate-200 rounded-xl"
+                              onClick={() => setSelectedReceiptAppt(b)}
+                              title="طباعة إيصال حراري (80mm)"
                             >
-                              <MessageCircle className="w-3.5 h-3.5 ml-1" />
-                              تنبيه
+                              <Printer className="w-3.5 h-3.5" />
                             </Button>
-                          )}
 
-                          {/* Edit Turn button */}
-                          {b.status === 'waiting' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 px-2.5 text-xs font-bold text-indigo-600 border-indigo-200 hover:bg-indigo-50 rounded-xl"
-                              onClick={() => handleOpenEditTurn(b)}
-                              title="تعديل الدور وترتيب المريض"
-                            >
-                              <ArrowUpDown className="w-3.5 h-3.5 ml-1" />
-                              تعديل
-                            </Button>
-                          )}
+                            {/* WhatsApp alert button (MANUAL click-to-chat) */}
+                            {b.status === 'waiting' && b.phone && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 px-2.5 text-xs font-bold text-emerald-600 border-emerald-200 hover:bg-emerald-50 rounded-xl"
+                                onClick={() => handleManualWhatsApp(b)}
+                                title="إرسال تنبيه عبر واتساب"
+                              >
+                                <MessageCircle className="w-3.5 h-3.5 ml-1" />
+                                تنبيه
+                              </Button>
+                            )}
 
-                          {/* Start exam button if waiting */}
-                          {b.status === 'waiting' && (
-                            <Button
-                              size="sm"
-                              className="h-8 px-3 text-xs font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-xs"
-                              onClick={() => handleStartExam(b)}
-                              disabled={isProcessing}
-                            >
-                              دخول
-                            </Button>
-                          )}
+                            {/* Edit Turn button */}
+                            {b.status === 'waiting' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 px-2.5 text-xs font-bold text-indigo-600 border-indigo-200 hover:bg-indigo-50 rounded-xl"
+                                onClick={() => handleOpenEditTurn(b)}
+                                title="تعديل الدور وترتيب المريض"
+                              >
+                                <ArrowUpDown className="w-3.5 h-3.5 ml-1" />
+                                تعديل
+                              </Button>
+                            )}
 
-                          {/* Rx Shortcut */}
-                          <Link href={`/clinic/${clinic.slug}/admin/prescriptions?appointmentId=${b.id}&patientName=${encodeURIComponent(b.patientName)}&patientPhone=${encodeURIComponent(b.phone)}&age=${encodeURIComponent(b.age || b.dob || '')}`}>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 px-2 text-slate-400 hover:text-[#15B8A6] hover:bg-teal-50 rounded-xl"
-                              title="كتابة روشتة"
-                            >
-                              <FileSignature className="w-4 h-4" />
-                            </Button>
-                          </Link>
+                            {/* Start exam button if waiting */}
+                            {b.status === 'waiting' && (
+                              <Button
+                                size="sm"
+                                className="h-8 px-3 text-xs font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-xs"
+                                onClick={() => handleStartExam(b)}
+                                disabled={isProcessing}
+                              >
+                                دخول
+                              </Button>
+                            )}
+
+                            {/* Rx Shortcut */}
+                            <Link href={`/clinic/${clinic.slug}/admin/prescriptions?appointmentId=${b.id}&patientName=${encodeURIComponent(b.patientName)}&patientPhone=${encodeURIComponent(b.phone)}&age=${encodeURIComponent(b.age || b.dob || '')}`}>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 px-2 text-slate-400 hover:text-[#15B8A6] hover:bg-teal-50 rounded-xl"
+                                title="كتابة روشتة"
+                              >
+                                <FileSignature className="w-4 h-4" />
+                              </Button>
+                            </Link>
+                          </div>
                         </div>
                       </div>
                     )

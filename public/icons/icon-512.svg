@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="clinicGrad512" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0B1F33" />
+      <stop offset="100%" stop-color="#132B45" />
+    </linearGradient>
+    <linearGradient id="tealGrad512" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#15B8A6" />
+      <stop offset="100%" stop-color="#0D9488" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#clinicGrad512)" />
+  <circle cx="256" cy="256" r="170" fill="none" stroke="rgba(21, 184, 166, 0.2)" stroke-width="16" />
+  <!-- Medical Cross / Pulse Icon -->
+  <path d="M256 140 V372 M140 256 H372" stroke="url(#tealGrad512)" stroke-width="42" stroke-linecap="round" />
+  <circle cx="256" cy="256" r="26" fill="#ffffff" />
+</svg>
