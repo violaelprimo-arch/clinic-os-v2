@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import {
   Plus, Printer, Trash2, Search, FileSignature, MapPin,
   Phone, User as UserIcon, Star, Check, MessageCircle,
-  FileText, ShieldCheck, ChevronDown, Sparkles, Download, Palette
+  FileText, ShieldCheck, ChevronDown, Sparkles, Download, Palette, Image as ImageIcon
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
@@ -20,8 +20,8 @@ import { useEgyptianDrugs } from '@/hooks/useEgyptianDrugs'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
 import { printHtmlViaIframe, generateA4PrescriptionHtml } from '@/lib/printService'
-import { renderElementToPdfBlob, downloadElementAsPdf } from '@/lib/pdfGenerator'
-import { sharePdfDocument } from '@/lib/whatsappShare'
+import { renderElementToPdfBlob, downloadElementAsPdf, renderElementToImageBlob, downloadElementAsImage } from '@/lib/pdfGenerator'
+import { shareDocumentOrImage, sharePdfDocument } from '@/lib/whatsappShare'
 
 export default function PrescriptionsPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -59,6 +59,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const [isSaving, setIsSaving] = useState(false)
   const [isSharingPdf, setIsSharingPdf] = useState(false)
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
+  const [isDownloadingImage, setIsDownloadingImage] = useState(false)
   const [todayPatients, setTodayPatients] = useState<any[]>([])
   const dateStr = new Date().toISOString().split('T')[0]
 
@@ -196,6 +197,40 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     }
   }
 
+  // Staff-initiated Manual WhatsApp sharing as Image (with Clipboard copy & download for desktop WhatsApp)
+  const handleShareWhatsAppImage = async () => {
+    if (!patientPhone) return toast.error('يرجى إدخال رقم هاتف المريض')
+    if (!sheetRef.current) return toast.error('تعذر الوصول لنموذج الروشتة')
+
+    setIsSharingPdf(true)
+    try {
+      toast.info('جاري تجهيز صورة الروشتة ومشاركتها...')
+      const { blob } = await renderElementToImageBlob(sheetRef.current, { scale: 2.5 })
+
+      const fileName = `روشتة_${patientName || 'المريض'}_${dateStr}.png`
+      const apptId = searchParams?.get('appointmentId') || appointmentId
+      const directRxUrl = apptId
+        ? `${window.location.origin}/clinic/${slug}/prescription/${apptId}`
+        : `${window.location.origin}/clinic/${slug}/patient`
+
+      const message = `الروشتة الطبية الإلكترونية 📄\nعيادة: ${clinic?.clinicName || 'العيادة الطبية'}\nالطبيب: د. ${clinic?.doctorName || ''}\nالمريض: ${patientName || 'المريض'}\nالتاريخ: ${dateStr}\n\n🔗 يمكنك استعراض وتحميل الروشتة الرسمية بتصميم العيادة عبر الرابط المباشر:\n${directRxUrl}\n\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`
+
+      await shareDocumentOrImage({
+        blob,
+        fileName,
+        fileType: 'image',
+        recipientPhone: patientPhone,
+        messageText: message,
+        documentTitle: 'الروشتة الطبية'
+      })
+    } catch (e) {
+      console.error(e)
+      toast.error('تعذر مشاركة صورة الروشتة')
+    } finally {
+      setIsSharingPdf(false)
+    }
+  }
+
   // TASK 6: Staff-initiated Manual WhatsApp sharing with REAL PDF Document
   const handleShareWhatsAppPdf = async () => {
     if (!patientPhone) return toast.error('يرجى إدخال رقم هاتف المريض')
@@ -214,17 +249,38 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
 
       const message = `الروشتة الطبية الإلكترونية الرسمية 📄\nعيادة: ${clinic?.clinicName || 'العيادة الطبية'}\nالطبيب: د. ${clinic?.doctorName || ''}\nالمريض: ${patientName || 'المريض'}\nالتاريخ: ${dateStr}\n\n🔗 يمكنك استعراض وتحميل الروشتة الرسمية بتصميم العيادة عبر الرابط المباشر:\n${directRxUrl}\n\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`
 
-      await sharePdfDocument({
-        pdfBlob: blob,
+      await shareDocumentOrImage({
+        blob,
         fileName,
+        fileType: 'pdf',
         recipientPhone: patientPhone,
         messageText: message,
         documentTitle: 'الروشتة الطبية الإلكترونية'
       })
     } catch (e) {
+      console.error(e)
       toast.error('تعذر مشاركة ملف الروشتة')
     } finally {
       setIsSharingPdf(false)
+    }
+  }
+
+  // Real Image Download (PNG)
+  const handleDownloadImage = async () => {
+    if (!sheetRef.current) return
+    setIsDownloadingImage(true)
+    try {
+      await downloadElementAsImage(
+        sheetRef.current,
+        `روشتة_${patientName || 'المريض'}_${dateStr}.png`,
+        { scale: 2.5 }
+      )
+      toast.success('تم تنزيل الروشتة كصورة PNG بنجاح')
+    } catch (e) {
+      console.error(e)
+      toast.error('تعذر تنزيل صورة الروشتة')
+    } finally {
+      setIsDownloadingImage(false)
     }
   }
 
@@ -240,6 +296,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       )
       toast.success('تم تنزيل الروشتة بصيغة PDF بنجاح')
     } catch (e) {
+      console.error(e)
       toast.error('تعذر تنزيل ملف الروشتة')
     } finally {
       setIsDownloadingPdf(false)
@@ -302,15 +359,40 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* TASK 6: Manual WhatsApp Share with Real PDF */}
+          {/* WhatsApp Share as Image */}
+          <Button
+            onClick={handleShareWhatsAppImage}
+            disabled={isSharingPdf}
+            variant="outline"
+            className="h-10 text-xs font-bold text-emerald-600 border-emerald-200 hover:bg-emerald-50 rounded-xl"
+            title="مشاركة الروشتة كصورة ونسخها للحافظة للصق الفوري Ctrl+V في واتساب ويب"
+          >
+            <MessageCircle className="w-4 h-4 ml-1.5" />
+            {isSharingPdf ? 'جاري المشاركة...' : 'إرسال صورة واتساب'}
+          </Button>
+
+          {/* Manual WhatsApp Share with Real PDF */}
           <Button
             onClick={handleShareWhatsAppPdf}
             disabled={isSharingPdf}
             variant="outline"
-            className="h-10 text-xs font-bold text-emerald-600 border-emerald-200 hover:bg-emerald-50 rounded-xl"
+            className="h-10 text-xs font-bold text-emerald-700 border-emerald-300 hover:bg-emerald-50 rounded-xl"
+            title="مشاركة الروشتة كملف PDF رسمي"
           >
-            <MessageCircle className="w-4 h-4 ml-1.5" />
+            <FileText className="w-4 h-4 ml-1.5" />
             {isSharingPdf ? 'جاري المشاركة...' : 'إرسال PDF واتساب'}
+          </Button>
+
+          {/* Real Image Download */}
+          <Button
+            onClick={handleDownloadImage}
+            disabled={isDownloadingImage}
+            variant="outline"
+            className="h-10 text-xs font-bold border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl"
+            title="تحميل الروشتة كصورة عالية الجودة PNG"
+          >
+            <ImageIcon className="w-4 h-4 ml-1.5" />
+            {isDownloadingImage ? 'جاري التحميل...' : 'تحميل صورة'}
           </Button>
 
           {/* Real PDF Download */}
@@ -319,6 +401,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             disabled={isDownloadingPdf}
             variant="outline"
             className="h-10 text-xs font-bold border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl"
+            title="تحميل الروشتة كملف PDF"
           >
             <Download className="w-4 h-4 ml-1.5" />
             {isDownloadingPdf ? 'جاري التحميل...' : 'تحميل PDF'}

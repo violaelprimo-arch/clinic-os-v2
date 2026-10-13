@@ -44,6 +44,7 @@ export function BookingForm({
   const [phone, setPhone] = useState(defaultPhone)
   const [age, setAge] = useState(defaultAge)
   const [dob, setDob] = useState('')
+  const showPrices = clinic?.showPrices !== false && clinic?.hidePrices !== true
 
   // Multi-Branch State
   const [branches, setBranches] = useState<Branch[]>([])
@@ -810,7 +811,7 @@ export function BookingForm({
                     </div>
                   </div>
 
-                  {clinic.showPrices !== false && (
+                  {showPrices && (
                     <span className="text-sm font-black text-[#15B8A6] shrink-0">
                       {service.price} ج.م
                     </span>
@@ -867,7 +868,7 @@ export function BookingForm({
             </div>
             <div className="flex justify-between pt-1">
               <span className="text-slate-600 font-bold">الإجمالي المستحق:</span>
-              {clinic.showPrices !== false ? (
+              {showPrices ? (
                 <span className="font-black text-base text-[#15B8A6]">{selectedService.price} ج.م</span>
               ) : (
                 <span className="font-black text-base text-[#15B8A6]">يحدد بالعيادة</span>
@@ -940,10 +941,12 @@ export function BookingForm({
                     {clinic.instapayHandle || selectedBranch?.phone || clinic.doctorPhone || 'يرجى التواصل مع الفرع'}
                   </span>
                 </div>
-                <div className="flex justify-between items-center text-xs pt-1.5 border-t border-slate-100">
-                  <span className="text-slate-500 font-bold">المبلغ المطلوب:</span>
-                  <span className="font-black text-base text-[#15B8A6]">{selectedService.price} ج.م</span>
-                </div>
+                {showPrices && (
+                  <div className="flex justify-between items-center text-xs pt-1.5 border-t border-slate-100">
+                    <span className="text-slate-500 font-bold">المبلغ المطلوب:</span>
+                    <span className="font-black text-base text-[#15B8A6]">{selectedService.price} ج.م</span>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -1005,10 +1008,12 @@ export function BookingForm({
                     {clinic.walletNumber || selectedBranch?.phone || clinic.doctorPhone || 'يرجى التواصل مع الفرع'}
                   </span>
                 </div>
-                <div className="flex justify-between items-center text-xs pt-1.5 border-t border-slate-100">
-                  <span className="text-slate-500 font-bold">المبلغ المطلوب:</span>
-                  <span className="font-black text-base text-[#15B8A6]">{selectedService.price} ج.م</span>
-                </div>
+                {showPrices && (
+                  <div className="flex justify-between items-center text-xs pt-1.5 border-t border-slate-100">
+                    <span className="text-slate-500 font-bold">المبلغ المطلوب:</span>
+                    <span className="font-black text-base text-[#15B8A6]">{selectedService.price} ج.م</span>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1.5">

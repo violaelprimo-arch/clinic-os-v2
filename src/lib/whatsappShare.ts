@@ -43,26 +43,29 @@ export function openManualWhatsAppChat({
 }
 
 /**
- * Handles professional sharing of PDF documents (Prescriptions, Invoices, Reports).
- * - On supported platforms (mobile & modern browsers): Uses Web Share API with files.
- * - On unsupported platforms: Downloads PDF, opens WhatsApp chat with instructions.
+ * Handles professional sharing of documents and images (Prescriptions, Invoices, Reports).
+ * - On supported platforms (mobile & modern browsers): Uses Web Share API with files directly into WhatsApp.
+ * - On desktop: Copies image to clipboard (for instant Ctrl+V in WhatsApp Web), downloads file, and opens chat.
  */
-export async function sharePdfDocument({
-  pdfBlob,
+export async function shareDocumentOrImage({
+  blob,
   fileName,
+  fileType = 'pdf',
   recipientPhone,
   messageText,
-  documentTitle = 'المستند الطبي'
+  documentTitle = 'المستند'
 }: {
-  pdfBlob: Blob
+  blob: Blob
   fileName: string
+  fileType?: 'pdf' | 'image'
   recipientPhone: string
   messageText: string
   documentTitle?: string
 }): Promise<void> {
-  const file = new File([pdfBlob], fileName, { type: 'application/pdf' })
+  const mimeType = fileType === 'image' ? 'image/png' : 'application/pdf'
+  const file = new File([blob], fileName, { type: mimeType })
 
-  // 1. Try Native Web Share API if supported
+  // 1. Try Native Web Share API if supported (Mobile phones / modern Web Share)
   if (
     typeof navigator !== 'undefined' &&
     navigator.canShare &&
@@ -78,16 +81,28 @@ export async function sharePdfDocument({
       return
     } catch (err: any) {
       if (err.name === 'AbortError') {
-        // User cancelled share dialog
         return
       }
-      console.warn('Web Share API failed, falling back to download + chat:', err)
+      console.warn('Web Share API failed, falling back to desktop flow:', err)
     }
   }
 
-  // 2. Fallback for Desktop / browsers without file share support:
-  // Download file to user device
-  const downloadUrl = window.URL.createObjectURL(pdfBlob)
+  // 2. Desktop WhatsApp Web helper:
+  // If it is an image, copy it to the clipboard so the user can simply Ctrl + V in WhatsApp Web!
+  let copiedToClipboard = false
+  if (fileType === 'image' && typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': blob })
+      ])
+      copiedToClipboard = true
+    } catch (err) {
+      console.warn('Clipboard copy failed:', err)
+    }
+  }
+
+  // 3. Download file to user device
+  const downloadUrl = window.URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = downloadUrl
   a.download = fileName
@@ -96,16 +111,45 @@ export async function sharePdfDocument({
   document.body.removeChild(a)
   window.URL.revokeObjectURL(downloadUrl)
 
-  // Open WhatsApp with guided message
+  // 4. Open WhatsApp Click-to-Chat with message
+  const extraNote = copiedToClipboard
+    ? '\n\n(ملاحظة: تم نسخ الصورة إلى الحافظة! الصقها مباشرة في المحادثة بـ Ctrl+V)'
+    : '\n\n(مرفق المستند تم تنزيله على جهازكم)'
+
   openManualWhatsAppChat({
     phone: recipientPhone,
-    message: `${messageText}\n\n(مرفق ملف الـ PDF تم تنزيله على جهازكم)`
+    message: `${messageText}${extraNote}`
   })
 
-  toast.info(
-    `تم تنزيل ${documentTitle} وفتح محادثة واتساب. يرجى إرفاق الملف الذي تم تنزيله بالمحادثة.`,
-    { duration: 7000 }
-  )
+  if (copiedToClipboard) {
+    toast.success('تم نسخ صورة المستند للحافظة وتنزيلها! الصقها مباشرة في محادثة الواتساب (Ctrl + V)', {
+      duration: 6000
+    })
+  } else {
+    toast.info(`تم تنزيل ${documentTitle} وفتح محادثة واتساب. يمكنك إرفاق الملف بالمحادثة.`, {
+      duration: 6000
+    })
+  }
+}
+
+/**
+ * Handles professional sharing of PDF documents (Prescriptions, Invoices, Reports).
+ */
+export async function sharePdfDocument(params: {
+  pdfBlob: Blob
+  fileName: string
+  recipientPhone: string
+  messageText: string
+  documentTitle?: string
+}): Promise<void> {
+  return shareDocumentOrImage({
+    blob: params.pdfBlob,
+    fileName: params.fileName,
+    fileType: 'pdf',
+    recipientPhone: params.recipientPhone,
+    messageText: params.messageText,
+    documentTitle: params.documentTitle
+  })
 }
 
 export function formatQueueAlertWhatsAppMessage({

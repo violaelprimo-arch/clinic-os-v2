@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
   LogOut, FileText, Clock, Activity, Calendar, ShieldCheck, Plus,
-  Printer, User, ArrowRight, Receipt, Download, X, Eye, MessageCircle
+  Printer, User, ArrowRight, Receipt, Download, X, Eye, MessageCircle, Image as ImageIcon
 } from 'lucide-react'
 import Link from 'next/link'
 import { PatientLiveTurn } from '@/components/clinic/PatientLiveTurn'
@@ -18,8 +18,8 @@ import { motion } from 'framer-motion'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { InvoiceView, InvoiceData } from '@/components/clinic/InvoiceView'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
-import { downloadElementAsPdf, renderElementToPdfBlob } from '@/lib/pdfGenerator'
-import { sharePdfDocument } from '@/lib/whatsappShare'
+import { downloadElementAsPdf, renderElementToPdfBlob, downloadElementAsImage, renderElementToImageBlob } from '@/lib/pdfGenerator'
+import { shareDocumentOrImage, sharePdfDocument } from '@/lib/whatsappShare'
 import { TechnicalSupportButton } from '@/components/clinic/TechnicalSupportButton'
 import { NotificationCenter } from '@/components/clinic/NotificationCenter'
 import { formatCairo12Hour } from '@/lib/queue-calculator'
@@ -39,6 +39,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceData | null>(null)
   const [selectedPrescription, setSelectedPrescription] = useState<any | null>(null)
   const [isDownloadingRx, setIsDownloadingRx] = useState(false)
+  const [isDownloadingRxImage, setIsDownloadingRxImage] = useState(false)
 
   const rxModalSheetRef = useRef<HTMLDivElement>(null)
 
@@ -134,9 +135,28 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
       )
       toast.success('تم تحميل الروشتة بصيغة PDF بنجاح')
     } catch (e) {
+      console.error(e)
       toast.error('تعذر تحميل ملف الروشتة')
     } finally {
       setIsDownloadingRx(false)
+    }
+  }
+
+  const handleDownloadRxImage = async () => {
+    if (!rxModalSheetRef.current || !selectedPrescription) return
+    setIsDownloadingRxImage(true)
+    try {
+      await downloadElementAsImage(
+        rxModalSheetRef.current,
+        `روشتة_${selectedPrescription.patientName || 'المريض'}_${selectedPrescription.date || 'كشف'}.png`,
+        { scale: 2.5 }
+      )
+      toast.success('تم تنزيل الروشتة كصورة PNG بنجاح')
+    } catch (e) {
+      console.error(e)
+      toast.error('تعذر تنزيل صورة الروشتة')
+    } finally {
+      setIsDownloadingRxImage(false)
     }
   }
 
@@ -145,27 +165,29 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
     if (!rxModalSheetRef.current || !selectedPrescription) return
     setIsSharingRx(true)
     try {
-      toast.info('جاري إعداد ملف الروشتة PDF...')
-      const { blob } = await renderElementToPdfBlob(rxModalSheetRef.current, { format: 'a4', orientation: 'portrait' })
+      toast.info('جاري إعداد صورة الروشتة للمشاركة...')
+      const { blob } = await renderElementToImageBlob(rxModalSheetRef.current, { scale: 2.5 })
 
       const pName = selectedPrescription.patientName || patientData?.name || 'المريض'
       const rxDate = selectedPrescription.date || new Date().toISOString().split('T')[0]
-      const fileName = `روشتة_${pName}_${rxDate}.pdf`
+      const fileName = `روشتة_${pName}_${rxDate}.png`
       const apptId = selectedPrescription.appointment_id || selectedPrescription.id
       const directRxUrl = apptId
         ? `${window.location.origin}/clinic/${slug}/prescription/${apptId}`
         : `${window.location.origin}/clinic/${slug}/patient`
 
-      const message = `الروشتة الطبية الإلكترونية الرسمية 📄\nعيادة: ${clinic?.clinicName || 'العيادة الطبية'}\nالطبيب: د. ${clinic?.doctorName || ''}\nالمريض: ${pName}\nالتاريخ: ${rxDate}\n\n🔗 يمكنك استعراض وتحميل الروشتة الرسمية بتصميم العيادة عبر الرابط المباشر:\n${directRxUrl}\n\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`
+      const message = `الروشتة الطبية الإلكترونية 📄\nعيادة: ${clinic?.clinicName || 'العيادة الطبية'}\nالطبيب: د. ${clinic?.doctorName || ''}\nالمريض: ${pName}\nالتاريخ: ${rxDate}\n\n🔗 يمكنك استعراض وتحميل الروشتة الرسمية بتصميم العيادة عبر الرابط المباشر:\n${directRxUrl}\n\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`
 
-      await sharePdfDocument({
-        pdfBlob: blob,
+      await shareDocumentOrImage({
+        blob,
         fileName,
+        fileType: 'image',
         recipientPhone: patientData?.phone || '',
         messageText: message,
-        documentTitle: 'الروشتة الطبية الإلكترونية'
+        documentTitle: 'الروشتة الطبية'
       })
     } catch (e) {
+      console.error(e)
       toast.error('تعذر مشاركة الروشتة')
     } finally {
       setIsSharingRx(false)
@@ -488,7 +510,18 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
                   className="h-9 px-3.5 text-xs font-bold bg-[#25D366] hover:bg-[#128C7E] text-white rounded-xl shadow-xs flex items-center gap-1.5"
                 >
                   <MessageCircle className="w-4 h-4 ml-1" />
-                  {isSharingRx ? 'جاري المشاركة...' : 'مشاركة واتساب (PDF)'}
+                  {isSharingRx ? 'جاري المشاركة...' : 'مشاركة واتساب'}
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleDownloadRxImage}
+                  disabled={isDownloadingRxImage}
+                  className="h-9 px-3 text-xs font-bold border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl shadow-xs flex items-center gap-1.5"
+                >
+                  <ImageIcon className="w-4 h-4 ml-1" />
+                  {isDownloadingRxImage ? 'جاري التحميل...' : 'تحميل صورة'}
                 </Button>
 
                 <Button
@@ -498,7 +531,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
                   className="h-9 px-4 text-xs font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-xs flex items-center gap-1.5"
                 >
                   <Download className="w-4 h-4 ml-1" />
-                  {isDownloadingRx ? 'جاري التحميل...' : 'تحميل الروشتة PDF'}
+                  {isDownloadingRx ? 'جاري التحميل...' : 'تحميل PDF'}
                 </Button>
 
                 <Button

@@ -6,14 +6,14 @@ import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firesto
 import { Button } from '@/components/ui/button'
 import {
   FileText, Download, Printer, MessageCircle, ArrowRight,
-  ShieldCheck, AlertCircle, Loader2, Calendar, User, Pill
+  ShieldCheck, AlertCircle, Loader2, Calendar, User, Pill, Image as ImageIcon
 } from 'lucide-react'
 import Link from 'next/link'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
-import { downloadElementAsPdf, renderElementToPdfBlob } from '@/lib/pdfGenerator'
+import { downloadElementAsPdf, renderElementToPdfBlob, downloadElementAsImage, renderElementToImageBlob } from '@/lib/pdfGenerator'
 import { printHtmlViaIframe, generateA4PrescriptionHtml } from '@/lib/printService'
-import { sharePdfDocument } from '@/lib/whatsappShare'
+import { shareDocumentOrImage, sharePdfDocument } from '@/lib/whatsappShare'
 import { TechnicalSupportButton } from '@/components/clinic/TechnicalSupportButton'
 import { toast } from 'sonner'
 
@@ -30,6 +30,7 @@ export default function PublicPrescriptionPage({
   const [prescription, setPrescription] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [isDownloading, setIsDownloading] = useState(false)
+  const [isDownloadingImage, setIsDownloadingImage] = useState(false)
   const [isSharing, setIsSharing] = useState(false)
 
   const printSheetRef = useRef<HTMLDivElement>(null)
@@ -123,32 +124,54 @@ export default function PublicPrescriptionPage({
       )
       toast.success('تم تحميل ملف الروشتة PDF بنجاح')
     } catch (e) {
+      console.error(e)
       toast.error('حدث خطأ أثناء تحميل الروشتة')
     } finally {
       setIsDownloading(false)
     }
   }
 
-  // WhatsApp Share with real PDF
+  // Real Image Download
+  const handleDownloadImage = async () => {
+    if (!printSheetRef.current) return
+    setIsDownloadingImage(true)
+    try {
+      await downloadElementAsImage(
+        printSheetRef.current,
+        `روشتة_${patientName}_${rxDate}.png`,
+        { scale: 2.5 }
+      )
+      toast.success('تم تنزيل الروشتة كصورة PNG بنجاح')
+    } catch (e) {
+      console.error(e)
+      toast.error('حدث خطأ أثناء تحميل صورة الروشتة')
+    } finally {
+      setIsDownloadingImage(false)
+    }
+  }
+
+  // WhatsApp Share with Image (and clipboard copy / download for desktop)
   const handleShareWhatsApp = async () => {
     if (!printSheetRef.current) return
     setIsSharing(true)
     try {
-      toast.info('جاري إعداد ملف الروشتة PDF...')
-      const { blob } = await renderElementToPdfBlob(printSheetRef.current, { format: 'a4', orientation: 'portrait' })
+      toast.info('جاري إعداد صورة الروشتة...')
+      const { blob } = await renderElementToImageBlob(printSheetRef.current, { scale: 2.5 })
 
-      const fileName = `روشتة_${patientName}_${rxDate}.pdf`
+      const fileName = `روشتة_${patientName}_${rxDate}.png`
       const currentUrl = typeof window !== 'undefined' ? window.location.href : ''
-      const message = `الروشتة الطبية الإلكترونية الرسمية 📄\nعيادة: ${clinic?.clinicName || 'العيادة الطبية'}\nالطبيب: د. ${clinic?.doctorName || ''}\nالمريض: ${patientName}\nالتاريخ: ${rxDate}\n\n🔗 يمكنك استعراض وتحميل الروشتة الرسمية بتصميم العيادة عبر الرابط المباشر:\n${currentUrl}\n\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`
+      const message = `الروشتة الطبية الإلكترونية 📄\nعيادة: ${clinic?.clinicName || 'العيادة الطبية'}\nالطبيب: د. ${clinic?.doctorName || ''}\nالمريض: ${patientName}\nالتاريخ: ${rxDate}\n\n🔗 يمكنك استعراض وتحميل الروشتة الرسمية بتصميم العيادة عبر الرابط المباشر:\n${currentUrl}\n\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`
 
-      await sharePdfDocument({
-        pdfBlob: blob,
+      await shareDocumentOrImage({
+        blob,
         fileName,
+        fileType: 'image',
         recipientPhone: patientPhone,
         messageText: message,
-        documentTitle: 'الروشتة الطبية الإلكترونية'
+        documentTitle: 'الروشتة الطبية'
       })
     } catch (e) {
+      console.error(e)
       toast.error('تعذر مشاركة الروشتة')
     } finally {
       setIsSharing(false)
@@ -214,6 +237,17 @@ export default function PublicPrescriptionPage({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            {/* Download Image Button */}
+            <Button
+              onClick={handleDownloadImage}
+              disabled={isDownloadingImage}
+              variant="outline"
+              className="flex-1 sm:flex-none h-10 px-3.5 text-xs font-bold border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl shadow-xs cursor-pointer"
+            >
+              <ImageIcon className="w-4 h-4 ml-1.5" />
+              {isDownloadingImage ? 'جاري التحميل...' : 'تحميل صورة'}
+            </Button>
+
             {/* Download PDF Button */}
             <Button
               onClick={handleDownload}

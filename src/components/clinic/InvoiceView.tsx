@@ -3,10 +3,11 @@
 import React, { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Printer, Download, Receipt, CheckCircle2, Clock, MapPin, Phone, Building, Share2 } from 'lucide-react'
+import { Printer, Download, Receipt, CheckCircle2, Clock, MapPin, Phone, Building, Share2, MessageCircle, Image as ImageIcon } from 'lucide-react'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { printHtmlViaIframe, generateThermalReceiptHtml } from '@/lib/printService'
-import { downloadElementAsPdf } from '@/lib/pdfGenerator'
+import { downloadElementAsPdf, downloadElementAsImage, renderElementToImageBlob } from '@/lib/pdfGenerator'
+import { shareDocumentOrImage } from '@/lib/whatsappShare'
 import { toast } from 'sonner'
 
 export interface InvoiceData {
@@ -42,6 +43,7 @@ export function InvoiceView({
 }) {
   const printableRef = useRef<HTMLDivElement>(null)
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false)
 
   // Isolated 80mm Thermal Receipt Print (For XP-80C)
   const handlePrintThermal = () => {
@@ -91,6 +93,52 @@ export function InvoiceView({
     }
   }
 
+  // Real Image Download (PNG)
+  const handleDownloadImage = async () => {
+    if (!printableRef.current) return
+    setIsGeneratingImage(true)
+    try {
+      await downloadElementAsImage(
+        printableRef.current,
+        `فاتورة_${invoice.invoiceNumber}.png`,
+        { scale: 2.5 }
+      )
+      toast.success('تم تنزيل الفاتورة كصورة PNG بنجاح')
+    } catch (e) {
+      console.error(e)
+      toast.error('حدث خطأ أثناء إنشاء صورة الفاتورة')
+    } finally {
+      setIsGeneratingImage(false)
+    }
+  }
+
+  // WhatsApp Share with Image (Desktop clipboard + auto download + wa.me)
+  const handleShareWhatsApp = async () => {
+    if (!invoice.patientPhone) return toast.error('رقم هاتف المريض غير مسجل')
+    if (!printableRef.current) return
+    setIsGeneratingImage(true)
+    try {
+      toast.info('جاري تجهيز صورة الفاتورة للمشاركة...')
+      const { blob } = await renderElementToImageBlob(printableRef.current, { scale: 2.5 })
+
+      const msg = `مرحباً ${invoice.patientName}،\nفاتورتك من عيادة ${invoice.clinicName} ${invoice.branchName ? `(فرع ${invoice.branchName})` : ''}:\n- رقم الفاتورة: ${invoice.invoiceNumber}\n- الخدمة: ${invoice.serviceName}\n- المبلغ الصافي: ${invoice.netTotal} ج.م\n- حالة الدفع: ${invoice.paymentStatus === 'paid' ? 'مدفوع ومؤكد' : 'في انتظار التأكيد'}\nنتمنى لكم دوام الصحة والعافية.`
+
+      await shareDocumentOrImage({
+        blob,
+        fileName: `فاتورة_${invoice.invoiceNumber}.png`,
+        fileType: 'image',
+        recipientPhone: invoice.patientPhone,
+        messageText: msg,
+        documentTitle: 'فاتورة الكشف'
+      })
+    } catch (e) {
+      console.error(e)
+      toast.error('تعذر مشاركة الفاتورة عبر واتساب')
+    } finally {
+      setIsGeneratingImage(false)
+    }
+  }
+
   const isPaid = invoice.paymentStatus === 'paid'
 
   const methodLabel =
@@ -103,7 +151,7 @@ export function InvoiceView({
   return (
     <div className="space-y-4 font-sans text-right" dir="rtl">
       {/* Control Actions Header (Excluded from any print) */}
-      <div className="flex items-center justify-between pb-3 border-b border-[#E5EAF0]">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#E5EAF0]">
         <div className="flex items-center gap-2">
           <Receipt className="w-5 h-5 text-[#15B8A6]" />
           <h3 className="font-black text-sm text-[#182230]">
@@ -111,19 +159,33 @@ export function InvoiceView({
           </h3>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* TASK 5: Only clinic staff can print thermal receipt directly; patient view has ONLY PDF Download */}
-          {!isPatientView && (
-            <Button
-              size="sm"
-              onClick={handlePrintThermal}
-              className="h-9 px-3.5 text-xs font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-xs flex items-center gap-1.5"
-            >
-              <Printer className="w-4 h-4 ml-1" />
-              طباعة إيصال (80mm)
-            </Button>
-          )}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* WhatsApp Share as Image */}
+          <Button
+            size="sm"
+            onClick={handleShareWhatsApp}
+            disabled={isGeneratingImage}
+            className="h-9 px-3 text-xs font-bold bg-[#25D366] hover:bg-[#128C7E] text-white rounded-xl shadow-xs flex items-center gap-1.5"
+            title="مشاركة الفاتورة عبر واتساب كصورة"
+          >
+            <MessageCircle className="w-4 h-4 ml-1" />
+            {isGeneratingImage ? 'جاري التجهيز...' : 'إرسال واتساب'}
+          </Button>
 
+          {/* Download as Image */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleDownloadImage}
+            disabled={isGeneratingImage}
+            className="h-9 px-3 text-xs font-bold border-[#E5EAF0] text-slate-700 hover:text-[#15B8A6] rounded-xl flex items-center gap-1.5"
+            title="تنزيل الفاتورة كصورة عالية الدقة"
+          >
+            <ImageIcon className="w-4 h-4 ml-1" />
+            صورة
+          </Button>
+
+          {/* Download as PDF */}
           <Button
             size="sm"
             variant="outline"
@@ -134,6 +196,18 @@ export function InvoiceView({
             <Download className="w-4 h-4 ml-1" />
             {isGeneratingPdf ? 'جاري إنشاء PDF...' : 'تحميل PDF'}
           </Button>
+
+          {/* TASK 5: Only clinic staff can print thermal receipt directly; patient view has ONLY PDF Download */}
+          {!isPatientView && (
+            <Button
+              size="sm"
+              onClick={handlePrintThermal}
+              className="h-9 px-3.5 text-xs font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-xs flex items-center gap-1.5"
+            >
+              <Printer className="w-4 h-4 ml-1" />
+              طباعة (80mm)
+            </Button>
+          )}
 
           {onClose && (
             <Button

@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import {
-  Printer, X, Receipt, CheckCircle2, ShieldCheck, Download, Share2
+  Printer, X, Receipt, CheckCircle2, ShieldCheck, Download, Share2, Image as ImageIcon, FileText, Loader2
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -10,7 +10,8 @@ import {
   printHtmlViaIframe,
   generateThermalReceiptHtml
 } from '@/lib/printService'
-import { openManualWhatsAppChat } from '@/lib/whatsappShare'
+import { shareDocumentOrImage } from '@/lib/whatsappShare'
+import { downloadElementAsPdf, downloadElementAsImage, renderElementToImageBlob } from '@/lib/pdfGenerator'
 import { toast } from 'sonner'
 
 export function ThermalReceiptModal({
@@ -22,6 +23,9 @@ export function ThermalReceiptModal({
   isOpen: boolean
   onClose: () => void
 }) {
+  const receiptRef = useRef<HTMLDivElement>(null)
+  const [isProcessing, setIsProcessing] = useState(false)
+
   if (!isOpen || !data) return null
 
   const handlePrint = () => {
@@ -30,21 +34,84 @@ export function ThermalReceiptModal({
     toast.success('تم إرسال الفاتورة للطابعة الحرارية (80mm)')
   }
 
-  const handleManualWhatsApp = () => {
+  const handleDownloadPdf = async () => {
+    if (!receiptRef.current) return
+    setIsProcessing(true)
+    try {
+      await downloadElementAsPdf(
+        receiptRef.current,
+        `فاتورة_${data.patientName}_${data.invoiceNumber || 'receipt'}.pdf`,
+        { format: 'thermal', scale: 2.5 }
+      )
+      toast.success('تم تنزيل الفاتورة بصيغة PDF بنجاح')
+    } catch (err) {
+      console.error(err)
+      toast.error('تعذر تنزيل الفاتورة بصيغة PDF')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleDownloadImage = async () => {
+    if (!receiptRef.current) return
+    setIsProcessing(true)
+    try {
+      await downloadElementAsImage(
+        receiptRef.current,
+        `فاتورة_${data.patientName}_${data.invoiceNumber || 'receipt'}.png`,
+        { scale: 2.5 }
+      )
+      toast.success('تم تنزيل صورة الفاتورة (PNG) بنجاح')
+    } catch (err) {
+      console.error(err)
+      toast.error('تعذر تنزيل صورة الفاتورة')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleSendWhatsApp = async () => {
     if (!data.patientPhone) {
       toast.error('رقم هاتف المريض غير مسجل')
       return
     }
-    const msg = `مرحباً ${data.patientName}،\nفاتورتك من عيادة ${data.clinicName} ${data.branchName ? `(فرع ${data.branchName})` : ''}:\n- رقم الفاتورة: ${data.invoiceNumber}\n- الخدمة: ${data.serviceName}\n- المبلغ المطلوب: ${data.netPrice} ج.م\n- حالة الدفع: ${data.paymentStatus === 'paid' ? 'مدفوع ومؤكد' : 'في انتظار التأكيد'}\nنتمنى لكم دوام الصحة والعافية.`
-    openManualWhatsAppChat({
-      phone: data.patientPhone,
-      message: msg
-    })
+
+    setIsProcessing(true)
+    try {
+      toast.info('جاري تجهيز صورة الفاتورة ومشاركتها...')
+      let blob: Blob | null = null
+
+      if (receiptRef.current) {
+        const res = await renderElementToImageBlob(receiptRef.current, { scale: 2.5 })
+        blob = res.blob
+      }
+
+      const msg = `مرحباً ${data.patientName}،\nفاتورتك من عيادة ${data.clinicName} ${data.branchName ? `(فرع ${data.branchName})` : ''}:\n- رقم الفاتورة: ${data.invoiceNumber}\n- الخدمة: ${data.serviceName}\n- المبلغ المطلوب: ${data.netPrice} ج.م\n- حالة الدفع: ${data.paymentStatus === 'paid' ? 'مدفوع ومؤكد' : 'في انتظار التأكيد'}\nنتمنى لكم دوام الصحة والعافية.`
+
+      if (blob) {
+        await shareDocumentOrImage({
+          blob,
+          fileName: `فاتورة_${data.patientName}_${data.invoiceNumber || 'receipt'}.png`,
+          fileType: 'image',
+          recipientPhone: data.patientPhone,
+          messageText: msg,
+          documentTitle: 'فاتورة الكشف'
+        })
+      } else {
+        // Fallback text
+        window.open(`https://wa.me/2${data.patientPhone}?text=${encodeURIComponent(msg)}`, '_blank')
+      }
+    } catch (err) {
+      console.error(err)
+      toast.error('تعذر إرسال الفاتورة عبر واتساب')
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in" dir="rtl">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in" dir="rtl">
+      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
         <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
           <div className="flex items-center gap-2">
@@ -60,8 +127,11 @@ export function ThermalReceiptModal({
         </div>
 
         {/* 80mm Preview Scrollable Box */}
-        <div className="overflow-y-auto p-5 bg-slate-100 flex justify-center">
-          <div className="w-[300px] bg-white p-4 rounded-xl shadow-md border border-slate-200 font-sans text-xs space-y-3 text-right text-black">
+        <div className="overflow-y-auto p-4 sm:p-5 bg-slate-100 flex justify-center flex-1">
+          <div
+            ref={receiptRef}
+            className="w-[290px] bg-white p-4 rounded-xl shadow-md border border-slate-200 font-sans text-xs space-y-3 text-right text-black"
+          >
             {/* Clinic Name & Branch */}
             <div className="text-center pb-2 border-b border-dashed border-black">
               {data.logoUrl && (
@@ -174,24 +244,56 @@ export function ThermalReceiptModal({
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="p-4 border-t border-slate-100 flex items-center justify-between gap-2 bg-white">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleManualWhatsApp}
-            className="h-10 text-xs font-bold text-emerald-700 border-emerald-300 hover:bg-emerald-50 rounded-xl"
-          >
-            <Share2 className="w-4 h-4 ml-1.5" />
-            إرسال عبر واتساب
-          </Button>
+        {/* Action Buttons Toolbar */}
+        <div className="p-3 sm:p-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-white">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {/* WhatsApp Share as Image */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSendWhatsApp}
+              disabled={isProcessing}
+              className="h-9 px-3 text-xs font-bold text-emerald-700 border-emerald-300 hover:bg-emerald-50 rounded-xl"
+              title="مشاركة صورة الفاتورة عبر واتساب"
+            >
+              {isProcessing ? <Loader2 className="w-3.5 h-3.5 animate-spin ml-1" /> : <Share2 className="w-3.5 h-3.5 ml-1" />}
+              واتساب
+            </Button>
 
+            {/* Download as Image */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadImage}
+              disabled={isProcessing}
+              className="h-9 px-2.5 text-xs font-bold text-slate-600 border-slate-300 hover:bg-slate-50 rounded-xl"
+              title="تنزيل الفاتورة كصورة PNG"
+            >
+              <ImageIcon className="w-3.5 h-3.5 ml-1" />
+              صورة
+            </Button>
+
+            {/* Download as PDF */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadPdf}
+              disabled={isProcessing}
+              className="h-9 px-2.5 text-xs font-bold text-slate-600 border-slate-300 hover:bg-slate-50 rounded-xl"
+              title="تنزيل الفاتورة بصيغة PDF"
+            >
+              <FileText className="w-3.5 h-3.5 ml-1" />
+              PDF
+            </Button>
+          </div>
+
+          {/* Thermal Print xp-80 */}
           <Button
             onClick={handlePrint}
-            className="h-10 px-5 bg-[#0B1F33] hover:bg-[#15B8A6] text-white font-bold rounded-xl shadow-md text-xs"
+            className="h-9 px-4 bg-[#0B1F33] hover:bg-[#15B8A6] text-white font-bold rounded-xl shadow-md text-xs shrink-0"
           >
             <Printer className="w-4 h-4 ml-1.5" />
-            طباعة الفاتورة (80mm)
+            طباعة (80mm)
           </Button>
         </div>
       </div>

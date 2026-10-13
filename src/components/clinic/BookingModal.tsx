@@ -38,6 +38,7 @@ export function BookingModal({
 }: BookingModalProps) {
   const router = useRouter()
   const primaryColor = clinic?.primaryColor || '#15B8A6'
+  const showPrices = clinic?.showPrices !== false && clinic?.hidePrices !== true
 
   // Step state: 1: Branch & Date, 2: Patient Info, 3: Service, 4: Payment, 5: Review & Submit
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1)
@@ -798,11 +799,13 @@ export function BookingModal({
                             <p className="text-xs text-slate-400">{service.desc || 'كشف طبي شامل'}</p>
                           </div>
 
-                          <div className="text-left shrink-0">
-                            <span className="text-lg font-black text-[#15B8A6]">
-                              {service.price} <span className="text-xs font-bold text-slate-500">ج.م</span>
-                            </span>
-                          </div>
+                          {showPrices && (
+                            <div className="text-left shrink-0">
+                              <span className="text-lg font-black text-[#15B8A6]">
+                                {service.price} <span className="text-xs font-bold text-slate-500">ج.م</span>
+                              </span>
+                            </div>
+                          )}
                         </button>
                       )
                     })}
@@ -970,12 +973,14 @@ export function BookingModal({
                       </span>
                     </div>
 
-                    <div className="flex justify-between items-center pt-1 text-sm">
-                      <span className="text-slate-800 font-black">إجمالي التكلفة:</span>
-                      <span className="text-base font-black text-[#15B8A6]">
-                        {selectedService.price} ج.م
-                      </span>
-                    </div>
+                    {showPrices && (
+                      <div className="flex justify-between items-center pt-1 text-sm">
+                        <span className="text-slate-800 font-black">إجمالي التكلفة:</span>
+                        <span className="text-base font-black text-[#15B8A6]">
+                          {selectedService.price} ج.م
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
