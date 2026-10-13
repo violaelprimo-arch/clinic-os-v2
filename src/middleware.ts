@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-export const BASE_PLATFORM_DOMAIN = 'yalla-clinic.com'
+export const BASE_PLATFORM_DOMAINS = ['yalla-clinic.com', 'yalaa-clinic.com']
 
 export function middleware(req: NextRequest) {
   const url = req.nextUrl
@@ -20,22 +20,40 @@ export function middleware(req: NextRequest) {
   // 2. Extract subdomain
   // Matches:
   // - dr-ahmed.yalla-clinic.com -> dr-ahmed
+  // - owner.yalla-clinic.com -> owner
   // - dr-ahmed.localhost:3000 -> dr-ahmed
   let subdomain: string | null = null
   const cleanHost = hostname.split(':')[0].toLowerCase()
 
-  if (cleanHost.endsWith(`.${BASE_PLATFORM_DOMAIN}`)) {
-    subdomain = cleanHost.replace(`.${BASE_PLATFORM_DOMAIN}`, '')
-  } else if (cleanHost.endsWith('.localhost')) {
+  for (const domain of BASE_PLATFORM_DOMAINS) {
+    if (cleanHost.endsWith(`.${domain}`)) {
+      subdomain = cleanHost.replace(`.${domain}`, '')
+      break
+    }
+  }
+
+  if (!subdomain && cleanHost.endsWith('.localhost')) {
     subdomain = cleanHost.replace('.localhost', '')
   }
 
-  // Exclude reserved platform subdomains
+  // 3. Platform Owner Subdomain:
+  // https://owner.yalla-clinic.com/ => /owner
+  // https://admin.yalla-clinic.com/ => /owner
+  if (subdomain === 'owner' || subdomain === 'admin') {
+    if (pathname.startsWith('/owner')) {
+      return NextResponse.next()
+    }
+    const targetPath = pathname === '/' ? '/owner' : `/owner${pathname}`
+    const rewriteUrl = new URL(targetPath, req.url)
+    return NextResponse.rewrite(rewriteUrl)
+  }
+
+  // Exclude other reserved non-tenant subdomains
   if (subdomain && ['www', 'api', 'app', 'mail', 'cname'].includes(subdomain)) {
     subdomain = null
   }
 
-  // 3. Subdomain rewrite:
+  // 4. Clinic Doctor Subdomain rewrite:
   // https://[slug].yalla-clinic.com/ => /clinic/[slug]
   // https://[slug].yalla-clinic.com/admin => /clinic/[slug]/admin
   // https://[slug].yalla-clinic.com/patient => /clinic/[slug]/patient
@@ -55,7 +73,7 @@ export function middleware(req: NextRequest) {
     return response
   }
 
-  // 4. Default: No subdomain
+  // 5. Default: No subdomain
   return NextResponse.next()
 }
 
