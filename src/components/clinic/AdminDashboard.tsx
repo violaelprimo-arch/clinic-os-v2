@@ -10,7 +10,8 @@ import {
   Play, MessageCircle, ArrowLeft, ArrowRight, UserCheck,
   UserX, SkipForward, FileSignature, Phone, Filter,
   Sparkles, AlertCircle, ChevronDown, ChevronUp, RefreshCw, ArrowUpDown, X,
-  Printer, Download, Tag, Check, Eye, Building2, Percent, FileSpreadsheet
+  Printer, Download, Tag, Check, Eye, Building2, Percent, FileSpreadsheet,
+  ExternalLink, Copy
 } from 'lucide-react'
 import Link from 'next/link'
 import { db } from '@/lib/firebase'
@@ -513,6 +514,46 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto" dir="rtl">
       
+      {/* Direct Subdomain Banner */}
+      <div className="p-4 bg-teal-50/80 border border-teal-200/80 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-teal-600" />
+            <span className="text-xs font-black text-slate-800">رابط صفحة الحجز لمرضاك (Subdomain):</span>
+          </div>
+          <div className="font-mono text-sm font-black text-teal-800 bg-white px-3 py-1 rounded-xl border border-teal-200 inline-block select-all" dir="ltr">
+            https://{clinic?.slug || 'clinic'}.yalla-clinic.com
+          </div>
+          <p className="text-[11px] text-slate-500 font-medium">
+            رابط مباشر خاص بدكتور/عيادة {clinic?.doctorName || clinic?.clinicName || ''} لمشاركته مع المرضى للحجز والمتابعة.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => {
+              const url = `https://${clinic?.slug || 'clinic'}.yalla-clinic.com`
+              navigator.clipboard.writeText(url)
+              toast.success('تم نسخ رابط العيادة المباشر!')
+            }}
+            className="flex-1 sm:flex-none h-9 px-3.5 bg-[#15B8A6] hover:bg-[#0D9488] text-white font-bold text-xs rounded-xl shadow-xs"
+          >
+            <Copy className="w-3.5 h-3.5 ml-1.5" />
+            نسخ الرابط
+          </Button>
+          <a
+            href={`https://${clinic?.slug || 'clinic'}.yalla-clinic.com`}
+            target="_blank"
+            rel="noreferrer"
+            className="flex-1 sm:flex-none h-9 px-3.5 inline-flex items-center justify-center gap-1.5 border border-slate-200 hover:bg-white text-slate-700 font-bold text-xs rounded-xl transition-colors bg-white/70"
+          >
+            <ExternalLink className="w-3.5 h-3.5 ml-1" />
+            فتح الرابط
+          </a>
+        </div>
+      </div>
+
       {/* Clinic Status Toggle & Active Branch Pill */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-5 bg-white border border-[#E5EAF0] rounded-2xl shadow-sm mb-6 gap-4">
         <div className="flex items-center gap-3">

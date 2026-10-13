@@ -15,6 +15,7 @@ import { downloadElementAsPdf, renderElementToPdfBlob, downloadElementAsImage, r
 import { printHtmlViaIframe, generateA4PrescriptionHtml } from '@/lib/printService'
 import { shareDocumentOrImage, sharePdfDocument } from '@/lib/whatsappShare'
 import { TechnicalSupportButton } from '@/components/clinic/TechnicalSupportButton'
+import { getClinicUrl } from '@/lib/clinic-url'
 import { toast } from 'sonner'
 
 export default function PublicPrescriptionPage({
@@ -159,7 +160,7 @@ export default function PublicPrescriptionPage({
       const { blob } = await renderElementToImageBlob(printSheetRef.current, { scale: 2.5 })
 
       const fileName = `روشتة_${patientName}_${rxDate}.png`
-      const currentUrl = typeof window !== 'undefined' ? window.location.href : ''
+      const currentUrl = getClinicUrl(slug, `/prescription/${appointmentId}`)
       const message = `الروشتة الطبية الإلكترونية 📄\nعيادة: ${clinic?.clinicName || 'العيادة الطبية'}\nالطبيب: د. ${clinic?.doctorName || ''}\nالمريض: ${patientName}\nالتاريخ: ${rxDate}\n\n🔗 يمكنك استعراض وتحميل الروشتة الرسمية بتصميم العيادة عبر الرابط المباشر:\n${currentUrl}\n\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`
 
       await shareDocumentOrImage({

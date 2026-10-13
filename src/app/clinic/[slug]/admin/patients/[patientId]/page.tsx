@@ -15,6 +15,7 @@ import { A4Prescription } from '@/components/clinic/A4Prescription'
 import { downloadElementAsPdf, renderElementToPdfBlob } from '@/lib/pdfGenerator'
 import { printHtmlViaIframe, generateA4PrescriptionHtml } from '@/lib/printService'
 import { sharePdfDocument } from '@/lib/whatsappShare'
+import { getClinicUrl } from '@/lib/clinic-url'
 
 export default function PatientProfilePage({
  params }: { params: Promise<{ slug: string, patientId: string }> }) {
@@ -115,7 +116,7 @@ export default function PatientProfilePage({
 
       const pName = patientData?.name || appt?.patientName || 'المريض'
       const fileName = `روشتة_${pName}_${appt.date}.pdf`
-      const directRxUrl = `${window.location.origin}/clinic/${slug}/prescription/${appt.id}`
+      const directRxUrl = getClinicUrl(slug, `/prescription/${appt.id}`)
 
       const message = `الروشتة الطبية الإلكترونية الرسمية 📄\nعيادة: ${clinic?.clinicName || 'العيادة الطبية'}\nالطبيب: د. ${clinic?.doctorName || ''}\nالمريض: ${pName}\nالتاريخ: ${appt.date}\n\n🔗 يمكنك استعراض وتحميل الروشتة الرسمية بتصميم العيادة عبر الرابط المباشر:\n${directRxUrl}\n\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`
 

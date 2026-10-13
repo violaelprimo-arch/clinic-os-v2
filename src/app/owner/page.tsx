@@ -730,38 +730,55 @@ export default function OwnerDashboard() {
                           </td>
 
                           {/* Quick Platform Links */}
-                          <td className="py-4 px-4 space-y-1">
-                            <div>
+                          <td className="py-4 px-4 space-y-2">
+                            {/* Official Subdomain Badge with Copy */}
+                            <div className="flex items-center justify-between gap-1 bg-teal-50 border border-teal-200 rounded-lg px-2 py-1 text-[11px] font-mono font-bold text-teal-800" dir="ltr">
+                              <span className="truncate max-w-[170px]">{c.slug}.yalla-clinic.com</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(`https://${c.slug}.yalla-clinic.com`)
+                                  toast.success('تم نسخ رابط العيادة المباشر!')
+                                }}
+                                className="p-0.5 hover:text-teal-950 text-teal-600 rounded transition-colors cursor-pointer shrink-0"
+                                title="نسخ الرابط المباشر"
+                              >
+                                <Copy className="w-3 h-3" />
+                              </button>
+                            </div>
+
+                            <div className="flex items-center gap-2 flex-wrap text-[11px]">
                               <a
-                                href={`/clinic/${c.slug}`}
+                                href={`https://${c.slug}.yalla-clinic.com`}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="inline-flex items-center gap-1 text-[#15B8A6] font-bold hover:underline"
+                                title="فتح صفحة الحجز المباشرة"
                               >
-                                <span>صفحة الحجز</span>
-                                <ExternalLink className="w-3 h-3" />
+                                <span>الحجز</span>
+                                <ExternalLink className="w-2.5 h-2.5" />
                               </a>
-                            </div>
-                            <div>
+                              <span className="text-slate-300">•</span>
                               <a
-                                href={`/clinic/${c.slug}/patient`}
+                                href={`https://${c.slug}.yalla-clinic.com/patient`}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="inline-flex items-center gap-1 text-[#2F80ED] font-bold hover:underline"
+                                title="فتح بوابة المرضى"
                               >
-                                <span>بوابة المريض</span>
-                                <ExternalLink className="w-3 h-3" />
+                                <span>المرضى</span>
+                                <ExternalLink className="w-2.5 h-2.5" />
                               </a>
-                            </div>
-                            <div>
+                              <span className="text-slate-300">•</span>
                               <a
-                                href={`/clinic/${c.slug}/admin`}
+                                href={`https://${c.slug}.yalla-clinic.com/admin`}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex items-center gap-1 text-slate-600 font-bold hover:underline"
+                                className="inline-flex items-center gap-1 text-slate-700 font-bold hover:underline"
+                                title="فتح لوحة تحكم الطبيب"
                               >
-                                <span>لوحة العيادة</span>
-                                <ExternalLink className="w-3 h-3" />
+                                <span>اللوحة</span>
+                                <ExternalLink className="w-2.5 h-2.5" />
                               </a>
                             </div>
                           </td>
@@ -947,16 +964,29 @@ export default function OwnerDashboard() {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-bold text-slate-600">رابط العيادة (Slug) *</Label>
-                    <Input
-                      value={slug}
-                      onChange={e => setSlug(e.target.value)}
-                      required
-                      placeholder="ahmed-clinic"
-                      dir="ltr"
-                      className="h-10 text-xs rounded-xl text-right font-mono"
-                      disabled={!!editingId}
-                    />
+                    <Label className="text-xs font-bold text-slate-600 flex items-center justify-between">
+                      <span>رابط العيادة الخاص (Subdomain) *</span>
+                      <span className="text-[10px] text-teal-600 font-mono" dir="ltr">.yalla-clinic.com</span>
+                    </Label>
+                    <div className="flex items-center rounded-xl border border-slate-200 bg-white overflow-hidden shadow-2xs focus-within:border-[#15B8A6] focus-within:ring-2 focus-within:ring-[#15B8A6]/20" dir="ltr">
+                      <span className="px-2.5 text-xs text-slate-400 select-none bg-slate-50 border-r border-slate-200 py-2">
+                        https://
+                      </span>
+                      <Input
+                        value={slug}
+                        onChange={e => setSlug(e.target.value.toLowerCase().trim().replace(/[^a-z0-9-]/g, ''))}
+                        required
+                        placeholder="اسم-الدكتور"
+                        className="h-10 text-xs font-mono font-bold text-slate-800 border-none shadow-none focus-visible:ring-0 px-2"
+                        disabled={!!editingId}
+                      />
+                      <span className="px-2.5 text-xs font-bold text-teal-700 select-none bg-teal-50 border-l border-teal-200 py-2">
+                        .yalla-clinic.com
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-sans">
+                      الرابط المباشر للعيادة: <strong className="text-teal-700 font-mono" dir="ltr">https://{slug || 'اسم-الدكتور'}.yalla-clinic.com</strong>
+                    </p>
                   </div>
                   <div className="space-y-1.5 sm:col-span-2">
                     <Label className="text-xs font-bold text-slate-600">صورة الطبيب (Hero Image)</Label>

@@ -23,6 +23,7 @@ import { shareDocumentOrImage, sharePdfDocument } from '@/lib/whatsappShare'
 import { TechnicalSupportButton } from '@/components/clinic/TechnicalSupportButton'
 import { NotificationCenter } from '@/components/clinic/NotificationCenter'
 import { formatCairo12Hour } from '@/lib/queue-calculator'
+import { getClinicUrl } from '@/lib/clinic-url'
 import { toast } from 'sonner'
 
 export default function PatientDashboard({ params }: { params: Promise<{ slug: string }> }) {
@@ -173,8 +174,8 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
       const fileName = `روشتة_${pName}_${rxDate}.png`
       const apptId = selectedPrescription.appointment_id || selectedPrescription.id
       const directRxUrl = apptId
-        ? `${window.location.origin}/clinic/${slug}/prescription/${apptId}`
-        : `${window.location.origin}/clinic/${slug}/patient`
+        ? getClinicUrl(slug, `/prescription/${apptId}`)
+        : getClinicUrl(slug, '/patient')
 
       const message = `الروشتة الطبية الإلكترونية 📄\nعيادة: ${clinic?.clinicName || 'العيادة الطبية'}\nالطبيب: د. ${clinic?.doctorName || ''}\nالمريض: ${pName}\nالتاريخ: ${rxDate}\n\n🔗 يمكنك استعراض وتحميل الروشتة الرسمية بتصميم العيادة عبر الرابط المباشر:\n${directRxUrl}\n\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`
 

@@ -11,7 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   Save, Plus, Trash2, Palette, Phone, MapPin, Bot,
   Wallet, Users, Clock, Printer, ShieldCheck, Settings, Lock,
-  CheckCircle2, Bell, Sparkles, Building2
+  CheckCircle2, Bell, Sparkles, Building2, Copy, ExternalLink
 } from 'lucide-react'
 import { db } from '@/lib/firebase'
 import { collection, query, where, getDocs, updateDoc, doc, addDoc } from 'firebase/firestore'
@@ -671,12 +671,52 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
       {/* TAB 1: Profile & Visual Identity */}
       {activeTab === 'profile' && (
-        <div className="grid lg:grid-cols-2 gap-6">
-          {/* Form Side */}
-          <div className="medical-card p-6 space-y-5">
-            <div className="pb-3 border-b border-[#E5EAF0]">
-              <h3 className="font-bold text-sm text-[#182230]">البيانات العامة للعيادة</h3>
+        <div className="space-y-6">
+          {/* Direct Subdomain Banner */}
+          <div className="p-4 bg-teal-50/80 border-2 border-teal-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-teal-600" />
+                <span className="text-xs font-black text-slate-800">رابط العيادة المباشر الخاص بك (Subdomain):</span>
+              </div>
+              <div className="font-mono text-sm font-black text-teal-800 bg-white px-3 py-1 rounded-xl border border-teal-200 inline-block select-all" dir="ltr">
+                https://{slug}.yalla-clinic.com
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium">
+                هذا هو الرابط الرسمي لحجز مرضاك ومتابعة الدور بدون الحاجة للبحث.
+              </p>
             </div>
+            <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  navigator.clipboard.writeText(`https://${slug}.yalla-clinic.com`)
+                  toast.success('تم نسخ رابط العيادة المباشر!')
+                }}
+                className="flex-1 sm:flex-none h-9 px-3.5 bg-[#15B8A6] hover:bg-[#0D9488] text-white font-bold text-xs rounded-xl shadow-xs"
+              >
+                <Copy className="w-3.5 h-3.5 ml-1.5" />
+                نسخ الرابط
+              </Button>
+              <a
+                href={`https://${slug}.yalla-clinic.com`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex-1 sm:flex-none h-9 px-3.5 inline-flex items-center justify-center gap-1.5 border border-slate-200 hover:bg-white text-slate-700 font-bold text-xs rounded-xl transition-colors bg-white/70"
+              >
+                <ExternalLink className="w-3.5 h-3.5 ml-1" />
+                فتح الرابط
+              </a>
+            </div>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-6">
+            {/* Form Side */}
+            <div className="medical-card p-6 space-y-5">
+              <div className="pb-3 border-b border-[#E5EAF0]">
+                <h3 className="font-bold text-sm text-[#182230]">البيانات العامة للعيادة</h3>
+              </div>
 
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-slate-600">اسم العيادة</Label>
@@ -888,6 +928,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
             </div>
           </div>
         </div>
+      </div>
       )}
       {/* TAB 2: Queue & Visit Duration */}
       {activeTab === 'queue' && (

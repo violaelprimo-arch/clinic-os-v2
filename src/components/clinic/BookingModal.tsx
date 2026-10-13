@@ -18,6 +18,7 @@ import { collection, addDoc, getDocs, query, where } from 'firebase/firestore'
 import { Branch } from '@/types/clinic'
 import { getClinicBranches, ensureClinicHasMainBranch } from '@/lib/branchService'
 import { createClinicNotification } from '@/lib/notificationService'
+import { getClinicUrl } from '@/lib/clinic-url'
 
 interface BookingModalProps {
   isOpen: boolean
@@ -429,7 +430,7 @@ export function BookingModal({
   // Copy tracking link
   const handleCopyTrackingLink = () => {
     if (!successData) return
-    const url = `${window.location.origin}/clinic/${clinic?.slug}/track/${successData.appointmentId}`
+    const url = getClinicUrl(clinic?.slug, `/track/${successData.appointmentId}`)
     navigator.clipboard.writeText(url)
     setIsCopied(true)
     toast.success('تم نسخ رابط تتبع الدور')

@@ -22,6 +22,7 @@ import { A4Prescription } from '@/components/clinic/A4Prescription'
 import { printHtmlViaIframe, generateA4PrescriptionHtml } from '@/lib/printService'
 import { renderElementToPdfBlob, downloadElementAsPdf, renderElementToImageBlob, downloadElementAsImage } from '@/lib/pdfGenerator'
 import { shareDocumentOrImage, sharePdfDocument } from '@/lib/whatsappShare'
+import { getClinicUrl } from '@/lib/clinic-url'
 
 export default function PrescriptionsPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -210,8 +211,8 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       const fileName = `روشتة_${patientName || 'المريض'}_${dateStr}.png`
       const apptId = searchParams?.get('appointmentId') || appointmentId
       const directRxUrl = apptId
-        ? `${window.location.origin}/clinic/${slug}/prescription/${apptId}`
-        : `${window.location.origin}/clinic/${slug}/patient`
+        ? getClinicUrl(slug, `/prescription/${apptId}`)
+        : getClinicUrl(slug, '/patient')
 
       const message = `الروشتة الطبية الإلكترونية 📄\nعيادة: ${clinic?.clinicName || 'العيادة الطبية'}\nالطبيب: د. ${clinic?.doctorName || ''}\nالمريض: ${patientName || 'المريض'}\nالتاريخ: ${dateStr}\n\n🔗 يمكنك استعراض وتحميل الروشتة الرسمية بتصميم العيادة عبر الرابط المباشر:\n${directRxUrl}\n\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`
 
@@ -244,8 +245,8 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       const fileName = `روشتة_${patientName || 'المريض'}_${dateStr}.pdf`
       const apptId = searchParams?.get('appointmentId') || appointmentId
       const directRxUrl = apptId
-        ? `${window.location.origin}/clinic/${slug}/prescription/${apptId}`
-        : `${window.location.origin}/clinic/${slug}/patient`
+        ? getClinicUrl(slug, `/prescription/${apptId}`)
+        : getClinicUrl(slug, '/patient')
 
       const message = `الروشتة الطبية الإلكترونية الرسمية 📄\nعيادة: ${clinic?.clinicName || 'العيادة الطبية'}\nالطبيب: د. ${clinic?.doctorName || ''}\nالمريض: ${patientName || 'المريض'}\nالتاريخ: ${dateStr}\n\n🔗 يمكنك استعراض وتحميل الروشتة الرسمية بتصميم العيادة عبر الرابط المباشر:\n${directRxUrl}\n\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`
 
