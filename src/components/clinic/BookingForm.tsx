@@ -10,7 +10,7 @@ import {
   CheckCircle2, Clock, Users, ArrowRight, ArrowLeft,
   Calendar, Phone, User, ShieldCheck, MapPin, Sparkles,
   Zap, CreditCard, Wallet, Banknote, Building2, Navigation,
-  ExternalLink, Upload, AlertCircle
+  ExternalLink, Upload, AlertCircle, Bell
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
@@ -452,7 +452,7 @@ export function BookingForm({
           <p className="text-[11px] font-bold text-slate-500">{successInfo.branchName}</p>
         </div>
 
-        {/* Estimation Details Grid */}
+        {/* Booking Details Grid */}
         <div className="grid grid-cols-2 gap-3 text-right">
           <div className="p-3.5 rounded-2xl bg-[#F8FAFC] border border-[#E5EAF0] space-y-1">
             <span className="text-[11px] font-bold text-slate-400">حالة الدفع</span>
@@ -462,14 +462,14 @@ export function BookingForm({
           </div>
 
           <div className="p-3.5 rounded-2xl bg-[#F8FAFC] border border-[#E5EAF0] space-y-1">
-            <span className="text-[11px] font-bold text-slate-400">وقت الانتظار المتوقع</span>
-            <p className="text-sm font-black text-[#15B8A6]">حوالي {successInfo.aheadCount * 15} دقيقة</p>
+            <span className="text-[11px] font-bold text-slate-400">المرضى في الانتظار قبلك</span>
+            <p className="text-sm font-black text-[#15B8A6]">{successInfo.aheadCount} مرضى</p>
           </div>
         </div>
 
-        <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold flex items-center justify-center gap-2">
-          <Users className="w-4 h-4 text-amber-600" />
-          <span>يوجد {successInfo.aheadCount} مرضى قبلك في انتظار الدخول بالفرع</span>
+        <div className="p-3 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 text-xs font-bold flex items-center justify-center gap-2">
+          <Bell className="w-4 h-4 text-[#15B8A6]" />
+          <span>ستصلك تنبيهات صوتية ومباشرة فور اقتراب دورك (من أول متبقي 5 أدوار) ومع كل دخول مريض</span>
         </div>
 
         {/* Action CTAs */}

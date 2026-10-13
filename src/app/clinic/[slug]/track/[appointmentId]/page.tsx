@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useEffect, useState, useMemo } from 'react'
+import { use, useEffect, useState, useMemo, useRef } from 'react'
 import { db } from '@/lib/firebase'
 import {
   calculatePatientLivePosition,
@@ -21,6 +21,7 @@ import { formatCairo12Hour } from '@/lib/queue-calculator'
 import { InvoiceView } from '@/components/clinic/InvoiceView'
 import { TechnicalSupportButton } from '@/components/clinic/TechnicalSupportButton'
 import { NotificationCenter } from '@/components/clinic/NotificationCenter'
+import { toast } from 'sonner'
 
 export default function TrackPatientPage({ params }: { params: Promise<{ slug: string; appointmentId: string }> }) {
   const resolvedParams = use(params)
@@ -99,20 +100,40 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
     })
   }, [appointmentId, appointment, allQueueAppts, clinic])
 
-  // Fire sound/push notifications when patient's turn arrives or is approaching
+  const prevExaminingRef = useRef<any>(null)
+
+  // Fire sound/push notifications when patient's turn arrives or is approaching, or on patient entry
   useEffect(() => {
     if (appointment && appointment.clinic_id) {
+      const currentExaminingNum = liveQueue.currentPatientExamining?.queueNumber
+
+      // Notify on each patient entry to the examination room
+      if (
+        prevExaminingRef.current !== null &&
+        currentExaminingNum &&
+        currentExaminingNum !== prevExaminingRef.current &&
+        appointment.status === 'waiting'
+      ) {
+        playNotificationSound('chime')
+        toast.info(
+          `🔔 دخل الآن المريض رقم #${currentExaminingNum} لغرفة الكشف. دورك رقم #${appointment.queue_number} (متبقي أمامك ${liveQueue.aheadCount} مرضى).`
+        )
+      }
+      prevExaminingRef.current = currentExaminingNum || null
+
       checkAndTriggerQueuePositionAlert({
         appointment: { id: appointmentId, ...appointment },
         waitingAheadCount: liveQueue.aheadCount,
         clinicId: appointment.clinic_id,
-        branchName: appointment.branchName
+        branchName: appointment.branchName,
+        currentExaminingQueueNumber: currentExaminingNum
       })
+
       if (liveQueue.isCurrentTurn || appointment.status === 'in_progress') {
         playNotificationSound('turn_ready')
       }
     }
-  }, [appointment, liveQueue.aheadCount, liveQueue.status, liveQueue.isCurrentTurn, appointmentId])
+  }, [appointment, liveQueue.aheadCount, liveQueue.status, liveQueue.isCurrentTurn, liveQueue.currentPatientExamining?.queueNumber, appointmentId])
 
   if (loading) {
     return (
@@ -245,26 +266,32 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
               </div>
             )}
 
-            {/* Waiting Estimation Metrics */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#E5EAF0] text-right space-y-1">
-                <span className="text-[11px] font-bold text-slate-400">وقت الانتظار المتوقع</span>
-                <p className="text-lg font-black text-[#15B8A6]">
-                  {liveQueue.formattedWaitTime}
-                </p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#E5EAF0] text-right space-y-1">
-                <span className="text-[11px] font-bold text-slate-400">المرضى قبلك</span>
-                <p className="text-lg font-black text-slate-700">
-                  {liveQueue.aheadCount} {liveQueue.aheadCount === 1 ? 'مريض' : 'مرضى'}
-                </p>
-              </div>
+            {/* Queue Metrics without estimated time */}
+            <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#E5EAF0] text-center space-y-1">
+              <span className="text-xs font-bold text-slate-400 block">المرضى في الانتظار قبلك</span>
+              <p className="text-3xl font-black text-[#15B8A6] font-mono">
+                {liveQueue.aheadCount} <span className="text-sm font-bold text-slate-600">{liveQueue.aheadCount === 1 ? 'مريض فقط' : 'مرضى'}</span>
+              </p>
             </div>
+
+            {/* 5-Turns or less prominent alert banner */}
+            {liveQueue.aheadCount <= 5 && liveQueue.aheadCount > 0 && (
+              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold flex items-center gap-3 shadow-xs animate-in fade-in">
+                <Clock className="w-5 h-5 text-amber-600 shrink-0 animate-pulse" />
+                <div className="space-y-0.5 text-right">
+                  <span className="block font-black text-amber-900 text-sm">
+                    تنبيه: اقترب موعد دخولك للكشف (متبقي {liveQueue.aheadCount} {liveQueue.aheadCount === 1 ? 'دور فقط' : 'أدوار'})
+                  </span>
+                  <span className="text-[11px] font-medium text-amber-700 block">
+                    يرجى التواجد الآن في قاعة انتظار العيادة والاستعداد للدخول مباشرة.
+                  </span>
+                </div>
+              </div>
+            )}
 
             <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs font-semibold flex items-center gap-2">
               <Clock className="w-4 h-4 text-blue-600 shrink-0" />
-              <span>يتم تحديث هذه الشاشة تلقائياً وبشكل فوري مع حركة الدور.</span>
+              <span>يتم تحديث هذه الشاشة وإرسال إشعار فوري مع كل دخول مريض لغرفة الكشف.</span>
             </div>
           </div>
         )}
@@ -276,6 +303,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
               <InvoiceView
                 invoice={{
                   invoiceNumber: appointment.invoiceNumber || `INV-${appointmentId.slice(0, 8)}`,
+                  queueNumber: appointment.queue_number,
                   clinicName: clinic?.clinicName || 'العيادة',
                   doctorName: clinic?.doctorName,
                   branchName: appointment.branchName,

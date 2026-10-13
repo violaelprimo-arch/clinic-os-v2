@@ -27,6 +27,7 @@ export interface ThermalReceiptData {
   confirmedBy?: string
   confirmedAt?: string
   footerNote?: string
+  queueNumber?: number | string
 }
 
 export interface ExaminationTicketData {
@@ -396,6 +397,14 @@ export function generateThermalReceiptHtml(data: ThermalReceiptData): string {
     ${data.clinicAddress ? `<div class="contact-info">${data.clinicAddress}</div>` : ''}
     ${data.clinicPhone ? `<div class="contact-info">ت: ${data.clinicPhone}</div>` : ''}
   </div>
+
+  ${data.queueNumber !== undefined && data.queueNumber !== null && data.queueNumber !== '' ? `
+  <div style="border: 2px solid #000; border-radius: 6px; padding: 5px 4px; text-align: center; margin: 6px 0; background: #fff;">
+    <div style="font-size: 11px; font-weight: bold; letter-spacing: 0.5px;">رقم الدور في الانتظار</div>
+    <div style="font-size: 42px; font-weight: 900; line-height: 1; margin: 3px 0; font-family: monospace;">#${data.queueNumber}</div>
+    <div style="font-size: 9.5px; color: #222;">الرجاء متابعة شاشة النداء الآلي بالعيادة</div>
+  </div>
+  ` : ''}
 
   <div class="meta-box">
     <div class="meta-row">

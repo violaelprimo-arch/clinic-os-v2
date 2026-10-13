@@ -427,7 +427,8 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
                                 paymentMethod: item.paymentMethod || 'cash',
                                 paymentStatus: isPaid ? 'paid' : 'pending',
                                 transferNumber: item.transferNumber,
-                                appointmentId: item.id
+                                appointmentId: item.id,
+                                queueNumber: item.queue_number
                               })
                             }}
                             className="h-7 px-2 text-[11px] text-slate-600 hover:text-[#15B8A6]"

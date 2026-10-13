@@ -28,6 +28,7 @@ export interface InvoiceData {
   paymentStatus: 'paid' | 'pending' | 'refunded'
   transferNumber?: string
   appointmentId?: string
+  queueNumber?: number | string
 }
 
 export function InvoiceView({
@@ -51,6 +52,7 @@ export function InvoiceView({
         clinicAddress: invoice.clinicAddress,
         clinicPhone: invoice.clinicPhone,
         invoiceNumber: invoice.invoiceNumber,
+        queueNumber: invoice.queueNumber,
         date: invoice.date,
         time: invoice.cairoTime,
         patientName: invoice.patientName,
@@ -196,12 +198,19 @@ export function InvoiceView({
         </div>
 
         {/* Patient Details & Status Banner */}
-        <div className="grid grid-cols-2 gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 text-xs items-center">
           <div>
             <span className="text-slate-400 font-bold block mb-1">بيانات المريض:</span>
             <p className="font-black text-[#182230] text-sm">{invoice.patientName}</p>
             <p className="text-slate-500 font-mono mt-0.5" dir="ltr">{invoice.patientPhone}</p>
           </div>
+
+          {invoice.queueNumber !== undefined && invoice.queueNumber !== null && invoice.queueNumber !== '' && (
+            <div className="text-center p-2 rounded-xl bg-teal-50 border border-teal-200">
+              <span className="text-[10px] font-bold text-teal-800 block">رقم الدور في الانتظار</span>
+              <span className="text-2xl font-black text-[#15B8A6] font-mono block">#{invoice.queueNumber}</span>
+            </div>
+          )}
 
           <div className="text-left flex flex-col items-end justify-center">
             <span className="text-slate-400 font-bold block mb-1">حالة السداد:</span>

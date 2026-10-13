@@ -357,7 +357,8 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
                               paymentMethod: appt.paymentMethod || 'cash',
                               paymentStatus: appt.paymentStatus || 'pending',
                               transferNumber: appt.transferNumber,
-                              appointmentId: appt.id
+                              appointmentId: appt.id,
+                              queueNumber: appt.queue_number
                             })
                           }}
                           className="h-8 text-xs font-bold border-[#E5EAF0] text-slate-700 hover:text-[#15B8A6] rounded-xl flex items-center gap-1"

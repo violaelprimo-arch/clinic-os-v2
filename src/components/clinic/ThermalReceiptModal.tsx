@@ -81,6 +81,15 @@ export function ThermalReceiptModal({
               {data.clinicPhone && <p className="text-[10px] text-slate-600">ت: {data.clinicPhone}</p>}
             </div>
 
+            {/* Big Queue Number */}
+            {data.queueNumber !== undefined && data.queueNumber !== null && data.queueNumber !== '' && (
+              <div className="border-2 border-black rounded-xl p-2.5 text-center bg-slate-50 my-1">
+                <span className="text-[10px] font-bold text-slate-600 block">رقم الدور في الانتظار</span>
+                <span className="text-4xl font-black block tracking-tight font-mono my-0.5">#{data.queueNumber}</span>
+                <span className="text-[9px] text-slate-500 block">الرجاء متابعة شاشة النداء الآلي بالعيادة</span>
+              </div>
+            )}
+
             {/* Meta */}
             <div className="space-y-1 pb-2 border-b border-dashed border-black text-[11px]">
               <div className="flex justify-between">

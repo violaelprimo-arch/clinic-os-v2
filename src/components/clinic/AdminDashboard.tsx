@@ -338,6 +338,37 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
           appointmentId: patient.id
         })
       }
+
+      // Notify all other waiting patients about the entry & remaining turn count
+      const otherWaiting = bookings.filter(b => b.status === 'waiting' && b.id !== patient.id)
+      for (const wp of otherWaiting) {
+        if (!wp.phone) continue
+        const aheadCount = otherWaiting.filter(o => (Number(o.queue_number) || 0) < (Number(wp.queue_number) || 0)).length
+        const eventId = `enter_${patient.queue_number || patient.id}_for_${wp.id}`
+        
+        let title = 'حركة الدور: دخول مريض للكشف'
+        let body = `دخل الآن المريض رقم #${patient.queue_number || ''} لغرفة الكشف. دورك رقم #${wp.queue_number} (متبقي أمامك ${aheadCount} مرضى).`
+        let type: any = 'system'
+
+        if (aheadCount <= 5 && aheadCount > 0) {
+          title = `تنبيه: اقترب دورك (متبقي ${aheadCount} أدوار)`
+          body = `دخل الآن المريض رقم #${patient.queue_number || ''}. متبقي أمامك ${aheadCount} مرضى فقط. يرجى التواجد بقاعة الانتظار للاستعداد.`
+          type = 'approaching_turn'
+        }
+
+        createClinicNotification({
+          clinicId: clinic?.id || wp.clinic_id,
+          branchId: wp.branch_id,
+          recipientType: 'patient',
+          recipientTarget: wp.phone,
+          title,
+          body,
+          type,
+          eventId,
+          appointmentId: wp.id
+        }).catch(() => {})
+      }
+
       toast.success(`بدأ كشف المريض: ${patient.patientName}`)
     } catch (err) {
       toast.error('حدث خطأ أثناء بدء الكشف.')
@@ -442,6 +473,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
       clinicPhone: clinic?.clinicPhone || clinic?.doctorPhone || '',
       logoUrl: clinic?.logoUrl || '',
       invoiceNumber: `INV-${new Date().getFullYear()}-${String(selectedReceiptAppt.queue_number || selectedReceiptAppt.id.slice(-4)).padStart(4, '0')}`,
+      queueNumber: selectedReceiptAppt.queue_number,
       date: selectedReceiptAppt.date || new Date().toISOString().split('T')[0],
       time: selectedReceiptAppt.createdAt ? new Date(selectedReceiptAppt.createdAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '',
       patientName: selectedReceiptAppt.patientName,

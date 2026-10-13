@@ -290,38 +290,74 @@ export async function markNotificationAsRead(notificationId: string): Promise<vo
 }
 
 /**
- * Checks queue position for a waiting patient and triggers alerts.
+ * Checks queue position for a waiting patient and triggers alerts:
+ * 1. Reminder notifications when 5 or fewer turns remain (countdown for 5, 4, 3, 2, 1).
+ * 2. Notification on every patient entry to the examination room.
+ * 3. Urgent turn ready alert when it's the patient's turn.
  */
 export async function checkAndTriggerQueuePositionAlert({
   appointment,
   waitingAheadCount,
   clinicId,
-  branchName
+  branchName,
+  currentExaminingQueueNumber
 }: {
   appointment: any
   waitingAheadCount: number
   clinicId: string
   branchName?: string
+  currentExaminingQueueNumber?: number | string
 }): Promise<void> {
   if (!appointment?.id || !appointment?.phone) return
 
-  // 1. Five patients remaining alert (triggered when count reaches 5 or fewer)
+  // 1. Reminder starting from when 5 turns remain (fires for 5, 4, 3, 2, 1)
   if (waitingAheadCount <= 5 && waitingAheadCount > 0 && appointment.status === 'waiting') {
-    const eventId = `approaching_5_${appointment.id}`
+    const eventId = `approaching_${waitingAheadCount}_${appointment.id}`
+    let title = `تنبيه: اقترب دورك (متبقي ${waitingAheadCount} أدوار)`
+    let body = `متبقي أمامك ${waitingAheadCount} مرضى في انتظار الكشف. يرجى التواجد بقاعة انتظار العيادة.`
+    
+    if (waitingAheadCount === 1) {
+      title = '⚡ أنت المريض التالي للدخول!'
+      body = 'متبقي مريض واحد فقط أمامك. استعد للدخول مباشرة لمقابلة الطبيب.'
+    } else if (waitingAheadCount === 2) {
+      title = 'تنبيه: متبقي دوران فقط'
+      body = 'متبقي مريضان فقط قبل دورك. يرجى التواجد الآن أمام غرفة الكشف.'
+    }
+
     await createClinicNotification({
       clinicId,
       branchId: appointment.branch_id,
       recipientType: 'patient',
       recipientTarget: appointment.phone,
-      title: 'اقترب دورك في الكشف',
-      body: `متبقي أمامك ${waitingAheadCount} مرضى تقريباً في ${branchName || 'العيادة'}. يرجى التواجد بقاعة الانتظار.`,
+      title,
+      body,
       type: 'approaching_turn',
       eventId,
       appointmentId: appointment.id
     })
   }
 
-  // 2. Turn ready alert
+  // 2. Notification on patient entry
+  if (
+    currentExaminingQueueNumber !== undefined &&
+    currentExaminingQueueNumber !== null &&
+    appointment.status === 'waiting'
+  ) {
+    const entryEventId = `pat_entered_${currentExaminingQueueNumber}_for_${appointment.id}`
+    await createClinicNotification({
+      clinicId,
+      branchId: appointment.branch_id,
+      recipientType: 'patient',
+      recipientTarget: appointment.phone,
+      title: 'حركة الدور: دخول مريض لغرفة الكشف',
+      body: `دخل الآن المريض رقم #${currentExaminingQueueNumber} لغرفة الكشف. دورك رقم #${appointment.queue_number || ''} (متبقي أمامك ${waitingAheadCount} مرضى).`,
+      type: 'system',
+      eventId: entryEventId,
+      appointmentId: appointment.id
+    })
+  }
+
+  // 3. Turn ready alert
   if (appointment.status === 'in_progress' || waitingAheadCount === 0) {
     const eventId = `turn_ready_${appointment.id}`
     await createClinicNotification({

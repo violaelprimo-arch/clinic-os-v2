@@ -238,10 +238,9 @@ ${data.trackUrl || ''}
       return `تنبيه من عيادة ${clinicName}
 
 اقترب موعد دخولك للكشف يا ${patientName}.
-متبقي أمامك ${data.remainingCount} مرضى تقريباً.
-موعد دخولك المتوقع: ${data.estimatedTime || 'قريباً'}
+متبقي أمامك ${data.remainingCount} مرضى في الانتظار.
 
-يرجى الاستعداد والتوجه إلى العيادة الآن.
+يرجى الاستعداد والتواجد بالعيادة الآن للدخول مباشرة.
 ${data.mapsUrl ? `موقع العيادة:\n${data.mapsUrl}\n` : ''}
 لمتابعة دورك مباشرة:
 ${data.trackUrl || ''}`
