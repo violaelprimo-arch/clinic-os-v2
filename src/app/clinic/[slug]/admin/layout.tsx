@@ -306,6 +306,9 @@ export default function AdminLayout({
             <LogOut className="w-3.5 h-3.5" />
             تسجيل الخروج
           </button>
+          <div className="pt-2 text-center text-[10px] text-slate-500 font-medium border-t border-[#132B45]/80">
+            جميع الحقوق محفوظة © {new Date().getFullYear()} Clinic OS
+          </div>
         </div>
       </aside>
 
@@ -369,6 +372,9 @@ export default function AdminLayout({
               >
                 <LogOut className="w-4 h-4" /> تسجيل الخروج
               </button>
+              <div className="pt-2 text-center text-[10px] text-slate-500 font-medium border-t border-[#132B45]/80">
+                جميع الحقوق محفوظة © {new Date().getFullYear()} Clinic OS
+              </div>
             </div>
           </div>
         </div>
