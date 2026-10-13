@@ -92,39 +92,52 @@ export default function PatientProfilePage({
   }
 
   useEffect(() => {
-    // Real-time integration (Task 13)
-    const qAppt = query(collection(db, 'appointments'), where('phone', '==', phone))
-    
-    const fetchClinic = async () => {
-      const q = query(collection(db, 'clinics'), where('slug', '==', slug));
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        setClinic({ id: snap.docs[0].id, ...snap.docs[0].data() });
-      }
-    };
-    fetchClinic();
-    
-    const unsub = onSnapshot(qAppt, (snap) => {
-      if (!snap.empty) {
-        const appts = snap.docs.map(d => ({ id: d.id, ...d.data() } as any))
-        .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        
-        setAppointments(appts)
-        
-        // Pick latest for profile data
-        const latest = appts[0]
-        setPatientData({
-          name: latest.patientName,
-          age: latest.age || '',
-          dob: latest.dob || '',
-          phone: latest.phone
-        })
-      }
-      setLoading(false)
-    })
+    let unsub: any = null
+    const load = async () => {
+      try {
+        const qClinic = query(collection(db, 'clinics'), where('slug', '==', slug))
+        const cSnap = await getDocs(qClinic)
+        if (!cSnap.empty) {
+          setClinic({ id: cSnap.docs[0].id, ...cSnap.docs[0].data() })
+        }
 
-    return () => unsub()
-  }, [phone])
+        const qAppt = query(collection(db, 'appointments'), where('phone', '==', phone))
+        unsub = onSnapshot(qAppt, (snap) => {
+          if (!snap.empty) {
+            const appts = snap.docs
+              .map(d => ({ id: d.id, ...d.data() } as any))
+              .sort((a: any, b: any) => new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime())
+            setAppointments(appts)
+
+            const latest = appts[0]
+            setPatientData({
+              name: latest.patientName || 'مريض بدون اسم',
+              age: latest.age || '',
+              dob: latest.dob || '',
+              phone: latest.phone || phone
+            })
+          } else {
+            setAppointments([])
+            setPatientData({
+              name: 'سجل جديد',
+              age: '',
+              dob: '',
+              phone
+            })
+          }
+          setLoading(false)
+        })
+      } catch (err) {
+        console.error('Error loading patient profile:', err)
+        setLoading(false)
+      }
+    }
+
+    load()
+    return () => {
+      if (unsub) unsub()
+    }
+  }, [slug, phone])
 
   const handleSaveDiagnosis = async (apptId: string) => {
     try {

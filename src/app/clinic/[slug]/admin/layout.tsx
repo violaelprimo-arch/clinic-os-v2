@@ -50,6 +50,22 @@ export default function AdminLayout({
     const storedRole = localStorage.getItem('clinic_role') || 'doctor'
     setRole(storedRole)
 
+    // Verify session token with server
+    const token = localStorage.getItem('clinic_session_token')
+    if (token) {
+      fetch('/api/auth/session', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.authenticated && data.user?.role) {
+            setRole(data.user.role)
+            localStorage.setItem('clinic_role', data.user.role)
+          }
+        })
+        .catch(() => {})
+    }
+
     const q = query(collection(db, 'clinics'), where('slug', '==', slug))
     const unsubscribe = onSnapshot(
       q,
@@ -90,7 +106,9 @@ export default function AdminLayout({
   const handleLogout = async () => {
     await signOut(auth)
     localStorage.removeItem('clinic_role')
-    window.location.href = `/clinic/${slug}`
+    localStorage.removeItem('clinic_session_token')
+    await fetch('/api/auth/session', { method: 'DELETE' }).catch(() => {})
+    window.location.href = `/clinic/${slug}/login`
   }
 
   // Get current Arabic formatted date

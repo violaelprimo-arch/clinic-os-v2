@@ -16,7 +16,9 @@ import { getDoc } from 'firebase/firestore'
 
 import { motion } from 'framer-motion'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
-import { Printer, User, ArrowRight } from 'lucide-react'
+import { Printer, User, ArrowRight, Receipt } from 'lucide-react'
+import { InvoiceView, InvoiceData } from '@/components/clinic/InvoiceView'
+import { formatCairo12Hour } from '@/lib/queue-calculator'
 
 export default function PatientDashboard({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -32,6 +34,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
   const [editName, setEditName] = useState('')
   const [services, setServices] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceData | null>(null)
 
   useEffect(() => {
     // 1. Check Auth
@@ -275,6 +278,35 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
                       </div>
 
                       <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedInvoice({
+                              invoiceNumber: appt.invoiceNumber || `INV-${appt.id.slice(0, 8)}`,
+                              clinicName: clinic?.clinicName || 'عيادة كير',
+                              doctorName: clinic?.doctorName,
+                              clinicAddress: clinic?.clinicAddress,
+                              clinicPhone: clinic?.clinicPhone,
+                              patientName: appt.patientName || patientData?.name || 'المريض',
+                              patientPhone: appt.phone || patientData?.phone || '',
+                              date: appt.date,
+                              cairoTime: formatCairo12Hour(new Date(appt.createdAt || Date.now())),
+                              serviceName: appt.serviceName || 'كشف',
+                              servicePrice: appt.servicePrice || 0,
+                              netTotal: appt.servicePrice || 0,
+                              paymentMethod: appt.paymentMethod || 'cash',
+                              paymentStatus: appt.paymentStatus || 'pending',
+                              transferNumber: appt.transferNumber,
+                              appointmentId: appt.id
+                            })
+                          }}
+                          className="h-8 text-xs font-bold border-[#E5EAF0] text-slate-700 hover:text-[#15B8A6] rounded-xl flex items-center gap-1"
+                        >
+                          <Receipt className="w-3.5 h-3.5" />
+                          الفاتورة الإلكترونية PDF
+                        </Button>
+
                         <span
                           className={`text-xs font-bold px-3 py-1 rounded-full border ${
                             appt.status === 'completed'
@@ -349,6 +381,18 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
           )}
         </div>
       </main>
+
+      {/* Invoice View Modal */}
+      {selectedInvoice && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            <InvoiceView
+              invoice={selectedInvoice}
+              onClose={() => setSelectedInvoice(null)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -149,60 +149,35 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
     const inputEmail = email.trim()
 
     try {
-      // 1. Try normal Firebase Auth login
-      await signInWithEmailAndPassword(auth, inputEmail, password)
-      toast.success('تم تسجيل الدخول بنجاح')
-      router.push(`/clinic/${slug}/admin`)
-    } catch (err: any) {
-      if (
-        err.code === 'auth/invalid-credential' ||
-        err.code === 'auth/user-not-found' ||
-        err.code === 'auth/wrong-password' ||
-        err.code === 'auth/invalid-email'
-      ) {
-        // 2. Fallback: Check if owner created credentials in clinic document
-        try {
-          const q = query(collection(db, 'clinics'), where('slug', '==', slug))
-          const snapshot = await getDocs(q)
+      // 1. Authenticate via secure cryptographic server API
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: inputEmail, password, slug })
+      })
+      const data = await res.json()
 
-          if (!snapshot.empty) {
-              const clinicDoc = snapshot.docs[0].data()
-              if (clinicDoc.isActive === false || (clinicDoc.expirationDate && new Date(clinicDoc.expirationDate) < new Date())) {
-                setError('تم انتهاء الاشتراك. يرجى التواصل مع الإدارة.')
-                setIsLoading(false)
-                return
-              }
-
-            const isDoctor = clinicDoc.doctorEmail === inputEmail && clinicDoc.doctorPassword === password
-            let isAssistant = clinicDoc.assistantEmail === inputEmail && clinicDoc.assistantPassword === password
-
-            if (!isAssistant && clinicDoc.assistants) {
-              const matchedAss = clinicDoc.assistants.find(
-                (a: any) => a.email === inputEmail && a.password === password
-              )
-              if (matchedAss) isAssistant = true
-            }
-
-            if (isDoctor || isAssistant) {
-              try {
-                await createUserWithEmailAndPassword(auth, inputEmail, password)
-              } catch (regErr) {
-                // already created or handle
-              }
-              toast.success('تم تفعيل الحساب وتسجيل الدخول بنجاح!')
-              localStorage.setItem('clinic_role', isDoctor ? 'doctor' : 'assistant')
-              router.push(`/clinic/${slug}/admin`)
-              return
-            }
-          }
-
-          setError('البريد الإلكتروني أو كلمة المرور غير صحيحة.')
-        } catch (dbErr) {
-          setError('حدث خطأ أثناء التحقق من البيانات.')
-        }
-      } else {
-        setError(err.message || 'فشل الاتصال بالخادم.')
+      if (res.ok && data.success) {
+        localStorage.setItem('clinic_session_token', data.token)
+        localStorage.setItem('clinic_role', data.user.role)
+        toast.success(`مرحباً ${data.user.name}، تم تسجيل الدخول بنجاح`)
+        router.push(`/clinic/${slug}/admin`)
+        return
       }
+
+      // 2. Fallback: Firebase Auth directly
+      try {
+        await signInWithEmailAndPassword(auth, inputEmail, password)
+        toast.success('تم تسجيل الدخول بنجاح')
+        router.push(`/clinic/${slug}/admin`)
+        return
+      } catch (fbErr) {
+        // Fallback error
+      }
+
+      setError(data.error || 'البريد الإلكتروني أو كلمة المرور غير صحيحة.')
+    } catch (err: any) {
+      setError(err.message || 'فشل الاتصال بالخادم.')
     } finally {
       setIsLoading(false)
     }

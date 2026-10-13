@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/firebase'
 import { collection, doc, setDoc } from 'firebase/firestore'
-import * as cheerio from 'cheerio'
 
-// This endpoint should be called daily via a Cron Job (e.g., GitHub Actions or Vercel Cron)
-// It scrapes DawaaGate's latest price updates without slowing down the user's browser.
+// Scrapes DawaaGate's latest price updates cleanly without external edge-incompatible dependencies
 export async function GET() {
   try {
     const scrapedDrugs: any[] = []
@@ -16,15 +14,11 @@ export async function GET() {
       if (!res.ok) continue
       
       const html = await res.text()
-      const $ = cheerio.load(html)
-      
-      // In dawaagate, links to medicines have href like /medicine/...
-      const medicineLinks = $('a[href^="/medicine/"]').toArray()
-      
-      for (const link of medicineLinks) {
-        const href = $(link).attr('href')
-        const name = $(link).text().trim()
-        
+      const linkRegex = /<a\s+[^>]*href=["'](\/medicine\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi
+      let match: RegExpExecArray | null
+      while ((match = linkRegex.exec(html)) !== null) {
+        const href = match[1]
+        const name = match[2].replace(/<[^>]+>/g, '').trim()
         if (href && name && href !== '/medicine/a-z' && !href.includes('#')) {
           scrapedDrugs.push({ name, url: `https://www.dawaagate.com${href}` })
         }
@@ -37,7 +31,6 @@ export async function GET() {
     const updatedRecords = []
 
     // Fetch the price for the top 10 most recent updates to avoid timeout/blocking
-    // A real production cron would process all of them slowly
     const topDrugsToUpdate = uniqueDrugs.slice(0, 10)
 
     for (const drug of topDrugsToUpdate) {
@@ -46,10 +39,7 @@ export async function GET() {
         if (!drugRes.ok) continue
         
         const drugHtml = await drugRes.text()
-        const $$ = cheerio.load(drugHtml)
-        
-        // Find text like "سعر ... هو 120 جنيه"
-        const pageText = $$('body').text()
+        const pageText = drugHtml.replace(/<[^>]+>/g, ' ')
         const priceMatch = pageText.match(/سعر.*?هو\s*([\d,.]+)\s*جنيه/)
         
         if (priceMatch && priceMatch[1]) {

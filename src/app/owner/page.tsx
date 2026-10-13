@@ -11,14 +11,16 @@ import {
   XCircle, Edit, Bot, FileSignature, Phone, MessageSquare,
   Sparkles, Upload, Search, ExternalLink, Power, Check,
   AlertCircle, Eye, ShieldCheck, Clock, Users, ArrowUpRight,
-  Copy, CheckCircle, RefreshCw, ChevronLeft, Calendar
+  Copy, CheckCircle, RefreshCw, ChevronLeft, Calendar, Download
 } from 'lucide-react'
 import { db } from '@/lib/firebase'
 import { collection, addDoc, getDocs, deleteDoc, updateDoc, doc, setDoc, onSnapshot } from 'firebase/firestore'
 import { Switch } from '@/components/ui/switch'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
-
+import { SINGLE_CLINIC_SLUG } from '@/lib/single-clinic'
+import { hashPassword } from '@/lib/auth-crypto'
+import { recordAuditLog } from '@/lib/audit-logger'
 import Link from 'next/link'
 
 export default function OwnerDashboard() {
@@ -145,22 +147,80 @@ export default function OwnerDashboard() {
     }
   }
 
+  const handleExportBackup = async () => {
+    try {
+      toast.info('جاري تحضير النسخة الاحتياطية المشفرة...')
+      const collectionsToExport = ['clinics', 'appointments', 'prescriptions', 'expenses', 'audit_logs']
+      const backupData: Record<string, any> = {
+        exportedAt: new Date().toISOString(),
+        system: 'Clinic OS V2 - Single Clinic System (zizo)',
+        data: {}
+      }
+
+      for (const colName of collectionsToExport) {
+        const snap = await getDocs(collection(db, colName))
+        backupData.data[colName] = snap.docs.map(d => {
+          const item = d.data()
+          // Sanitize sensitive secrets and plain passwords
+          if (colName === 'clinics') {
+            const { doctorPassword, assistantPassword, aiApiKey, ...sanitized } = item
+            return { id: d.id, ...sanitized }
+          }
+          return { id: d.id, ...item }
+        })
+      }
+
+      const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `clinic_os_backup_${new Date().toISOString().split('T')[0]}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+
+      recordAuditLog({
+        action: 'BACKUP_EXPORTED',
+        actorName: 'مالك النظام Super Admin',
+        actorRole: 'owner',
+        clinicId: editingId || 'zizo',
+        details: { collections: collectionsToExport }
+      })
+
+      toast.success('تم تصدير النسخة الاحتياطية وتأمينها بنجاح!')
+    } catch (err: any) {
+      toast.error('فشل تصدير النسخة الاحتياطية: ' + err.message)
+    }
+  }
+
   const handleAddOrUpdateClinic = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
 
     try {
+      // 1. Strict Single-Clinic Enforcement
+      if (!editingId && clinics.length >= 1) {
+        toast.error('نظام عيادة واحدة حصرياً: لا يمكن إنشاء أكثر من عيادة واحدة. يرجى تعديل العيادة الحالية.')
+        setIsLoading(false)
+        return
+      }
+
+      // 2. Hash passwords securely
+      const doctorPasswordHash = doctorPassword ? await hashPassword(doctorPassword) : ''
+      const assistantPasswordHash = assistantPassword ? await hashPassword(assistantPassword) : ''
+
       const clinicData = {
         clinicName,
         doctorName,
         doctorPhone,
         clinicPhone,
-        slug,
+        slug: SINGLE_CLINIC_SLUG,
         mapsLink,
         doctorEmail,
         doctorPassword,
+        doctorPasswordHash,
         assistantEmail,
         assistantPassword,
+        assistantPasswordHash,
         aiApiKey,
         prescriptionTemplateUrl,
         aiEnabled: aiEnabled !== false,
@@ -180,11 +240,25 @@ export default function OwnerDashboard() {
 
       if (editingId) {
         await updateDoc(doc(db, 'clinics', editingId), clinicData)
-        toast.success('تم تحديث بيانات العيادة بنجاح!')
+        recordAuditLog({
+          action: 'SETTINGS_UPDATED',
+          actorName: 'مالك المنصة Super Admin',
+          actorRole: 'owner',
+          clinicId: editingId,
+          details: { clinicName, doctorName }
+        })
+        toast.success('تم تحديث بيانات وإعدادات العيادة بنجاح!')
         setEditingId(null)
       } else {
-        await addDoc(collection(db, 'clinics'), { ...clinicData, createdAt: new Date().toISOString() })
-        toast.success('تم إضافة العيادة بكامل تفاصيلها بنجاح!')
+        const newDoc = await addDoc(collection(db, 'clinics'), { ...clinicData, createdAt: new Date().toISOString() })
+        recordAuditLog({
+          action: 'SETTINGS_UPDATED',
+          actorName: 'مالك المنصة Super Admin',
+          actorRole: 'owner',
+          clinicId: newDoc.id,
+          details: { clinicName, doctorName }
+        })
+        toast.success('تم حفظ العيادة بكامل تفاصيلها بنجاح!')
       }
 
       // Reset form
@@ -434,19 +508,25 @@ export default function OwnerDashboard() {
           }`}
         >
           <Building className="w-4 h-4" />
-          <span>إدارة العيادات والتحكم المباشر ({clinics.length})</span>
+          <span>إدارة العيادة وإعدادات النظام (zizo)</span>
         </button>
 
         <button
-          onClick={() => setActiveTab('add')}
+          onClick={() => {
+            if (clinics.length > 0) {
+              handleEdit(clinics[0])
+            } else {
+              setActiveTab('add')
+            }
+          }}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer ${
             activeTab === 'add'
               ? 'bg-[#15B8A6] text-white shadow-md shadow-[#15B8A6]/20'
               : 'text-slate-500 hover:text-[#182230] hover:bg-slate-100'
           }`}
         >
-          {editingId ? <Edit className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-          <span>{editingId ? 'تعديل بيانات العيادة' : 'إضافة عيادة جديدة'}</span>
+          <Edit className="w-4 h-4" />
+          <span>تعديل بيانات وإعدادات العيادة</span>
         </button>
 
         <button
@@ -459,6 +539,14 @@ export default function OwnerDashboard() {
         >
           <Bot className="w-4 h-4" />
           <span>مفتاح الذكاء الاصطناعي المركزي</span>
+        </button>
+
+        <button
+          onClick={handleExportBackup}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white shadow-md mr-auto"
+        >
+          <Download className="w-4 h-4" />
+          <span>تصدير نسخة احتياطية آمنة (JSON)</span>
         </button>
       </div>
 
