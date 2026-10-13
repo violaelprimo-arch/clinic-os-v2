@@ -42,7 +42,9 @@ export default function PatientProfilePage({
       diagnosis: appt.diagnosis,
       drugs: appt.drugs || [],
       prescriptionTemplateUrl: clinic?.prescriptionTemplateUrl,
-      templateMode: clinic?.prescriptionTemplateUrl ? 'custom' : 'standard'
+      templateMode: clinic?.prescriptionTemplateUrl ? 'custom' : 'standard',
+      showHeaderFooter: true,
+      printBackground: true
     })
     printHtmlViaIframe(html, 'a4')
   }
@@ -96,7 +98,9 @@ export default function PatientProfilePage({
           diagnosis: appt.diagnosis,
           drugs: appt.drugs || [],
           prescriptionTemplateUrl: clinic?.prescriptionTemplateUrl,
-          templateMode: clinic?.prescriptionTemplateUrl ? 'custom' : 'standard'
+          templateMode: clinic?.prescriptionTemplateUrl ? 'custom' : 'standard',
+          showHeaderFooter: true,
+          printBackground: true
         })
         const tempDiv = document.createElement('div')
         tempDiv.style.position = 'fixed'

@@ -81,8 +81,8 @@ export async function renderElementToPdfBlob(
   pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST')
   heightLeft -= pageHeight
 
-  // Multi-page handling if document exceeds page height
-  while (heightLeft > 5) {
+  // Multi-page handling only if document genuinely exceeds page height by more than 15mm
+  while (heightLeft > 15) {
     position = position - pageHeight
     pdf.addPage()
     pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST')

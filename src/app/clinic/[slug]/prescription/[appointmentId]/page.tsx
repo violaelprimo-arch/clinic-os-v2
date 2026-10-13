@@ -87,14 +87,9 @@ export default function PublicPrescriptionPage({
 
   // Isolated A4 Printing
   const handlePrint = () => {
-    if (!rxDrugs || rxDrugs.length === 0) {
-      toast.error('لا توجد أدوية للطباعة في هذه الروشتة')
-      return
-    }
-
     const html = generateA4PrescriptionHtml({
       clinicName: clinic?.clinicName || 'العيادة الطبية',
-      doctorName: clinic?.doctorName,
+      doctorName: clinic?.doctorName || 'طبيب العيادة',
       specialty: clinic?.specialty,
       certificationTitle: clinic?.certificationTitle,
       clinicPhone: clinic?.clinicPhone,
@@ -105,9 +100,12 @@ export default function PublicPrescriptionPage({
       patientAge,
       date: rxDate,
       diagnosis: rxDiagnosis,
+      instructions: prescription?.instructions,
       drugs: rxDrugs,
       prescriptionTemplateUrl: clinic?.prescriptionTemplateUrl,
-      templateMode: clinic?.prescriptionTemplateUrl ? 'custom' : 'standard'
+      templateMode: prescription?.templateMode || 'standard',
+      showHeaderFooter: true,
+      printBackground: true
     })
 
     printHtmlViaIframe(html, 'a4')

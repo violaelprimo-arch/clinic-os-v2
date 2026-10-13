@@ -157,21 +157,22 @@ export interface FinancialReportPrintData {
 export function printHtmlViaIframe(htmlContent: string, pageSize: '80mm' | 'a4' | 'a5' = '80mm'): void {
   if (typeof document === 'undefined') return
 
-  // Clean up any lingering print iframe
-  const oldIframe = document.getElementById('clinic-print-iframe')
-  if (oldIframe) {
-    oldIframe.remove()
-  }
+  // Clean up any lingering print iframes
+  const existingIframes = document.querySelectorAll('iframe[data-clinic-print="true"]')
+  existingIframes.forEach((el) => el.remove())
 
   const iframe = document.createElement('iframe')
+  iframe.setAttribute('data-clinic-print', 'true')
   iframe.id = 'clinic-print-iframe'
   iframe.style.position = 'fixed'
-  iframe.style.left = '-9999px'
-  iframe.style.top = '0'
-  iframe.style.width = pageSize === '80mm' ? '80mm' : pageSize === 'a5' ? '148mm' : '210mm'
-  iframe.style.minHeight = pageSize === '80mm' ? '120mm' : pageSize === 'a5' ? '210mm' : '297mm'
-  iframe.style.border = 'none'
-  iframe.style.visibility = 'hidden'
+  iframe.style.right = '0'
+  iframe.style.bottom = '0'
+  iframe.style.width = '0'
+  iframe.style.height = '0'
+  iframe.style.border = '0'
+  iframe.style.opacity = '0'
+  iframe.style.pointerEvents = 'none'
+  iframe.style.zIndex = '-9999'
 
   document.body.appendChild(iframe)
 
@@ -185,18 +186,60 @@ export function printHtmlViaIframe(htmlContent: string, pageSize: '80mm' | 'a4' 
   doc.write(htmlContent)
   doc.close()
 
-  iframe.contentWindow?.focus()
-  setTimeout(() => {
+  const executePrint = () => {
     try {
+      iframe.contentWindow?.focus()
       iframe.contentWindow?.print()
     } catch (e) {
       console.error('Print trigger failed:', e)
-    } finally {
-      setTimeout(() => {
-        iframe.remove()
-      }, 2000)
     }
-  }, 400)
+  }
+
+  // Ensure iframe cleanup after print without breaking the active print preview
+  if (iframe.contentWindow) {
+    iframe.contentWindow.addEventListener('afterprint', () => {
+      setTimeout(() => {
+        try {
+          iframe.remove()
+        } catch (_) {}
+      }, 500)
+    })
+  }
+
+  // Pre-load images if any before triggering print dialog
+  const imgs = Array.from(doc.images || [])
+  if (imgs.length > 0) {
+    let loaded = 0
+    const total = imgs.length
+    let triggered = false
+
+    const checkAllLoaded = () => {
+      loaded++
+      if (loaded >= total && !triggered) {
+        triggered = true
+        setTimeout(executePrint, 150)
+      }
+    }
+
+    imgs.forEach((img) => {
+      if (img.complete) {
+        checkAllLoaded()
+      } else {
+        img.onload = checkAllLoaded
+        img.onerror = checkAllLoaded
+      }
+    })
+
+    // Safety fallback timeout in case image events don't fire
+    setTimeout(() => {
+      if (!triggered) {
+        triggered = true
+        executePrint()
+      }
+    }, 1200)
+  } else {
+    setTimeout(executePrint, 250)
+  }
 }
 
 /**
@@ -1136,184 +1179,318 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
   const sColor = data.secondaryColor || '#15B8A6'
   const isA5 = data.pageSize === 'a5'
   const showHeaderFooter = data.showHeaderFooter !== false
-  const isCustom = data.templateMode === 'custom'
+  const isCustom = data.templateMode === 'custom' && !!data.prescriptionTemplateUrl
   const safeOffset = typeof data.topOffset === 'number' && data.topOffset <= 60 && data.topOffset >= 0 ? data.topOffset : 25
+  const shouldPrintBg = isCustom && data.printBackground !== false
 
   return `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
   <meta charset="utf-8">
-  <title>الروشتة الطبية - ${data.patientName}</title>
+  <title>الروشتة الطبية - ${data.patientName || 'المريض'}</title>
   <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
     @page {
       size: ${isA5 ? 'A5' : 'A4'} portrait;
-      margin: ${isA5 ? '8mm 6mm' : '12mm 10mm'};
+      margin: ${isA5 ? '5mm 7mm' : '8mm 12mm'};
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Segoe UI', Tahoma, -apple-system, Roboto, Arial, sans-serif;
-      color: #1e293b;
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
       background: #ffffff;
-      font-size: ${isA5 ? '9.5pt' : '11pt'};
-      line-height: 1.5;
-      padding: ${isA5 ? '8px' : '10px'};
-      ${isCustom && data.printBackground && data.prescriptionTemplateUrl ? `background-image: url('${data.prescriptionTemplateUrl}'); background-size: 100% 100%; background-repeat: no-repeat;` : ''}
-      ${isCustom ? `padding-top: ${safeOffset}%;` : ''}
+      color: #182230;
+      font-family: 'Segoe UI', Tahoma, -apple-system, Roboto, 'Cairo', Arial, sans-serif;
+      direction: rtl;
+      text-align: right;
+      overflow: hidden;
+    }
+    .prescription-sheet {
+      width: 100%;
+      height: 100%;
+      max-height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      page-break-after: avoid !important;
+      break-after: avoid !important;
+      box-sizing: border-box;
+      padding: ${isA5 ? '6px 8px' : '10px 14px'};
+      ${shouldPrintBg ? `background-image: url('${data.prescriptionTemplateUrl}'); background-size: 100% 100%; background-repeat: no-repeat; background-position: center;` : ''}
+      ${isCustom && !showHeaderFooter ? `padding-top: ${safeOffset}%;` : ''}
     }
     .header {
-      display: ${showHeaderFooter && !isCustom ? 'flex' : 'none'};
+      display: ${showHeaderFooter ? 'flex' : 'none'};
       justify-content: space-between;
       align-items: flex-start;
       border-bottom: 2.5px solid ${sColor};
-      padding-bottom: ${isA5 ? '8px' : '12px'};
-      margin-bottom: ${isA5 ? '10px' : '14px'};
+      padding-bottom: ${isA5 ? '6px' : '10px'};
+      margin-bottom: ${isA5 ? '6px' : '10px'};
     }
-    .doctor-name { font-size: ${isA5 ? '15pt' : '20pt'}; font-weight: 900; color: #182230; }
-    .doctor-spec { font-size: ${isA5 ? '9.5pt' : '12pt'}; font-weight: bold; color: ${sColor}; margin-top: 2px; }
-    .doctor-deg { font-size: ${isA5 ? '8pt' : '9.5pt'}; color: #64748b; margin-top: 2px; }
-    .clinic-logo-box { text-align: left; direction: ltr; }
-    .clinic-logo { max-height: ${isA5 ? '40px' : '55px'}; margin-bottom: 3px; }
-    
+    .doctor-name {
+      font-size: ${isA5 ? '14pt' : '18pt'};
+      font-weight: 900;
+      color: #182230;
+      line-height: 1.2;
+    }
+    .doctor-spec {
+      font-size: ${isA5 ? '9pt' : '11pt'};
+      font-weight: bold;
+      color: ${sColor};
+      margin-top: 2px;
+    }
+    .doctor-deg {
+      font-size: ${isA5 ? '7.5pt' : '9pt'};
+      color: #64748b;
+      margin-top: 2px;
+    }
+    .clinic-logo-box {
+      text-align: left;
+      direction: ltr;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+    .clinic-logo {
+      max-height: ${isA5 ? '38px' : '50px'};
+      max-width: 120px;
+      object-fit: contain;
+      margin-bottom: 2px;
+    }
+    .clinic-title {
+      font-size: ${isA5 ? '9pt' : '11pt'};
+      font-weight: 900;
+      color: #0f172a;
+    }
+    .branch-badge {
+      font-size: ${isA5 ? '7.5pt' : '8.5pt'};
+      color: #64748b;
+      font-weight: bold;
+      margin-top: 1px;
+    }
+    .verification-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 1px 6px;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 4px;
+      color: #166534;
+      font-size: ${isA5 ? '6.5pt' : '7.5pt'};
+      font-weight: bold;
+      margin-top: 3px;
+    }
+
     .patient-strip {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      background: ${isCustom ? 'transparent' : '#f8fafc'};
-      border: ${isCustom ? 'none' : '1px solid #e2e8f0'};
+      background: ${isCustom && !showHeaderFooter ? 'transparent' : '#f8fafc'};
+      border: ${isCustom && !showHeaderFooter ? 'none' : '1px solid #e2e8f0'};
       border-radius: 8px;
-      padding: ${isA5 ? '6px 10px' : '8px 14px'};
-      font-size: ${isA5 ? '8.5pt' : '10pt'};
-      margin-bottom: ${isA5 ? '10px' : '16px'};
+      padding: ${isA5 ? '4px 8px' : '6px 12px'};
+      font-size: ${isA5 ? '8pt' : '9.5pt'};
+      margin-bottom: ${isA5 ? '6px' : '10px'};
     }
-    .patient-strip strong { color: #0f172a; font-size: ${isA5 ? '9.5pt' : '11pt'}; }
-    
+    .patient-strip strong {
+      color: #0f172a;
+      font-size: ${isA5 ? '9pt' : '10.5pt'};
+    }
+    .label {
+      color: #64748b;
+      font-size: ${isA5 ? '7.5pt' : '8.5pt'};
+      margin-left: 3px;
+    }
+
     .rx-title {
       font-family: Georgia, serif;
-      font-size: ${isA5 ? '22pt' : '30pt'};
+      font-size: ${isA5 ? '20pt' : '26pt'};
       font-weight: 900;
       color: ${sColor};
-      margin: 4px 0 8px 0;
+      margin: 2px 0 6px 0;
       line-height: 1;
       direction: ltr;
       text-align: left;
     }
-    
-    .drugs-list {
-      margin-bottom: 20px;
-      min-height: ${isA5 ? '220px' : '380px'};
+
+    .drugs-container {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: ${isA5 ? '4px' : '8px'};
     }
     .drug-item {
       display: flex;
       align-items: flex-start;
-      gap: 10px;
-      padding: ${isA5 ? '6px 0' : '8px 0'};
+      gap: 8px;
+      padding-bottom: ${isA5 ? '4px' : '6px'};
       border-bottom: 1px dashed #e2e8f0;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
     }
     .drug-num {
       font-weight: 900;
       color: ${sColor};
-      font-size: ${isA5 ? '10pt' : '12pt'};
-      width: 20px;
-      direction: ltr;
-    }
-    .drug-details { flex: 1; }
-    .drug-name {
-      font-size: ${isA5 ? '11pt' : '13pt'};
-      font-weight: 900;
-      color: #0f172a;
+      font-size: ${isA5 ? '9.5pt' : '11.5pt'};
+      width: 18px;
       direction: ltr;
       text-align: left;
     }
+    .drug-details {
+      flex: 1;
+      text-align: left;
+      direction: ltr;
+    }
+    .drug-name {
+      font-size: ${isA5 ? '10pt' : '12pt'};
+      font-weight: 900;
+      color: #0f172a;
+      letter-spacing: -0.2px;
+    }
     .drug-instruction {
-      font-size: ${isA5 ? '9pt' : '10.5pt'};
+      font-size: ${isA5 ? '8pt' : '9.5pt'};
       color: #334155;
       font-weight: 600;
-      margin-top: 2px;
+      margin-top: 1px;
+      direction: rtl;
+      text-align: right;
     }
-    
+    .drug-instruction strong {
+      color: #0d9488;
+    }
+
+    .instructions-box {
+      background: #f0fdfa;
+      border: 1px solid #99f6e4;
+      border-radius: 6px;
+      padding: ${isA5 ? '5px 8px' : '6px 12px'};
+      margin-top: 6px;
+      font-size: ${isA5 ? '7.5pt' : '9pt'};
+      color: #0f766e;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+
     .footer {
-      display: ${showHeaderFooter && !isCustom ? 'flex' : 'none'};
+      display: ${showHeaderFooter ? 'flex' : 'none'};
       border-top: 2px solid ${sColor};
-      padding-top: ${isA5 ? '8px' : '14px'};
-      margin-top: ${isA5 ? '16px' : '30px'};
+      padding-top: ${isA5 ? '6px' : '10px'};
+      margin-top: ${isA5 ? '8px' : '14px'};
       justify-content: space-between;
       align-items: flex-end;
-      font-size: ${isA5 ? '7.5pt' : '9pt'};
+      font-size: ${isA5 ? '7pt' : '8.5pt'};
       color: #64748b;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .clinic-meta {
+      line-height: 1.4;
+    }
+    .copy-note {
+      font-size: ${isA5 ? '6.5pt' : '7.5pt'};
+      color: #94a3b8;
+      margin-top: 2px;
     }
     .signature-area {
       text-align: center;
-      width: ${isA5 ? '110px' : '150px'};
+      width: ${isA5 ? '100px' : '140px'};
     }
     .signature-line {
-      border-bottom: 1px solid #000;
-      height: ${isA5 ? '28px' : '40px'};
-      margin-bottom: 3px;
+      border-bottom: 1.5px solid #000;
+      height: ${isA5 ? '22px' : '32px'};
+      margin-bottom: 2px;
+    }
+    .signature-title {
+      font-size: ${isA5 ? '7.5pt' : '9pt'};
+      font-weight: bold;
+      color: #1e293b;
+    }
+    .signature-doctor {
+      font-size: ${isA5 ? '7pt' : '8pt'};
+      color: #64748b;
     }
   </style>
 </head>
 <body>
-  <div class="header">
+  <div class="prescription-sheet">
     <div>
-      <div class="doctor-name">د. ${data.doctorName}</div>
-      <div class="doctor-spec">${data.specialty || 'استشاري العيادة الطبية'}</div>
-      <div class="doctor-deg">${data.degreeTitle || data.certificationTitle || 'عضو الجمعية الطبية المصرية'}</div>
+      <div class="header">
+        <div>
+          <div class="doctor-name">د. ${data.doctorName || 'الطبيب المعالج'}</div>
+          <div class="doctor-spec">${data.specialty || 'استشاري العيادة الطبية'}</div>
+          <div class="doctor-deg">${data.degreeTitle || data.certificationTitle || 'عضو الجمعية الطبية المصرية'}</div>
+          <div class="verification-pill">✓ روشتة رسمية موثقة إلكترونياً</div>
+        </div>
+        <div class="clinic-logo-box">
+          ${data.logoUrl ? `<img src="${data.logoUrl}" class="clinic-logo" alt="Logo" />` : ''}
+          <div class="clinic-title">${data.clinicName || 'Clinic OS'}</div>
+          ${data.branchName ? `<div class="branch-badge">فرع: ${data.branchName}</div>` : ''}
+        </div>
+      </div>
+
+      <div class="patient-strip">
+        <div><span class="label">اسم المريض:</span> <strong>${data.patientName || 'المريض'}</strong></div>
+        ${data.patientAge ? `<div><span class="label">السن:</span> <strong>${data.patientAge} سنة</strong></div>` : ''}
+        <div><span class="label">التاريخ:</span> <strong dir="ltr">${data.date}</strong></div>
+        ${data.diagnosis ? `<div><span class="label">التشخيص:</span> <strong>${data.diagnosis}</strong></div>` : ''}
+      </div>
+
+      <div class="rx-title">R/</div>
     </div>
-    <div class="clinic-logo-box">
-      ${data.logoUrl ? `<img src="${data.logoUrl}" class="clinic-logo" alt="Logo" />` : ''}
-      <div style="font-size:10pt; font-weight:bold; color:#0f172a;">${data.clinicName}</div>
-      ${data.branchName ? `<div style="font-size:9pt; color:#64748b;">فرع ${data.branchName}</div>` : ''}
-    </div>
-  </div>
 
-  <div class="patient-strip">
-    <div><span>الاسم:</span> <strong>${data.patientName}</strong></div>
-    ${data.patientAge ? `<div><span>السن:</span> <strong>${data.patientAge} سنة</strong></div>` : ''}
-    <div><span>التاريخ:</span> <strong dir="ltr">${data.date}</strong></div>
-    ${data.diagnosis ? `<div><span>التشخيص:</span> <strong>${data.diagnosis}</strong></div>` : ''}
-  </div>
-
-  <div class="rx-title">R/</div>
-
-  <div class="drugs-list">
-    ${data.drugs
-      .filter((d) => d.name && d.name.trim())
-      .map(
-        (drug, idx) => `
-        <div class="drug-item">
-          <div class="drug-num">${idx + 1}.</div>
-          <div class="drug-details">
-            <div class="drug-name">${drug.name}</div>
-            <div class="drug-instruction">
-              ${drug.dosage ? `<span>الجرعة: <strong>${drug.dosage}</strong></span> • ` : ''}
-              ${drug.duration ? `<span>المدة: <strong>${drug.duration}</strong></span>` : ''}
-              ${drug.notes ? ` • <span>ملاحظات: ${drug.notes}</span>` : ''}
+    <div class="drugs-container">
+      ${(data.drugs || [])
+        .filter((d) => d.name && d.name.trim())
+        .map(
+          (drug, idx) => `
+          <div class="drug-item">
+            <div class="drug-num">${idx + 1}.</div>
+            <div class="drug-details">
+              <div class="drug-name">${drug.name}</div>
+              <div class="drug-instruction">
+                ${drug.dosage ? `<span>الجرعة: <strong>${drug.dosage}</strong></span>` : ''}
+                ${drug.duration ? ` • <span>المدة: <strong>${drug.duration}</strong></span>` : ''}
+                ${drug.notes ? ` • <span>ملاحظات: ${drug.notes}</span>` : ''}
+              </div>
             </div>
           </div>
-        </div>
-      `
-      )
-      .join('')}
-  </div>
+        `
+        )
+        .join('')}
 
-  ${
-    data.instructions
-      ? `<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:8px 12px; margin-bottom:14px; font-size:${isA5 ? '8.5pt' : '10pt'};">
-          <strong>إرشادات الطبيب:</strong> ${data.instructions}
-        </div>`
-      : ''
-  }
-
-  <div class="footer">
-    <div>
-      <div>${data.clinicAddress || 'العنوان: مسجل بالعيادة'}</div>
-      <div>هاتف: ${data.clinicPhone || 'مسجل بالعيادة'}</div>
-      <div style="font-size:8pt; margin-top:2px;">روشتة موثقة إلكترونياً • Clinic OS © ${new Date().getFullYear()}</div>
+      ${
+        data.instructions
+          ? `<div class="instructions-box">
+              <strong>إرشادات الطبيب:</strong> ${data.instructions}
+            </div>`
+          : ''
+      }
     </div>
 
-    <div class="signature-area">
-      <div class="signature-line"></div>
-      <div style="font-weight:bold;">توقيع الطبيب</div>
+    <div class="footer">
+      <div class="clinic-meta">
+        <div>${data.clinicAddress || 'العنوان: مسجل بالعيادة'}</div>
+        <div>هاتف: ${data.clinicPhone || 'مسجل بالعيادة'}</div>
+        <div class="copy-note">تم استخراج الروشتة إلكترونياً عبر Clinic OS V2 • جميع الحقوق محفوظة © ${new Date().getFullYear()}</div>
+      </div>
+
+      <div class="signature-area">
+        <div class="signature-line"></div>
+        <div class="signature-title">توقيع وختم الطبيب</div>
+        <div class="signature-doctor">د. ${data.doctorName || ''}</div>
+      </div>
     </div>
   </div>
 </body>

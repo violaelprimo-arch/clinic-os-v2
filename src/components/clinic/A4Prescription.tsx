@@ -119,8 +119,8 @@ export function A4Prescription({
         dir="rtl"
       >
         <div className="flex-1 flex flex-col">
-          {/* Header (Standard Mode & showHeaderFooter Only) */}
-          {templateMode === 'standard' && showHeaderFooter && (
+          {/* Header (Rendered when showHeaderFooter is true, unless background template replaces it) */}
+          {showHeaderFooter && (templateMode === 'standard' || !clinic?.prescriptionTemplateUrl || !printBackground) && (
             <div
               className="rx-header flex items-start justify-between pb-4 mb-4 border-b-2"
               style={{ borderColor: sColor }}
@@ -255,8 +255,8 @@ export function A4Prescription({
           )}
         </div>
 
-        {/* Footer (Standard Mode & showHeaderFooter Only) */}
-        {templateMode === 'standard' && showHeaderFooter && (
+        {/* Footer (Rendered when showHeaderFooter is true, unless background template replaces it) */}
+        {showHeaderFooter && (templateMode === 'standard' || !clinic?.prescriptionTemplateUrl || !printBackground) && (
           <div
             className={`rx-footer mt-5 pt-3 border-t-2 flex items-end justify-between ${
               isA5 ? 'text-[10px]' : 'text-xs'

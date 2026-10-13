@@ -51,7 +51,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const [templateMode, setTemplateMode] = useState<'standard' | 'custom'>('standard')
   const [pageSize, setPageSize] = useState<'a4' | 'a5'>('a4')
   const [showHeaderFooter, setShowHeaderFooter] = useState<boolean>(true)
-  const [printBackground, setPrintBackground] = useState<boolean>(false)
+  const [printBackground, setPrintBackground] = useState<boolean>(true)
   const [topOffset, setTopOffset] = useState<number>(25)
   const [primaryColor, setPrimaryColor] = useState('#0B1F33')
   const [secondaryColor, setSecondaryColor] = useState('#15B8A6')
@@ -76,9 +76,6 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           setClinicId(cDoc.id)
           if (data.primaryColor) setPrimaryColor(data.primaryColor)
           if (data.secondaryColor) setSecondaryColor(data.secondaryColor)
-          if (data.prescriptionTemplateUrl) {
-            setTemplateMode('custom')
-          }
           if (data.favoriteDrugs && data.favoriteDrugs.length > 0) {
             setFavoriteDrugs(data.favoriteDrugs)
           }
