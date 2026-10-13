@@ -29,18 +29,20 @@ export function BookingForm({
   services = [],
   defaultName = '',
   defaultPhone = '',
+  defaultAge = '',
   preselectedServiceId = null
 }: {
   clinic: any
   services?: any[]
   defaultName?: string
   defaultPhone?: string
+  defaultAge?: string
   preselectedServiceId?: string | null
 }) {
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [name, setName] = useState(defaultName)
   const [phone, setPhone] = useState(defaultPhone)
-  const [age, setAge] = useState('')
+  const [age, setAge] = useState(defaultAge)
   const [dob, setDob] = useState('')
 
   // Multi-Branch State

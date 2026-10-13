@@ -3,35 +3,41 @@
 import { use, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { db } from '@/lib/firebase'
-import { collection, query, where, getDocs, addDoc } from 'firebase/firestore'
+import { collection, query, where, getDocs, addDoc, updateDoc, doc } from 'firebase/firestore'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { User, Phone, Lock, HeartPulse } from 'lucide-react'
+import {
+  User, Phone, Lock, HeartPulse, ArrowRight,
+  ShieldCheck, Eye, EyeOff, Calendar, AlertCircle
+} from 'lucide-react'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 import Link from 'next/link'
-
-import { ArrowRight, ShieldCheck } from 'lucide-react'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 
 export default function PatientLogin({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
+  const router = useRouter()
+
   const [isRegistering, setIsRegistering] = useState(false)
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
-  
+  const [age, setAge] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+
   const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
 
     try {
-      // Get clinic ID
+      // 1. Get clinic ID
       const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
       const cSnap = await getDocs(cQ)
       if (cSnap.empty) {
@@ -40,13 +46,59 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
         return
       }
       const clinicId = cSnap.docs[0].id
+      const cleanPhone = phone.trim()
 
       if (isRegistering) {
+        // Validation for registration
+        if (!name.trim()) {
+          toast.error('يرجى إدخال الاسم بالكامل')
+          setIsLoading(false)
+          return
+        }
+
+        if (!cleanPhone) {
+          toast.error('يرجى إدخال رقم الهاتف المحمول')
+          setIsLoading(false)
+          return
+        }
+
+        // Mandatory age validation
+        if (!age.trim()) {
+          toast.error('السن إجباري لإنشاء الملف الطبي والروشتة')
+          setIsLoading(false)
+          return
+        }
+
+        const ageNum = parseInt(age.trim(), 10)
+        if (isNaN(ageNum) || ageNum <= 0 || ageNum > 125) {
+          toast.error('يرجى إدخال سن صحيح (بين 1 و 120 سنة)')
+          setIsLoading(false)
+          return
+        }
+
+        // Mandatory password validation
+        if (!password || password.length < 4) {
+          toast.error('يرجى إدخال كلمة مرور مكونة من 4 خانات على الأقل')
+          setIsLoading(false)
+          return
+        }
+
+        if (password !== confirmPassword) {
+          toast.error('كلمة المرور وتأكيد كلمة المرور غير متطابقتين')
+          setIsLoading(false)
+          return
+        }
+
         // Check if phone already registered in this clinic
-        const checkQ = query(collection(db, 'patient_accounts'), where('clinic_id', '==', clinicId), where('phone', '==', phone))
+        const checkQ = query(
+          collection(db, 'patient_accounts'),
+          where('clinic_id', '==', clinicId),
+          where('phone', '==', cleanPhone)
+        )
         const checkSnap = await getDocs(checkQ)
         if (!checkSnap.empty) {
-          toast.error('رقم الهاتف مسجل بالفعل. يرجى تسجيل الدخول.')
+          toast.error('رقم الهاتف مسجل بالفعل. يرجى تسجيل الدخول باستخدام كلمة المرور.')
+          setIsRegistering(false)
           setIsLoading(false)
           return
         }
@@ -54,30 +106,118 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
         // Create new account
         await addDoc(collection(db, 'patient_accounts'), {
           clinic_id: clinicId,
-          name,
-          phone,
+          name: name.trim(),
+          phone: cleanPhone,
+          age: age.trim(),
+          password: password,
           createdAt: new Date().toISOString()
         })
-        toast.success('تم إنشاء الحساب بنجاح!')
-        
+        toast.success('تم إنشاء حسابك الطبي بنجاح!')
+
         // Auto login
-        localStorage.setItem('patient_auth', JSON.stringify({ phone, name, clinic_id: clinicId }))
+        localStorage.setItem(
+          'patient_auth',
+          JSON.stringify({
+            phone: cleanPhone,
+            name: name.trim(),
+            age: age.trim(),
+            clinic_id: clinicId
+          })
+        )
         router.push(`/clinic/${slug}/patient`)
       } else {
-        // Login
-        const loginQ = query(collection(db, 'patient_accounts'), where('clinic_id', '==', clinicId), where('phone', '==', phone))
-        const loginSnap = await getDocs(loginQ)
-        if (loginSnap.empty) {
-          toast.error('رقم الهاتف أو كلمة المرور غير صحيحة')
-        } else {
-          const userData = loginSnap.docs[0].data()
-          toast.success('تم تسجيل الدخول بنجاح')
-          localStorage.setItem('patient_auth', JSON.stringify({ phone: userData.phone, name: userData.name, clinic_id: clinicId }))
-          router.push(`/clinic/${slug}/patient`)
+        // Login mode
+        if (!cleanPhone) {
+          toast.error('يرجى إدخال رقم الهاتف المحمول')
+          setIsLoading(false)
+          return
         }
+
+        if (!password) {
+          toast.error('يرجى إدخال كلمة المرور')
+          setIsLoading(false)
+          return
+        }
+
+        const loginQ = query(
+          collection(db, 'patient_accounts'),
+          where('clinic_id', '==', clinicId),
+          where('phone', '==', cleanPhone)
+        )
+        const loginSnap = await getDocs(loginQ)
+
+        if (loginSnap.empty) {
+          // Check if patient exists in appointments collection (first-time web portal login)
+          const apptQ = query(
+            collection(db, 'appointments'),
+            where('clinic_id', '==', clinicId),
+            where('phone', '==', cleanPhone)
+          )
+          const apptSnap = await getDocs(apptQ)
+
+          if (!apptSnap.empty) {
+            // Found existing appointments -> activate patient account with this password
+            const firstAppt = apptSnap.docs[0].data()
+            await addDoc(collection(db, 'patient_accounts'), {
+              clinic_id: clinicId,
+              name: firstAppt.patientName || 'المريض',
+              phone: cleanPhone,
+              age: firstAppt.age || '',
+              password: password,
+              createdAt: new Date().toISOString()
+            })
+
+            toast.success('تم تفعيل حسابك الطبي وتعيين كلمة المرور بنجاح')
+            localStorage.setItem(
+              'patient_auth',
+              JSON.stringify({
+                phone: cleanPhone,
+                name: firstAppt.patientName || 'المريض',
+                age: firstAppt.age || '',
+                clinic_id: clinicId
+              })
+            )
+            router.push(`/clinic/${slug}/patient`)
+            return
+          }
+
+          toast.error('رقم الهاتف غير مسجل في هذه العيادة. يرجى إنشاء حساب جديد.')
+          setIsLoading(false)
+          return
+        }
+
+        const userDoc = loginSnap.docs[0]
+        const userData = userDoc.data()
+
+        // Verify password
+        if (userData.password) {
+          if (userData.password !== password) {
+            toast.error('كلمة المرور غير صحيحة')
+            setIsLoading(false)
+            return
+          }
+        } else {
+          // Account registered previously without password, update with newly entered password
+          await updateDoc(doc(db, 'patient_accounts', userDoc.id), {
+            password: password
+          })
+        }
+
+        toast.success('تم تسجيل الدخول بنجاح')
+        localStorage.setItem(
+          'patient_auth',
+          JSON.stringify({
+            phone: userData.phone,
+            name: userData.name,
+            age: userData.age || '',
+            clinic_id: clinicId
+          })
+        )
+        router.push(`/clinic/${slug}/patient`)
       }
     } catch (err) {
-      toast.error('حدث خطأ في الاتصال')
+      console.error(err)
+      toast.error('حدث خطأ في الاتصال بالخادم')
     } finally {
       setIsLoading(false)
     }
@@ -110,7 +250,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
             <span>بوابة المريض المعتمدة</span>
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            تابع تاريخك الطبي وكشوفاتك وروشتاتك السابقة برقم هاتفك
+            تابع تاريخك الطبي وكشوفاتك وروشتاتك السابقة برقم هاتفك وكلمة المرور
           </p>
         </div>
 
@@ -141,23 +281,56 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {isRegistering && (
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-600">الاسم بالكامل</Label>
-                <div className="relative">
-                  <User className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <Input 
-                    required 
-                    value={name} 
-                    onChange={e => setName(e.target.value)} 
-                    placeholder="اكتب اسمك الثلاثي" 
-                    className="pr-10 h-11 text-xs bg-slate-50 rounded-xl border-[#E5EAF0] focus:bg-white"
-                  />
+              <>
+                {/* Full Name */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-600">
+                    الاسم بالكامل <span className="text-rose-500">*</span>
+                  </Label>
+                  <div className="relative">
+                    <User className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Input 
+                      required 
+                      value={name} 
+                      onChange={e => setName(e.target.value)} 
+                      placeholder="اكتب اسمك الثلاثي" 
+                      className="pr-10 h-11 text-xs bg-slate-50 rounded-xl border-[#E5EAF0] focus:bg-white"
+                    />
+                  </div>
                 </div>
-              </div>
+
+                {/* Age - MANDATORY */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold text-slate-600">
+                      السن (بالسنوات) <span className="text-rose-500">*</span>
+                    </Label>
+                    <span className="text-[10px] font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-100">
+                      إجباري للروشتة
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <Calendar className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Input 
+                      required 
+                      type="number"
+                      min={1}
+                      max={120}
+                      value={age} 
+                      onChange={e => setAge(e.target.value)} 
+                      placeholder="مثال: 28" 
+                      className="pr-10 h-11 text-xs bg-slate-50 rounded-xl border-[#E5EAF0] focus:bg-white text-right font-mono"
+                    />
+                  </div>
+                </div>
+              </>
             )}
 
+            {/* Phone Number */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-slate-600">رقم التليفون المحمول</Label>
+              <Label className="text-xs font-bold text-slate-600">
+                رقم التليفون المحمول <span className="text-rose-500">*</span>
+              </Label>
               <div className="relative">
                 <Phone className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <Input 
@@ -172,7 +345,59 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
               </div>
             </div>
 
-            
+            {/* Password */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-600">
+                كلمة المرور <span className="text-rose-500">*</span>
+              </Label>
+              <div className="relative">
+                <Lock className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Input 
+                  required 
+                  type={showPassword ? 'text' : 'password'}
+                  value={password} 
+                  onChange={e => setPassword(e.target.value)} 
+                  placeholder={isRegistering ? 'اكتب كلمة مرور قوية (4 خانات فأكثر)' : 'أدخل كلمة المرور'} 
+                  className="pr-10 pl-10 h-11 text-xs bg-slate-50 rounded-xl border-[#E5EAF0] focus:bg-white text-left font-mono"
+                  dir="ltr"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Confirm Password (Registration Only) */}
+            {isRegistering && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600">
+                  تأكيد كلمة المرور <span className="text-rose-500">*</span>
+                </Label>
+                <div className="relative">
+                  <Lock className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Input 
+                    required 
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={confirmPassword} 
+                    onChange={e => setConfirmPassword(e.target.value)} 
+                    placeholder="أعد كتابة كلمة المرور للتأكيد" 
+                    className="pr-10 pl-10 h-11 text-xs bg-slate-50 rounded-xl border-[#E5EAF0] focus:bg-white text-left font-mono"
+                    dir="ltr"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+            )}
 
             <Button
               type="submit"
@@ -193,7 +418,11 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
           <div className="pt-2 border-t border-[#E5EAF0] text-center">
             <button 
               type="button" 
-              onClick={() => setIsRegistering(!isRegistering)}
+              onClick={() => {
+                setIsRegistering(!isRegistering)
+                setPassword('')
+                setConfirmPassword('')
+              }}
               className="text-xs text-[#15B8A6] font-bold hover:underline cursor-pointer"
             >
               {isRegistering ? 'لديك ملف مسجل بالفعل؟ سجل دخولك الآن' : 'أول زيارة للعيادة؟ أنشئ حسابك الطبي في ثوانٍ'}
@@ -204,3 +433,4 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
     </div>
   )
 }
+

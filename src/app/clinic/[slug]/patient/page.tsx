@@ -29,7 +29,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
   const slug = resolvedParams.slug
   const router = useRouter()
 
-  const [patientData, setPatientData] = useState<{ phone: string; name: string; clinic_id: string } | null>(null)
+  const [patientData, setPatientData] = useState<{ phone: string; name: string; clinic_id: string; age?: string } | null>(null)
   const [appointments, setAppointments] = useState<any[]>([])
   const [prescriptions, setPrescriptions] = useState<any[]>([])
   const [clinic, setClinic] = useState<any>(null)
@@ -263,6 +263,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
                   services={services}
                   defaultPhone={patientData.phone}
                   defaultName={patientData.name}
+                  defaultAge={patientData.age || ''}
                 />
               </DialogContent>
             </Dialog>
