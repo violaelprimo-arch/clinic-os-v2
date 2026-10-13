@@ -205,6 +205,19 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
         paymentConfirmedAt: new Date().toISOString(),
         paymentConfirmedBy: 'staff'
       })
+      if (patient.phone) {
+        await createClinicNotification({
+          clinicId: clinic?.id || patient.clinic_id,
+          branchId: patient.branch_id,
+          recipientType: 'patient',
+          recipientTarget: patient.phone,
+          title: 'تم تأكيد استلام الدفع بنجاح',
+          body: `مرحباً ${patient.patientName}، تم تأكيد دفع رسوم كشف "${patient.serviceName}". نتمنى لك الشفاء العاجل.`,
+          type: 'payment_confirmed',
+          eventId: `pay_conf_${patient.id}`,
+          appointmentId: patient.id
+        })
+      }
       toast.success(`تم تأكيد استلام الدفع للمريض ${patient.patientName} بنجاح`)
     } catch (err) {
       toast.error('حدث خطأ أثناء تأكيد الدفع.')
@@ -312,6 +325,19 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
         paymentStatus: 'paid',
         startedAt: new Date().toISOString()
       })
+      if (patient.phone) {
+        await createClinicNotification({
+          clinicId: clinic?.id || patient.clinic_id,
+          branchId: patient.branch_id,
+          recipientType: 'patient',
+          recipientTarget: patient.phone,
+          title: 'دورك الآن للدخول!',
+          body: `مرحباً ${patient.patientName}، حان دورك الآن للدخول لغرفة الكشف (تذكرة #${patient.queue_number || ''}). يرجى الدخول مباشرة.`,
+          type: 'turn_ready',
+          eventId: `turn_ready_${patient.id}`,
+          appointmentId: patient.id
+        })
+      }
       toast.success(`بدأ كشف المريض: ${patient.patientName}`)
     } catch (err) {
       toast.error('حدث خطأ أثناء بدء الكشف.')

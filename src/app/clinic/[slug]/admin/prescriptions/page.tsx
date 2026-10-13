@@ -170,6 +170,23 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           } catch (e) {}
         }
 
+        if (patientPhone) {
+          try {
+            const { createClinicNotification } = await import('@/lib/notificationService')
+            await createClinicNotification({
+              clinicId,
+              branchId: selectedBranchId || clinic?.branchId || undefined,
+              recipientType: 'patient',
+              recipientTarget: patientPhone,
+              title: 'تم إصدار الروشتة الطبية 📄',
+              body: `تم اعتماد الروشتة الطبية الخاصة بك بواسطة د. ${clinic?.doctorName || 'العيادة'}. يمكنك استعراضها وتحميلها عبر بوابتك الإلكترونية.`,
+              type: 'prescription_ready',
+              eventId: `rx_ready_${docRef.id}`,
+              appointmentId: appointmentId || undefined
+            })
+          } catch (e) {}
+        }
+
         toast.success('تم حفظ واعتماد الروشتة في الملف الطبي بنجاح!')
       }
     } catch (error) {

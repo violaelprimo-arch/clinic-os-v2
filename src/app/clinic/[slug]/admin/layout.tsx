@@ -428,7 +428,14 @@ export default function AdminLayout({
             </Link>
 
             {/* Notification Center */}
-            <NotificationCenter recipientTarget={clinic?.id || slug} recipientLabel="إدارة العيادة" />
+            <NotificationCenter
+              clinic={clinic}
+              clinicId={clinic?.id}
+              slug={slug}
+              recipientTarget={clinic?.id || slug}
+              recipientLabel="إدارة العيادة"
+              recipientType="staff"
+            />
 
             {/* User Avatar & Info */}
             <div className="flex items-center gap-2.5 pl-1">

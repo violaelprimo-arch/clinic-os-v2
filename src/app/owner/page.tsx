@@ -21,6 +21,7 @@ import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { SINGLE_CLINIC_SLUG } from '@/lib/single-clinic'
 import { hashPassword } from '@/lib/auth-crypto'
 import { recordAuditLog } from '@/lib/audit-logger'
+import { createClinicNotification } from '@/lib/notificationService'
 import Link from 'next/link'
 
 export default function OwnerDashboard() {
@@ -272,6 +273,17 @@ export default function OwnerDashboard() {
 
       if (editingId) {
         await updateDoc(doc(db, 'clinics', editingId), clinicData)
+        if (ownerMessage && ownerMessage.trim()) {
+          await createClinicNotification({
+            clinicId: editingId,
+            recipientType: 'staff',
+            recipientTarget: editingId,
+            title: 'رسالة إدارية من مالك المنصة 📢',
+            body: ownerMessage.trim(),
+            type: 'system',
+            eventId: `owner_msg_${editingId}_${Date.now()}`
+          })
+        }
         recordAuditLog({
           action: 'SETTINGS_UPDATED',
           actorName: 'مالك المنصة Super Admin',
@@ -283,6 +295,17 @@ export default function OwnerDashboard() {
         setEditingId(null)
       } else {
         const newDoc = await addDoc(collection(db, 'clinics'), { ...clinicData, createdAt: new Date().toISOString() })
+        if (ownerMessage && ownerMessage.trim()) {
+          await createClinicNotification({
+            clinicId: newDoc.id,
+            recipientType: 'staff',
+            recipientTarget: newDoc.id,
+            title: 'رسالة إدارية من مالك المنصة 📢',
+            body: ownerMessage.trim(),
+            type: 'system',
+            eventId: `owner_msg_${newDoc.id}_${Date.now()}`
+          })
+        }
         recordAuditLog({
           action: 'SETTINGS_UPDATED',
           actorName: 'مالك المنصة Super Admin',

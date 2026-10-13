@@ -7,7 +7,7 @@ import {
   PatientQueueStatusResult,
   formatEstimatedTime
 } from '@/lib/queueCalculations'
-import { checkAndTriggerQueuePositionAlert } from '@/lib/notificationService'
+import { checkAndTriggerQueuePositionAlert, playNotificationSound } from '@/lib/notificationService'
 import { doc, onSnapshot, collection, query, where } from 'firebase/firestore'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -20,6 +20,7 @@ import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { formatCairo12Hour } from '@/lib/queue-calculator'
 import { InvoiceView } from '@/components/clinic/InvoiceView'
 import { TechnicalSupportButton } from '@/components/clinic/TechnicalSupportButton'
+import { NotificationCenter } from '@/components/clinic/NotificationCenter'
 
 export default function TrackPatientPage({ params }: { params: Promise<{ slug: string; appointmentId: string }> }) {
   const resolvedParams = use(params)
@@ -98,17 +99,20 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
     })
   }, [appointmentId, appointment, allQueueAppts, clinic])
 
-  // Fire sound/push notifications when patient's turn arrives or is next
+  // Fire sound/push notifications when patient's turn arrives or is approaching
   useEffect(() => {
-    if (appointment && liveQueue.status === 'waiting' && appointment.clinic_id) {
+    if (appointment && appointment.clinic_id) {
       checkAndTriggerQueuePositionAlert({
         appointment: { id: appointmentId, ...appointment },
         waitingAheadCount: liveQueue.aheadCount,
         clinicId: appointment.clinic_id,
         branchName: appointment.branchName
       })
+      if (liveQueue.isCurrentTurn || appointment.status === 'in_progress') {
+        playNotificationSound('turn_ready')
+      }
     }
-  }, [appointment, liveQueue.aheadCount, liveQueue.status, appointmentId])
+  }, [appointment, liveQueue.aheadCount, liveQueue.status, liveQueue.isCurrentTurn, appointmentId])
 
   if (loading) {
     return (
@@ -147,7 +151,16 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
       <div className="w-full max-w-md bg-white border border-[#E5EAF0] shadow-2xl rounded-3xl p-6 sm:p-8 space-y-6">
         
         {/* Brand Top Header */}
-        <div className="text-center space-y-2 border-b border-[#E5EAF0] pb-5">
+        <div className="relative text-center space-y-2 border-b border-[#E5EAF0] pb-5">
+          {appointment.phone && (
+            <div className="absolute left-0 top-0">
+              <NotificationCenter
+                recipientTarget={appointment.phone}
+                recipientLabel={appointment.patientName}
+                recipientType="patient"
+              />
+            </div>
+          )}
           <ClinicLogo size="md" variant="light" />
           <div className="pt-2">
             <h1 className="text-lg font-black text-[#182230]">

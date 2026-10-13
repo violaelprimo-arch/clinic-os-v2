@@ -21,6 +21,7 @@ import { A4Prescription } from '@/components/clinic/A4Prescription'
 import { downloadElementAsPdf, renderElementToPdfBlob } from '@/lib/pdfGenerator'
 import { sharePdfDocument } from '@/lib/whatsappShare'
 import { TechnicalSupportButton } from '@/components/clinic/TechnicalSupportButton'
+import { NotificationCenter } from '@/components/clinic/NotificationCenter'
 import { formatCairo12Hour } from '@/lib/queue-calculator'
 import { toast } from 'sonner'
 
@@ -202,6 +203,14 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
 
           <div className="flex items-center gap-2">
             <TechnicalSupportButton variant="compact" />
+
+            {patientData?.phone && (
+              <NotificationCenter
+                recipientTarget={patientData.phone}
+                recipientLabel={patientData.name || 'المريض'}
+                recipientType="patient"
+              />
+            )}
 
             <Link href={`/clinic/${slug}`}>
               <Button variant="ghost" size="sm" className="text-xs font-bold text-slate-600 hover:text-[#15B8A6]">
