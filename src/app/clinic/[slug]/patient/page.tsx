@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
   LogOut, FileText, Clock, Activity, Calendar, ShieldCheck, Plus,
-  Printer, User, ArrowRight, Receipt, Download, X, Eye
+  Printer, User, ArrowRight, Receipt, Download, X, Eye, MessageCircle
 } from 'lucide-react'
 import Link from 'next/link'
 import { PatientLiveTurn } from '@/components/clinic/PatientLiveTurn'
@@ -18,7 +18,8 @@ import { motion } from 'framer-motion'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { InvoiceView, InvoiceData } from '@/components/clinic/InvoiceView'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
-import { downloadElementAsPdf } from '@/lib/pdfGenerator'
+import { downloadElementAsPdf, renderElementToPdfBlob } from '@/lib/pdfGenerator'
+import { sharePdfDocument } from '@/lib/whatsappShare'
 import { TechnicalSupportButton } from '@/components/clinic/TechnicalSupportButton'
 import { formatCairo12Hour } from '@/lib/queue-calculator'
 import { toast } from 'sonner'
@@ -135,6 +136,38 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
       toast.error('تعذر تحميل ملف الروشتة')
     } finally {
       setIsDownloadingRx(false)
+    }
+  }
+
+  const [isSharingRx, setIsSharingRx] = useState(false)
+  const handleShareWhatsAppRx = async () => {
+    if (!rxModalSheetRef.current || !selectedPrescription) return
+    setIsSharingRx(true)
+    try {
+      toast.info('جاري إعداد ملف الروشتة PDF...')
+      const { blob } = await renderElementToPdfBlob(rxModalSheetRef.current, { format: 'a4', orientation: 'portrait' })
+
+      const pName = selectedPrescription.patientName || patientData?.name || 'المريض'
+      const rxDate = selectedPrescription.date || new Date().toISOString().split('T')[0]
+      const fileName = `روشتة_${pName}_${rxDate}.pdf`
+      const apptId = selectedPrescription.appointment_id || selectedPrescription.id
+      const directRxUrl = apptId
+        ? `${window.location.origin}/clinic/${slug}/prescription/${apptId}`
+        : `${window.location.origin}/clinic/${slug}/patient`
+
+      const message = `الروشتة الطبية الإلكترونية الرسمية 📄\nعيادة: ${clinic?.clinicName || 'العيادة الطبية'}\nالطبيب: د. ${clinic?.doctorName || ''}\nالمريض: ${pName}\nالتاريخ: ${rxDate}\n\n🔗 يمكنك استعراض وتحميل الروشتة الرسمية بتصميم العيادة عبر الرابط المباشر:\n${directRxUrl}\n\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`
+
+      await sharePdfDocument({
+        pdfBlob: blob,
+        fileName,
+        recipientPhone: patientData?.phone || '',
+        messageText: message,
+        documentTitle: 'الروشتة الطبية الإلكترونية'
+      })
+    } catch (e) {
+      toast.error('تعذر مشاركة الروشتة')
+    } finally {
+      setIsSharingRx(false)
     }
   }
 
@@ -437,6 +470,16 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
               </div>
 
               <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={handleShareWhatsAppRx}
+                  disabled={isSharingRx}
+                  className="h-9 px-3.5 text-xs font-bold bg-[#25D366] hover:bg-[#128C7E] text-white rounded-xl shadow-xs flex items-center gap-1.5"
+                >
+                  <MessageCircle className="w-4 h-4 ml-1" />
+                  {isSharingRx ? 'جاري المشاركة...' : 'مشاركة واتساب (PDF)'}
+                </Button>
+
                 <Button
                   size="sm"
                   onClick={handleDownloadRxPdf}

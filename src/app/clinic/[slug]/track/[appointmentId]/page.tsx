@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import {
   Activity, Clock, CheckCircle2, Zap, MapPin, Phone,
   Users, Calendar, Sparkles, Navigation, MessageCircle, AlertCircle, Receipt,
-  UserCheck, ShieldCheck
+  UserCheck, ShieldCheck, FileText
 } from 'lucide-react'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { formatCairo12Hour } from '@/lib/queue-calculator'
@@ -290,6 +290,17 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
 
         {/* Action CTAs */}
         <div className="space-y-2.5 pt-2 border-t border-[#E5EAF0]">
+          {(isCompleted || (appointment.drugs && appointment.drugs.length > 0)) && (
+            <a href={`/clinic/${slug}/prescription/${appointmentId}`} className="block w-full">
+              <Button
+                className="w-full h-11 text-xs font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-xs flex items-center justify-center gap-2"
+              >
+                <FileText className="w-4 h-4 ml-1.5" />
+                عرض وتحميل الروشتة الطبية الرسمية PDF
+              </Button>
+            </a>
+          )}
+
           <Button
             variant="outline"
             onClick={() => setShowInvoiceModal(true)}

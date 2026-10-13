@@ -76,6 +76,7 @@ export interface PrescriptionPrintData {
   doctorName: string
   specialty?: string
   degreeTitle?: string
+  certificationTitle?: string
   branchName?: string
   clinicAddress?: string
   clinicPhone?: string
@@ -94,6 +95,8 @@ export interface PrescriptionPrintData {
   instructions?: string
   primaryColor?: string
   secondaryColor?: string
+  prescriptionTemplateUrl?: string
+  templateMode?: 'standard' | 'custom'
 }
 
 export interface FinancialReportPrintData {
@@ -1221,7 +1224,7 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
     <div>
       <div class="doctor-name">د. ${data.doctorName}</div>
       <div class="doctor-spec">${data.specialty || 'استشاري العيادة الطبية'}</div>
-      <div class="doctor-deg">${data.degreeTitle || 'عضو الجمعية الطبية المصرية'}</div>
+      <div class="doctor-deg">${data.degreeTitle || data.certificationTitle || 'عضو الجمعية الطبية المصرية'}</div>
     </div>
     <div class="clinic-logo-box">
       ${data.logoUrl ? `<img src="${data.logoUrl}" class="clinic-logo" alt="Logo" />` : ''}

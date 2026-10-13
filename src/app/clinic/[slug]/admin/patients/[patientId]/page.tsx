@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useEffect, useState } from 'react'
+import { use, useEffect, useState, useRef } from 'react'
 import { db } from '@/lib/firebase'
 import { collection, query, where, getDocs, updateDoc, doc, onSnapshot } from 'firebase/firestore'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -8,34 +8,126 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Clock, Phone, ArrowRight, User, Calendar, Pill, DollarSign, Printer, Activity, ChevronDown, ChevronUp, Stethoscope, CheckCircle, Save, MessageCircle, FileText } from 'lucide-react'
+import { Clock, Phone, ArrowRight, User, Calendar, Pill, DollarSign, Printer, Activity, ChevronDown, ChevronUp, Stethoscope, CheckCircle, Save, MessageCircle, FileText, Download } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
+import { downloadElementAsPdf, renderElementToPdfBlob } from '@/lib/pdfGenerator'
+import { printHtmlViaIframe, generateA4PrescriptionHtml } from '@/lib/printService'
+import { sharePdfDocument } from '@/lib/whatsappShare'
 
 export default function PatientProfilePage({
  params }: { params: Promise<{ slug: string, patientId: string }> }) {
   const resolvedParams = use(params)
   const { slug, patientId } = resolvedParams
 
-  const handlePrint = () => {
-    window.print()
+  const [sharingApptId, setSharingApptId] = useState<string | null>(null)
+  const [downloadingApptId, setDownloadingApptId] = useState<string | null>(null)
+
+  const handlePrintRx = (appt: any) => {
+    const pName = patientData?.name || appt?.patientName || 'المريض'
+    const pAge = patientData?.age || appt?.age || patientData?.dob || appt?.dob || ''
+    const html = generateA4PrescriptionHtml({
+      clinicName: clinic?.clinicName || 'العيادة الطبية',
+      doctorName: clinic?.doctorName,
+      specialty: clinic?.specialty,
+      certificationTitle: clinic?.certificationTitle,
+      clinicPhone: clinic?.clinicPhone,
+      clinicAddress: clinic?.clinicAddress,
+      primaryColor: clinic?.primaryColor || '#15B8A6',
+      logoUrl: clinic?.logoUrl,
+      patientName: pName,
+      patientAge: pAge,
+      date: appt.date,
+      diagnosis: appt.diagnosis,
+      drugs: appt.drugs || [],
+      prescriptionTemplateUrl: clinic?.prescriptionTemplateUrl,
+      templateMode: clinic?.prescriptionTemplateUrl ? 'custom' : 'standard'
+    })
+    printHtmlViaIframe(html, 'a4')
   }
 
-  const sendWhatsAppRx = (appt: any) => {
+  const handleDownloadRxPdf = async (appt: any) => {
+    const rxElement = document.getElementById(`rx-sheet-${appt.id}`)
+    if (!rxElement) return
+    setDownloadingApptId(appt.id)
+    try {
+      const pName = patientData?.name || appt?.patientName || 'المريض'
+      await downloadElementAsPdf(
+        rxElement,
+        `روشتة_${pName}_${appt.date}.pdf`,
+        { format: 'a4', orientation: 'portrait' }
+      )
+      toast.success('تم تحميل ملف الروشتة PDF بنجاح')
+    } catch (e) {
+      toast.error('حدث خطأ أثناء تحميل الروشتة')
+    } finally {
+      setDownloadingApptId(null)
+    }
+  }
+
+  const sendWhatsAppRx = async (appt: any) => {
     if (!phone) return toast.error('يرجى إدخال رقم هاتف المريض')
-    let formattedPhone = phone.replace(/[^0-9]/g, '')
-    if (formattedPhone.startsWith('0')) formattedPhone = '2' + formattedPhone
+    setSharingApptId(appt.id)
 
-    const drugsList = appt.drugs
-      .filter((d: any) => d.name)
-      .map((d: any, i: number) => `${i + 1}. ${d.name} (${d.dosage} - ${d.duration})`)
-      .join('\n')
+    try {
+      toast.info('جاري إعداد ملف الروشتة PDF ومشاركته...')
+      const rxElement = document.getElementById(`rx-sheet-${appt.id}`)
 
-    const message = encodeURIComponent(
-      `الروشتة الطبية الإلكترونية 📋\nالعيادة: ${clinic?.clinicName || 'العيادة'}\nالمريض: ${patientData?.name}\nالتاريخ: ${appt.date}\n\nالعلاج المطلوب:\n${drugsList}\n\nنتمنى لك الشفاء العاجل!`
-    )
-    window.open(`https://wa.me/${formattedPhone}?text=${message}`, '_blank')
+      let blob: Blob
+      if (rxElement) {
+        const res = await renderElementToPdfBlob(rxElement, { format: 'a4', orientation: 'portrait' })
+        blob = res.blob
+      } else {
+        const pName = patientData?.name || appt?.patientName || 'المريض'
+        const pAge = patientData?.age || appt?.age || patientData?.dob || appt?.dob || ''
+        const html = generateA4PrescriptionHtml({
+          clinicName: clinic?.clinicName || 'العيادة الطبية',
+          doctorName: clinic?.doctorName,
+          specialty: clinic?.specialty,
+          certificationTitle: clinic?.certificationTitle,
+          clinicPhone: clinic?.clinicPhone,
+          clinicAddress: clinic?.clinicAddress,
+          primaryColor: clinic?.primaryColor || '#15B8A6',
+          logoUrl: clinic?.logoUrl,
+          patientName: pName,
+          patientAge: pAge,
+          date: appt.date,
+          diagnosis: appt.diagnosis,
+          drugs: appt.drugs || [],
+          prescriptionTemplateUrl: clinic?.prescriptionTemplateUrl,
+          templateMode: clinic?.prescriptionTemplateUrl ? 'custom' : 'standard'
+        })
+        const tempDiv = document.createElement('div')
+        tempDiv.style.position = 'fixed'
+        tempDiv.style.left = '-9999px'
+        tempDiv.style.width = '210mm'
+        tempDiv.innerHTML = html
+        document.body.appendChild(tempDiv)
+        const res = await renderElementToPdfBlob(tempDiv, { format: 'a4', orientation: 'portrait' })
+        document.body.removeChild(tempDiv)
+        blob = res.blob
+      }
+
+      const pName = patientData?.name || appt?.patientName || 'المريض'
+      const fileName = `روشتة_${pName}_${appt.date}.pdf`
+      const directRxUrl = `${window.location.origin}/clinic/${slug}/prescription/${appt.id}`
+
+      const message = `الروشتة الطبية الإلكترونية الرسمية 📄\nعيادة: ${clinic?.clinicName || 'العيادة الطبية'}\nالطبيب: د. ${clinic?.doctorName || ''}\nالمريض: ${pName}\nالتاريخ: ${appt.date}\n\n🔗 يمكنك استعراض وتحميل الروشتة الرسمية بتصميم العيادة عبر الرابط المباشر:\n${directRxUrl}\n\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`
+
+      await sharePdfDocument({
+        pdfBlob: blob,
+        fileName,
+        recipientPhone: phone,
+        messageText: message,
+        documentTitle: 'الروشتة الطبية الإلكترونية'
+      })
+    } catch (err) {
+      console.error(err)
+      toast.error('تعذر مشاركة الروشتة عبر واتساب')
+    } finally {
+      setSharingApptId(null)
+    }
   }
 
   const phone = decodeURIComponent(patientId)
@@ -465,22 +557,38 @@ export default function PatientProfilePage({
                               <DialogHeader className="print:hidden">
                                 <DialogTitle>الروشتة الطبية - {appt.date}</DialogTitle>
                               </DialogHeader>
-                              <div className="flex flex-wrap gap-2 mb-4 print:hidden">
-                                <Button onClick={handlePrint} className="bg-[#15B8A6] hover:bg-[#0D9488] text-white">
-                                  <Printer className="w-4 h-4 ml-2" />
-                                  طباعة الروشتة
+                              <div className="flex flex-wrap items-center gap-2 mb-4 print:hidden">
+                                <Button
+                                  onClick={() => handlePrintRx(appt)}
+                                  className="h-9 px-3.5 text-xs font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-xs"
+                                >
+                                  <Printer className="w-4 h-4 ml-1.5" />
+                                  طباعة الروشتة A4
                                 </Button>
-                                <Button onClick={() => sendWhatsAppRx(appt)} className="bg-[#25D366] hover:bg-[#128C7E] text-white">
-                                  <MessageCircle className="w-4 h-4 ml-2" />
-                                  إرسال واتساب
+                                <Button
+                                  onClick={() => handleDownloadRxPdf(appt)}
+                                  disabled={downloadingApptId === appt.id}
+                                  variant="outline"
+                                  className="h-9 px-3.5 text-xs font-bold border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl"
+                                >
+                                  <Download className="w-4 h-4 ml-1.5" />
+                                  {downloadingApptId === appt.id ? 'جاري التحميل...' : 'تحميل الروشتة PDF'}
+                                </Button>
+                                <Button
+                                  onClick={() => sendWhatsAppRx(appt)}
+                                  disabled={sharingApptId === appt.id}
+                                  className="h-9 px-3.5 text-xs font-bold bg-[#25D366] hover:bg-[#128C7E] text-white rounded-xl shadow-xs"
+                                >
+                                  <MessageCircle className="w-4 h-4 ml-1.5" />
+                                  {sharingApptId === appt.id ? 'جاري التجهيز...' : 'إرسال واتساب (PDF بالتصميم)'}
                                 </Button>
                                 <Link href={`/clinic/${slug}/admin/prescriptions?appointmentId=${appt.id}&phone=${phone}&patientName=${patientData.name}&age=${patientData.age || patientData.dob}`}>
-                                  <Button variant="outline">
+                                  <Button variant="outline" className="h-9 px-3.5 text-xs font-bold rounded-xl">
                                     تعديل الروشتة
                                   </Button>
                                 </Link>
                               </div>
-                              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden print:overflow-visible print:border-0 print:m-0 print:p-0 print:w-[100vw] print:h-[100vh]">
+                              <div id={`rx-sheet-${appt.id}`} className="bg-white rounded-xl border border-slate-200 overflow-hidden print:overflow-visible print:border-0 print:m-0 print:p-0 print:w-[100vw] print:h-[100vh]">
                                 <A4Prescription 
                                   clinic={clinic}
                                   patientName={patientData?.name || appt?.patientName || 'المريض'}

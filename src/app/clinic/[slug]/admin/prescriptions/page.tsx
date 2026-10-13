@@ -190,7 +190,12 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       const { blob } = await renderElementToPdfBlob(sheetRef.current, { format: 'a4', orientation: 'portrait' })
 
       const fileName = `روشتة_${patientName || 'المريض'}_${dateStr}.pdf`
-      const message = `مرحباً ${patientName}،\nمرفق الروشتة الطبية المعتمدة من عيادة ${clinic?.clinicName || 'العيادة'}.\nتاريخ الزيارة: ${dateStr}\nنتمنى لكم دوام الصحة والعافية.`
+      const apptId = searchParams?.get('appointmentId') || appointmentId
+      const directRxUrl = apptId
+        ? `${window.location.origin}/clinic/${slug}/prescription/${apptId}`
+        : `${window.location.origin}/clinic/${slug}/patient`
+
+      const message = `الروشتة الطبية الإلكترونية الرسمية 📄\nعيادة: ${clinic?.clinicName || 'العيادة الطبية'}\nالطبيب: د. ${clinic?.doctorName || ''}\nالمريض: ${patientName || 'المريض'}\nالتاريخ: ${dateStr}\n\n🔗 يمكنك استعراض وتحميل الروشتة الرسمية بتصميم العيادة عبر الرابط المباشر:\n${directRxUrl}\n\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`
 
       await sharePdfDocument({
         pdfBlob: blob,
