@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -23,7 +24,14 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'queue' | 'services' | 'payment' | 'staff' | 'print' | 'ai' | 'security'>('profile')
+  const [activeTab, setActiveTab] = useState<'profile' | 'branding' | 'queue' | 'services' | 'payment' | 'staff' | 'print' | 'ai' | 'security'>('profile')
+  const [logoUrl, setLogoUrl] = useState('')
+  const [thermalMonoLogoUrl, setThermalMonoLogoUrl] = useState('')
+  const [slogan, setSlogan] = useState('')
+  const [receiptHeaderNote, setReceiptHeaderNote] = useState('')
+  const [receiptFooterNote, setReceiptFooterNote] = useState('يرجى الاحتفاظ بالإيصال للاستشارة - نتمنى لكم الشفاء العاجل')
+  const [reportHeaderNote, setReportHeaderNote] = useState('')
+  const [secondaryColor, setSecondaryColor] = useState('#2F80ED')
   const [supportNumbers, setSupportNumbers] = useState<any[]>([]);
   const [newDoctorEmail, setNewDoctorEmail] = useState('');
   const [newDoctorPassword, setNewDoctorPassword] = useState('');
@@ -132,6 +140,13 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           setHeroSubtitle(data.heroSubtitle || '')
           setCertificationTitle(data.certificationTitle || '')
           setCertificationEntity(data.certificationEntity || '')
+          setLogoUrl(data.logoUrl || '')
+          setThermalMonoLogoUrl(data.thermalMonoLogoUrl || '')
+          setSlogan(data.slogan || '')
+          setReceiptHeaderNote(data.receiptHeaderNote || '')
+          if (data.receiptFooterNote) setReceiptFooterNote(data.receiptFooterNote)
+          setReportHeaderNote(data.reportHeaderNote || '')
+          setSecondaryColor(data.secondaryColor || '#2F80ED')
           setPrimaryColor(data.primaryColor || '#15B8A6')
           setAssistantPermissions(data.assistantPermissions || ['appointments'])
           setAverageVisitTime(data.averageVisitTime || 15)
@@ -198,6 +213,13 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         heroSubtitle: heroSubtitle || '',
         certificationTitle: certificationTitle || '',
         certificationEntity: certificationEntity || '',
+        logoUrl: logoUrl || '',
+        thermalMonoLogoUrl: thermalMonoLogoUrl || '',
+        slogan: slogan || '',
+        receiptHeaderNote: receiptHeaderNote || '',
+        receiptFooterNote: receiptFooterNote || '',
+        reportHeaderNote: reportHeaderNote || '',
+        secondaryColor: secondaryColor || '#2F80ED',
         services: services || [],
         primaryColor: primaryColor || '#15B8A6',
         assistantPermissions: assistantPermissions || [],
@@ -308,6 +330,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const baseTabs = [
     { id: 'security', label: 'الأمان والحساب', icon: Lock },
     { id: 'profile', label: 'الهوية والبيانات', icon: Building2 },
+    { id: 'branding', label: 'هوية العيادة والطباعة', icon: Palette },
     { id: 'queue', label: 'المواعيد والدور', icon: Clock },
     { id: 'services', label: 'الخدمات والأسعار', icon: ShieldCheck },
     { id: 'payment', label: 'طرق الدفع', icon: Wallet },
@@ -417,6 +440,223 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           </div>
         </div>
       )}
+
+      
+      {/* TAB BRANDING: Clinic Branding & Thermal Printing */}
+      {activeTab === 'branding' && (
+        <div className="grid lg:grid-cols-12 gap-6 items-start">
+          {/* Settings Form (7 cols) */}
+          <div className="lg:col-span-7 medical-card p-6 space-y-6">
+            <div className="pb-3 border-b border-[#E5EAF0]">
+              <h3 className="font-bold text-base text-[#182230] flex items-center gap-2">
+                <Palette className="w-5 h-5 text-[#15B8A6]" />
+                إعدادات هوية العيادة والطباعة الحرارية
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">
+                تخصيص الشعار الملون، شعار الفواتير الحرارية 80mm أحادي اللون، ألوان الهوية، ونصوص التذييل
+              </p>
+            </div>
+
+            {/* Logos Section */}
+            <div className="space-y-4">
+              <h4 className="font-bold text-xs text-slate-700 pb-1 border-b border-slate-100">شعارات العيادة</h4>
+
+              {/* Standard Colored Logo */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600">رابط الشعار الملون (Standard Color Logo)</Label>
+                <Input
+                  value={logoUrl}
+                  onChange={e => setLogoUrl(e.target.value)}
+                  placeholder="https://example.com/logo.png"
+                  className="h-10 text-xs rounded-xl text-left font-mono"
+                  dir="ltr"
+                />
+                <p className="text-[11px] text-slate-400">يظهر في صفحة الحجز، التقارير المالية A4، ولوحة التحكم.</p>
+              </div>
+
+              {/* Monochrome Thermal Receipt Logo */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600">شعار الفاتورة الحرارية 80mm (أحادي اللون 1-Bit Mono)</Label>
+                <Input
+                  value={thermalMonoLogoUrl}
+                  onChange={e => setThermalMonoLogoUrl(e.target.value)}
+                  placeholder="https://example.com/thermal-logo-mono.png"
+                  className="h-10 text-xs rounded-xl text-left font-mono"
+                  dir="ltr"
+                />
+                <p className="text-[11px] text-slate-400">
+                  لوجو أسود وأبيض عالي التباين بدون تدرجات رمادية للحصول على أعلى دقة طباعة على ورق 80mm الحراري.
+                </p>
+              </div>
+            </div>
+
+            {/* Colors Section */}
+            <div className="space-y-4 pt-2">
+              <h4 className="font-bold text-xs text-slate-700 pb-1 border-b border-slate-100">ألوان الهوية البصرية</h4>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-600">اللون الأساسي (Primary)</Label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={primaryColor}
+                      onChange={e => setPrimaryColor(e.target.value)}
+                      className="w-10 h-10 rounded-xl cursor-pointer border border-slate-200 p-0.5 bg-white shrink-0"
+                    />
+                    <Input
+                      value={primaryColor}
+                      onChange={e => setPrimaryColor(e.target.value)}
+                      className="h-10 text-xs rounded-xl font-mono text-left"
+                      dir="ltr"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-600">اللون الثانوي (Secondary)</Label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={secondaryColor}
+                      onChange={e => setSecondaryColor(e.target.value)}
+                      className="w-10 h-10 rounded-xl cursor-pointer border border-slate-200 p-0.5 bg-white shrink-0"
+                    />
+                    <Input
+                      value={secondaryColor}
+                      onChange={e => setSecondaryColor(e.target.value)}
+                      className="h-10 text-xs rounded-xl font-mono text-left"
+                      dir="ltr"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Slogan & Notes Section */}
+            <div className="space-y-4 pt-2">
+              <h4 className="font-bold text-xs text-slate-700 pb-1 border-b border-slate-100">النصوص والشعارات</h4>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600">شعار العيادة اللفظي (Slogan / Tagline)</Label>
+                <Input
+                  value={slogan}
+                  onChange={e => setSlogan(e.target.value)}
+                  placeholder="رعايتكم أولويتنا وراحتكم هدفنا"
+                  className="h-10 text-xs rounded-xl"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600">نص رأس الفاتورة الحرارية (Receipt Subtitle)</Label>
+                <Input
+                  value={receiptHeaderNote}
+                  onChange={e => setReceiptHeaderNote(e.target.value)}
+                  placeholder="مثال: عيادة تخصصية - استشاري جراحة"
+                  className="h-10 text-xs rounded-xl"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600">تذييل الفاتورة الحرارية (Footer Note)</Label>
+                <Textarea
+                  value={receiptFooterNote}
+                  onChange={e => setReceiptFooterNote(e.target.value)}
+                  rows={2}
+                  placeholder="يرجى الاحتفاظ بالإيصال للاستشارة - نتمنى لكم الشفاء العاجل"
+                  className="text-xs rounded-xl"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Live Preview Side (5 cols) */}
+          <div className="lg:col-span-5 space-y-6">
+            
+            {/* Preview 1: Thermal Receipt 80mm Simulation */}
+            <div className="medical-card p-5 space-y-3 bg-slate-50 border-2 border-slate-300">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                <h4 className="font-bold text-xs text-[#182230] flex items-center gap-1.5">
+                  <Printer className="w-4 h-4 text-slate-600" />
+                  معاينة الفاتورة الحرارية (80mm Thermal Preview)
+                </h4>
+                <Badge variant="outline" className="text-[10px] font-mono">80mm ESC/POS</Badge>
+              </div>
+
+              {/* Thermal Paper Simulation */}
+              <div className="bg-white p-5 rounded-xl shadow-xs border border-slate-200 text-center font-mono text-xs space-y-3 max-w-[280px] mx-auto text-slate-900">
+                {thermalMonoLogoUrl || logoUrl ? (
+                  <img
+                    src={thermalMonoLogoUrl || logoUrl}
+                    alt="Thermal Logo"
+                    className="w-14 h-14 object-contain mx-auto filter grayscale contrast-200"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-full border-2 border-dashed border-slate-400 flex items-center justify-center mx-auto text-[10px] font-bold">
+                    LOGO
+                  </div>
+                )}
+                <div>
+                  <h5 className="font-black text-sm">{clinicName || 'عيادة الأمل'}</h5>
+                  <p className="text-[10px] text-slate-600">{receiptHeaderNote || doctorTitle + ' ' + (doctorName || 'الطبيب')}</p>
+                </div>
+                <div className="border-t border-dashed border-slate-400 my-2"></div>
+                <div className="text-right text-[11px] space-y-1">
+                  <div className="flex justify-between">
+                    <span>رقم الإيصال:</span>
+                    <span className="font-bold">#INV-2026-0042</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>التاريخ:</span>
+                    <span>{new Date().toISOString().split('T')[0]}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>الخدمة:</span>
+                    <span className="font-bold">كشف عادي</span>
+                  </div>
+                  <div className="flex justify-between font-black text-xs pt-1 border-t border-slate-200">
+                    <span>المبلغ المطلوب:</span>
+                    <span>300 ج.م</span>
+                  </div>
+                </div>
+                <div className="border-t border-dashed border-slate-400 my-2"></div>
+                <p className="text-[10px] text-slate-500 leading-tight">
+                  {receiptFooterNote || 'يرجى الاحتفاظ بالإيصال للاستشارة'}
+                </p>
+              </div>
+            </div>
+
+            {/* Preview 2: Colored Digital Brand Card */}
+            <div className="medical-card p-5 space-y-3">
+              <h4 className="font-bold text-xs text-[#182230]">معاينة الهوية الرقمية الملونة</h4>
+              <div
+                style={{ backgroundColor: primaryColor }}
+                className="p-5 rounded-2xl text-white text-center space-y-2 shadow-md"
+              >
+                {logoUrl && (
+                  <img
+                    src={logoUrl}
+                    alt="Logo Preview"
+                    className="w-12 h-12 rounded-xl object-cover bg-white p-1 mx-auto shadow-xs"
+                  />
+                )}
+                <h4 className="font-black text-base">{clinicName || 'عيادة الأمل التخصصية'}</h4>
+                <p className="text-xs opacity-90">{slogan || 'رعايتكم أولويتنا وراحتكم هدفنا'}</p>
+                <div className="pt-2 flex justify-center gap-2">
+                  <span
+                    style={{ backgroundColor: secondaryColor }}
+                    className="text-[10px] font-bold px-3 py-1 rounded-full text-white"
+                  >
+                    {doctorTitle} {doctorName || 'الطبيب'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
 
       {/* TAB 1: Profile & Visual Identity */}
       {activeTab === 'profile' && (

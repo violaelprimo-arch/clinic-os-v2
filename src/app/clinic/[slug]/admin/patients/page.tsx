@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import {
   Search, UserPlus, Phone, Calendar, Clock, MessageCircle,
   FileText, ChevronLeft, ChevronRight, Filter, User, Plus,
-  FileSignature, ArrowUpDown, MoreVertical, X, Trash2
+  FileSignature, ArrowUpDown, MoreVertical, X, Trash2, FileSpreadsheet
 } from 'lucide-react'
 import Link from 'next/link'
 import { db } from '@/lib/firebase'
@@ -17,6 +17,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
+import { exportPatientsToExcel } from '@/lib/excelExport'
 
 export default function PatientsPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -231,6 +232,19 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={async () => {
+              if (patients.length === 0) return toast.info('لا يوجد مرضى لتصديرهم')
+              await exportPatientsToExcel(patients, 'العيادة')
+              toast.success('تم تصدير سجل المرضى إلى إكسيل بنجاح')
+            }}
+            className="h-10 px-4 border-teal-200 text-teal-700 hover:bg-teal-50 font-bold rounded-xl text-xs inline-flex items-center"
+          >
+            <FileSpreadsheet className="w-4 h-4 ml-1.5 text-emerald-600" />
+            تصدير المرضى (Excel)
+          </Button>
+
           <Button 
             variant="destructive"
             onClick={handleDeleteAllPatients}

@@ -9,13 +9,19 @@ import {
   Calendar, Users, Clock, CheckCircle2, DollarSign,
   Play, MessageCircle, ArrowLeft, ArrowRight, UserCheck,
   UserX, SkipForward, FileSignature, Phone, Filter,
-  Sparkles, AlertCircle, ChevronDown, RefreshCw, ArrowUpDown, X
+  Sparkles, AlertCircle, ChevronDown, RefreshCw, ArrowUpDown, X,
+  Printer, Download, Tag, Check, Eye, Building2, Percent, FileSpreadsheet
 } from 'lucide-react'
 import Link from 'next/link'
 import { db } from '@/lib/firebase'
-import { collection, query, where, onSnapshot, updateDoc, doc, Timestamp } from 'firebase/firestore'
+import { collection, query, where, onSnapshot, updateDoc, doc } from 'firebase/firestore'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { sortQueue } from '@/lib/queueCalculations'
+import { ThermalReceiptModal } from '@/components/clinic/ThermalReceiptModal'
+import { ThermalReceiptData } from '@/lib/printService'
+import { openManualWhatsAppChat, formatQueueAlertWhatsAppMessage, formatPaymentConfirmationWhatsAppMessage } from '@/lib/whatsappShare'
+import { exportAppointmentsToExcel } from '@/lib/excelExport'
+import { createClinicNotification } from '@/lib/notificationService'
 
 export function AdminDashboard({ clinic }: { clinic: any }) {
   const [rawAppointments, setRawAppointments] = useState<any[]>([])
@@ -23,11 +29,45 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
   const [isProcessing, setIsProcessing] = useState(false)
   const [serviceFilter, setServiceFilter] = useState('ALL')
   const [searchQuery, setSearchQuery] = useState('')
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('all')
+
+  // Edit Turn State
   const [editingPatient, setEditingPatient] = useState<any | null>(null)
   const [editQueueNumber, setEditQueueNumber] = useState<string>('')
   const [editServiceName, setEditServiceName] = useState<string>('')
   const [isUpdatingQueue, setIsUpdatingQueue] = useState(false)
 
+  // Discount Modal State
+  const [discountModalAppt, setDiscountModalAppt] = useState<any | null>(null)
+  const [discountType, setDiscountType] = useState<'fixed' | 'percentage'>('fixed')
+  const [discountValue, setDiscountValue] = useState<string>('')
+  const [isSavingDiscount, setIsSavingDiscount] = useState(false)
+
+  // Thermal Receipt Modal State
+  const [selectedReceiptAppt, setSelectedReceiptAppt] = useState<any | null>(null)
+
+  // Image Preview Modal for Receipt Proof
+  const [previewProofUrl, setPreviewProofUrl] = useState<string | null>(null)
+
+  // Listen to Branch Switcher events and read initial localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedBranch = localStorage.getItem('clinic_selected_branch') || 'all'
+      setSelectedBranchId(savedBranch)
+
+      const handleBranchChanged = (e: any) => {
+        const bId = e.detail?.branchId || 'all'
+        setSelectedBranchId(bId)
+      }
+
+      window.addEventListener('clinic_branch_changed', handleBranchChanged)
+      return () => {
+        window.removeEventListener('clinic_branch_changed', handleBranchChanged)
+      }
+    }
+  }, [])
+
+  // Subscribe to real-time appointments for today
   useEffect(() => {
     if (!clinic?.id) return
     const today = new Date().toISOString().split('T')[0]
@@ -45,14 +85,29 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     return () => unsubscribe()
   }, [clinic?.id])
 
-  // Intelligent Queue Sorting adhering to clinic settings (queueUrgent, queueNormal, queueConsult)
+  // Filter by selected branch
+  const branchFilteredAppointments = useMemo(() => {
+    if (!selectedBranchId || selectedBranchId === 'all') {
+      return rawAppointments
+    }
+    return rawAppointments.filter(appt => {
+      if (appt.branch_id) {
+        return appt.branch_id === selectedBranchId
+      }
+      return selectedBranchId === 'main'
+    })
+  }, [rawAppointments, selectedBranchId])
+
+  // Intelligent Queue Sorting adhering to clinic settings
   const bookings = useMemo(() => {
-    const data = rawAppointments
-    const completed = data.filter((d: any) => d.status === 'completed' || d.status === 'cancelled').sort((a: any, b: any) => (a.queue_number || 0) - (b.queue_number || 0))
+    const data = branchFilteredAppointments
+    const completed = data
+      .filter((d: any) => d.status === 'completed' || d.status === 'cancelled')
+      .sort((a: any, b: any) => (a.queue_number || 0) - (b.queue_number || 0))
     const inProgress = data.filter((d: any) => d.status === 'in_progress')
     const orderedWaiting = sortQueue(data, clinic)
     return [...inProgress, ...orderedWaiting, ...completed]
-  }, [rawAppointments, clinic])
+  }, [branchFilteredAppointments, clinic])
 
   // Categorize bookings
   const currentPatient = useMemo(() => {
@@ -71,6 +126,33 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     return bookings.filter(b => b.status === 'completed')
   }, [bookings])
 
+  // Pending verification transfers (InstaPay / Wallet)
+  const pendingPayments = useMemo(() => {
+    return bookings.filter(b => 
+      b.paymentStatus === 'pending_verification' || 
+      (b.paymentMethod && b.paymentMethod !== 'cash' && b.paymentStatus !== 'paid')
+    )
+  }, [bookings])
+
+  // Check 5-patient threshold and trigger notification
+  useEffect(() => {
+    if (!clinic?.id || waitingPatients.length < 5) return
+
+    const today = new Date().toISOString().split('T')[0]
+    const hourKey = new Date().getHours()
+    const eventId = `wait_5_${clinic.id}_${today}_${hourKey}`
+
+    createClinicNotification({
+      clinicId: clinic.id,
+      recipientType: 'staff',
+      recipientTarget: clinic.id,
+      title: 'تنبيه طابور الانتظار ⚠️',
+      body: `يوجد ${waitingPatients.length} مرضى في الانتظار حالياً. يرجى متابعة الدور لتسريع الدخول.`,
+      type: 'system',
+      eventId
+    })
+  }, [clinic?.id, waitingPatients.length])
+
   // Calculate totals
   const totalRevenue = useMemo(() => {
     return bookings.reduce((sum, b) => sum + (Number(b.servicePrice) || 0), 0)
@@ -87,7 +169,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     })
   }, [bookings, serviceFilter, searchQuery])
 
-  // Action Handlers
+  // Actions
   const handleOpenEditTurn = (patient: any) => {
     setEditingPatient(patient)
     setEditQueueNumber(String(patient.queue_number || ''))
@@ -113,39 +195,111 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     }
   }
 
-  const handleConfirmPaymentOnly = async (patient: any) => {
-    if (!patient || isProcessing) return;
-    const confirmPayment = window.confirm(`تأكيد استلام مبلغ ${patient.servicePrice || 0} ج.م من المريض ${patient.patientName}؟`);
-    if (!confirmPayment) return;
-    
-    setIsProcessing(true);
+  // Payment Confirmation Handler (No queue impact!)
+  const handleConfirmPayment = async (patient: any) => {
+    if (!patient || isProcessing) return
+    setIsProcessing(true)
     try {
       await updateDoc(doc(db, 'appointments', patient.id), {
-        paymentStatus: 'paid'
-      });
-      toast.success(`تم تأكيد الدفع للمريض ${patient.patientName}`);
+        paymentStatus: 'paid',
+        paymentConfirmedAt: new Date().toISOString(),
+        paymentConfirmedBy: 'staff'
+      })
+      toast.success(`تم تأكيد استلام الدفع للمريض ${patient.patientName} بنجاح`)
     } catch (err) {
-      toast.error('حدث خطأ أثناء تأكيد الدفع.');
+      toast.error('حدث خطأ أثناء تأكيد الدفع.')
     } finally {
-      setIsProcessing(false);
+      setIsProcessing(false)
     }
-  };
+  }
+
+  // Payment Rejection Handler
+  const handleRejectPayment = async (patient: any) => {
+    if (!patient || isProcessing) return
+    const confirmed = window.confirm(`هل أنت متأكد من رفض التحويل للمريض ${patient.patientName}؟`)
+    if (!confirmed) return
+
+    setIsProcessing(true)
+    try {
+      await updateDoc(doc(db, 'appointments', patient.id), {
+        paymentStatus: 'unpaid',
+        paymentRejectedAt: new Date().toISOString(),
+        paymentRejectedBy: 'staff'
+      })
+      toast.warning(`تم تسجيل رفض الدفع للمريض ${patient.patientName}`)
+    } catch (err) {
+      toast.error('حدث خطأ أثناء رفض الدفع.')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  // Discount Handlers
+  const handleOpenDiscountModal = (appt: any) => {
+    setDiscountModalAppt(appt)
+    if (appt.discount?.type) {
+      setDiscountType(appt.discount.type)
+      setDiscountValue(String(appt.discount.value || ''))
+    } else {
+      setDiscountType('fixed')
+      setDiscountValue('')
+    }
+  }
+
+  const handleSaveDiscount = async () => {
+    if (!discountModalAppt || isSavingDiscount) return
+    setIsSavingDiscount(true)
+    try {
+      const origPrice = Number(discountModalAppt.originalPrice || discountModalAppt.servicePrice) || 0
+      const val = Number(discountValue) || 0
+      let discountAmount = 0
+      let newPrice = origPrice
+
+      if (val > 0) {
+        if (discountType === 'percentage') {
+          discountAmount = (origPrice * val) / 100
+          newPrice = Math.max(0, origPrice - discountAmount)
+        } else {
+          discountAmount = val
+          newPrice = Math.max(0, origPrice - val)
+        }
+      }
+
+      await updateDoc(doc(db, 'appointments', discountModalAppt.id), {
+        originalPrice: origPrice,
+        servicePrice: newPrice,
+        discount: val > 0 ? {
+          type: discountType,
+          value: val,
+          amount: discountAmount,
+          appliedAt: new Date().toISOString()
+        } : null
+      })
+
+      toast.success(`تم تطبيق الخصم بنجاح! السعر الجديد: ${newPrice} ج.م`)
+      setDiscountModalAppt(null)
+    } catch (err) {
+      toast.error('حدث خطأ أثناء حفظ الخصم.')
+    } finally {
+      setIsSavingDiscount(false)
+    }
+  }
 
   const handleStartExam = async (patient: any) => {
     if (!patient || isProcessing) return
 
-    // التأكد من الدفع قبل الدخول
     if (patient.paymentStatus !== 'paid' && patient.status !== 'completed') {
-      const confirmPayment = window.confirm(`⚠️ المريض لم يقم بتأكيد الدفع (المبلغ المطلوب: ${patient.servicePrice || 0} ج.م).\n\nهل استلمت المبلغ وتريد تأكيد الدفع وإدخال المريض؟`);
+      const confirmPayment = window.confirm(
+        `⚠️ المريض لم يقم بتأكيد الدفع (المبلغ المطلوب: ${patient.servicePrice || 0} ج.م).\n\nهل استلمت المبلغ وتريد تأكيد الدفع وإدخال المريض؟`
+      )
       if (!confirmPayment) {
-        toast.info('تم إلغاء دخول المريض بانتظار الدفع.');
-        return;
+        toast.info('تم إلغاء دخول المريض بانتظار الدفع.')
+        return
       }
     }
 
     setIsProcessing(true)
     try {
-      // If someone is currently in progress, complete them first or switch
       if (currentPatient && currentPatient.id !== patient.id) {
         await updateDoc(doc(db, 'appointments', currentPatient.id), {
           status: 'completed',
@@ -155,7 +309,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
 
       await updateDoc(doc(db, 'appointments', patient.id), {
         status: 'in_progress',
-        paymentStatus: 'paid', // Confirm payment if it wasn't
+        paymentStatus: 'paid',
         startedAt: new Date().toISOString()
       })
       toast.success(`بدأ كشف المريض: ${patient.patientName}`)
@@ -212,15 +366,71 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     }
   }
 
-  const sendWhatsApp = (phone: string, name: string) => {
-    if (!phone) return
-    let formattedPhone = phone.replace(/[^0-9]/g, '')
-    if (formattedPhone.startsWith('0')) formattedPhone = '2' + formattedPhone
-    const message = encodeURIComponent(
-      `مرحباً ${name}،\nيرجى التوجه إلى عيادة ${clinic?.clinicName || 'الطبيب'} الآن. اقترب دورك للدخول للكشف.\nنتمنى لك دوام الصحة والعافية.`
-    )
-    window.open(`https://wa.me/${formattedPhone}?text=${message}`, '_blank')
+  const handleManualWhatsApp = (patient: any) => {
+    if (!patient?.phone) return toast.error('لا يوجد رقم هاتف للمريض')
+    const msg = formatQueueAlertWhatsAppMessage({
+      clinicName: clinic?.clinicName || 'عيادتنا',
+      patientName: patient.patientName,
+      queueNumber: patient.queue_number,
+      peopleAhead: 1
+    })
+    openManualWhatsAppChat({
+      phone: patient.phone,
+      message: msg
+    })
   }
+
+  const handleManualWhatsAppPayment = (patient: any) => {
+    if (!patient?.phone) return toast.error('لا يوجد رقم هاتف للمريض')
+    const msg = formatPaymentConfirmationWhatsAppMessage({
+      clinicName: clinic?.clinicName || 'عيادتنا',
+      patientName: patient.patientName,
+      amount: patient.servicePrice || 0,
+      receiptNumber: patient.queue_number || patient.id.slice(-5)
+    })
+    openManualWhatsAppChat({
+      phone: patient.phone,
+      message: msg
+    })
+  }
+
+  const handleExportExcel = async () => {
+    if (filteredBookings.length === 0) {
+      return toast.info('لا توجد حجوزات لتصديرها')
+    }
+    await exportAppointmentsToExcel(filteredBookings, clinic?.clinicName || 'العيادة')
+    toast.success('تم تصدير ملف الإكسيل بنجاح')
+  }
+
+  // Build ThermalReceiptData for preview and printing
+  const thermalReceiptData: ThermalReceiptData | null = useMemo(() => {
+    if (!selectedReceiptAppt) return null
+    const origPrice = Number(selectedReceiptAppt.originalPrice || selectedReceiptAppt.servicePrice) || 0
+    const netPrice = Number(selectedReceiptAppt.servicePrice) || origPrice
+    const discountAmt = selectedReceiptAppt.discount?.amount || (origPrice - netPrice) || 0
+
+    return {
+      clinicName: clinic?.clinicName || 'عيادتنا',
+      branchName: selectedReceiptAppt.branchName || (clinic?.branches?.find((b: any) => b.id === selectedReceiptAppt.branch_id)?.name) || 'الفرع الرئيسي',
+      clinicAddress: clinic?.address || '',
+      clinicPhone: clinic?.clinicPhone || clinic?.doctorPhone || '',
+      logoUrl: clinic?.logoUrl || '',
+      invoiceNumber: `INV-${new Date().getFullYear()}-${String(selectedReceiptAppt.queue_number || selectedReceiptAppt.id.slice(-4)).padStart(4, '0')}`,
+      date: selectedReceiptAppt.date || new Date().toISOString().split('T')[0],
+      time: selectedReceiptAppt.createdAt ? new Date(selectedReceiptAppt.createdAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '',
+      patientName: selectedReceiptAppt.patientName,
+      patientPhone: selectedReceiptAppt.phone,
+      serviceName: selectedReceiptAppt.serviceName || 'كشف طبي',
+      originalPrice: origPrice,
+      discountAmount: discountAmt,
+      netPrice: netPrice,
+      paymentMethod: selectedReceiptAppt.paymentMethod || 'cash',
+      paymentStatus: selectedReceiptAppt.paymentStatus || 'unpaid',
+      transferNumber: selectedReceiptAppt.transferNumber,
+      confirmedBy: selectedReceiptAppt.paymentConfirmedBy,
+      confirmedAt: selectedReceiptAppt.paymentConfirmedAt
+    }
+  }, [selectedReceiptAppt, clinic])
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -242,14 +452,22 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto" dir="rtl">
       
-      {/* Clinic Status Toggle */}
+      {/* Clinic Status Toggle & Active Branch Pill */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-5 bg-white border border-[#E5EAF0] rounded-2xl shadow-sm mb-6 gap-4">
         <div className="flex items-center gap-3">
           <div className={`w-3.5 h-3.5 rounded-full ${clinic?.isClinicOpen !== false ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
           <div>
-            <h3 className="font-black text-sm text-[#182230]">
-              {clinic?.isClinicOpen !== false ? 'العيادة مفتوحة حالياً (أونلاين)' : 'العيادة مغلقة حالياً (أوفلاين)'}
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-black text-sm text-[#182230]">
+                {clinic?.isClinicOpen !== false ? 'العيادة مفتوحة حالياً (أونلاين)' : 'العيادة مغلقة حالياً (أوفلاين)'}
+              </h3>
+              {selectedBranchId && selectedBranchId !== 'all' && (
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-teal-50 text-teal-700 border border-teal-200 flex items-center gap-1">
+                  <Building2 className="w-3 h-3" />
+                  فرع مفلتر
+                </span>
+              )}
+            </div>
             <p className="text-xs text-slate-500 mt-0.5">
               {clinic?.isClinicOpen !== false ? 'يمكن للمرضى الحجز والدخول في الدور الآن' : 'تم إيقاف الحجز من الموقع ولا يمكن استقبال حجوزات جديدة'}
             </p>
@@ -257,18 +475,18 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
         </div>
         <Button
           onClick={async () => {
-            if (isProcessing) return;
-            setIsProcessing(true);
+            if (isProcessing) return
+            setIsProcessing(true)
             try {
               await updateDoc(doc(db, 'clinics', clinic.id), {
                 isClinicOpen: clinic?.isClinicOpen === false ? true : false,
                 updatedAt: new Date().toISOString()
-              });
-              toast.success(clinic?.isClinicOpen === false ? 'تم فتح العيادة وتفعيل الحجوزات' : 'تم إغلاق العيادة وإيقاف الحجوزات');
+              })
+              toast.success(clinic?.isClinicOpen === false ? 'تم فتح العيادة وتفعيل الحجوزات' : 'تم إغلاق العيادة وإيقاف الحجوزات')
             } catch (err) {
-              toast.error('حدث خطأ');
+              toast.error('حدث خطأ')
             } finally {
-              setIsProcessing(false);
+              setIsProcessing(false)
             }
           }}
           variant={clinic?.isClinicOpen !== false ? 'destructive' : 'default'}
@@ -279,7 +497,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
         </Button>
       </div>
 
-      {/* 1. TOP STATS CARDS (4 Cards Grid matching Mockup) */}
+      {/* TOP STATS CARDS */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Total Bookings */}
         <div className="medical-card p-5 flex items-center justify-between">
@@ -332,7 +550,138 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
         </div>
       </div>
 
-      {/* 2. MAIN WORKSPACE (Queue Table & Live Patient Control Panels) */}
+      {/* PENDING PAYMENTS SECTION: مدفوعات في انتظار التأكيد */}
+      {pendingPayments.length > 0 && (
+        <div className="medical-card p-5 bg-gradient-to-r from-amber-50/70 via-orange-50/50 to-white border-2 border-amber-300 rounded-2xl shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-amber-200">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black shadow-sm">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-black text-base text-[#182230]">
+                    مدفوعات في انتظار التأكيد (انستاباي / محفظة)
+                  </h3>
+                  <Badge className="bg-amber-500 text-white font-black text-xs">
+                    {pendingPayments.length} تحويل
+                  </Badge>
+                </div>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  يرجى مراجعة إشعار التحويل وصورة الإيصال وتأكيد الاستلام. التأكيد لا يغير ترتيب دور المريض.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3">
+            {pendingPayments.map((p) => {
+              const proofUrl = p.receiptProofUrl || p.receiptUrl
+              return (
+                <div
+                  key={p.id}
+                  className="p-4 bg-white border border-amber-200 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-2xs hover:border-amber-400 transition-colors"
+                >
+                  <div className="flex items-center gap-3.5 flex-1 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-black shrink-0 text-sm">
+                      #{p.queue_number || '--'}
+                    </div>
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-sm text-[#182230]">{p.patientName}</span>
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
+                          {p.serviceName}
+                        </span>
+                        <span className="text-xs font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                          {p.servicePrice} ج.م
+                        </span>
+                        {p.discount && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">
+                            خصم: {p.discount.amount || p.discount.value} {p.discount.type === 'percentage' ? '%' : 'ج.م'}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
+                        <span className="font-mono">{p.phone}</span>
+                        <span className="font-semibold text-amber-800">
+                          طريقة التحويل: {p.paymentMethod === 'instapay' ? 'InstaPay' : 'محفظة إلكترونية'}
+                        </span>
+                        {p.transferNumber && (
+                          <span className="font-mono bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-amber-900 font-bold">
+                            رقم المحول منه: {p.transferNumber}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap self-end md:self-center">
+                    {/* View Proof Image Button */}
+                    {proofUrl && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setPreviewProofUrl(proofUrl)}
+                        className="h-8 px-2.5 text-xs font-bold text-blue-600 border-blue-200 hover:bg-blue-50 rounded-xl"
+                      >
+                        <Eye className="w-3.5 h-3.5 ml-1" />
+                        صورة الإشعار
+                      </Button>
+                    )}
+
+                    {/* Confirm Payment Button */}
+                    <Button
+                      size="sm"
+                      onClick={() => handleConfirmPayment(p)}
+                      disabled={isProcessing}
+                      className="h-8 px-3 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs"
+                    >
+                      <Check className="w-3.5 h-3.5 ml-1" />
+                      تأكيد الاستلام
+                    </Button>
+
+                    {/* Reject Payment Button */}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleRejectPayment(p)}
+                      disabled={isProcessing}
+                      className="h-8 px-2.5 text-xs font-bold text-rose-600 border-rose-200 hover:bg-rose-50 rounded-xl"
+                    >
+                      <X className="w-3.5 h-3.5 ml-1" />
+                      رفض
+                    </Button>
+
+                    {/* Print Thermal Receipt */}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setSelectedReceiptAppt(p)}
+                      className="h-8 px-2 text-xs font-bold text-slate-700 border-slate-200 hover:bg-slate-100 rounded-xl"
+                      title="طباعة إيصال حراري 80mm"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                    </Button>
+
+                    {/* WhatsApp confirmation */}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleManualWhatsAppPayment(p)}
+                      className="h-8 px-2 text-xs font-bold text-emerald-600 border-emerald-200 hover:bg-emerald-50 rounded-xl"
+                      title="إرسال تأكيد الاستلام عبر واتساب"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* MAIN WORKSPACE (Queue Table & Live Patient Control Panels) */}
       <div className="grid lg:grid-cols-12 gap-6 items-start">
         
         {/* RIGHT COLUMN: Today Queue Table (8 cols on lg) */}
@@ -350,8 +699,18 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                 </div>
               </div>
 
-              {/* Service Filter */}
-              <div className="flex items-center gap-2 w-full sm:w-auto">
+              {/* Toolbar: Service Filter + Excel Export Button */}
+              <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleExportExcel}
+                  className="h-9 px-3 text-xs font-bold border-teal-200 text-teal-700 hover:bg-teal-50 rounded-xl flex items-center gap-1.5"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                  تصدير Excel
+                </Button>
+
                 <div className="relative">
                   <select
                     value={serviceFilter}
@@ -435,9 +794,14 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                               <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-blue-50 text-[#2F80ED] border border-blue-100">
                                 {b.serviceName || 'كشف'}
                               </span>
-                              {b.servicePrice && (
-                                <span className="text-[11px] font-bold text-slate-500">
+                              {b.servicePrice !== undefined && (
+                                <span className="text-[11px] font-bold text-slate-600">
                                   {b.servicePrice} ج.م
+                                </span>
+                              )}
+                              {b.discount && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  خصم: {b.discount.amount || b.discount.value} {b.discount.type === 'percentage' ? '%' : 'ج.م'}
                                 </span>
                               )}
                             </div>
@@ -452,36 +816,64 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                                   <span>{b.transferNumber || 'بانتظار التأكيد'}</span>
                                 </span>
                               )}
+                              {b.paymentStatus === 'paid' && (
+                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                  مدفوع ✓
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
 
                         {/* Left Part: Status & Action Buttons */}
-                        <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                        <div className="flex items-center gap-2 self-end sm:self-center shrink-0 flex-wrap">
                           {getStatusBadge(b.status)}
 
                           {/* Quick Confirm Payment */}
-                            {b.paymentStatus !== 'paid' && b.status !== 'completed' && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleConfirmPaymentOnly(b)}
-                                className="h-8 px-2.5 text-xs font-bold text-amber-600 border-amber-200 hover:bg-amber-50 rounded-xl"
-                                title="تأكيد الدفع"
-                                disabled={isProcessing}
-                              >
-                                <DollarSign className="w-4 h-4 ml-1" />
-                                تأكيد الدفع
-                              </Button>
-                            )}
-                            
-                            {/* WhatsApp alert button */}
+                          {b.paymentStatus !== 'paid' && b.status !== 'completed' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleConfirmPayment(b)}
+                              className="h-8 px-2.5 text-xs font-bold text-amber-600 border-amber-200 hover:bg-amber-50 rounded-xl"
+                              title="تأكيد الدفع"
+                              disabled={isProcessing}
+                            >
+                              <DollarSign className="w-3.5 h-3.5 ml-1" />
+                              تأكيد الدفع
+                            </Button>
+                          )}
+
+                          {/* Discount button */}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 px-2 text-xs font-bold text-slate-600 border-slate-200 hover:bg-slate-50 rounded-xl"
+                            onClick={() => handleOpenDiscountModal(b)}
+                            title="تطبيق خصم أو تعديل السعر"
+                          >
+                            <Percent className="w-3.5 h-3.5 ml-1" />
+                            خصم
+                          </Button>
+
+                          {/* 80mm Thermal Receipt Print */}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 px-2 text-slate-600 hover:text-teal-700 hover:bg-teal-50 border-slate-200 rounded-xl"
+                            onClick={() => setSelectedReceiptAppt(b)}
+                            title="طباعة إيصال حراري (80mm)"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                          </Button>
+
+                          {/* WhatsApp alert button (MANUAL click-to-chat) */}
                           {b.status === 'waiting' && b.phone && (
                             <Button
                               size="sm"
                               variant="outline"
                               className="h-8 px-2.5 text-xs font-bold text-emerald-600 border-emerald-200 hover:bg-emerald-50 rounded-xl"
-                              onClick={() => sendWhatsApp(b.phone, b.patientName)}
+                              onClick={() => handleManualWhatsApp(b)}
                               title="إرسال تنبيه عبر واتساب"
                             >
                               <MessageCircle className="w-3.5 h-3.5 ml-1" />
@@ -499,7 +891,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                               title="تعديل الدور وترتيب المريض"
                             >
                               <ArrowUpDown className="w-3.5 h-3.5 ml-1" />
-                              تعديل الدور
+                              تعديل
                             </Button>
                           )}
 
@@ -668,7 +1060,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
 
                 {nextPatient.phone && (
                   <button
-                    onClick={() => sendWhatsApp(nextPatient.phone, nextPatient.patientName)}
+                    onClick={() => handleManualWhatsApp(nextPatient)}
                     className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center justify-center gap-1.5 mx-auto"
                   >
                     <MessageCircle className="w-3.5 h-3.5" />
@@ -690,7 +1082,6 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
       {editingPatient && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md p-6 space-y-5" dir="rtl">
-            {/* Modal Header */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
                 <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
@@ -710,9 +1101,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
               </button>
             </div>
 
-            {/* Modal Body */}
             <div className="space-y-4">
-              {/* Quick Urgent Priority Banner */}
               <div className="bg-gradient-to-r from-rose-50 to-orange-50 border border-rose-200 rounded-xl p-3 flex items-center justify-between">
                 <div>
                   <p className="text-xs font-bold text-rose-900">أولوية عاجلة فورية</p>
@@ -728,7 +1117,6 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                 </Button>
               </div>
 
-              {/* Queue Number */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700">رقم الدور (Queue Number)</label>
                 <input
@@ -741,7 +1129,6 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                 <p className="text-[11px] text-slate-400">يمكنك تعديل رقم الدور ليأخذ المريض الترتيب المطلوب يدوياً.</p>
               </div>
 
-              {/* Service Type */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700">نوع الكشف والخدمة</label>
                 <div className="grid grid-cols-3 gap-2">
@@ -770,7 +1157,6 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
               </div>
             </div>
 
-            {/* Modal Footer */}
             <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
               <Button
                 type="button"
@@ -793,6 +1179,146 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
           </div>
         </div>
       )}
+
+      {/* Discount Modal */}
+      {discountModalAppt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-sm p-6 space-y-5" dir="rtl">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                  <Percent className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-[#182230]">تطبيق خصم مالي</h3>
+                  <p className="text-xs text-slate-500">{discountModalAppt.patientName}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDiscountModalAppt(null)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-slate-50 p-3 rounded-xl flex justify-between items-center text-xs">
+                <span className="font-semibold text-slate-500">السعر الأصلي:</span>
+                <span className="font-black text-slate-800 text-sm">
+                  {discountModalAppt.originalPrice || discountModalAppt.servicePrice} ج.م
+                </span>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700">نوع الخصم</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDiscountType('fixed')}
+                    className={`py-2 text-xs font-bold rounded-xl border transition-all ${
+                      discountType === 'fixed'
+                        ? 'bg-[#15B8A6] text-white border-[#15B8A6]'
+                        : 'bg-white text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    مبلغ ثابت (ج.م)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDiscountType('percentage')}
+                    className={`py-2 text-xs font-bold rounded-xl border transition-all ${
+                      discountType === 'percentage'
+                        ? 'bg-[#15B8A6] text-white border-[#15B8A6]'
+                        : 'bg-white text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    نسبة مئوية (%)
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700">
+                  قيمة الخصم {discountType === 'percentage' ? '(%)' : '(ج.م)'}
+                </label>
+                <input
+                  type="number"
+                  value={discountValue}
+                  onChange={(e) => setDiscountValue(e.target.value)}
+                  placeholder={discountType === 'percentage' ? 'مثال: 15' : 'مثال: 50'}
+                  className="w-full h-11 px-3.5 rounded-xl border border-slate-200 font-mono font-black text-base focus:outline-none focus:ring-2 focus:ring-[#15B8A6] text-right"
+                  dir="ltr"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+              <Button
+                type="button"
+                onClick={handleSaveDiscount}
+                disabled={isSavingDiscount}
+                className="flex-1 bg-[#15B8A6] hover:bg-[#0D9488] text-white font-bold h-11 rounded-xl"
+              >
+                {isSavingDiscount ? 'جاري الحفظ...' : 'تأكيد الخصم'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDiscountModalAppt(null)}
+                className="h-11 rounded-xl text-slate-600 font-bold"
+              >
+                إلغاء
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Proof Image Preview Modal */}
+      {previewProofUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden" dir="rtl">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="font-bold text-sm text-[#182230]">إشعار التحويل المرفق</h3>
+              <button
+                onClick={() => setPreviewProofUrl(null)}
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-500"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 bg-slate-50 flex items-center justify-center max-h-[70vh] overflow-auto">
+              <img
+                src={previewProofUrl}
+                alt="Receipt proof"
+                className="max-h-[60vh] max-w-full rounded-xl object-contain border border-slate-200"
+              />
+            </div>
+            <div className="p-3 bg-white border-t border-slate-100 text-left">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setPreviewProofUrl(null)}
+                className="text-xs font-bold rounded-xl"
+              >
+                إغلاق
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 80mm Thermal Receipt Modal */}
+      {selectedReceiptAppt && thermalReceiptData && (
+        <ThermalReceiptModal
+          data={thermalReceiptData}
+          isOpen={true}
+          onClose={() => setSelectedReceiptAppt(null)}
+        />
+      )}
+
     </div>
   )
 }

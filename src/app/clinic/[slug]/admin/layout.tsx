@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 import {
   FileText, Users, DollarSign, Calendar, Settings, Bot,
   LogOut, Receipt, Pill, Bell, Search, ExternalLink, Menu,
-  X, CheckCircle, ChevronLeft, User
+  X, CheckCircle, ChevronLeft, User, Building2
 } from 'lucide-react'
 import { db, auth } from '@/lib/firebase'
 import { collection, query, where, onSnapshot } from 'firebase/firestore'
@@ -15,6 +15,8 @@ import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
+import { BranchSelector } from '@/components/clinic/BranchSelector'
+import { NotificationCenter } from '@/components/clinic/NotificationCenter'
 
 export default function AdminLayout({
   children,
@@ -31,6 +33,18 @@ export default function AdminLayout({
   const [loading, setLoading] = useState(true)
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('all')
+
+  useEffect(() => {
+    const saved = localStorage.getItem('clinic_selected_branch') || 'all'
+    setSelectedBranchId(saved)
+  }, [])
+
+  const handleSelectBranch = (bId: string) => {
+    setSelectedBranchId(bId)
+    localStorage.setItem('clinic_selected_branch', bId)
+    window.dispatchEvent(new CustomEvent('clinic_branch_changed', { detail: { branchId: bId } }))
+  }
 
   useEffect(() => {
     const storedRole = localStorage.getItem('clinic_role') || 'doctor'
@@ -149,6 +163,12 @@ export default function AdminLayout({
       name: 'المساعد الذكي',
       href: `/clinic/${slug}/admin/ai-training`,
       icon: Bot
+    },
+    {
+      id: 'branches',
+      name: 'إدارة الفروع',
+      href: `/clinic/${slug}/admin/branches`,
+      icon: Building2
     },
     {
       id: 'settings',
@@ -361,6 +381,9 @@ export default function AdminLayout({
 
           {/* Left side: Date, Clinic Public Link, Notifications, Profile */}
           <div className="flex items-center gap-3 md:gap-5">
+            {/* Branch Selector */}
+            <BranchSelector clinic={clinic} selectedBranchId={selectedBranchId} onSelectBranch={handleSelectBranch} />
+
             {/* Realtime Date Badge */}
             <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#F6F8FB] border border-[#E5EAF0] text-xs font-semibold text-slate-600">
               <Calendar className="w-3.5 h-3.5 text-[#15B8A6]" />
@@ -377,24 +400,8 @@ export default function AdminLayout({
               صفحة الحجز
             </Link>
 
-            {/* Notification Bell */}
-            <button
-              onClick={() => {
-                if (clinic?.ownerMessage) {
-                  toast.info(clinic.ownerMessage, { duration: 10000 });
-                } else {
-                  toast.info('لا توجد إشعارات جديدة حالياً');
-                }
-              }}
-              className="relative p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
-            >
-              <Bell className="w-5 h-5" />
-              {clinic?.ownerMessage ? (
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white animate-pulse"></span>
-              ) : (
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#15B8A6] ring-2 ring-white"></span>
-              )}
-            </button>
+            {/* Notification Center */}
+            <NotificationCenter recipientTarget={clinic?.id || slug} recipientLabel="إدارة العيادة" />
 
             {/* User Avatar & Info */}
             <div className="flex items-center gap-2.5 pl-1">

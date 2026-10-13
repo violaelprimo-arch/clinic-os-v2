@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from 'react'
 import { db } from '@/lib/firebase'
 import { calculateWaitTime, formatEstimatedTime, formatWaitDuration, sortQueue } from '@/lib/queueCalculations'
+import { checkAndTriggerQueuePositionAlert } from '@/lib/notificationService'
 import { doc, onSnapshot, collection, query, where } from 'firebase/firestore'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -52,6 +53,14 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
             const myIndex = orderedWaiting.findIndex(d => d.id === appointmentId)
             const aheadCount = myIndex >= 0 ? myIndex : 0
             setPeopleAhead(aheadCount)
+            if (apptData?.clinic_id) {
+              checkAndTriggerQueuePositionAlert({
+                appointment: { id: appointmentId, ...apptData },
+                waitingAheadCount: aheadCount,
+                clinicId: apptData.clinic_id,
+                branchName: apptData.branchName
+              })
+            }
             setLoading(false)
           })
         } else {
