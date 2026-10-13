@@ -3,88 +3,78 @@
 import { useState, useEffect } from 'react'
 import { db } from '@/lib/firebase'
 import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore'
-import { Card, CardContent } from '@/components/ui/card'
-import { Activity, Clock, CheckCircle } from 'lucide-react'
-import { sortQueue } from '@/lib/queueCalculations'
+import { Activity, Clock, CheckCircle, AlertCircle } from 'lucide-react'
+import { calculatePatientLivePosition, PatientQueueStatusResult } from '@/lib/queueCalculations'
 
-export function PatientLiveTurn({ clinicId, patientPhone }: { clinicId: string, patientPhone: string }) {
-  const [turnData, setTurnData] = useState<{
-    myTurn: number;
-    currentTurn: number;
-    status: string;
-    remaining: number;
-  } | null>(null)
-  
+export function PatientLiveTurn({ clinicId, patientPhone }: { clinicId: string; patientPhone: string }) {
+  const [liveResult, setLiveResult] = useState<PatientQueueStatusResult | null>(null)
+  const [myAppt, setMyAppt] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!clinicId || !patientPhone) return
 
     const today = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0]
-    
+
+    let clinicData: any = null
+
+    // 1. Fetch clinic data for queue ratios
+    getDocs(query(collection(db, 'clinics'))).then(clinicSnap => {
+      const clinicDoc = clinicSnap.docs.find(d => d.id === clinicId || d.data().slug === clinicId)
+      if (clinicDoc) {
+        clinicData = clinicDoc.data()
+      }
+    }).catch(console.error)
+
+    // 2. Listen to today's appointments for this clinic
     const q = query(
       collection(db, 'appointments'),
       where('clinic_id', '==', clinicId),
       where('date', '==', today)
     )
 
-      const qClinic = query(collection(db, 'clinics'), where('id', '==', clinicId))
-      
-      const unsubscribeAppts = onSnapshot(q, async (snap) => {
-        let clinicData: any = null
-        const clinicSnap = await getDocs(query(collection(db, 'clinics')));
-        const clinicDoc = clinicSnap.docs.find(d => d.id === clinicId || d.data().slug === clinicId);
-        if (clinicDoc) {
-          clinicData = clinicDoc.data();
-        }
+    const unsubscribeAppts = onSnapshot(q, (snap) => {
+      const allAppts = snap.docs.map(d => ({ id: d.id, ...d.data() } as any))
+      const targetAppt = allAppts.find(a => a.phone === patientPhone)
 
-        let allAppts = snap.docs.map(d => ({ id: d.id, ...d.data() } as any))
-        
-        const myAppt = allAppts.find(a => a.phone === patientPhone)
-
-        if (!myAppt) {
-          setTurnData(null)
-          setLoading(false)
-          return
-        }
-
-        if (myAppt.status === 'completed') {
-          setTurnData({
-            status: 'completed',
-            myTurn: myAppt.queue_number,
-            currentTurn: myAppt.queue_number,
-            remaining: 0
-          })
-        } else {
-          const orderedWaiting = sortQueue(allAppts, clinicData)
-          const myIndex = orderedWaiting.findIndex(a => a.id === myAppt.id)
-          const remaining = myIndex >= 0 ? myIndex : 0
-          const currentTurn = orderedWaiting.length > 0 ? orderedWaiting[0].queue_number : myAppt.queue_number
-
-          setTurnData({
-            status: 'waiting',
-            myTurn: myAppt.queue_number,
-            currentTurn: currentTurn,
-            remaining: remaining
-          })
-        }
+      if (!targetAppt) {
+        setMyAppt(null)
+        setLiveResult(null)
         setLoading(false)
-      }, (err) => {
-        console.error(err)
-        setLoading(false)
+        return
+      }
+
+      setMyAppt(targetAppt)
+      const res = calculatePatientLivePosition({
+        targetAppointmentId: targetAppt.id,
+        targetAppointment: targetAppt,
+        allTodayAppointments: allAppts,
+        clinic: clinicData
       })
+      setLiveResult(res)
+      setLoading(false)
+    }, (err) => {
+      console.error('Error fetching live turn:', err)
+      setLoading(false)
+    })
 
-      return () => unsubscribeAppts()
+    return () => unsubscribeAppts()
   }, [clinicId, patientPhone])
 
-  if (loading) return null // Hide while checking
-  if (!turnData) return null // Hide if no appointment today
+  if (loading || !myAppt || !liveResult) return null
 
   return (
-    <div className={`medical-card mb-8 overflow-hidden relative border-t-4 ${turnData.status === 'completed' ? 'border-t-emerald-500' : 'border-t-[#15B8A6]'}`}>
+    <div className={`medical-card mb-8 overflow-hidden relative border-t-4 ${
+      liveResult.status === 'completed'
+        ? 'border-t-emerald-500'
+        : liveResult.isCurrentTurn
+        ? 'border-t-teal-500'
+        : 'border-t-[#15B8A6]'
+    }`}>
       <div className="absolute top-0 right-0 w-32 h-32 bg-[#15B8A6]/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
+      
       <div className="p-6 relative z-10">
-        {turnData.status === 'completed' ? (
+        {liveResult.status === 'completed' ? (
           <div className="text-center space-y-2 py-2">
             <div className="mx-auto w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mb-3">
               <CheckCircle className="w-7 h-7" />
@@ -100,30 +90,40 @@ export function PatientLiveTurn({ clinicId, patientPhone }: { clinicId: string, 
                 <span>التتبع اللحظي للدور (تلقائي ومباشر)</span>
               </div>
               <h3 className="text-xl font-black text-[#182230]">دورك الحالي في العيادة</h3>
-              <p className="text-xs text-slate-400 mt-0.5">يتم تحديث الأرقام لحظة بلحظة مع دخول كل مريض</p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {myAppt.branchName ? `فرع: ${myAppt.branchName} • ` : ''}
+                يتم تحديث الأرقام لحظة بلحظة مع دخول كل مريض
+              </p>
             </div>
             
             <div className="flex gap-3 w-full md:w-auto">
               <div className="flex-1 md:w-32 bg-slate-50 border border-slate-200/80 rounded-2xl p-4 text-center">
                 <p className="text-xs font-bold text-slate-500 mb-1">المريض الحالي</p>
-                <p className="text-3xl font-black text-[#182230] font-mono">{turnData.currentTurn || '--'}</p>
+                <p className="text-2xl font-black text-[#182230] font-mono">
+                  {liveResult.currentPatientExamining?.queueNumber ? `#${liveResult.currentPatientExamining.queueNumber}` : '—'}
+                </p>
               </div>
               <div className="flex-1 md:w-32 bg-[#15B8A6] text-white rounded-2xl p-4 text-center shadow-md shadow-[#15B8A6]/25">
                 <p className="text-xs font-bold text-teal-100 mb-1">رقم دورك</p>
-                <p className="text-3xl font-black font-mono">{turnData.myTurn}</p>
+                <p className="text-2xl font-black font-mono">#{myAppt.queue_number}</p>
               </div>
             </div>
 
             <div className="w-full md:w-auto text-center md:text-right">
-              {turnData.remaining === 0 ? (
+              {liveResult.isCurrentTurn ? (
                 <div className="bg-emerald-50 text-emerald-800 px-5 py-3.5 rounded-2xl font-black text-sm animate-pulse border border-emerald-200">
                   تفضل بالدخول، دورك الآن!
+                </div>
+              ) : liveResult.isNextInLine ? (
+                <div className="bg-amber-100 text-amber-900 px-5 py-3 rounded-2xl border border-amber-300 text-center animate-bounce">
+                  <span className="block text-xs font-black text-amber-800">أنت المريض التالي للدخول</span>
+                  <span className="text-[11px] font-bold">يرجى الاستعداد أمام غرفة الطبيب</span>
                 </div>
               ) : (
                 <div className="bg-amber-50 text-amber-800 px-5 py-3 rounded-2xl border border-amber-200 text-center">
                   <span className="block text-xs font-bold text-amber-700 mb-0.5">المتبقي أمامك</span>
                   <div className="flex items-baseline justify-center gap-1">
-                    <span className="text-2xl font-black font-mono">{turnData.remaining}</span>
+                    <span className="text-2xl font-black font-mono">{liveResult.aheadCount}</span>
                     <span className="text-xs font-bold">مرضى</span>
                   </div>
                 </div>

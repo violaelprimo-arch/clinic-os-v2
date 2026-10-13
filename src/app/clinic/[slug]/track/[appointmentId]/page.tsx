@@ -1,85 +1,114 @@
 'use client'
 
-import { use, useEffect, useState } from 'react'
+import { use, useEffect, useState, useMemo } from 'react'
 import { db } from '@/lib/firebase'
-import { calculateWaitTime, formatEstimatedTime, formatWaitDuration, sortQueue } from '@/lib/queueCalculations'
+import {
+  calculatePatientLivePosition,
+  PatientQueueStatusResult,
+  formatEstimatedTime
+} from '@/lib/queueCalculations'
 import { checkAndTriggerQueuePositionAlert } from '@/lib/notificationService'
 import { doc, onSnapshot, collection, query, where } from 'firebase/firestore'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
   Activity, Clock, CheckCircle2, Zap, MapPin, Phone,
-  Users, Calendar, Sparkles, Navigation, MessageCircle, AlertCircle, Receipt
+  Users, Calendar, Sparkles, Navigation, MessageCircle, AlertCircle, Receipt,
+  UserCheck, ShieldCheck
 } from 'lucide-react'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { formatCairo12Hour } from '@/lib/queue-calculator'
-import { InvoiceView, InvoiceData } from '@/components/clinic/InvoiceView'
+import { InvoiceView } from '@/components/clinic/InvoiceView'
+import { TechnicalSupportButton } from '@/components/clinic/TechnicalSupportButton'
 
-export default function TrackPatientPage({ params }: { params: Promise<{ slug: string, appointmentId: string }> }) {
+export default function TrackPatientPage({ params }: { params: Promise<{ slug: string; appointmentId: string }> }) {
   const resolvedParams = use(params)
   const { slug, appointmentId } = resolvedParams
+
   const [appointment, setAppointment] = useState<any>(null)
-  const [peopleAhead, setPeopleAhead] = useState<number>(3)
-  const [averageTime, setAverageTime] = useState<number>(15)
+  const [allQueueAppts, setAllQueueAppts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [clinic, setClinic] = useState<any>(null)
   const [showInvoiceModal, setShowInvoiceModal] = useState(false)
 
   useEffect(() => {
-    let clinicData: any = null
+    let unsubQueue: (() => void) | null = null
+
     // 1. Fetch clinic data
     const qClinic = query(collection(db, 'clinics'), where('slug', '==', slug))
     const unsubClinic = onSnapshot(qClinic, (snapshot) => {
       if (!snapshot.empty) {
-        clinicData = snapshot.docs[0].data()
-        setClinic(clinicData)
+        setClinic(snapshot.docs[0].data())
       }
     })
 
-    // 2. Listen to this appointment
+    // 2. Listen to this appointment live
     const unsubscribeAppt = onSnapshot(doc(db, 'appointments', appointmentId), (docSnap) => {
       if (docSnap.exists()) {
-        const apptData = docSnap.data()
+        const apptData = { id: docSnap.id, ...docSnap.data() } as any
         setAppointment(apptData)
 
-        // 3. Listen to today's queue
-        if (apptData.status === 'waiting') {
-          const qQueue = query(
-            collection(db, 'appointments'),
-            where('clinic_id', '==', apptData.clinic_id),
-            where('date', '==', apptData.date)
-          )
-          onSnapshot(qQueue, (queueSnap) => {
-            const data = queueSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
-            const orderedWaiting = sortQueue(data, clinicData)
-            const myIndex = orderedWaiting.findIndex(d => d.id === appointmentId)
-            const aheadCount = myIndex >= 0 ? myIndex : 0
-            setPeopleAhead(aheadCount)
-            if (apptData?.clinic_id) {
-              checkAndTriggerQueuePositionAlert({
-                appointment: { id: appointmentId, ...apptData },
-                waitingAheadCount: aheadCount,
-                clinicId: apptData.clinic_id,
-                branchName: apptData.branchName
-              })
-            }
-            setLoading(false)
-          })
-        } else {
-          setPeopleAhead(0)
-          setLoading(false)
+        // 3. Listen to today's branch queue live
+        if (unsubQueue) {
+          unsubQueue()
+          unsubQueue = null
         }
+
+        const todayDate = apptData.date || new Date().toISOString().split('T')[0]
+        const constraints: any[] = [
+          where('clinic_id', '==', apptData.clinic_id),
+          where('date', '==', todayDate)
+        ]
+        if (apptData.branch_id) {
+          constraints.push(where('branch_id', '==', apptData.branch_id))
+        }
+
+        const qQueue = query(collection(db, 'appointments'), ...constraints)
+        unsubQueue = onSnapshot(qQueue, (queueSnap) => {
+          const list = queueSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+          setAllQueueAppts(list)
+          setLoading(false)
+        }, (err) => {
+          console.error('Queue subscription error:', err)
+          setLoading(false)
+        })
       } else {
+        setAppointment(null)
         setLoading(false)
       }
+    }, (err) => {
+      console.error('Appointment subscription error:', err)
+      setLoading(false)
     })
 
     return () => {
       unsubClinic()
       unsubscribeAppt()
+      if (unsubQueue) unsubQueue()
     }
   }, [slug, appointmentId])
+
+  // Compute live queue position using comprehensive multi-case logic
+  const liveQueue: PatientQueueStatusResult = useMemo(() => {
+    return calculatePatientLivePosition({
+      targetAppointmentId: appointmentId,
+      targetAppointment: appointment,
+      allTodayAppointments: allQueueAppts,
+      clinic
+    })
+  }, [appointmentId, appointment, allQueueAppts, clinic])
+
+  // Fire sound/push notifications when patient's turn arrives or is next
+  useEffect(() => {
+    if (appointment && liveQueue.status === 'waiting' && appointment.clinic_id) {
+      checkAndTriggerQueuePositionAlert({
+        appointment: { id: appointmentId, ...appointment },
+        waitingAheadCount: liveQueue.aheadCount,
+        clinicId: appointment.clinic_id,
+        branchName: appointment.branchName
+      })
+    }
+  }, [appointment, liveQueue.aheadCount, liveQueue.status, appointmentId])
 
   if (loading) {
     return (
@@ -97,14 +126,19 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
           <AlertCircle className="w-12 h-12 text-rose-500 mx-auto" />
           <h2 className="text-lg font-bold text-[#182230]">لم يتم العثور على تذكرة الحجز</h2>
           <p className="text-xs text-slate-400">تأكد من صحة الرابط أو تواصل مع العيادة للاستعلام.</p>
+          <div className="pt-2">
+            <TechnicalSupportButton variant="block" />
+          </div>
         </div>
       </div>
     )
   }
 
-  const isCompleted = appointment.status === 'completed'
-  const isInProgress = appointment.status === 'in_progress'
-  const estimatedMins = isCompleted ? 0 : isInProgress ? 0 : calculateWaitTime(peopleAhead, averageTime)
+  const isCompleted = liveQueue.status === 'completed'
+  const isCurrentTurn = liveQueue.isCurrentTurn
+  const isNextInLine = liveQueue.isNextInLine
+  const isSkippedOrNoShow = liveQueue.status === 'skipped' || liveQueue.status === 'no_show'
+  const isCancelled = liveQueue.status === 'cancelled'
 
   return (
     <div className="min-h-screen bg-[#F6F8FB] flex flex-col items-center justify-center p-4 font-sans" dir="rtl">
@@ -122,10 +156,15 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
             <p className="text-xs text-slate-400">
               مرحباً {appointment.patientName} • شاشة متابعة الدور المباشرة
             </p>
+            {appointment.branchName && (
+              <span className="inline-block mt-1 text-[11px] font-bold text-[#15B8A6] bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-100">
+                فرع {appointment.branchName}
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Live Status Content */}
+        {/* Live Status Content Rendering */}
         {isCompleted ? (
           <div className="p-6 rounded-3xl bg-emerald-50 border border-emerald-200 text-center space-y-3">
             <CheckCircle2 className="w-14 h-14 text-emerald-600 mx-auto" />
@@ -134,9 +173,9 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
               نتمنى لك دوام الصحة والعافية ونتشرف دائماً بخدمتك.
             </p>
           </div>
-        ) : isInProgress ? (
+        ) : isCurrentTurn ? (
           <div className="p-6 rounded-3xl bg-teal-50 border-2 border-[#15B8A6] text-center space-y-3 animate-pulse">
-            <div className="w-12 h-12 rounded-full bg-[#15B8A6] text-white flex items-center justify-center mx-auto text-xl font-black">
+            <div className="w-14 h-14 rounded-full bg-[#15B8A6] text-white flex items-center justify-center mx-auto text-2xl font-black shadow-lg shadow-[#15B8A6]/30">
               #{appointment.queue_number}
             </div>
             <h3 className="text-xl font-black text-[#15B8A6]">دورك الآن!</h3>
@@ -144,32 +183,68 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
               يرجى التوجه إلى غرفة الكشف مباشرة لمقابلة الطبيب.
             </p>
           </div>
+        ) : isCancelled ? (
+          <div className="p-6 rounded-3xl bg-rose-50 border border-rose-200 text-center space-y-2">
+            <AlertCircle className="w-12 h-12 text-rose-500 mx-auto" />
+            <h3 className="text-lg font-black text-rose-800">تم إلغاء هذا الحجز</h3>
+            <p className="text-xs text-rose-600">يرجى التواصل مع العيادة إذا كنت بحاجة لإعادة الحجز.</p>
+          </div>
+        ) : isSkippedOrNoShow ? (
+          <div className="p-6 rounded-3xl bg-amber-50 border border-amber-200 text-center space-y-2">
+            <Clock className="w-12 h-12 text-amber-600 mx-auto" />
+            <h3 className="text-lg font-black text-amber-800">تم تخطي الموعد</h3>
+            <p className="text-xs text-amber-700 font-medium">
+              نظراً لعدم الحضور عند استدعاء الدور، يرجى مراجعة موظف الاستقبال لإعادة ترتيب دخولك.
+            </p>
+          </div>
         ) : (
           <div className="space-y-4">
             {/* Big Queue Card */}
-            <div className="bg-[#F8FAFC] border border-[#E5EAF0] rounded-3xl p-6 text-center space-y-1">
-              <span className="text-xs font-bold text-slate-400">رقم دورك في الدور</span>
+            <div className="bg-[#F8FAFC] border border-[#E5EAF0] rounded-3xl p-6 text-center space-y-2">
+              <span className="text-xs font-bold text-slate-400">رقم تذكرة الحجز</span>
               <div className="text-6xl font-black text-[#15B8A6] tracking-tight">
-                {appointment.queue_number}
+                #{appointment.queue_number}
               </div>
-              <div className="inline-block mt-2 px-3 py-1 rounded-full bg-teal-50 text-[#0D9488] text-xs font-bold">
-                في الانتظار
+              
+              <div className="pt-1 flex flex-wrap items-center justify-center gap-2">
+                <span className="px-3 py-1 rounded-full bg-teal-50 text-[#0D9488] text-xs font-bold border border-teal-100">
+                  ترتيب الدخول الفعلي: #{liveQueue.effectivePosition}
+                </span>
+
+                {isNextInLine && (
+                  <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-900 text-xs font-black animate-bounce">
+                    ⚡ أنت المريض التالي للدخول
+                  </span>
+                )}
               </div>
             </div>
+
+            {/* In-Progress Doctor Indicator */}
+            {liveQueue.currentPatientExamining && (
+              <div className="p-3 rounded-2xl bg-teal-50/70 border border-teal-100 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2 text-teal-800 font-bold">
+                  <Activity className="w-4 h-4 text-[#15B8A6] animate-pulse" />
+                  <span>الطبيب مع مريض رقم:</span>
+                </div>
+                <Badge className="bg-[#15B8A6] text-white font-mono font-bold text-xs">
+                  #{liveQueue.currentPatientExamining.queueNumber}
+                </Badge>
+              </div>
+            )}
 
             {/* Waiting Estimation Metrics */}
             <div className="grid grid-cols-2 gap-3">
               <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#E5EAF0] text-right space-y-1">
                 <span className="text-[11px] font-bold text-slate-400">وقت الانتظار المتوقع</span>
                 <p className="text-lg font-black text-[#15B8A6]">
-                  {formatWaitDuration(estimatedMins)}
+                  {liveQueue.formattedWaitTime}
                 </p>
               </div>
 
               <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#E5EAF0] text-right space-y-1">
                 <span className="text-[11px] font-bold text-slate-400">المرضى قبلك</span>
                 <p className="text-lg font-black text-slate-700">
-                  {peopleAhead} {peopleAhead === 1 ? 'مريض' : 'مرضى'}
+                  {liveQueue.aheadCount} {liveQueue.aheadCount === 1 ? 'مريض' : 'مرضى'}
                 </p>
               </div>
             </div>
@@ -181,7 +256,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
           </div>
         )}
 
-        {/* Modal for Electronic PDF Invoice */}
+        {/* Modal for Electronic PDF Invoice (Restricted patient view: NO direct print button) */}
         {showInvoiceModal && (
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
             <div className="bg-white rounded-3xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -190,6 +265,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
                   invoiceNumber: appointment.invoiceNumber || `INV-${appointmentId.slice(0, 8)}`,
                   clinicName: clinic?.clinicName || 'العيادة',
                   doctorName: clinic?.doctorName,
+                  branchName: appointment.branchName,
                   clinicAddress: clinic?.clinicAddress,
                   clinicPhone: clinic?.clinicPhone,
                   patientName: appointment.patientName,
@@ -198,19 +274,21 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
                   cairoTime: formatCairo12Hour(new Date(appointment.createdAt || Date.now())),
                   serviceName: appointment.serviceName || 'كشف',
                   servicePrice: appointment.servicePrice || 0,
+                  discount: appointment.discountApplied || 0,
                   netTotal: appointment.servicePrice || 0,
                   paymentMethod: appointment.paymentMethod || 'cash',
                   paymentStatus: appointment.paymentStatus || 'pending',
                   transferNumber: appointment.transferNumber,
                   appointmentId
                 }}
+                isPatientView={true}
                 onClose={() => setShowInvoiceModal(false)}
               />
             </div>
           </div>
         )}
 
-        {/* Action CTAs (Matching Mockup) */}
+        {/* Action CTAs */}
         <div className="space-y-2.5 pt-2 border-t border-[#E5EAF0]">
           <Button
             variant="outline"
@@ -249,6 +327,16 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
               خروج والعودة للرئيسية
             </Button>
           </a>
+
+          {/* TASK 11: Technical Support Button */}
+          <div className="pt-2 flex justify-center">
+            <TechnicalSupportButton variant="pill" />
+          </div>
+        </div>
+
+        {/* TASK 12: Standardized Copyright Footer */}
+        <div className="text-center text-[11px] text-slate-400 border-t border-[#E5EAF0] pt-4">
+          جميع الحقوق محفوظة © {new Date().getFullYear()} Clinic OS
         </div>
 
       </div>

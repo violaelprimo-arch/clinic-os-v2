@@ -20,6 +20,7 @@ import { collection, query, where, getDocs } from 'firebase/firestore'
 import { BookingForm } from './BookingForm'
 import { AIChatWidget } from './AIChatWidget'
 import { ClinicLogo } from './ClinicLogo'
+import { TechnicalSupportButton } from './TechnicalSupportButton'
 
 function formatTime12(timeStr?: string) {
   if (!timeStr) return ''
@@ -728,9 +729,11 @@ export function PremiumLanding({
 
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400 font-medium">
             <div>
-              جميع الحقوق محفوظة © {new Date().getFullYear()} {clinic?.clinicName || 'العيادة الطبية'}
+              جميع الحقوق محفوظة © {new Date().getFullYear()} Clinic OS
             </div>
             <div className="flex items-center gap-3">
+              <TechnicalSupportButton />
+              <span>•</span>
               <Link href={`/clinic/${clinic?.slug}/login`} className="hover:text-slate-600">
                 دخول الكادر الطبي
               </Link>

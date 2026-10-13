@@ -54,6 +54,21 @@ export default function OwnerDashboard() {
   const [prescriptionTemplateUrl, setPrescriptionTemplateUrl] = useState('')
   const [aiEnabled, setAiEnabled] = useState(true)
 
+  // Branch Limits (TASK 9)
+  const [branchesEnabled, setBranchesEnabled] = useState(true)
+  const [maxBranches, setMaxBranches] = useState<number>(1)
+  const [branchCreationAllowed, setBranchCreationAllowed] = useState(true)
+
+  // Clinic Branding (TASK 10)
+  const [allowDoctorEditBranding, setAllowDoctorEditBranding] = useState(true)
+  const [logoUrl, setLogoUrl] = useState('')
+  const [thermalMonoLogoUrl, setThermalMonoLogoUrl] = useState('')
+  const [primaryColor, setPrimaryColor] = useState('#15B8A6')
+  const [secondaryColor, setSecondaryColor] = useState('#2F80ED')
+  const [specialty, setSpecialty] = useState('')
+  const [certificationTitle, setCertificationTitle] = useState('')
+  const [clinicAddress, setClinicAddress] = useState('')
+
   // Landing page customization
   const [heroImage, setHeroImage] = useState('https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=2000&auto=format&fit=crop')
   const [heroTitle, setHeroTitle] = useState('صحتك تستحق العناية الفائقة')
@@ -197,9 +212,10 @@ export default function OwnerDashboard() {
     setIsLoading(true)
 
     try {
-      // 1. Strict Single-Clinic Enforcement
-      if (!editingId && clinics.length >= 1) {
-        toast.error('نظام عيادة واحدة حصرياً: لا يمكن إنشاء أكثر من عيادة واحدة. يرجى تعديل العيادة الحالية.')
+      // 1. Multi-Tenant SaaS: validate slug uniqueness for new clinic
+      const finalSlug = slug.trim() ? slug.trim().toLowerCase().replace(/\s+/g, '-') : `clinic-${Date.now().toString(36)}`
+      if (!editingId && clinics.some(c => c.slug === finalSlug)) {
+        toast.error('رابط العيادة (Slug) مستخدم بالفعل، يرجى اختيار رابط فريد آخر.')
         setIsLoading(false)
         return
       }
@@ -213,7 +229,7 @@ export default function OwnerDashboard() {
         doctorName,
         doctorPhone,
         clinicPhone,
-        slug: SINGLE_CLINIC_SLUG,
+        slug: finalSlug,
         mapsLink,
         doctorEmail,
         doctorPassword,
@@ -224,6 +240,22 @@ export default function OwnerDashboard() {
         aiApiKey,
         prescriptionTemplateUrl,
         aiEnabled: aiEnabled !== false,
+
+        // Branch Limits & Multi-Branch Subscription (TASK 9)
+        branchesEnabled: branchesEnabled !== false,
+        maxBranches: Number(maxBranches) || 1,
+        branchCreationAllowed: branchCreationAllowed !== false,
+
+        // Clinic Branding & Customizations (TASK 10)
+        allowDoctorEditBranding: allowDoctorEditBranding !== false,
+        logoUrl: logoUrl || '',
+        thermalMonoLogoUrl: thermalMonoLogoUrl || '',
+        primaryColor: primaryColor || '#15B8A6',
+        secondaryColor: secondaryColor || '#2F80ED',
+        specialty: specialty || '',
+        certificationTitle: certificationTitle || '',
+        clinicAddress: clinicAddress || '',
+
         heroImage,
         heroTitle,
         heroSubtitle,
@@ -275,6 +307,17 @@ export default function OwnerDashboard() {
       setAiApiKey('')
       setPrescriptionTemplateUrl('')
       setAiEnabled(true)
+      setBranchesEnabled(true)
+      setMaxBranches(3)
+      setBranchCreationAllowed(true)
+      setAllowDoctorEditBranding(true)
+      setLogoUrl('')
+      setThermalMonoLogoUrl('')
+      setPrimaryColor('#15B8A6')
+      setSecondaryColor('#2F80ED')
+      setSpecialty('')
+      setCertificationTitle('')
+      setClinicAddress('')
       setHeroImage('https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=2000&auto=format&fit=crop')
       setHeroTitle('صحتك تستحق العناية الفائقة')
       setHeroSubtitle('نقدم لك ولعائلتك رعاية صحية متكاملة تعتمد على أحدث التقنيات وأفضل الكوادر الطبية المتخصصة لضمان سلامتك وتوفير راحتك.')
@@ -307,6 +350,17 @@ export default function OwnerDashboard() {
     setAiApiKey(c.aiApiKey || '')
     setPrescriptionTemplateUrl(c.prescriptionTemplateUrl || '')
     setAiEnabled(c.aiEnabled !== false)
+    setBranchesEnabled(c.branchesEnabled !== false)
+    setMaxBranches(c.maxBranches !== undefined ? c.maxBranches : 3)
+    setBranchCreationAllowed(c.branchCreationAllowed !== false)
+    setAllowDoctorEditBranding(c.allowDoctorEditBranding !== false)
+    setLogoUrl(c.logoUrl || '')
+    setThermalMonoLogoUrl(c.thermalMonoLogoUrl || '')
+    setPrimaryColor(c.primaryColor || '#15B8A6')
+    setSecondaryColor(c.secondaryColor || '#2F80ED')
+    setSpecialty(c.specialty || '')
+    setCertificationTitle(c.certificationTitle || '')
+    setClinicAddress(c.clinicAddress || '')
     setHeroImage(c.heroImage || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=2000&auto=format&fit=crop')
     setHeroTitle(c.heroTitle || 'صحتك تستحق العناية الفائقة')
     setHeroSubtitle(c.heroSubtitle || 'نقدم لك ولعائلتك رعاية صحية متكاملة تعتمد على أحدث التقنيات وأفضل الكوادر الطبية المتخصصة لضمان سلامتك وتوفير راحتك.')
@@ -331,6 +385,17 @@ export default function OwnerDashboard() {
     setSlug('')
     setPrescriptionTemplateUrl('')
     setAiEnabled(true)
+    setBranchesEnabled(true)
+    setMaxBranches(3)
+    setBranchCreationAllowed(true)
+    setAllowDoctorEditBranding(true)
+    setLogoUrl('')
+    setThermalMonoLogoUrl('')
+    setPrimaryColor('#15B8A6')
+    setSecondaryColor('#2F80ED')
+    setSpecialty('')
+    setCertificationTitle('')
+    setClinicAddress('')
     setActiveTab('clinics')
     toast.info('تم إلغاء التعديل')
   }
@@ -608,6 +673,7 @@ export default function OwnerDashboard() {
                       </span>
                     </th>
                     <th className="py-4 px-4 text-center">تصميم الروشتة</th>
+                    <th className="py-4 px-4 text-center">باقة الفروع</th>
                     <th className="py-4 px-4 text-center">حالة الاشتراك</th>
                     <th className="py-4 px-4 text-center">الإجراءات</th>
                   </tr>
@@ -615,7 +681,7 @@ export default function OwnerDashboard() {
                 <tbody className="divide-y divide-[#E5EAF0]">
                   {filteredClinics.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-slate-400">
+                      <td colSpan={7} className="py-12 text-center text-slate-400">
                         {clinics.length === 0 ? 'لا توجد عيادات مسجلة حتى الآن.' : 'لا توجد نتائج تطابق بحثك.'}
                       </td>
                     </tr>
@@ -720,6 +786,22 @@ export default function OwnerDashboard() {
                             ) : (
                               <span className="text-[11px] text-slate-400 font-medium">قالب قياسي A4</span>
                             )}
+                          </td>
+
+                          {/* Multi-Branch Quota */}
+                          <td className="py-4 px-4 text-center">
+                            <div className="flex flex-col items-center gap-1">
+                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                                c.branchesEnabled !== false
+                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                  : 'bg-slate-100 text-slate-500 border-slate-200'
+                              }`}>
+                                {c.branchesEnabled !== false ? `مفعلة (${c.maxBranches || 1} فروع)` : 'معطلة (فرع واحد)'}
+                              </span>
+                              {c.branchCreationAllowed === false && (
+                                <span className="text-[9px] text-amber-600 font-bold">إنشاء الفروع مقفل</span>
+                              )}
+                            </div>
                           </td>
 
                           {/* Subscription & Active Status */}
@@ -1016,7 +1098,198 @@ export default function OwnerDashboard() {
                 </div>
               </div>
 
-              {/* Section 4: Login Accounts */}
+              {/* Section 4: Multi-Branch Quota & Management (TASK 9) */}
+              <div className="space-y-3">
+                <h3 className="text-xs font-black text-slate-700 flex items-center gap-2">
+                  <Building className="w-4 h-4 text-[#15B8A6]" />
+                  إدارة باقة الفروع والاشتراك (Multi-Branch Controls)
+                </h3>
+                <div className="p-5 rounded-2xl bg-blue-50/40 border border-blue-100 space-y-4">
+                  <div className="grid md:grid-cols-3 gap-4">
+                    {/* Toggle Branches Enabled */}
+                    <div className="p-4 rounded-xl bg-white border border-slate-200 flex flex-col justify-between space-y-3">
+                      <div>
+                        <Label className="text-xs font-black text-slate-800 block">
+                          تفعيل نظام الفروع المتعددة
+                        </Label>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          إذا تم إيقافه، تعمل العيادة بنظام الفرع الواحد فقط
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                        <span className={`text-[11px] font-bold ${branchesEnabled ? 'text-blue-600' : 'text-slate-400'}`}>
+                          {branchesEnabled ? '● باقة فروع متعددة' : '○ فرع رئيسي فقط'}
+                        </span>
+                        <Switch checked={branchesEnabled} onCheckedChange={setBranchesEnabled} />
+                      </div>
+                    </div>
+
+                    {/* Max Branches Allowed */}
+                    <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-2">
+                      <Label className="text-xs font-black text-slate-800 block">
+                        الحد الأقصى للفروع المسموحة (Branch Quota)
+                      </Label>
+                      <p className="text-[11px] text-slate-500">
+                        العدد الإجمالي للفروع المسموح للعيادة بإنشائها
+                      </p>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="50"
+                        value={maxBranches}
+                        onChange={e => setMaxBranches(Math.max(1, parseInt(e.target.value) || 1))}
+                        disabled={!branchesEnabled}
+                        className="h-10 text-xs font-mono font-bold rounded-xl mt-1"
+                      />
+                    </div>
+
+                    {/* Toggle Branch Creation Allowed */}
+                    <div className="p-4 rounded-xl bg-white border border-slate-200 flex flex-col justify-between space-y-3">
+                      <div>
+                        <Label className="text-xs font-black text-slate-800 block">
+                          سماح الطبيب بإنشاء فروع
+                        </Label>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          السماح للطبيب بإنشاء فروع بنفسه من لوحة العيادة
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                        <span className={`text-[11px] font-bold ${branchCreationAllowed ? 'text-emerald-600' : 'text-amber-600'}`}>
+                          {branchCreationAllowed ? '● مسموح للطبيب' : '○ محظور (بواسطة المالك فقط)'}
+                        </span>
+                        <Switch
+                          checked={branchCreationAllowed}
+                          onCheckedChange={setBranchCreationAllowed}
+                          disabled={!branchesEnabled}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 5: Clinic Branding & Print Identity (TASK 10) */}
+              <div className="space-y-3">
+                <h3 className="text-xs font-black text-slate-700 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-[#15B8A6]" />
+                  هوية العيادة والمطبوعات (Branding & Print Identity)
+                </h3>
+                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
+                  
+                  {/* Doctor Permission Toggle */}
+                  <div className="p-4 rounded-xl bg-white border border-slate-200 flex items-center justify-between">
+                    <div>
+                      <Label className="text-xs font-black text-slate-800 block">
+                        السماح للطبيب بتعديل الهوية والألوان والشعار
+                      </Label>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        عند الإيقاف، يقفل قسم الهوية في إعدادات العيادة ولا يمكن للطبيب تغيير الألوان أو الشعار
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`text-[11px] font-bold ${allowDoctorEditBranding ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        {allowDoctorEditBranding ? '● مسموح للطبيب التعديل' : '○ مغلق (تحكم المالك حصراً)'}
+                      </span>
+                      <Switch
+                        checked={allowDoctorEditBranding}
+                        onCheckedChange={setAllowDoctorEditBranding}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Specialty, Degree, and Address */}
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-slate-600">التخصص الطبي (يظهر في ترويسة الروشتة)</Label>
+                      <Input
+                        value={specialty}
+                        onChange={e => setSpecialty(e.target.value)}
+                        placeholder="استشاري جراحة العظام والمفاصل"
+                        className="h-10 text-xs rounded-xl bg-white"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-slate-600">الدرجة والشهادات العلمية</Label>
+                      <Input
+                        value={certificationTitle}
+                        onChange={e => setCertificationTitle(e.target.value)}
+                        placeholder="دكتوراه جراحة العظام - زميل الكلية الملكية"
+                        className="h-10 text-xs rounded-xl bg-white"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-slate-600">عنوان المقر الرئيسي للعيادة</Label>
+                      <Input
+                        value={clinicAddress}
+                        onChange={e => setClinicAddress(e.target.value)}
+                        placeholder="القاهرة، التجمع الخامس، شارع التسعين"
+                        className="h-10 text-xs rounded-xl bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Logos & Colors */}
+                  <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-slate-600">رابط الشعار الملون (A4 / شاشات)</Label>
+                      <Input
+                        value={logoUrl}
+                        onChange={e => setLogoUrl(e.target.value)}
+                        dir="ltr"
+                        placeholder="https://... logo.png"
+                        className="h-10 text-xs rounded-xl bg-white text-right font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-slate-600">رابط الشعار الأحادي (إيصالات 80mm حراري)</Label>
+                      <Input
+                        value={thermalMonoLogoUrl}
+                        onChange={e => setThermalMonoLogoUrl(e.target.value)}
+                        dir="ltr"
+                        placeholder="https://... mono-logo.png"
+                        className="h-10 text-xs rounded-xl bg-white text-right font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-slate-600">اللون الأساسي (Primary Color)</Label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={primaryColor}
+                          onChange={e => setPrimaryColor(e.target.value)}
+                          className="w-10 h-10 rounded-xl cursor-pointer border border-slate-200 p-0.5 bg-white"
+                        />
+                        <Input
+                          value={primaryColor}
+                          onChange={e => setPrimaryColor(e.target.value)}
+                          dir="ltr"
+                          className="h-10 text-xs font-mono rounded-xl bg-white flex-1"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-slate-600">اللون الثانوي (Secondary Color)</Label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={secondaryColor}
+                          onChange={e => setSecondaryColor(e.target.value)}
+                          className="w-10 h-10 rounded-xl cursor-pointer border border-slate-200 p-0.5 bg-white"
+                        />
+                        <Input
+                          value={secondaryColor}
+                          onChange={e => setSecondaryColor(e.target.value)}
+                          dir="ltr"
+                          className="h-10 text-xs font-mono rounded-xl bg-white flex-1"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Section 6: Login Accounts */}
               {!editingId && (
 <div className="space-y-3">
                 <h3 className="text-xs font-black text-slate-700 flex items-center gap-2">
@@ -1288,6 +1561,11 @@ export default function OwnerDashboard() {
           </div>
         </div>
       )}
+
+      {/* Platform Owner Footer */}
+      <footer className="mt-12 pt-6 border-t border-[#E5EAF0] text-center text-xs text-slate-400 font-medium">
+        جميع الحقوق محفوظة © {new Date().getFullYear()} Clinic OS
+      </footer>
 
     </div>
   )

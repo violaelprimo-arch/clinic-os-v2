@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { BranchSelector } from '@/components/clinic/BranchSelector'
 import { NotificationCenter } from '@/components/clinic/NotificationCenter'
+import { TechnicalSupportButton } from '@/components/clinic/TechnicalSupportButton'
 
 export default function AdminLayout({
   children,
@@ -286,6 +287,7 @@ export default function AdminLayout({
 
         {/* Sidebar Footer */}
         <div className="p-4 border-t border-[#132B45] bg-[#081827]/80 space-y-2">
+          <TechnicalSupportButton variant="block" className="bg-[#0F243A] text-slate-300 border-[#1E3A5F] hover:bg-[#132B45] hover:text-white" />
           <Link
             href={`/clinic/${slug}`}
             target="_blank"
@@ -351,6 +353,7 @@ export default function AdminLayout({
             </nav>
 
             <div className="pt-4 border-t border-[#132B45] space-y-2">
+              <TechnicalSupportButton variant="block" className="bg-[#0F243A] text-slate-300 border-[#1E3A5F] hover:bg-[#132B45] hover:text-white" />
               <Link
                 href={`/clinic/${slug}`}
                 target="_blank"

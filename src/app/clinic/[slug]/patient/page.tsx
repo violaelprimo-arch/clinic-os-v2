@@ -1,40 +1,44 @@
 'use client'
 
-import { use, useEffect, useState } from 'react'
+import { use, useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { db } from '@/lib/firebase'
-import { collection, query, where, getDocs, onSnapshot, updateDoc, doc } from 'firebase/firestore'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { collection, query, where, getDocs, onSnapshot } from 'firebase/firestore'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { LogOut, FileText, Clock, Activity, Calendar, ShieldCheck, Plus } from 'lucide-react'
+import {
+  LogOut, FileText, Clock, Activity, Calendar, ShieldCheck, Plus,
+  Printer, User, ArrowRight, Receipt, Download, X, Eye
+} from 'lucide-react'
 import Link from 'next/link'
 import { PatientLiveTurn } from '@/components/clinic/PatientLiveTurn'
 import { BookingForm } from '@/components/clinic/BookingForm'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { getDoc } from 'firebase/firestore'
-
 import { motion } from 'framer-motion'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
-import { Printer, User, ArrowRight, Receipt } from 'lucide-react'
 import { InvoiceView, InvoiceData } from '@/components/clinic/InvoiceView'
+import { A4Prescription } from '@/components/clinic/A4Prescription'
+import { downloadElementAsPdf } from '@/lib/pdfGenerator'
+import { TechnicalSupportButton } from '@/components/clinic/TechnicalSupportButton'
 import { formatCairo12Hour } from '@/lib/queue-calculator'
+import { toast } from 'sonner'
 
 export default function PatientDashboard({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
   const router = useRouter()
-  
-  const [patientData, setPatientData] = useState<{ phone: string, name: string, clinic_id: string } | null>(null)
+
+  const [patientData, setPatientData] = useState<{ phone: string; name: string; clinic_id: string } | null>(null)
   const [appointments, setAppointments] = useState<any[]>([])
   const [prescriptions, setPrescriptions] = useState<any[]>([])
   const [clinic, setClinic] = useState<any>(null)
-  const [isEditingProfile, setIsEditingProfile] = useState(false)
-  const [editAge, setEditAge] = useState('')
-  const [editName, setEditName] = useState('')
   const [services, setServices] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceData | null>(null)
+  const [selectedPrescription, setSelectedPrescription] = useState<any | null>(null)
+  const [isDownloadingRx, setIsDownloadingRx] = useState(false)
+
+  const rxModalSheetRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     // 1. Check Auth
@@ -43,7 +47,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
       router.push(`/clinic/${slug}/patient/login`)
       return
     }
-    
+
     const parsed = JSON.parse(authData)
     setPatientData(parsed)
 
@@ -74,7 +78,6 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
     // 3. Fetch History & Records
     const fetchData = async () => {
       try {
-
         // Fetch Appointments
         const apptsQ = query(
           collection(db, 'appointments'),
@@ -83,12 +86,12 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
         )
         const apptsSnap = await getDocs(apptsQ)
         const appts = apptsSnap.docs
-          .map(d => ({ id: d.id, ...d.data() } as any))
+          .map((d) => ({ id: d.id, ...d.data() } as any))
           .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        
+
         setAppointments(appts)
 
-        // Fetch Prescriptions
+        // Fetch Prescriptions (TASK 7: only approved/finalized prescriptions)
         const rxQ = query(
           collection(db, 'prescriptions'),
           where('clinic_id', '==', parsed.clinic_id),
@@ -96,9 +99,10 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
         )
         const rxSnap = await getDocs(rxQ)
         const rxs = rxSnap.docs
-          .map(d => ({ id: d.id, ...d.data() } as any))
+          .map((d) => ({ id: d.id, ...d.data() } as any))
+          .filter((rx) => rx.status === 'approved' || rx.status === 'finalized' || !rx.status)
           .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        
+
         setPrescriptions(rxs)
       } catch (err) {
         console.error(err)
@@ -117,6 +121,23 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
     router.push(`/clinic/${slug}/patient/login`)
   }
 
+  const handleDownloadRxPdf = async () => {
+    if (!rxModalSheetRef.current || !selectedPrescription) return
+    setIsDownloadingRx(true)
+    try {
+      await downloadElementAsPdf(
+        rxModalSheetRef.current,
+        `روشتة_${selectedPrescription.patientName || 'المريض'}_${selectedPrescription.date || 'كشف'}.pdf`,
+        { format: 'a4', orientation: 'portrait' }
+      )
+      toast.success('تم تحميل الروشتة بصيغة PDF بنجاح')
+    } catch (e) {
+      toast.error('تعذر تحميل ملف الروشتة')
+    } finally {
+      setIsDownloadingRx(false)
+    }
+  }
+
   if (loading || !patientData) {
     return (
       <div className="min-h-screen bg-[#F6F8FB] flex flex-col items-center justify-center gap-4" dir="rtl">
@@ -131,7 +152,6 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
 
   return (
     <div className="min-h-screen bg-[#F6F8FB] pb-16 font-sans text-[#182230]" dir="rtl">
-      
       {/* 1. Header Topbar */}
       <header className="bg-white border-b border-[#E5EAF0] sticky top-0 z-40 shadow-xs">
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -148,6 +168,8 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
           </div>
 
           <div className="flex items-center gap-2">
+            <TechnicalSupportButton variant="compact" />
+
             <Link href={`/clinic/${slug}`}>
               <Button variant="ghost" size="sm" className="text-xs font-bold text-slate-600 hover:text-[#15B8A6]">
                 الصفحة الرئيسية
@@ -169,7 +191,6 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
       </header>
 
       <main className="max-w-5xl mx-auto px-4 mt-8 space-y-8">
-        
         {/* 2. Welcome Hero Card */}
         <motion.div
           initial={{ opacity: 0, y: 15 }}
@@ -177,7 +198,6 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
           transition={{ duration: 0.5 }}
           className="medical-card bg-gradient-to-br from-[#0B1F33] via-[#0F2840] to-[#0B1F33] rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6"
         >
-          {/* Ambient Glow */}
           <div className="absolute top-0 right-0 w-80 h-80 bg-[#15B8A6]/20 rounded-full blur-3xl pointer-events-none"></div>
 
           <div className="relative z-10 space-y-2 flex-1">
@@ -192,108 +212,104 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
               يمكنك متابعة رقم دورك اللحظي في العيادة، ومراجعة سجل زياراتك الطبية والروشتات السابقة المصروفة لك.
             </p>
           </div>
-          
+
           <div className="relative z-10 shrink-0">
             <Dialog>
               <DialogTrigger className="inline-flex items-center justify-center bg-[#15B8A6] hover:bg-[#0D9488] text-white font-black text-xs h-11 px-6 rounded-xl shadow-lg shadow-[#15B8A6]/30 transition-all cursor-pointer">
                 <Plus className="w-4 h-4 ml-1.5" />
                 حجز كشف جديد بالعيادة
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden bg-transparent border-none shadow-none">
-                {clinic && services.length > 0 && (
-                  <BookingForm 
-                    clinic={clinic} 
-                    services={services} 
-                    defaultName={patientData.name} 
-                    defaultPhone={patientData.phone} 
-                  />
-                )}
+              <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto p-6 rounded-3xl" dir="rtl">
+                <DialogHeader className="text-right">
+                  <DialogTitle className="text-lg font-black text-[#182230]">
+                    حجز موعد كشف جديد
+                  </DialogTitle>
+                </DialogHeader>
+                <BookingForm
+                  clinic={clinic}
+                  services={services}
+                  defaultPhone={patientData.phone}
+                  defaultName={patientData.name}
+                />
               </DialogContent>
             </Dialog>
           </div>
         </motion.div>
 
-        {/* 3. Live Turn Tracking Banner */}
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-        >
-          <PatientLiveTurn clinicId={patientData.clinic_id} patientPhone={patientData.phone} />
-        </motion.div>
+        {/* 3. Live Turn Tracker */}
+        <PatientLiveTurn clinicId={patientData.clinic_id} patientPhone={patientData.phone} />
 
-        {/* 4. Visits Timeline & Prescriptions */}
-        <div className="space-y-6">
+        {/* 4. Visits & Prescriptions Timeline */}
+        <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-black text-[#182230] flex items-center gap-2">
-              <Activity className="w-5 h-5 text-[#15B8A6]" />
+            <h2 className="text-lg font-black text-[#182230] flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-[#15B8A6]" />
               سجل الزيارات والروشتات الطبية
             </h2>
             <span className="text-xs font-bold text-slate-400">
-              إجمالي الزيارات: {appointments.length}
+              {appointments.length} زيارات مسجلة
             </span>
           </div>
-          
+
           {appointments.length === 0 ? (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="medical-card p-12 text-center space-y-3 bg-white"
-            >
-              <div className="w-14 h-14 rounded-2xl bg-teal-50 text-[#15B8A6] flex items-center justify-center mx-auto">
-                <Calendar className="w-7 h-7" />
-              </div>
-              <h3 className="font-bold text-sm text-[#182230]">لا توجد زيارات سابقة مسجلة برقم هاتفك حتى الآن</h3>
+            <div className="medical-card p-12 text-center space-y-3">
+              <FileText className="w-12 h-12 text-slate-300 mx-auto" />
+              <h3 className="text-base font-bold text-slate-700">لا توجد سجلات طبية سابقة</h3>
               <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                عند إتمام كشفك الأول بالعيادة، ستظهر كافة التشخيصات والروشتات الطبية الخاصة بك في هذه الصفحة تلقائياً.
+                عند حجز أول كشف ومقابلة الطبيب، ستظهر تفاصيل الزيارة والروشتة الطبية هنا تلقائياً.
               </p>
-            </motion.div>
+            </div>
           ) : (
-            <div className="space-y-5">
-              {appointments.map((appt, idx) => {
-                const relatedRx = prescriptions.find(rx => rx.date === appt.date)
+            <div className="space-y-4">
+              {appointments.map((appt) => {
+                // TASK 7: Strict prescription binding to appointment
+                const relatedRx = prescriptions.find(
+                  (rx) => rx.appointment_id === appt.id || (rx.date === appt.date && !rx.appointment_id)
+                )
 
                 return (
                   <motion.div
                     key={appt.id}
-                    initial={{ opacity: 0, y: 15 }}
+                    initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, delay: idx * 0.05 }}
-                    className="medical-card p-5 sm:p-6 space-y-4 hover:shadow-md transition-shadow"
+                    className="medical-card p-6 rounded-2xl border border-[#E5EAF0] space-y-4 shadow-xs"
                   >
-                    {/* Visit Header */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#E5EAF0]">
-                      <div className="space-y-0.5">
+                    {/* Top Row: Date & Service & PDF Action */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                      <div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-black text-[#15B8A6]">زيارة #{appointments.length - idx}</span>
-                          <span className="text-slate-300">•</span>
-                          <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
-                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                            <span dir="ltr" className="font-mono">{appt.date}</span>
-                          </span>
+                          <span className="font-black text-sm text-[#182230]">{appt.serviceName || 'كشف طبي'}</span>
+                          {appt.branchName && (
+                            <Badge variant="outline" className="text-[10px] text-slate-500 border-slate-200">
+                              فرع {appt.branchName}
+                            </Badge>
+                          )}
                         </div>
-                        <h3 className="font-black text-base text-[#182230]">
-                          {appt.serviceName || 'كشف عام'}
-                        </h3>
+                        <span className="text-xs text-slate-400 font-mono mt-0.5 block" dir="ltr">
+                          {appt.date}
+                        </span>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* TASK 5: Only PDF invoice view/download, NO direct thermal print */}
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() => {
                             setSelectedInvoice({
                               invoiceNumber: appt.invoiceNumber || `INV-${appt.id.slice(0, 8)}`,
-                              clinicName: clinic?.clinicName || 'عيادة كير',
+                              clinicName: clinic?.clinicName || 'العيادة',
                               doctorName: clinic?.doctorName,
+                              branchName: appt.branchName,
                               clinicAddress: clinic?.clinicAddress,
                               clinicPhone: clinic?.clinicPhone,
-                              patientName: appt.patientName || patientData?.name || 'المريض',
-                              patientPhone: appt.phone || patientData?.phone || '',
+                              patientName: appt.patientName,
+                              patientPhone: appt.phone,
                               date: appt.date,
                               cairoTime: formatCairo12Hour(new Date(appt.createdAt || Date.now())),
                               serviceName: appt.serviceName || 'كشف',
                               servicePrice: appt.servicePrice || 0,
+                              discount: appt.discountApplied || 0,
                               netTotal: appt.servicePrice || 0,
                               paymentMethod: appt.paymentMethod || 'cash',
                               paymentStatus: appt.paymentStatus || 'pending',
@@ -318,7 +334,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
                         </span>
                       </div>
                     </div>
-                    
+
                     {/* Diagnosis Strip */}
                     {appt.diagnosis && (
                       <div className="p-3.5 rounded-xl bg-teal-50/60 border border-teal-100 space-y-1">
@@ -332,17 +348,30 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
                       </div>
                     )}
 
-                    {/* Prescription Section */}
+                    {/* TASK 7: Prescription Section with Real PDF Viewer Trigger */}
                     {relatedRx ? (
                       <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
                         <div className="flex items-center justify-between">
                           <h4 className="font-bold text-xs text-[#182230] flex items-center gap-1.5">
                             <FileText className="w-4 h-4 text-[#15B8A6]" />
-                            الروشتة الطبية والعلاج المطلوب (Rx)
+                            الروشتة الطبية المعتمدة (Rx)
                           </h4>
-                          <span className="text-[10px] font-bold text-slate-400">
-                            {relatedRx.drugs?.length || 0} أصناف دوائية
-                          </span>
+
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-slate-400">
+                              {relatedRx.drugs?.length || 0} أصناف
+                            </span>
+
+                            {/* Real PDF View Button */}
+                            <Button
+                              size="sm"
+                              onClick={() => setSelectedPrescription(relatedRx)}
+                              className="h-7 px-3 text-[11px] font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-lg shadow-2xs flex items-center gap-1"
+                            >
+                              <Eye className="w-3 h-3 ml-1" />
+                              عرض وتحميل الروشتة PDF
+                            </Button>
+                          </div>
                         </div>
 
                         {relatedRx.drugs && relatedRx.drugs.length > 0 ? (
@@ -371,7 +400,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
                     ) : (
                       <div className="text-xs text-slate-400 flex items-center gap-1.5 px-1">
                         <Clock className="w-3.5 h-3.5" />
-                        <span>لم يتم تسجيل روشتة إلكترونية لهذه الزيارة.</span>
+                        <span>لم يتم اعتماد روشتة إلكترونية لهذه الزيارة بعد.</span>
                       </div>
                     )}
                   </motion.div>
@@ -382,17 +411,81 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
         </div>
       </main>
 
-      {/* Invoice View Modal */}
+      {/* Invoice View Modal (Restricted patient view: NO direct thermal print) */}
       {selectedInvoice && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
             <InvoiceView
               invoice={selectedInvoice}
+              isPatientView={true}
               onClose={() => setSelectedInvoice(null)}
             />
           </div>
         </div>
       )}
+
+      {/* TASK 7: Genuine A4 Prescription PDF Viewer Modal */}
+      {selectedPrescription && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto" dir="rtl">
+          <div className="bg-white rounded-3xl p-5 max-w-3xl w-full max-h-[95vh] overflow-y-auto shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-[#15B8A6]" />
+                <h3 className="font-black text-sm text-[#182230]">
+                  الروشتة الطبية الرسمية المعروضة
+                </h3>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={handleDownloadRxPdf}
+                  disabled={isDownloadingRx}
+                  className="h-9 px-4 text-xs font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-xs flex items-center gap-1.5"
+                >
+                  <Download className="w-4 h-4 ml-1" />
+                  {isDownloadingRx ? 'جاري التحميل...' : 'تحميل الروشتة PDF'}
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSelectedPrescription(null)}
+                  className="h-9 px-3 text-xs font-bold border-slate-200 text-slate-600 rounded-xl"
+                >
+                  إغلاق
+                </Button>
+              </div>
+            </div>
+
+            {/* Rendered A4 Prescription Document */}
+            <div ref={rxModalSheetRef} className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
+              <A4Prescription
+                clinic={clinic}
+                patientName={selectedPrescription.patientName}
+                age={selectedPrescription.age}
+                date={selectedPrescription.date}
+                diagnosis={selectedPrescription.diagnosis}
+                drugs={selectedPrescription.drugs || []}
+                instructions={selectedPrescription.instructions}
+                templateMode={selectedPrescription.templateMode || 'standard'}
+                topOffset={selectedPrescription.topOffset || 25}
+                primaryColor={selectedPrescription.primaryColor}
+                secondaryColor={selectedPrescription.secondaryColor}
+                branchName={selectedPrescription.branchName}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TASK 12: Standardized Copyright Footer */}
+      <footer className="mt-12 text-center text-xs text-slate-400 space-y-2">
+        <div className="flex items-center justify-center gap-4">
+          <TechnicalSupportButton variant="compact" />
+        </div>
+        <p>جميع الحقوق محفوظة © {new Date().getFullYear()} Clinic OS</p>
+      </footer>
     </div>
   )
 }

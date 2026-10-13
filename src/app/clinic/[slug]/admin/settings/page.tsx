@@ -36,7 +36,8 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const [newDoctorEmail, setNewDoctorEmail] = useState('');
   const [newDoctorPassword, setNewDoctorPassword] = useState('');
   const [newDoctorPasswordConfirm, setNewDoctorPasswordConfirm] = useState('');
-  const [currentRole, setCurrentRole] = useState('');
+  const [currentRole, setCurrentRole] = useState('')
+  const [allowDoctorEditBranding, setAllowDoctorEditBranding] = useState(true)
 
   const [clinicId, setClinicId] = useState<string | null>(null)
   const [photoUrl, setPhotoUrl] = useState('')
@@ -154,8 +155,9 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           if (data.weeklySchedule && Array.isArray(data.weeklySchedule)) {
             setWeeklySchedule(data.weeklySchedule)
           }
-        setAllowPatientMedicalView(data.allowPatientMedicalView !== false)
-        setHidePrices(data.hidePrices === true)
+          setAllowPatientMedicalView(data.allowPatientMedicalView !== false)
+          setHidePrices(data.hidePrices === true)
+          setAllowDoctorEditBranding(data.allowDoctorEditBranding !== false)
         
         
         
@@ -456,6 +458,15 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                 تخصيص الشعار الملون، شعار الفواتير الحرارية 80mm أحادي اللون، ألوان الهوية، ونصوص التذييل
               </p>
             </div>
+
+            {!allowDoctorEditBranding && (
+              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0" />
+                <span>
+                  الهوية البصرية للعيادة (الألوان والشعارات) مُدارة مركزياً بواسطة مالك المنصة Super Admin. لتعديل الهوية يرجى مراجعة إدارة المنصة.
+                </span>
+              </div>
+            )}
 
             {/* Logos Section */}
             <div className="space-y-4">

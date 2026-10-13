@@ -101,7 +101,21 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
     setConflicts(detected)
   }, [weeklySchedule, isOpen, name, editingBranchId, branches, isModalOpen])
 
+  const branchesEnabled = clinic?.branchesEnabled !== false
+  const maxBranches = typeof clinic?.maxBranches === 'number' ? clinic.maxBranches : 1
+  const activeBranches = branches.filter((b) => !b.isArchived)
+  const isLimitReached = activeBranches.length >= maxBranches
+  const canAddBranch = branchesEnabled && !isLimitReached
+
   const openAddModal = () => {
+    if (!branchesEnabled) {
+      toast.error('ميزة تعدد الفروع غير مفعلة لاشتراك عيادتكم. يرجى التواصل مع إدارة Clinic OS.')
+      return
+    }
+    if (isLimitReached) {
+      toast.error(`لقد وصلت للحد الأقصى المسموح به من الفروع (${maxBranches} فروع). يرجى ترقية الباقة لإضافة فروع جديدة.`)
+      return
+    }
     setEditingBranchId(null)
     setName('')
     setGovernorate('القاهرة')
@@ -160,6 +174,15 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
     if (!name.trim()) return toast.error('يرجى إدخال اسم الفرع')
     if (!address.trim()) return toast.error('يرجى إدخال عنوان الفرع بالتفصيل')
     if (!phone.trim()) return toast.error('يرجى إدخال رقم هاتف الفرع')
+
+    if (!editingBranchId) {
+      if (!branchesEnabled) {
+        return toast.error('ميزة تعدد الفروع غير مفعلة لاشتراك عيادتكم. يرجى التواصل مع إدارة Clinic OS.')
+      }
+      if (isLimitReached) {
+        return toast.error(`تم الوصول للحد الأقصى للفروع المسموح بها (${maxBranches} فروع). يرجى ترقية الباقة لإضافة فروع جديدة.`)
+      }
+    }
 
     if (conflicts.length > 0) {
       const confirmSave = confirm(
@@ -270,14 +293,55 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
           </p>
         </div>
 
-        <Button
-          onClick={openAddModal}
-          className="h-10 px-4 bg-[#15B8A6] hover:bg-[#0D9488] text-white font-bold rounded-xl shadow-md text-xs cursor-pointer"
-        >
-          <Plus className="w-4 h-4 ml-1.5" />
-          إضافة فرع جديد
-        </Button>
+        <div className="flex items-center gap-3">
+          <Badge
+            variant="outline"
+            className={`text-xs px-3 py-1.5 font-bold ${
+              !branchesEnabled
+                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                : isLimitReached
+                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                : 'bg-teal-50 text-[#0D9488] border-teal-200'
+            }`}
+          >
+            {!branchesEnabled
+              ? 'ميزة تعدد الفروع غير مفعلة'
+              : `باقة الفروع: ${activeBranches.length} من ${maxBranches} فروع`}
+          </Badge>
+
+          {canAddBranch && (
+            <Button
+              onClick={openAddModal}
+              className="h-10 px-4 bg-[#15B8A6] hover:bg-[#0D9488] text-white font-bold rounded-xl shadow-md text-xs cursor-pointer"
+            >
+              <Plus className="w-4 h-4 ml-1.5" />
+              إضافة فرع جديد
+            </Button>
+          )}
+        </div>
       </div>
+
+      {!branchesEnabled && (
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+            <span>
+              ميزة تعدد الفروع غير مفعلة في اشتراك هذه العيادة. يعمل الفرع الرئيسي حالياً بصورة طبيعية، ولطلب زيادة عدد الفروع يرجى التواصل مع إدارة Clinic OS.
+            </span>
+          </div>
+        </div>
+      )}
+
+      {branchesEnabled && isLimitReached && (
+        <div className="p-4 rounded-2xl bg-teal-50 border border-teal-200 text-[#0D9488] text-xs flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-5 h-5 text-[#15B8A6] shrink-0" />
+            <span>
+              تم استهلاك السعة القصوى للفروع المتاحة في باقتكم ({activeBranches.length} من أصل {maxBranches} فروع). لترقية الباقة يرجى التواصل مع إدارة Clinic OS.
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Branches Cards Grid */}
       {isLoading ? (
