@@ -265,7 +265,7 @@ export default function OwnerDashboard() {
         badge2Title,
         badge2Value,
         activationDate,
-        expirationDate,
+        expirationDate: expirationDate ? expirationDate.replace(/^20266/, '2026') : '',
         ownerMessage,
         isActive,
         updatedAt: new Date().toISOString()

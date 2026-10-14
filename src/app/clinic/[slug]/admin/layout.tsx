@@ -1,6 +1,6 @@
 'use client'
 import { DynamicTheme } from '@/components/DynamicTheme'
-import { use, useEffect, useState } from 'react'
+import { use, useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -112,10 +112,17 @@ export default function AdminLayout({
     window.location.href = `/clinic/${slug}/login`
   }
 
-  // Get current Arabic formatted date
-  const daysUntilExpiration = clinic?.expirationDate 
-    ? Math.ceil((new Date(clinic.expirationDate).getTime() - new Date().getTime()) / (1000 * 3600 * 24))
-    : null;
+  // Calculate days until expiration with sanitization for 5-digit years (e.g. 20266 -> 2026)
+  const daysUntilExpiration = useMemo(() => {
+    if (!clinic?.expirationDate) return null
+    let expStr = String(clinic.expirationDate).trim()
+    if (expStr.length > 10 && expStr.startsWith('20266')) {
+      expStr = expStr.replace('20266', '2026')
+    }
+    const expTime = new Date(expStr).getTime()
+    if (isNaN(expTime)) return null
+    return Math.ceil((expTime - Date.now()) / (1000 * 3600 * 24))
+  }, [clinic?.expirationDate])
 
   const todayArabic = new Intl.DateTimeFormat('ar-EG', {
     weekday: 'long',
@@ -465,12 +472,12 @@ export default function AdminLayout({
         {(() => {
           if (!clinic?.expirationDate) return null;
           const days = daysUntilExpiration;
-          if (days === null || days > 3) return null;
+          if (days === null || days > 7) return null;
           if (days >= 0) {
             return (
               <div className="bg-rose-500 text-white p-2.5 text-center text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-sm shrink-0">
-                <Bell className="w-4 h-4" />
-                تنبيه هام: اشتراك العيادة الخاص بك سينتهي خلال {days} أيام. يرجى التواصل مع الإدارة لتجديد الاشتراك.
+                <Bell className="w-4 h-4 animate-bounce shrink-0" />
+                <span>تنبيه هام: اشتراك العيادة الخاص بك سينتهي خلال {days} أيام. يرجى التواصل مع الإدارة لتجديد الاشتراك.</span>
               </div>
             );
           }
