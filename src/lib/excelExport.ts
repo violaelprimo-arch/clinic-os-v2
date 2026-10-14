@@ -452,3 +452,101 @@ export async function exportComprehensiveFinancialReportExcel({
 
   await downloadWorkbook(workbook, `تقرير_مالي_شامل_${clinicName}_${fromDate}_${toDate}.xlsx`)
 }
+
+/**
+ * Exports all Doctor accounts, clinic information, and working schedules to an Excel sheet.
+ */
+export async function exportDoctorsExcel(clinics: any[]): Promise<void> {
+  const workbook = await createWorkbook('Clinic OS Owner')
+  const sheet = workbook.addWorksheet('بيانات الأطباء والمواعيد')
+
+  sheet.columns = [
+    { header: '#', key: 'index', width: 8 },
+    { header: 'اسم الطبيب', key: 'doctorName', width: 24 },
+    { header: 'اسم العيادة', key: 'clinicName', width: 24 },
+    { header: 'التخصص الطبي', key: 'specialty', width: 22 },
+    { header: 'هاتف العيادة', key: 'clinicPhone', width: 18 },
+    { header: 'هاتف الطبيب الشخصي', key: 'doctorPhone', width: 18 },
+    { header: 'البريد الإلكتروني للطبيب', key: 'doctorEmail', width: 26 },
+    { header: 'كلمة مرور الطبيب', key: 'doctorPassword', width: 18 },
+    { header: 'بريد المساعد', key: 'assistantEmail', width: 24 },
+    { header: 'كلمة مرور المساعد', key: 'assistantPassword', width: 18 },
+    { header: 'العنوان / المحافظة', key: 'address', width: 28 },
+    { header: 'رابط العيادة (Slug)', key: 'slug', width: 18 },
+    { header: 'مواعيد وجدول العمل الأسبوعي', key: 'schedule', width: 45 },
+    { header: 'الباقة الحالية', key: 'packageName', width: 18 },
+    { header: 'تاريخ بدء الاشتراك', key: 'activationDate', width: 16 },
+    { header: 'تاريخ انتهاء الاشتراك', key: 'expirationDate', width: 16 },
+    { header: 'حالة الحساب والاشتراك', key: 'status', width: 18 },
+    { header: 'المساعد الذكي (AI)', key: 'aiStatus', width: 16 },
+    { header: 'استهلاك ردود AI', key: 'aiUsage', width: 18 },
+    { header: 'الحد الأقصى للفروع', key: 'maxBranches', width: 16 }
+  ]
+
+  const now = new Date()
+
+  clinics.forEach((c, idx) => {
+    // Format working schedule into readable string
+    let scheduleStr = 'غير محدد'
+    if (Array.isArray(c.weeklySchedule) && c.weeklySchedule.length > 0) {
+      const openDays = c.weeklySchedule
+        .filter((s: any) => s.isOpen)
+        .map((s: any) => `${s.day || s.id}: ${s.start || '09:00'} - ${s.end || '22:00'}`)
+      if (openDays.length > 0) {
+        scheduleStr = openDays.join(' | ')
+      } else {
+        scheduleStr = 'مغلق طوال الأسبوع'
+      }
+    } else if (c.workingDays && c.workingDays.length > 0) {
+      scheduleStr = `${c.workingDays.join(', ')} (${c.workingHoursStart || '09:00'} - ${c.workingHoursEnd || '22:00'})`
+    }
+
+    // Determine expiration status
+    let statusStr = c.isActive === false ? 'معطل' : 'نشط'
+    if (c.expirationDate) {
+      const exp = new Date(c.expirationDate)
+      const diffDays = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+      if (diffDays < 0) {
+        statusStr = `منتهي الصلاحية (${Math.abs(diffDays)} يوم)`
+      } else if (diffDays <= 7) {
+        statusStr = `ينتهي قريباً (متبقي ${diffDays} يوم)`
+      } else {
+        statusStr = `ساري (متبقي ${diffDays} يوم)`
+      }
+    }
+
+    // AI quota string
+    const aiLimit = c.aiResponsesLimit ?? 100
+    const aiCount = c.aiResponsesCount ?? 0
+    const aiUsageStr = `${aiCount} / ${aiLimit}`
+
+    sheet.addRow({
+      index: idx + 1,
+      doctorName: sanitizeExcelValue(c.doctorName || '—'),
+      clinicName: sanitizeExcelValue(c.clinicName || '—'),
+      specialty: sanitizeExcelValue(c.specialty || 'طبيب عام'),
+      clinicPhone: sanitizeExcelValue(c.clinicPhone || c.clinicPhones?.[0] || '—'),
+      doctorPhone: sanitizeExcelValue(c.doctorPhone || '—'),
+      doctorEmail: sanitizeExcelValue(c.doctorEmail || '—'),
+      doctorPassword: sanitizeExcelValue(c.doctorPassword || '—'),
+      assistantEmail: sanitizeExcelValue(c.assistantEmail || '—'),
+      assistantPassword: sanitizeExcelValue(c.assistantPassword || '—'),
+      address: sanitizeExcelValue(c.clinicAddress || '—'),
+      slug: sanitizeExcelValue(c.slug || '—'),
+      schedule: sanitizeExcelValue(scheduleStr),
+      packageName: sanitizeExcelValue(c.packageName || 'الأساسية'),
+      activationDate: sanitizeExcelValue(c.activationDate || '—'),
+      expirationDate: sanitizeExcelValue(c.expirationDate || '—'),
+      status: sanitizeExcelValue(statusStr),
+      aiStatus: c.aiEnabled !== false ? 'مفعل' : 'معطل',
+      aiUsage: sanitizeExcelValue(aiUsageStr),
+      maxBranches: c.maxBranches || 1
+    })
+  })
+
+  styleWorksheet(sheet)
+
+  const todayStr = new Date().toISOString().split('T')[0]
+  await downloadWorkbook(workbook, `حسابات_الأطباء_ومواعيد_العيادات_${todayStr}.xlsx`)
+}
+

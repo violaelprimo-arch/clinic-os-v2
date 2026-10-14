@@ -21,6 +21,9 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
   const [hasApiKey, setHasApiKey] = useState(false)
   const [apiKey, setApiKey] = useState('')
   const [aiEnabled, setAiEnabled] = useState(true)
+  const [aiResponsesCount, setAiResponsesCount] = useState<number>(0)
+  const [aiResponsesLimit, setAiResponsesLimit] = useState<number>(100)
+  const [clinic, setClinic] = useState<any>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -32,9 +35,12 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
           const cDoc = snapshot.docs[0]
           setClinicId(cDoc.id)
           const data = cDoc.data()
+          setClinic({ id: cDoc.id, ...data })
           setHasApiKey(!!data.aiApiKey)
           setApiKey(data.aiApiKey || '')
           setAiEnabled(data.aiEnabled !== false)
+          setAiResponsesCount(Number(data.aiResponsesCount || 0))
+          setAiResponsesLimit(Number(data.aiResponsesLimit ?? 100))
           if (data.aiKnowledge && data.aiKnowledge.length > 0) {
             setMessages(data.aiKnowledge)
           } else {
@@ -132,6 +138,61 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
           <Trash2 className="w-3.5 h-3.5 ml-1" />
           مسح الذاكرة
         </Button>
+      </div>
+
+      {/* AI Usage Quota Card */}
+      <div className="medical-card p-5 bg-white border border-[#E5EAF0] rounded-2xl shadow-xs space-y-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+              <Bot className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-sm text-[#182230]">رصيد استهلاك المساعد الذكي (AI Responses Quota)</h3>
+              <p className="text-xs text-slate-400">
+                إجمالي ردود المساعد الذكي المتاحة لمرضى العيادة خلال فترة الاشتراك الحالي
+              </p>
+            </div>
+          </div>
+
+          <div className="text-left">
+            <div className="flex items-baseline gap-1 font-mono font-black" dir="ltr">
+              <span className={`text-xl ${aiResponsesCount >= aiResponsesLimit ? 'text-rose-600' : 'text-[#15B8A6]'}`}>
+                {aiResponsesCount}
+              </span>
+              <span className="text-xs text-slate-400">/ {aiResponsesLimit} رد</span>
+            </div>
+            <span className="text-[10px] text-slate-400 font-bold block text-right">
+              {aiResponsesCount >= aiResponsesLimit
+                ? 'تم استهلاك الرصيد بالكامل'
+                : `متبقي ${Math.max(0, aiResponsesLimit - aiResponsesCount)} رد`}
+            </span>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="w-full h-2.5 rounded-full bg-slate-100 overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${
+              aiResponsesCount >= aiResponsesLimit
+                ? 'bg-rose-500'
+                : (aiResponsesCount / aiResponsesLimit) >= 0.8
+                ? 'bg-amber-400'
+                : 'bg-[#15B8A6]'
+            }`}
+            style={{ width: `${Math.min(100, Math.round((aiResponsesCount / Math.max(1, aiResponsesLimit)) * 100))}%` }}
+          />
+        </div>
+
+        {/* Limit Warning */}
+        {aiResponsesCount >= aiResponsesLimit && (
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>لقد انتهت الردود المخصصة للباقة! تم إيقاف البوت مؤقتاً لحين شحن الرصيد أو ترقية الباقة.</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {!aiEnabled && (

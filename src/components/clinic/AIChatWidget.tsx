@@ -43,7 +43,9 @@ export function AIChatWidget({ clinic }: { clinic: any }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: userText,
-          aiKnowledge: clinic?.aiKnowledge || []
+          aiKnowledge: clinic?.aiKnowledge || [],
+          clinicId: clinic?.id,
+          clinicPhone: clinic?.clinicPhone || clinic?.clinicPhones?.[0] || clinic?.doctorPhone || ''
         })
       })
 

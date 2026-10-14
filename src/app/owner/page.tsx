@@ -11,7 +11,8 @@ import {
   XCircle, Edit, Bot, FileSignature, Phone, MessageSquare,
   Sparkles, Upload, Search, ExternalLink, Power, Check,
   AlertCircle, Eye, ShieldCheck, Clock, Users, ArrowUpRight,
-  Copy, CheckCircle, RefreshCw, ChevronLeft, Calendar, Download
+  Copy, CheckCircle, RefreshCw, ChevronLeft, Calendar, Download,
+  FileSpreadsheet, Layers, Key, EyeOff, Package, Crown
 } from 'lucide-react'
 import { db } from '@/lib/firebase'
 import { collection, addDoc, getDocs, deleteDoc, updateDoc, doc, setDoc, onSnapshot } from 'firebase/firestore'
@@ -22,13 +23,43 @@ import { SINGLE_CLINIC_SLUG } from '@/lib/single-clinic'
 import { hashPassword } from '@/lib/auth-crypto'
 import { recordAuditLog } from '@/lib/audit-logger'
 import { createClinicNotification } from '@/lib/notificationService'
+import { exportDoctorsExcel } from '@/lib/excelExport'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription
+} from '@/components/ui/dialog'
 import Link from 'next/link'
 
 export default function OwnerDashboard() {
   const [clinics, setClinics] = useState<any[]>([])
-  const [activeTab, setActiveTab] = useState<'clinics' | 'add' | 'settings'>('clinics')
+  const [activeTab, setActiveTab] = useState<'clinics' | 'doctors' | 'packages' | 'add' | 'settings'>('clinics')
   const [searchQuery, setSearchQuery] = useState('')
   const [filterMode, setFilterMode] = useState<'all' | 'active' | 'inactive' | 'ai-on' | 'ai-off'>('all')
+
+  // Doctors Tab State
+  const [doctorsSearchQuery, setDoctorsSearchQuery] = useState('')
+  const [showPasswords, setShowPasswords] = useState<{ [id: string]: boolean }>({})
+
+  // Packages Management State
+  const [packages, setPackages] = useState<any[]>([])
+  const [isPackageModalOpen, setIsPackageModalOpen] = useState(false)
+  const [editingPackageId, setEditingPackageId] = useState<string | null>(null)
+  const [pkgName, setPkgName] = useState('')
+  const [pkgPrice, setPkgPrice] = useState<number | string>(450)
+  const [pkgPeriod, setPkgPeriod] = useState('شهري')
+  const [pkgAiLimit, setPkgAiLimit] = useState<number | string>(100)
+  const [pkgMaxBranches, setPkgMaxBranches] = useState<number | string>(1)
+  const [pkgBadge, setPkgBadge] = useState('')
+  const [pkgIsPopular, setPkgIsPopular] = useState(false)
+  const [pkgFeatures, setPkgFeatures] = useState('')
+
+  // Clinic Package & AI Limits for active clinic
+  const [packageName, setPackageName] = useState('الباقة الأساسية')
+  const [aiResponsesLimit, setAiResponsesLimit] = useState<number | string>(100)
+  const [aiResponsesCount, setAiResponsesCount] = useState<number>(0)
 
   // Edit mode
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -131,8 +162,182 @@ export default function OwnerDashboard() {
       }
     )
 
-    return () => unsubClinics()
+    const unsubPackages = onSnapshot(
+      collection(db, 'packages'),
+      async (snap) => {
+        if (snap.empty) {
+          const defaultPkgs = [
+            {
+              name: 'الباقة الأساسية',
+              price: 450,
+              period: 'شهري',
+              aiResponsesLimit: 100,
+              maxBranches: 1,
+              isPopular: false,
+              badge: 'العيادات الفردية',
+              features: [
+                'روشتات ذكية غير محدودة (A4 / A5)',
+                'تصدير PDF وصور عالية الدقة',
+                'إرسال الروشتات والفواتير عبر واتساب',
+                'بوابة الحجز الذاتي للمرضى وتتبع الدور',
+                '100 رد شهري للمساعد الذكي AI',
+                'إدارة فرع واحد وسكرتارية العيادة'
+              ],
+              createdAt: new Date().toISOString()
+            },
+            {
+              name: 'الباقة الاحترافية',
+              price: 950,
+              period: 'شهري',
+              aiResponsesLimit: 500,
+              maxBranches: 3,
+              isPopular: true,
+              badge: 'الأكثر طلباً 🔥',
+              features: [
+                'جميع مميزات الباقة الأساسية',
+                'حتى 3 فروع طبية متكاملة',
+                '500 رد شهري للمساعد الذكي AI',
+                'قالب روشتة مخصص بهوية العيادة الفاخرة',
+                'تنبيهات تلقائية للمرضى قبل موعد الكشف',
+                'تقارير مالية وتصدير إكسيل متقدم',
+                'دعم فني مخصص وأولوية في التحديثات'
+              ],
+              createdAt: new Date().toISOString()
+            },
+            {
+              name: 'الباقة الماسية (VIP)',
+              price: 1800,
+              period: 'شهري',
+              aiResponsesLimit: 2500,
+              maxBranches: 10,
+              isPopular: false,
+              badge: 'المراكز الطبية الكبرى',
+              features: [
+                'جميع مميزات الباقة الاحترافية',
+                'فروع طبية غير محدودة',
+                '2,500 رد شهري للمساعد الذكي AI',
+                'ربط نطاق خاص فرعي باسم الدكتور',
+                'تدريب مخصص للذكاء الاصطناعي على كافة التخصصات',
+                'نسخ احتياطي يومي سحابي فوري',
+                'دعم فني خاص على مدار 24/7'
+              ],
+              createdAt: new Date().toISOString()
+            }
+          ]
+          for (const p of defaultPkgs) {
+            await addDoc(collection(db, 'packages'), p)
+          }
+        } else {
+          setPackages(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+        }
+      }
+    )
+
+    return () => {
+      unsubClinics()
+      unsubPackages()
+    }
   }, [])
+
+  const handleExportDoctors = async () => {
+    try {
+      toast.info('جاري إعداد وتصدير ملف الإكسيل الشامل لبيانات الأطباء والمواعيد...')
+      await exportDoctorsExcel(clinics)
+      toast.success('تم تصدير ملف الإكسيل بنجاح!')
+    } catch (err: any) {
+      toast.error('حدث خطأ أثناء تصدير الإكسيل: ' + err.message)
+    }
+  }
+
+  const handleResetAiCount = async (clinicId: string) => {
+    if (!confirm('هل أنت متأكد من تصفير عداد ردود الذكاء الاصطناعي لهذه العيادة؟')) return
+    try {
+      await updateDoc(doc(db, 'clinics', clinicId), { aiResponsesCount: 0 })
+      setAiResponsesCount(0)
+      toast.success('تم تصفير عداد ردود الذكاء الاصطناعي بنجاح!')
+    } catch (err: any) {
+      toast.error('حدث خطأ أثناء تصفير العداد: ' + err.message)
+    }
+  }
+
+  const handleOpenNewPackage = () => {
+    setEditingPackageId(null)
+    setPkgName('')
+    setPkgPrice(450)
+    setPkgPeriod('شهري')
+    setPkgAiLimit(100)
+    setPkgMaxBranches(1)
+    setPkgBadge('')
+    setPkgIsPopular(false)
+    setPkgFeatures([
+      'روشتات ذكية غير محدودة (A4 / A5)',
+      'تصدير PDF وصور للروشتات',
+      'بوابة الحجز الذاتي وتتبع الدور'
+    ].join('\n'))
+    setIsPackageModalOpen(true)
+  }
+
+  const handleEditPackage = (pkg: any) => {
+    setEditingPackageId(pkg.id)
+    setPkgName(pkg.name || '')
+    setPkgPrice(pkg.price || 0)
+    setPkgPeriod(pkg.period || 'شهري')
+    setPkgAiLimit(pkg.aiResponsesLimit || 100)
+    setPkgMaxBranches(pkg.maxBranches || 1)
+    setPkgBadge(pkg.badge || '')
+    setPkgIsPopular(!!pkg.isPopular)
+    setPkgFeatures(Array.isArray(pkg.features) ? pkg.features.join('\n') : '')
+    setIsPackageModalOpen(true)
+  }
+
+  const handleSavePackage = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!pkgName.trim()) return toast.error('يرجى كتابة اسم الباقة')
+
+    const featuresList = pkgFeatures
+      .split('\n')
+      .map(f => f.trim())
+      .filter(f => f.length > 0)
+
+    const pkgData = {
+      name: pkgName.trim(),
+      price: Number(pkgPrice) || 0,
+      period: pkgPeriod || 'شهري',
+      aiResponsesLimit: Number(pkgAiLimit) || 100,
+      maxBranches: Number(pkgMaxBranches) || 1,
+      badge: pkgBadge.trim(),
+      isPopular: pkgIsPopular,
+      features: featuresList,
+      updatedAt: new Date().toISOString()
+    }
+
+    try {
+      if (editingPackageId) {
+        await updateDoc(doc(db, 'packages', editingPackageId), pkgData)
+        toast.success('تم تحديث بيانات الباقة بنجاح!')
+      } else {
+        await addDoc(collection(db, 'packages'), {
+          ...pkgData,
+          createdAt: new Date().toISOString()
+        })
+        toast.success('تم إنشاء الباقة الجديدة بنجاح!')
+      }
+      setIsPackageModalOpen(false)
+      setEditingPackageId(null)
+    } catch (err: any) {
+      toast.error('حدث خطأ أثناء حفظ الباقة: ' + err.message)
+    }
+  }
+
+  const handleDeletePackage = async (pkgId: string, pkgName: string) => {
+    if (!confirm(`هل أنت متأكد من حذف باقة (${pkgName})؟`)) return
+    try {
+      await deleteDoc(doc(db, 'packages', pkgId))
+      toast.success('تم حذف الباقة بنجاح')
+    } catch (err: any) {
+      toast.error('فشل حذف الباقة: ' + err.message)
+    }
+  }
 
   const handlePrescriptionUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -267,6 +472,9 @@ export default function OwnerDashboard() {
         activationDate,
         expirationDate: expirationDate ? expirationDate.replace(/^20266/, '2026') : '',
         ownerMessage,
+        packageName: packageName || 'الباقة الأساسية',
+        aiResponsesLimit: Number(aiResponsesLimit) || 100,
+        aiResponsesCount: Number(aiResponsesCount) || 0,
         isActive,
         updatedAt: new Date().toISOString()
       }
@@ -394,6 +602,9 @@ export default function OwnerDashboard() {
     setActivationDate(c.activationDate || getLocalDate())
     setExpirationDate(c.expirationDate || '')
     setOwnerMessage(c.ownerMessage || '')
+    setPackageName(c.packageName || 'الباقة الأساسية')
+    setAiResponsesLimit(c.aiResponsesLimit ?? 100)
+    setAiResponsesCount(c.aiResponsesCount ?? 0)
     setIsActive(c.isActive !== false)
 
     setActiveTab('add')
@@ -419,6 +630,9 @@ export default function OwnerDashboard() {
     setSpecialty('')
     setCertificationTitle('')
     setClinicAddress('')
+    setPackageName('الباقة الأساسية')
+    setAiResponsesLimit(100)
+    setAiResponsesCount(0)
     setActiveTab('clinics')
     toast.info('تم إلغاء التعديل')
   }
@@ -483,6 +697,21 @@ export default function OwnerDashboard() {
       return true
     })
   }, [clinics, searchQuery, filterMode])
+
+  // Filtered doctors list for Doctors Tab
+  const filteredDoctors = useMemo(() => {
+    if (!doctorsSearchQuery.trim()) return clinics
+    const q = doctorsSearchQuery.trim().toLowerCase()
+    return clinics.filter(c =>
+      (c.doctorName || '').toLowerCase().includes(q) ||
+      (c.clinicName || '').toLowerCase().includes(q) ||
+      (c.specialty || '').toLowerCase().includes(q) ||
+      (c.clinicPhone || '').includes(q) ||
+      (c.doctorPhone || '').includes(q) ||
+      (c.doctorEmail || '').toLowerCase().includes(q) ||
+      (c.slug || '').toLowerCase().includes(q)
+    )
+  }, [clinics, doctorsSearchQuery])
 
   // KPI Metrics
   const totalClinics = clinics.length
@@ -589,14 +818,38 @@ export default function OwnerDashboard() {
       <div className="flex items-center gap-2 border-b border-[#E5EAF0] pb-2 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setActiveTab('clinics')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'clinics'
               ? 'bg-[#0B1F33] text-white shadow-md'
               : 'text-slate-500 hover:text-[#182230] hover:bg-slate-100'
           }`}
         >
           <Building className="w-4 h-4" />
-          <span>إدارة العيادة وإعدادات النظام (zizo)</span>
+          <span>إدارة العيادات والنظام</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('doctors')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'doctors'
+              ? 'bg-teal-600 text-white shadow-md'
+              : 'text-slate-500 hover:text-[#182230] hover:bg-slate-100'
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          <span>حسابات الأطباء والمواعيد</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('packages')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'packages'
+              ? 'bg-amber-600 text-white shadow-md'
+              : 'text-slate-500 hover:text-[#182230] hover:bg-slate-100'
+          }`}
+        >
+          <Package className="w-4 h-4" />
+          <span>التحكم في الباقات والاشتراكات</span>
         </button>
 
         <button
@@ -607,34 +860,34 @@ export default function OwnerDashboard() {
               setActiveTab('add')
             }
           }}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'add'
               ? 'bg-[#15B8A6] text-white shadow-md shadow-[#15B8A6]/20'
               : 'text-slate-500 hover:text-[#182230] hover:bg-slate-100'
           }`}
         >
           <Edit className="w-4 h-4" />
-          <span>تعديل بيانات وإعدادات العيادة</span>
+          <span>تعديل بيانات العيادة</span>
         </button>
 
         <button
           onClick={() => setActiveTab('settings')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'settings'
               ? 'bg-purple-600 text-white shadow-md'
               : 'text-slate-500 hover:text-[#182230] hover:bg-slate-100'
           }`}
         >
           <Bot className="w-4 h-4" />
-          <span>مفتاح الذكاء الاصطناعي المركزي</span>
+          <span>مفتاح AI المركزي</span>
         </button>
 
         <button
           onClick={handleExportBackup}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white shadow-md mr-auto"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer bg-slate-800 hover:bg-slate-900 text-white shadow-md mr-auto whitespace-nowrap"
         >
           <Download className="w-4 h-4" />
-          <span>تصدير نسخة احتياطية آمنة (JSON)</span>
+          <span>نسخة احتياطية (JSON)</span>
         </button>
       </div>
 
@@ -901,6 +1154,516 @@ export default function OwnerDashboard() {
         </motion.div>
       )}
 
+      {/* TAB: Doctors Accounts & Schedules */}
+      {activeTab === 'doctors' && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="space-y-4"
+        >
+          {/* Top Control Bar with Search and Excel Export */}
+          <div className="medical-card p-4 bg-white border border-[#E5EAF0] rounded-2xl flex flex-col md:flex-row items-center justify-between gap-3 shadow-2xs">
+            <div className="relative w-full md:w-96">
+              <Search className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Input
+                value={doctorsSearchQuery}
+                onChange={e => setDoctorsSearchQuery(e.target.value)}
+                placeholder="ابحث باسم الطبيب، العيادة، التخصص، الهاتف، أو الإيميل..."
+                className="pr-10 h-10 text-xs bg-slate-50 rounded-xl border-[#E5EAF0] focus:bg-white"
+              />
+            </div>
+
+            <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+              <span className="text-xs font-bold text-slate-500">
+                إجمالي الأطباء: <strong className="text-[#182230]">{filteredDoctors.length}</strong>
+              </span>
+
+              <Button
+                onClick={handleExportDoctors}
+                className="h-10 px-4 text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-md cursor-pointer flex items-center gap-2"
+                title="تصدير جدول إكسيل منسق بكافة بيانات الأطباء ومواعيد العمل وحسابات الدخول"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>تصدير إكسيل الأطباء والمواعيد</span>
+              </Button>
+            </div>
+          </div>
+
+          {/* Doctors Table */}
+          <div className="medical-card bg-white border border-[#E5EAF0] rounded-2xl overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-right text-xs">
+                <thead className="bg-[#F8FAFC] text-slate-500 font-bold border-b border-[#E5EAF0]">
+                  <tr>
+                    <th className="py-4 px-4">بيانات الطبيب والعيادة</th>
+                    <th className="py-4 px-4">مواعيد العمل الأسبوعية</th>
+                    <th className="py-4 px-4">حساب دخول الطبيب (Doctor)</th>
+                    <th className="py-4 px-4">حساب المساعد (Assistant)</th>
+                    <th className="py-4 px-4 text-center">الباقة والاشتراك</th>
+                    <th className="py-4 px-4 text-center">استهلاك ردود AI</th>
+                    <th className="py-4 px-4 text-center">إجراءات</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E5EAF0]">
+                  {filteredDoctors.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-slate-400">
+                        {clinics.length === 0 ? 'لا يوجد أطباء مسجلين حتى الآن.' : 'لا توجد نتائج تطابق بحثك.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredDoctors.map(c => {
+                      const schedule = Array.isArray(c.weeklySchedule) && c.weeklySchedule.length > 0
+                        ? c.weeklySchedule.filter((s: any) => s.isOpen !== false)
+                        : null
+                      const aiUsed = c.aiResponsesCount || 0
+                      const aiLimit = c.aiResponsesLimit !== undefined ? c.aiResponsesLimit : 100
+                      const aiExceeded = aiUsed >= aiLimit
+                      const isPasswordVisible = !!showPasswords[c.id]
+
+                      return (
+                        <tr key={c.id} className="hover:bg-slate-50/80 transition-colors">
+                          {/* Doctor & Clinic Details */}
+                          <td className="py-4 px-4 min-w-[200px]">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-xl bg-teal-50 border border-teal-200 flex items-center justify-center font-black text-teal-700 text-xs shrink-0">
+                                  {c.doctorName ? c.doctorName.charAt(0) : 'ط'}
+                                </div>
+                                <div>
+                                  <h4 className="font-black text-sm text-[#182230]">
+                                    {c.doctorName ? `د. ${c.doctorName}` : 'طبيب العيادة'}
+                                  </h4>
+                                  <p className="text-[11px] font-bold text-teal-700">{c.clinicName}</p>
+                                </div>
+                              </div>
+                              <p className="text-[10px] text-slate-500 font-medium">
+                                {c.specialty || 'تخصص عام'} {c.certificationTitle ? `• ${c.certificationTitle}` : ''}
+                              </p>
+                              {c.clinicAddress && (
+                                <p className="text-[10px] text-slate-400 flex items-center gap-1">
+                                  <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                                  <span className="truncate max-w-[220px]">{c.clinicAddress}</span>
+                                </p>
+                              )}
+                              <div className="flex items-center gap-2 pt-1 font-mono text-[10px] text-slate-500" dir="ltr">
+                                <span>هاتف: {c.clinicPhone || '—'}</span>
+                                {c.doctorPhone && <span>• شخصي: {c.doctorPhone}</span>}
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Working Schedule */}
+                          <td className="py-4 px-4 min-w-[220px]">
+                            <div className="space-y-1">
+                              {schedule && schedule.length > 0 ? (
+                                <div className="flex flex-wrap gap-1 max-w-xs">
+                                  {schedule.map((s: any, idx: number) => (
+                                    <span
+                                      key={idx}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-teal-50 text-teal-800 border border-teal-200 text-[10px] font-bold font-mono"
+                                    >
+                                      <span>{s.day}:</span>
+                                      <span dir="ltr">{s.start} - {s.end}</span>
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="text-[11px] text-slate-500 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200 inline-block font-medium">
+                                  السبت - الخميس: 05:00 م - 10:00 م (افتراضي)
+                                </div>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Doctor Login */}
+                          <td className="py-4 px-4 min-w-[200px]">
+                            <div className="space-y-1.5 p-2 rounded-xl bg-slate-50 border border-slate-200">
+                              <div className="flex items-center justify-between gap-1 text-[11px]">
+                                <span className="text-slate-400 font-bold">الإيميل:</span>
+                                <span className="font-mono text-slate-700 font-medium truncate max-w-[130px]" dir="ltr">
+                                  {c.doctorEmail || 'doctor@clinic.com'}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between gap-1 text-[11px] pt-1 border-t border-slate-200">
+                                <span className="text-slate-400 font-bold">المرور:</span>
+                                <div className="flex items-center gap-1">
+                                  <span className="font-mono font-bold text-slate-800" dir="ltr">
+                                    {isPasswordVisible ? (c.doctorPassword || '123456') : '••••••••'}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowPasswords(p => ({ ...p, [c.id]: !p[c.id] }))}
+                                    className="p-1 hover:text-teal-700 text-slate-400 cursor-pointer"
+                                    title={isPasswordVisible ? 'إخفاء' : 'إظهار'}
+                                  >
+                                    {isPasswordVisible ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(c.doctorPassword || '123456')
+                                      toast.success('تم نسخ كلمة مرور الطبيب!')
+                                    }}
+                                    className="p-1 hover:text-teal-700 text-slate-400 cursor-pointer"
+                                    title="نسخ كلمة المرور"
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Assistant Login */}
+                          <td className="py-4 px-4 min-w-[200px]">
+                            <div className="space-y-1.5 p-2 rounded-xl bg-slate-50 border border-slate-200">
+                              <div className="flex items-center justify-between gap-1 text-[11px]">
+                                <span className="text-slate-400 font-bold">الإيميل:</span>
+                                <span className="font-mono text-slate-700 font-medium truncate max-w-[130px]" dir="ltr">
+                                  {c.assistantEmail || 'assistant@clinic.com'}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between gap-1 text-[11px] pt-1 border-t border-slate-200">
+                                <span className="text-slate-400 font-bold">المرور:</span>
+                                <div className="flex items-center gap-1">
+                                  <span className="font-mono font-bold text-slate-800" dir="ltr">
+                                    {isPasswordVisible ? (c.assistantPassword || '123456') : '••••••••'}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(c.assistantPassword || '123456')
+                                      toast.success('تم نسخ كلمة مرور المساعد!')
+                                    }}
+                                    className="p-1 hover:text-teal-700 text-slate-400 cursor-pointer"
+                                    title="نسخ كلمة المرور"
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Package & Subscription */}
+                          <td className="py-4 px-4 text-center">
+                            <div className="flex flex-col items-center gap-1">
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-1">
+                                <Crown className="w-3 h-3 text-amber-600" />
+                                <span>{c.packageName || 'الباقة الأساسية'}</span>
+                              </span>
+                              <span className="text-[10px] font-mono text-slate-400">
+                                {c.expirationDate ? `ينتهي: ${c.expirationDate}` : 'اشتراك مفتوح'}
+                              </span>
+                              <span className={`text-[9px] font-bold ${c.isActive !== false ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                {c.isActive !== false ? '● حساب نشط' : '○ موقوف'}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* AI Response Quota */}
+                          <td className="py-4 px-4 text-center min-w-[150px]">
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between text-[10px] font-mono font-bold">
+                                <span className={aiExceeded ? 'text-rose-600' : 'text-purple-700'}>
+                                  {aiUsed} / {aiLimit}
+                                </span>
+                                <span className={`text-[9px] px-1.5 py-0.5 rounded ${
+                                  aiExceeded ? 'bg-rose-100 text-rose-700 font-black' : 'bg-purple-100 text-purple-700'
+                                }`}>
+                                  {aiExceeded ? 'تجاوز الحد (معطل)' : `${Math.round((aiUsed / Math.max(1, aiLimit)) * 100)}%`}
+                                </span>
+                              </div>
+                              <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full transition-all ${aiExceeded ? 'bg-rose-500' : 'bg-purple-600'}`}
+                                  style={{ width: `${Math.min(100, Math.round((aiUsed / Math.max(1, aiLimit)) * 100))}%` }}
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleResetAiCount(c.id)}
+                                className="text-[9px] text-teal-600 hover:text-teal-800 hover:underline font-bold cursor-pointer"
+                              >
+                                تصفير العداد
+                              </button>
+                            </div>
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-4 px-4 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleEdit(c)}
+                                className="h-8 px-2.5 text-xs font-bold text-blue-600 border-blue-200 hover:bg-blue-50 rounded-xl"
+                                title="تعديل العيادة"
+                              >
+                                <Edit className="w-3.5 h-3.5 ml-1" />
+                                تعديل
+                              </Button>
+                              <a
+                                href={`https://${c.slug}.yalla-clinic.com/admin`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="h-8 px-2.5 inline-flex items-center gap-1 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold"
+                                title="فتح لوحة تحكم الطبيب"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                <span>لوحة الطبيب</span>
+                              </a>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* TAB: Packages Management */}
+      {activeTab === 'packages' && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="space-y-6"
+        >
+          {/* Header & Add Button */}
+          <div className="medical-card p-6 bg-white border border-[#E5EAF0] rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+            <div>
+              <h2 className="text-xl font-black text-[#182230] flex items-center gap-2">
+                <Package className="w-6 h-6 text-amber-600" />
+                التحكم في باقات واشتراكات المنصة
+              </h2>
+              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                أنشئ وعدل باقات الاشتراك مع تحديد عدد الفروع وحدود ردود المساعد الذكي AI. تظهر هذه الباقات تلقائياً للأطباء في لوحة العيادة تحت خانة «ترقية حسابك / الباقات».
+              </p>
+            </div>
+
+            <Button
+              onClick={handleOpenNewPackage}
+              className="h-11 px-5 text-xs font-black bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-md cursor-pointer flex items-center gap-2 shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>إضافة باقة جديدة</span>
+            </Button>
+          </div>
+
+          {/* Packages Grid */}
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {packages.map(pkg => (
+              <div
+                key={pkg.id}
+                className={`medical-card relative bg-white border rounded-3xl p-6 flex flex-col justify-between transition-all hover:shadow-lg ${
+                  pkg.isPopular ? 'border-amber-400 shadow-md ring-2 ring-amber-400/20' : 'border-[#E5EAF0] shadow-sm'
+                }`}
+              >
+                {/* Popular or Custom Badge */}
+                {pkg.badge && (
+                  <div className="absolute -top-3 right-6">
+                    <span className="px-3 py-1 rounded-full text-[11px] font-black bg-amber-500 text-white shadow-xs">
+                      {pkg.badge}
+                    </span>
+                  </div>
+                )}
+
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-black text-[#182230] flex items-center gap-2">
+                      <Crown className={`w-5 h-5 ${pkg.isPopular ? 'text-amber-500' : 'text-slate-400'}`} />
+                      {pkg.name}
+                    </h3>
+                  </div>
+
+                  <div className="flex items-baseline gap-1 mb-4" dir="rtl">
+                    <span className="text-3xl font-black text-slate-900">{pkg.price}</span>
+                    <span className="text-xs font-bold text-slate-500">ج.م / {pkg.period || 'شهري'}</span>
+                  </div>
+
+                  {/* Highlights */}
+                  <div className="grid grid-cols-2 gap-2 mb-4 p-3 rounded-2xl bg-slate-50 border border-slate-100 text-center">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-bold">ردود الذكاء الاصطناعي</span>
+                      <span className="text-xs font-black text-purple-700 font-mono">
+                        {pkg.aiResponsesLimit?.toLocaleString() || 100} رد
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-bold">عدد الفروع</span>
+                      <span className="text-xs font-black text-blue-700 font-mono">
+                        {pkg.maxBranches || 1} {pkg.maxBranches === 1 ? 'فرع' : 'فروع'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Features List */}
+                  <div className="space-y-2 mb-6">
+                    <span className="text-[11px] font-black text-slate-700 block">مميزات الباقة:</span>
+                    {Array.isArray(pkg.features) && pkg.features.map((feat: string, idx: number) => (
+                      <div key={idx} className="flex items-start gap-2 text-xs text-slate-600">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        <span>{feat}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Card Actions */}
+                <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleEditPackage(pkg)}
+                    className="flex-1 h-9 rounded-xl text-xs font-bold text-blue-600 border-blue-200 hover:bg-blue-50"
+                  >
+                    <Edit className="w-3.5 h-3.5 ml-1" />
+                    تعديل الباقة
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleDeletePackage(pkg.id, pkg.name)}
+                    className="h-9 px-3 rounded-xl text-xs font-bold text-rose-500 hover:bg-rose-50 hover:text-rose-700"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Add / Edit Package Modal */}
+          <Dialog open={isPackageModalOpen} onOpenChange={setIsPackageModalOpen}>
+            <DialogContent className="max-w-md w-full p-6 rounded-3xl" dir="rtl">
+              <DialogHeader className="text-right">
+                <DialogTitle className="text-lg font-black text-[#182230]">
+                  {editingPackageId ? 'تعديل بيانات الباقة' : 'إنشاء باقة اشتراك جديدة'}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-400">
+                  تحدد هذه الإعدادات المميزات وحدود الذكاء الاصطناعي التي تظهر للأطباء.
+                </DialogDescription>
+              </DialogHeader>
+
+              <form onSubmit={handleSavePackage} className="space-y-4 pt-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-700">اسم الباقة *</Label>
+                  <Input
+                    value={pkgName}
+                    onChange={e => setPkgName(e.target.value)}
+                    placeholder="مثل: الباقة الاحترافية (Pro)"
+                    required
+                    className="h-10 text-xs rounded-xl"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-slate-700">السعر (ج.م) *</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={pkgPrice}
+                      onChange={e => setPkgPrice(e.target.value)}
+                      required
+                      className="h-10 text-xs font-mono font-bold rounded-xl"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-slate-700">دورة الفوترة *</Label>
+                    <Input
+                      value={pkgPeriod}
+                      onChange={e => setPkgPeriod(e.target.value)}
+                      placeholder="شهري / سنوي"
+                      required
+                      className="h-10 text-xs rounded-xl"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-slate-700">حد ردود AI (رد شهرياً)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={pkgAiLimit}
+                      onChange={e => setPkgAiLimit(e.target.value)}
+                      className="h-10 text-xs font-mono font-bold rounded-xl"
+                      placeholder="500"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-slate-700">الحد الأقصى للفروع</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="50"
+                      value={pkgMaxBranches}
+                      onChange={e => setPkgMaxBranches(e.target.value)}
+                      className="h-10 text-xs font-mono font-bold rounded-xl"
+                      placeholder="1"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-700">شارة مميزة (Badge)</Label>
+                  <Input
+                    value={pkgBadge}
+                    onChange={e => setPkgBadge(e.target.value)}
+                    placeholder="مثل: الأكثر طلباً، باقة المراكز"
+                    className="h-10 text-xs rounded-xl"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200">
+                  <Label className="text-xs font-bold text-slate-700 cursor-pointer" onClick={() => setPkgIsPopular(!pkgIsPopular)}>
+                    تمييز كـ «الباقة الأكثر طلباً» (Popular)
+                  </Label>
+                  <Switch checked={pkgIsPopular} onCheckedChange={setPkgIsPopular} />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-700">المميزات (اكتب كل ميزة في سطر منفصل)</Label>
+                  <textarea
+                    value={pkgFeatures}
+                    onChange={e => setPkgFeatures(e.target.value)}
+                    rows={4}
+                    placeholder="روشتات ذكية غير محدودة&#10;تنبيهات للمرضى قبل الكشف&#10;تصدير إكسيل متقدم"
+                    className="w-full text-xs rounded-xl border border-slate-200 p-2.5 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#15B8A6]/20 focus:border-[#15B8A6]"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <Button
+                    type="submit"
+                    className="flex-1 h-11 text-xs font-black bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-md cursor-pointer"
+                  >
+                    {editingPackageId ? 'حفظ التعديلات' : 'إنشاء الباقة'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsPackageModalOpen(false)}
+                    className="h-11 px-4 text-xs font-bold rounded-xl"
+                  >
+                    إلغاء
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </motion.div>
+      )}
+
       {/* 5. TAB 2: Add or Edit Clinic Form */}
       {activeTab === 'add' && (
         <motion.div
@@ -1144,6 +1907,46 @@ export default function OwnerDashboard() {
                           placeholder="اتركه فارغاً لاستخدام المفتاح المركزي"
                           className="h-9 text-xs font-mono rounded-lg mt-1"
                         />
+                      </div>
+
+                      {/* AI Quota & Auto-Stop Controls */}
+                      <div className="pt-3 border-t border-slate-100 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-[11px] font-bold text-slate-800">
+                            الحد الأقصى لعدد ردود المساعد الذكي (AI Responses Quota)
+                          </Label>
+                          {editingId && (
+                            <button
+                              type="button"
+                              onClick={() => handleResetAiCount(editingId)}
+                              className="text-[10px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-lg cursor-pointer transition-colors"
+                            >
+                              تصفير عداد الردود
+                            </button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 items-center">
+                          <div>
+                            <Input
+                              type="number"
+                              min="0"
+                              value={aiResponsesLimit}
+                              onChange={e => setAiResponsesLimit(Math.max(0, parseInt(e.target.value) || 0))}
+                              className="h-9 text-xs font-mono font-bold rounded-lg"
+                              placeholder="100"
+                            />
+                            <span className="text-[10px] text-slate-400">الحد الأقصى المسموح للعيادة</span>
+                          </div>
+                          <div className="p-2 rounded-lg bg-slate-50 border border-slate-200 text-center">
+                            <span className="text-[10px] text-slate-500 block font-medium">الردود المستهلكة:</span>
+                            <span className="text-xs font-mono font-black text-purple-700">
+                              {aiResponsesCount} / {aiResponsesLimit}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-slate-400 leading-normal">
+                          إذا وصل عدد ردود البوت إلى هذا الحد، سيتوقف المساعد الذكي تلقائياً عن الرد ويعتذر للمريض ويطلب منه التواصل هاتفياً، كما يتم إرسال إشعار فوري للطبيب في لوحة العيادة.
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -1393,9 +2196,37 @@ export default function OwnerDashboard() {
               <div className="space-y-3">
                 <h3 className="text-xs font-black text-slate-700 flex items-center gap-2">
                   <Clock className="w-4 h-4 text-[#15B8A6]" />
-                  مدة الاشتراك وحالة العيادة
+                  مدة الاشتراك وباقة العيادة
                 </h3>
-                <div className="grid md:grid-cols-3 gap-4 items-center bg-teal-50/40 p-4 rounded-2xl border border-teal-100">
+                <div className="grid md:grid-cols-4 gap-4 items-center bg-teal-50/40 p-4 rounded-2xl border border-teal-100">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-slate-600">باقة الاشتراك المعتمدة</Label>
+                    <select
+                      value={packageName}
+                      onChange={e => {
+                        setPackageName(e.target.value)
+                        const sel = packages.find(p => p.name === e.target.value)
+                        if (sel) {
+                          if (sel.aiResponsesLimit) setAiResponsesLimit(sel.aiResponsesLimit)
+                          if (sel.maxBranches) setMaxBranches(sel.maxBranches)
+                        }
+                      }}
+                      className="h-10 text-xs font-bold rounded-xl bg-white border border-slate-200 px-3 w-full focus:outline-none focus:ring-2 focus:ring-[#15B8A6]/20 focus:border-[#15B8A6] cursor-pointer"
+                    >
+                      {packages.map(p => (
+                        <option key={p.id} value={p.name}>
+                          {p.name} ({p.price} ج.م / {p.period || 'شهري'})
+                        </option>
+                      ))}
+                      {packages.length === 0 && (
+                        <>
+                          <option value="الباقة الأساسية">الباقة الأساسية</option>
+                          <option value="الباقة الاحترافية (Pro)">الباقة الاحترافية (Pro)</option>
+                          <option value="الباقة الماسية (VIP)">الباقة الماسية (VIP)</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
                   <div className="space-y-1">
                     <Label className="text-xs font-bold text-slate-600">تاريخ التفعيل</Label>
                     <Input
@@ -1416,7 +2247,7 @@ export default function OwnerDashboard() {
                   </div>
                   <div className="pt-4 flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200">
                     <Label className="text-xs font-black text-slate-700 cursor-pointer" onClick={() => setIsActive(!isActive)}>
-                      العيادة نشطة وجاهزة لاستقبال المرضى
+                      العيادة نشطة وجاهزة
                     </Label>
                     <Switch checked={isActive} onCheckedChange={setIsActive} />
                   </div>

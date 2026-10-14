@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 import {
   FileText, Users, DollarSign, Calendar, Settings, Bot,
   LogOut, Receipt, Pill, Bell, Search, ExternalLink, Menu,
-  X, CheckCircle, ChevronLeft, User, Building2
+  X, CheckCircle, ChevronLeft, User, Building2, Sparkles
 } from 'lucide-react'
 import { db, auth } from '@/lib/firebase'
 import { collection, query, where, onSnapshot } from 'firebase/firestore'
@@ -18,6 +18,7 @@ import { toast } from 'sonner'
 import { BranchSelector } from '@/components/clinic/BranchSelector'
 import { NotificationCenter } from '@/components/clinic/NotificationCenter'
 import { TechnicalSupportButton } from '@/components/clinic/TechnicalSupportButton'
+import { SubscriptionUpgradeModal } from '@/components/clinic/SubscriptionUpgradeModal'
 
 export default function AdminLayout({
   children,
@@ -35,10 +36,18 @@ export default function AdminLayout({
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedBranchId, setSelectedBranchId] = useState<string>('all')
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false)
+  const [packages, setPackages] = useState<any[]>([])
 
   useEffect(() => {
     const saved = localStorage.getItem('clinic_selected_branch') || 'all'
     setSelectedBranchId(saved)
+
+    const unsubPackages = onSnapshot(collection(db, 'packages'), (snap) => {
+      setPackages(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    })
+
+    return () => unsubPackages()
   }, [])
 
   const handleSelectBranch = (bId: string) => {
@@ -248,24 +257,41 @@ export default function AdminLayout({
           </Link>
 
           {/* Doctor Profile Mini Card */}
-          <div className="mt-4 p-3 rounded-xl bg-[#0F243A] border border-[#1E3A5F] flex items-center gap-3">
-            <Avatar className="w-10 h-10 border border-[#15B8A6]/40 shadow-sm shrink-0">
-              <AvatarImage src={clinic?.heroImage} alt="Doctor" className="object-cover" />
-              <AvatarFallback className="bg-[#15B8A6]/20 text-[#15B8A6] font-bold text-sm">
-                <User className="w-5 h-5" />
-              </AvatarFallback>
-            </Avatar>
-            <div className="overflow-hidden flex-1">
-              <h3 className="font-bold text-sm text-white truncate">
-                {clinic?.doctorName ? `د. ${clinic.doctorName}` : (clinic?.clinicName || 'العيادة الطبية')}
-              </h3>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span className="text-[11px] text-slate-400 font-medium truncate">
-                  {role === 'assistant' ? 'مساعد العيادة' : 'طبيب معتمد'}
-                </span>
+          <div className="mt-4 p-3 rounded-xl bg-[#0F243A] border border-[#1E3A5F]">
+            <div className="flex items-center gap-3">
+              <Avatar className="w-10 h-10 border border-[#15B8A6]/40 shadow-sm shrink-0">
+                <AvatarImage src={clinic?.heroImage} alt="Doctor" className="object-cover" />
+                <AvatarFallback className="bg-[#15B8A6]/20 text-[#15B8A6] font-bold text-sm">
+                  <User className="w-5 h-5" />
+                </AvatarFallback>
+              </Avatar>
+              <div className="overflow-hidden flex-1">
+                <h3 className="font-bold text-sm text-white truncate">
+                  {clinic?.doctorName ? `د. ${clinic.doctorName}` : (clinic?.clinicName || 'العيادة الطبية')}
+                </h3>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span className="text-[11px] text-slate-400 font-medium truncate">
+                    {role === 'assistant' ? 'مساعد العيادة' : 'طبيب معتمد'}
+                  </span>
+                </div>
               </div>
             </div>
+
+            {/* Upgrade Account Button right under the doctor's name */}
+            <button
+              type="button"
+              onClick={() => setShowUpgradeModal(true)}
+              className="mt-2.5 w-full py-1.5 px-2.5 rounded-lg bg-gradient-to-r from-amber-500/15 via-teal-500/15 to-blue-500/15 hover:from-amber-500/25 hover:to-teal-500/25 border border-amber-400/30 text-amber-300 hover:text-white flex items-center justify-between text-xs font-black transition-all cursor-pointer shadow-xs group"
+            >
+              <span className="flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400 group-hover:rotate-12 transition-transform" />
+                ترقية حسابك / الباقات
+              </span>
+              <span className="text-[10px] bg-amber-400/20 text-amber-300 px-1.5 py-0.5 rounded font-mono font-bold">
+                {clinic?.packageName || 'الأساسية'}
+              </span>
+            </button>
           </div>
         </div>
 
@@ -335,13 +361,49 @@ export default function AdminLayout({
             className="fixed inset-y-0 right-0 w-72 bg-[#0B1F33] text-slate-300 shadow-2xl flex flex-col z-50 p-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between pb-4 border-b border-[#132B45]">
+            <div className="flex items-center justify-between pb-3 border-b border-[#132B45]">
               <ClinicLogo size="md" variant="dark" />
               <button
                 onClick={() => setMobileDrawerOpen(false)}
                 className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10"
               >
                 <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Mobile Doctor Profile Mini Card */}
+            <div className="mt-3 p-2.5 rounded-xl bg-[#0F243A] border border-[#1E3A5F]">
+              <div className="flex items-center gap-2.5">
+                <Avatar className="w-9 h-9 border border-[#15B8A6]/40 shadow-sm shrink-0">
+                  <AvatarImage src={clinic?.heroImage} alt="Doctor" className="object-cover" />
+                  <AvatarFallback className="bg-[#15B8A6]/20 text-[#15B8A6] font-bold text-xs">
+                    <User className="w-4 h-4" />
+                  </AvatarFallback>
+                </Avatar>
+                <div className="overflow-hidden flex-1">
+                  <h3 className="font-bold text-xs text-white truncate">
+                    {clinic?.doctorName ? `د. ${clinic.doctorName}` : (clinic?.clinicName || 'العيادة الطبية')}
+                  </h3>
+                  <span className="text-[10px] text-slate-400 font-medium block truncate">
+                    {role === 'assistant' ? 'مساعد العيادة' : 'طبيب معتمد'}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileDrawerOpen(false)
+                  setShowUpgradeModal(true)
+                }}
+                className="mt-2 w-full py-1.5 px-2.5 rounded-lg bg-gradient-to-r from-amber-500/15 via-teal-500/15 to-blue-500/15 border border-amber-400/30 text-amber-300 flex items-center justify-between text-[11px] font-bold"
+              >
+                <span className="flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  ترقية حسابك / الباقات
+                </span>
+                <span className="text-[9px] bg-amber-400/20 text-amber-300 px-1 rounded font-mono font-bold">
+                  {clinic?.packageName || 'الأساسية'}
+                </span>
               </button>
             </div>
 
@@ -531,6 +593,14 @@ export default function AdminLayout({
           })}
         </nav>
       </div>
+
+      {/* Subscription Upgrade Modal */}
+      <SubscriptionUpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        clinic={clinic}
+        packages={packages}
+      />
     </div>
   )
 }
