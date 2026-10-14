@@ -84,8 +84,11 @@ export interface DrugItem {
   name: string
   activeIngredient: string
   company: string
-  form: 'أقراص' | 'كبسولات' | 'شراب' | 'أكياس' | 'حقن' | 'نقط' | 'دهان / مرهم'
+  form: any
   price: number
   isFavorite?: boolean
+  isMarketUpdated?: boolean
+  lastMarketUpdate?: string
+  oldPrice?: number
 }
 

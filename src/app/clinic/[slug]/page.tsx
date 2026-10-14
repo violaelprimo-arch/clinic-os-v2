@@ -31,7 +31,7 @@ export default function ClinicPage({ params }: { params: Promise<{ slug: string 
               heroImage: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=1000&auto=format&fit=crop',
               clinicPhone: '01012345678',
               clinicAddress: 'شارع التسعين الشمالي، التجمع الخامس، القاهرة',
-              primaryColor: '#15B8A6',
+              primaryColor: '#087CF4',
               isActive: true,
               aiEnabled: true,
               services: [

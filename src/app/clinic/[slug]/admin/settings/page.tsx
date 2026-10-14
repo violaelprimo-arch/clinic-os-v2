@@ -13,6 +13,7 @@ import {
   Wallet, Users, Clock, Printer, ShieldCheck, Settings, Lock,
   CheckCircle2, Bell, Sparkles, Building2, Copy, ExternalLink
 } from 'lucide-react'
+import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 import { db } from '@/lib/firebase'
 import { collection, query, where, getDocs, updateDoc, doc, addDoc } from 'firebase/firestore'
 import { Switch } from '@/components/ui/switch'
@@ -38,6 +39,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const [newDoctorPasswordConfirm, setNewDoctorPasswordConfirm] = useState('');
   const [currentRole, setCurrentRole] = useState('')
   const [allowDoctorEditBranding, setAllowDoctorEditBranding] = useState(true)
+  const [clinic, setClinic] = useState<any>(null)
 
   const [clinicId, setClinicId] = useState<string | null>(null)
   const [photoUrl, setPhotoUrl] = useState('')
@@ -59,7 +61,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
     }
     fetchSupport();
   }, [])
-  const [primaryColor, setPrimaryColor] = useState('#15B8A6')
+  const [primaryColor, setPrimaryColor] = useState('#087CF4')
   const [averageVisitTime, setAverageVisitTime] = useState<number>(15)
   const [maxDailyBookings, setMaxDailyBookings] = useState<number>(0)
   const [allowPatientMedicalView, setAllowPatientMedicalView] = useState(false)
@@ -133,6 +135,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           const cDoc = snapshot.docs[0]
           setClinicId(cDoc.id)
           const data = cDoc.data()
+          setClinic({ id: cDoc.id, ...data })
           setPhotoUrl(data.heroImage || '')
           setClinicName(data.clinicName || '')
           setDoctorName(data.doctorName || '')
@@ -147,8 +150,8 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           setReceiptHeaderNote(data.receiptHeaderNote || '')
           if (data.receiptFooterNote) setReceiptFooterNote(data.receiptFooterNote)
           setReportHeaderNote(data.reportHeaderNote || '')
-          setSecondaryColor(data.secondaryColor || '#2F80ED')
-          setPrimaryColor(data.primaryColor || '#15B8A6')
+          setSecondaryColor(data.secondaryColor || '#02CFF3')
+          setPrimaryColor(data.primaryColor || '#087CF4')
           setAssistantPermissions(data.assistantPermissions || ['appointments'])
           setAverageVisitTime(data.averageVisitTime || 15)
           setMaxDailyBookings(data.maxDailyBookings || 0)
@@ -194,6 +197,10 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
     fetchSettings()
   }, [slug])
 
+  const canEditBranding = isClinicFeatureEnabled(clinic, 'branding') && allowDoctorEditBranding !== false
+  const canUseAi = isClinicFeatureEnabled(clinic, 'ai') && !aiLockedByOwner
+
+
   const handleSave = async () => {
     if (newDoctorPassword) {
       if (newDoctorPassword.length < 6) {
@@ -215,15 +222,17 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         heroSubtitle: heroSubtitle || '',
         certificationTitle: certificationTitle || '',
         certificationEntity: certificationEntity || '',
-        logoUrl: logoUrl || '',
-        thermalMonoLogoUrl: thermalMonoLogoUrl || '',
-        slogan: slogan || '',
-        receiptHeaderNote: receiptHeaderNote || '',
-        receiptFooterNote: receiptFooterNote || '',
-        reportHeaderNote: reportHeaderNote || '',
-        secondaryColor: secondaryColor || '#2F80ED',
+        ...(canEditBranding ? {
+          logoUrl: logoUrl || '',
+          thermalMonoLogoUrl: thermalMonoLogoUrl || '',
+          slogan: slogan || '',
+          receiptHeaderNote: receiptHeaderNote || '',
+          receiptFooterNote: receiptFooterNote || '',
+          reportHeaderNote: reportHeaderNote || '',
+          secondaryColor: secondaryColor || '#02CFF3',
+          primaryColor: primaryColor || '#087CF4',
+        } : {}),
         services: services || [],
-        primaryColor: primaryColor || '#15B8A6',
         assistantPermissions: assistantPermissions || [],
         averageVisitTime: Number(averageVisitTime) || 15,
         maxDailyBookings: Number(maxDailyBookings) || 0,
@@ -339,7 +348,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
     { id: 'staff', label: 'المساعدين والصلاحيات', icon: Users }
   ]
   
-  const tabs = aiLockedByOwner 
+  const tabs = !canUseAi 
     ? baseTabs 
     : [...baseTabs, { id: 'ai', label: 'المساعد الذكي (AI Chatbot)', icon: Bot }]
 
@@ -350,7 +359,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-black text-[#182230] flex items-center gap-2">
-            <Settings className="w-6 h-6 text-[#15B8A6]" />
+            <Settings className="w-6 h-6 text-[#087CF4]" />
             إعدادات العيادة المتقدمة
           </h1>
           <p className="text-xs text-slate-400 mt-0.5">
@@ -361,7 +370,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         <Button
           onClick={handleSave}
           disabled={isSaving}
-          className="h-10 px-6 font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl text-xs shadow-md shadow-[#15B8A6]/20"
+          className="h-10 px-6 font-bold yalla-gradient-btn text-white rounded-xl text-xs shadow-md"
         >
           <Save className="w-4 h-4 ml-1.5" />
           {isSaving ? 'جاري الحفظ...' : 'حفظ التعديلات'}
@@ -379,7 +388,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               onClick={() => setActiveTab(tab.id as any)}
               className={`flex items-center gap-2 py-3 px-4 border-b-2 font-bold text-xs whitespace-nowrap transition-colors cursor-pointer ${
                 isActive
-                  ? 'border-[#15B8A6] text-[#15B8A6] bg-white rounded-t-xl'
+                  ? 'border-[#087CF4] text-[#087CF4] bg-white rounded-t-xl'
                   : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
               }`}
             >
@@ -392,6 +401,9 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
       {/* 3. Tab Contents */}
       
+
+
+
       {/* TAB SECURITY */}
       {activeTab === 'security' && currentRole === 'doctor' && (
         <div className="medical-card p-6 max-w-2xl space-y-5">
@@ -451,7 +463,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           <div className="lg:col-span-7 medical-card p-6 space-y-6">
             <div className="pb-3 border-b border-[#E5EAF0]">
               <h3 className="font-bold text-base text-[#182230] flex items-center gap-2">
-                <Palette className="w-5 h-5 text-[#15B8A6]" />
+                <Palette className="w-5 h-5 text-[#087CF4]" />
                 إعدادات هوية العيادة والطباعة الحرارية
               </h3>
               <p className="text-xs text-slate-400 mt-1">
@@ -459,126 +471,131 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               </p>
             </div>
 
-            {!allowDoctorEditBranding && (
-              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0" />
-                <span>
-                  الهوية البصرية للعيادة (الألوان والشعارات) مُدارة مركزياً بواسطة مالك المنصة Super Admin. لتعديل الهوية يرجى مراجعة إدارة المنصة.
-                </span>
+            {!canEditBranding && (
+              <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-900 text-xs flex items-start gap-3">
+                <Lock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <h4 className="font-bold text-amber-950">تعديل هوية العيادة مقفول</h4>
+                  <p className="text-amber-800 leading-relaxed">
+                    ميزة تخصيص الهوية البصرية (الشعارات، الألوان، ونصوص الفواتير) مقفولة في باقة اشتراك عيادتك الحالية أو تم تقييدها من قبل إدارة المنصة Super Admin. لتعديلها يرجى الترقية أو التواصل مع الدعم.
+                  </p>
+                </div>
               </div>
             )}
 
-            {/* Logos Section */}
-            <div className="space-y-4">
-              <h4 className="font-bold text-xs text-slate-700 pb-1 border-b border-slate-100">شعارات العيادة</h4>
+            <fieldset disabled={!canEditBranding} className={`space-y-6 ${!canEditBranding ? 'opacity-60 pointer-events-none' : ''}`}>
+              {/* Logos Section */}
+              <div className="space-y-4">
+                <h4 className="font-bold text-xs text-slate-700 pb-1 border-b border-slate-100">شعارات العيادة</h4>
 
-              {/* Standard Colored Logo */}
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-600">رابط الشعار الملون (Standard Color Logo)</Label>
-                <Input
-                  value={logoUrl}
-                  onChange={e => setLogoUrl(e.target.value)}
-                  placeholder="https://example.com/logo.png"
-                  className="h-10 text-xs rounded-xl text-left font-mono"
-                  dir="ltr"
-                />
-                <p className="text-[11px] text-slate-400">يظهر في صفحة الحجز، التقارير المالية A4، ولوحة التحكم.</p>
-              </div>
-
-              {/* Monochrome Thermal Receipt Logo */}
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-600">شعار الفاتورة الحرارية 80mm (أحادي اللون 1-Bit Mono)</Label>
-                <Input
-                  value={thermalMonoLogoUrl}
-                  onChange={e => setThermalMonoLogoUrl(e.target.value)}
-                  placeholder="https://example.com/thermal-logo-mono.png"
-                  className="h-10 text-xs rounded-xl text-left font-mono"
-                  dir="ltr"
-                />
-                <p className="text-[11px] text-slate-400">
-                  لوجو أسود وأبيض عالي التباين بدون تدرجات رمادية للحصول على أعلى دقة طباعة على ورق 80mm الحراري.
-                </p>
-              </div>
-            </div>
-
-            {/* Colors Section */}
-            <div className="space-y-4 pt-2">
-              <h4 className="font-bold text-xs text-slate-700 pb-1 border-b border-slate-100">ألوان الهوية البصرية</h4>
-
-              <div className="grid grid-cols-2 gap-4">
+                {/* Standard Colored Logo */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-600">اللون الأساسي (Primary)</Label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={primaryColor}
-                      onChange={e => setPrimaryColor(e.target.value)}
-                      className="w-10 h-10 rounded-xl cursor-pointer border border-slate-200 p-0.5 bg-white shrink-0"
-                    />
-                    <Input
-                      value={primaryColor}
-                      onChange={e => setPrimaryColor(e.target.value)}
-                      className="h-10 text-xs rounded-xl font-mono text-left"
-                      dir="ltr"
-                    />
+                  <Label className="text-xs font-bold text-slate-600">رابط الشعار الملون (Standard Color Logo)</Label>
+                  <Input
+                    value={logoUrl}
+                    onChange={e => setLogoUrl(e.target.value)}
+                    placeholder="https://example.com/logo.png"
+                    className="h-10 text-xs rounded-xl text-left font-mono"
+                    dir="ltr"
+                  />
+                  <p className="text-[11px] text-slate-400">يظهر في صفحة الحجز، التقارير المالية A4، ولوحة التحكم.</p>
+                </div>
+
+                {/* Monochrome Thermal Receipt Logo */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-600">شعار الفاتورة الحرارية 80mm (أحادي اللون 1-Bit Mono)</Label>
+                  <Input
+                    value={thermalMonoLogoUrl}
+                    onChange={e => setThermalMonoLogoUrl(e.target.value)}
+                    placeholder="https://example.com/thermal-logo-mono.png"
+                    className="h-10 text-xs rounded-xl text-left font-mono"
+                    dir="ltr"
+                  />
+                  <p className="text-[11px] text-slate-400">
+                    لوجو أسود وأبيض عالي التباين بدون تدرجات رمادية للحصول على أعلى دقة طباعة على ورق 80mm الحراري.
+                  </p>
+                </div>
+              </div>
+
+              {/* Colors Section */}
+              <div className="space-y-4 pt-2">
+                <h4 className="font-bold text-xs text-slate-700 pb-1 border-b border-slate-100">ألوان الهوية البصرية</h4>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-slate-600">اللون الأساسي (Primary)</Label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={primaryColor}
+                        onChange={e => setPrimaryColor(e.target.value)}
+                        className="w-10 h-10 rounded-xl cursor-pointer border border-slate-200 p-0.5 bg-white shrink-0"
+                      />
+                      <Input
+                        value={primaryColor}
+                        onChange={e => setPrimaryColor(e.target.value)}
+                        className="h-10 text-xs rounded-xl font-mono text-left"
+                        dir="ltr"
+                      />
+                    </div>
                   </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-slate-600">اللون الثانوي (Secondary)</Label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={secondaryColor}
+                        onChange={e => setSecondaryColor(e.target.value)}
+                        className="w-10 h-10 rounded-xl cursor-pointer border border-slate-200 p-0.5 bg-white shrink-0"
+                      />
+                      <Input
+                        value={secondaryColor}
+                        onChange={e => setSecondaryColor(e.target.value)}
+                        className="h-10 text-xs rounded-xl font-mono text-left"
+                        dir="ltr"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Slogan & Notes Section */}
+              <div className="space-y-4 pt-2">
+                <h4 className="font-bold text-xs text-slate-700 pb-1 border-b border-slate-100">النصوص والشعارات</h4>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-600">شعار العيادة اللفظي (Slogan / Tagline)</Label>
+                  <Input
+                    value={slogan}
+                    onChange={e => setSlogan(e.target.value)}
+                    placeholder="رعايتكم أولويتنا وراحتكم هدفنا"
+                    className="h-10 text-xs rounded-xl"
+                  />
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-600">اللون الثانوي (Secondary)</Label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={secondaryColor}
-                      onChange={e => setSecondaryColor(e.target.value)}
-                      className="w-10 h-10 rounded-xl cursor-pointer border border-slate-200 p-0.5 bg-white shrink-0"
-                    />
-                    <Input
-                      value={secondaryColor}
-                      onChange={e => setSecondaryColor(e.target.value)}
-                      className="h-10 text-xs rounded-xl font-mono text-left"
-                      dir="ltr"
-                    />
-                  </div>
+                  <Label className="text-xs font-bold text-slate-600">نص رأس الفاتورة الحرارية (Receipt Subtitle)</Label>
+                  <Input
+                    value={receiptHeaderNote}
+                    onChange={e => setReceiptHeaderNote(e.target.value)}
+                    placeholder="مثال: عيادة تخصصية - استشاري جراحة"
+                    className="h-10 text-xs rounded-xl"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-600">تذييل الفاتورة الحرارية (Footer Note)</Label>
+                  <Textarea
+                    value={receiptFooterNote}
+                    onChange={e => setReceiptFooterNote(e.target.value)}
+                    rows={2}
+                    placeholder="يرجى الاحتفاظ بالإيصال للاستشارة - نتمنى لكم الشفاء العاجل"
+                    className="text-xs rounded-xl"
+                  />
                 </div>
               </div>
-            </div>
-
-            {/* Slogan & Notes Section */}
-            <div className="space-y-4 pt-2">
-              <h4 className="font-bold text-xs text-slate-700 pb-1 border-b border-slate-100">النصوص والشعارات</h4>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-600">شعار العيادة اللفظي (Slogan / Tagline)</Label>
-                <Input
-                  value={slogan}
-                  onChange={e => setSlogan(e.target.value)}
-                  placeholder="رعايتكم أولويتنا وراحتكم هدفنا"
-                  className="h-10 text-xs rounded-xl"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-600">نص رأس الفاتورة الحرارية (Receipt Subtitle)</Label>
-                <Input
-                  value={receiptHeaderNote}
-                  onChange={e => setReceiptHeaderNote(e.target.value)}
-                  placeholder="مثال: عيادة تخصصية - استشاري جراحة"
-                  className="h-10 text-xs rounded-xl"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-600">تذييل الفاتورة الحرارية (Footer Note)</Label>
-                <Textarea
-                  value={receiptFooterNote}
-                  onChange={e => setReceiptFooterNote(e.target.value)}
-                  rows={2}
-                  placeholder="يرجى الاحتفاظ بالإيصال للاستشارة - نتمنى لكم الشفاء العاجل"
-                  className="text-xs rounded-xl"
-                />
-              </div>
-            </div>
+            </fieldset>
           </div>
 
           {/* Live Preview Side (5 cols) */}
@@ -638,7 +655,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                   </div>
                   <div className="flex justify-between items-center font-black text-xs pt-1.5 border-t border-slate-200">
                     <span>المبلغ المطلوب:</span>
-                    <span className="text-sm font-black text-[#15B8A6]">300 ج.م</span>
+                    <span className="text-sm font-black text-[#087CF4]">300 ج.م</span>
                   </div>
                   <div className="flex justify-between text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-bold">
                     <span>حالة الدفع:</span>
@@ -846,7 +863,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                   <Button
                     variant="outline"
                     onClick={() => setPhones([...phones, ''])}
-                    className="w-full border-dashed h-10 text-xs font-bold text-[#15B8A6] border-teal-200 hover:bg-teal-50"
+                    className="w-full border-dashed h-10 text-xs font-bold text-[#087CF4] border-blue-200 hover:bg-blue-50"
                   >
                     <Plus className="w-4 h-4 ml-2" /> إضافة رقم آخر
                   </Button>
@@ -891,7 +908,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                     certificationTitle: certificationTitle || 'طبيب معتمد رسمياً',
                     certificationEntity: certificationEntity || 'نقابة الأطباء المصرية',
                     heroImage: photoUrl || '',
-                    primaryColor: primaryColor || '#15B8A6',
+                    primaryColor: primaryColor || '#087CF4',
                     clinicPhone: phones[0] || '01012345678',
                     clinicPhones: phones.filter(p => p.trim() !== ''),
                     clinicAddress: address || 'شارع التسعين الشمالي، التجمع الخامس، القاهرة',
@@ -911,7 +928,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       {activeTab === 'queue' && (
         <div className="medical-card p-6 max-w-2xl space-y-5">
           <div className="flex items-center gap-2 pb-3 border-b border-[#E5EAF0]">
-            <Clock className="w-5 h-5 text-[#15B8A6]" />
+            <Clock className="w-5 h-5 text-[#087CF4]" />
             <h3 className="font-bold text-sm text-[#182230]">تنظيم المواعيد وسرعة الكشف</h3>
           </div>
 
@@ -1071,7 +1088,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
             </div>
             <Button
               onClick={addService}
-              className="h-10 px-5 text-xs font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl"
+              className="h-10 px-5 text-xs font-bold bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl shadow-xs transition-colors"
             >
               <Plus className="w-4 h-4 ml-1" />
               إضافة خدمة
@@ -1187,7 +1204,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                     type="checkbox"
                     checked={assistantPermissions.includes(perm.id)}
                     onChange={() => togglePermission(perm.id)}
-                    className="rounded text-[#15B8A6] focus:ring-[#15B8A6]"
+                    className="rounded text-[#087CF4] focus:ring-[#087CF4]"
                   />
                   <span>{perm.label}</span>
                 </label>
@@ -1219,7 +1236,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
             </div>
             <Button
               onClick={addAssistant}
-              className="h-10 px-5 text-xs font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl"
+              className="h-10 px-5 text-xs font-bold bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl shadow-xs transition-colors"
             >
               <Plus className="w-4 h-4 ml-1" />
               إضافة مساعد
@@ -1268,7 +1285,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         <div className="medical-card p-6 max-w-3xl space-y-6 text-center">
           <div className="pb-3 border-b border-[#E5EAF0]">
             <h3 className="font-bold text-sm text-[#182230] flex items-center justify-center gap-2">
-              <Bot className="w-5 h-5 text-[#15B8A6]" />
+              <Bot className="w-5 h-5 text-[#087CF4]" />
               إعدادات المساعد الذكي (AI Chatbot)
             </h3>
           </div>

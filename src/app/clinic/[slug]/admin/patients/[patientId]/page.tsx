@@ -35,7 +35,7 @@ export default function PatientProfilePage({
       certificationTitle: clinic?.certificationTitle,
       clinicPhone: clinic?.clinicPhone,
       clinicAddress: clinic?.clinicAddress,
-      primaryColor: clinic?.primaryColor || '#15B8A6',
+      primaryColor: clinic?.primaryColor || '#087CF4',
       logoUrl: clinic?.logoUrl,
       patientName: pName,
       patientAge: pAge,
@@ -91,7 +91,7 @@ export default function PatientProfilePage({
           certificationTitle: clinic?.certificationTitle,
           clinicPhone: clinic?.clinicPhone,
           clinicAddress: clinic?.clinicAddress,
-          primaryColor: clinic?.primaryColor || '#15B8A6',
+          primaryColor: clinic?.primaryColor || '#087CF4',
           logoUrl: clinic?.logoUrl,
           patientName: pName,
           patientAge: pAge,
@@ -267,7 +267,7 @@ export default function PatientProfilePage({
       <Card className="border-[#E5EAF0] shadow-sm rounded-2xl overflow-hidden bg-white">
         <CardContent className="p-6">
           <div className="flex flex-col md:flex-row items-center gap-6">
-            <div className="w-24 h-24 rounded-3xl bg-teal-50 text-[#15B8A6] flex items-center justify-center shrink-0">
+            <div className="w-24 h-24 rounded-3xl bg-blue-50 dark:bg-blue-950/40 text-[#087CF4] flex items-center justify-center shrink-0">
               <User className="w-10 h-10" />
             </div>
             <div className="flex-1 text-center md:text-right space-y-3">
@@ -298,7 +298,7 @@ export default function PatientProfilePage({
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs font-bold text-slate-400">آخر زيارة</p>
-                  <p className="text-sm font-bold text-[#15B8A6]">{appointments[0]?.date || 'لا يوجد'}</p>
+                  <p className="text-sm font-bold text-[#087CF4]">{appointments[0]?.date || 'لا يوجد'}</p>
                 </div>
               </div>
             </div>
@@ -323,7 +323,7 @@ export default function PatientProfilePage({
               const isExpanded = expandedVisitId === appt.id;
               
               return (
-                <div key={appt.id} className={`bg-white border rounded-2xl transition-all duration-300 ${isExpanded ? 'border-[#15B8A6] shadow-md' : 'border-[#E5EAF0] hover:border-slate-300'}`}>
+                <div key={appt.id} className={`bg-white border rounded-2xl transition-all duration-300 ${isExpanded ? 'border-[#087CF4] shadow-md' : 'border-[#E5EAF0] hover:border-slate-300'}`}>
                   
                   {/* Visit Header (Clickable) */}
                   <div 
@@ -331,7 +331,7 @@ export default function PatientProfilePage({
                     className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer"
                   >
                     <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black transition-colors ${isExpanded ? 'bg-[#15B8A6] text-white' : 'bg-slate-50 text-slate-600'}`}>
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black transition-colors ${isExpanded ? 'bg-[#087CF4] text-white' : 'bg-slate-50 text-slate-600'}`}>
                         #{appointments.length - idx}
                       </div>
                       <div>
@@ -436,7 +436,7 @@ export default function PatientProfilePage({
                               <Button
                                 onClick={() => handleSaveVitals(appt.id)}
                                 disabled={isSavingVitals}
-                                className="bg-[#15B8A6] hover:bg-[#0D9488] text-white text-xs h-8 font-bold"
+                                className="bg-[#087CF4] hover:bg-[#0662C4] text-white text-xs h-8 font-bold"
                               >
                                 {isSavingVitals ? 'جاري الحفظ...' : 'حفظ القياسات'}
                               </Button>
@@ -504,7 +504,7 @@ export default function PatientProfilePage({
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <h5 className="font-bold text-sm text-[#182230] flex items-center gap-1.5">
-                            <Stethoscope className="w-4 h-4 text-[#15B8A6]" />
+                            <Stethoscope className="w-4 h-4 text-[#087CF4]" />
                             التشخيص والملاحظات
                           </h5>
                           {editingDiagnosisFor !== appt.id && (
@@ -565,7 +565,7 @@ export default function PatientProfilePage({
                               <div className="flex flex-wrap items-center gap-2 mb-4 print:hidden">
                                 <Button
                                   onClick={() => handlePrintRx(appt)}
-                                  className="h-9 px-3.5 text-xs font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-xs"
+                                  className="h-9 px-3.5 text-xs font-bold bg-[#087CF4] hover:bg-[#0662C4] text-white rounded-xl shadow-xs"
                                 >
                                   <Printer className="w-4 h-4 ml-1.5" />
                                   طباعة الروشتة A4

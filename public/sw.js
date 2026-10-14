@@ -23,10 +23,10 @@ self.addEventListener('activate', (event) => {
 // Handle incoming background Push notifications
 self.addEventListener('push', (event) => {
   let payload = {
-    title: 'تنبيه من Clinic OS',
+    title: 'تنبيه من Yalla Clinic',
     body: 'لديك إشعار جديد بخصوص حجزك في العيادة.',
     url: '/',
-    tag: 'clinic-os-alert'
+    tag: 'yalla-clinic-alert'
   };
 
   if (event.data) {

@@ -68,10 +68,10 @@ export function PatientLiveTurn({ clinicId, patientPhone }: { clinicId: string; 
       liveResult.status === 'completed'
         ? 'border-t-emerald-500'
         : liveResult.isCurrentTurn
-        ? 'border-t-teal-500'
-        : 'border-t-[#15B8A6]'
+        ? 'border-t-[#087CF4]'
+        : 'border-t-[#02CFF3]'
     }`}>
-      <div className="absolute top-0 right-0 w-32 h-32 bg-[#15B8A6]/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
+      <div className="absolute top-0 right-0 w-32 h-32 bg-[#087CF4]/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
       
       <div className="p-6 relative z-10">
         {liveResult.status === 'completed' ? (
@@ -85,7 +85,7 @@ export function PatientLiveTurn({ clinicId, patientPhone }: { clinicId: string; 
         ) : (
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex-1 text-center md:text-right">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-50 text-[#15B8A6] font-bold text-xs mb-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-[#087CF4] font-bold text-xs mb-2">
                 <Activity className="w-3.5 h-3.5 animate-pulse" />
                 <span>التتبع اللحظي للدور (تلقائي ومباشر)</span>
               </div>
@@ -103,8 +103,8 @@ export function PatientLiveTurn({ clinicId, patientPhone }: { clinicId: string; 
                   {liveResult.currentPatientExamining?.queueNumber ? `#${liveResult.currentPatientExamining.queueNumber}` : '—'}
                 </p>
               </div>
-              <div className="flex-1 md:w-32 bg-[#15B8A6] text-white rounded-2xl p-4 text-center shadow-md shadow-[#15B8A6]/25">
-                <p className="text-xs font-bold text-teal-100 mb-1">رقم دورك</p>
+              <div className="flex-1 md:w-32 bg-[#087CF4] text-white rounded-2xl p-4 text-center shadow-md shadow-[#087CF4]/25">
+                <p className="text-xs font-bold text-blue-100 mb-1">رقم دورك</p>
                 <p className="text-2xl font-black font-mono">#{myAppt.queue_number}</p>
               </div>
             </div>

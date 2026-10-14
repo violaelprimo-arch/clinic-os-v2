@@ -1,6 +1,6 @@
 {
-  "name": "Clinic OS - نظام إدارة العيادات الذكي",
-  "short_name": "Clinic OS",
+  "name": "Yalla Clinic - نظام إدارة العيادات الذكي",
+  "short_name": "Yalla Clinic",
   "description": "نظام طبي متكامل لإدارة العيادات، حجز المواعيد، تتبع الدور، والروشتات الطبية",
   "start_url": "/",
   "id": "/",
@@ -12,6 +12,12 @@
   "lang": "ar",
   "categories": ["medical", "health", "productivity"],
   "icons": [
+    {
+      "src": "/yalla-clinic-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
     {
       "src": "/icons/icon-192.svg",
       "sizes": "192x192",

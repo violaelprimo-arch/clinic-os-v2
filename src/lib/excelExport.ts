@@ -1,6 +1,6 @@
 import type ExcelJS from 'exceljs'
 
-async function createWorkbook(creator: string = 'Clinic OS V2'): Promise<any> {
+async function createWorkbook(creator: string = 'Yalla Clinic'): Promise<any> {
   const { default: ExcelJSClass } = await import('exceljs')
   const workbook = new ExcelJSClass.Workbook()
   workbook.creator = creator
@@ -120,7 +120,7 @@ export async function exportPatientsToExcel(
   clinicName: string = 'العيادة',
   dateRange?: { fromDate?: string; toDate?: string }
 ): Promise<void> {
-  const workbook = await createWorkbook('Clinic OS V2')
+  const workbook = await createWorkbook('Yalla Clinic')
 
   const worksheet = workbook.addWorksheet('سجل المرضى')
   worksheet.columns = [
@@ -163,7 +163,7 @@ export async function exportAppointmentsToExcel(
   branchLabel: string = 'جميع الفروع',
   clinicName: string = 'العيادة'
 ): Promise<void> {
-  const workbook = await createWorkbook('Clinic OS V2')
+  const workbook = await createWorkbook('Yalla Clinic')
 
   const worksheet = workbook.addWorksheet('سجل الحجوزات')
   worksheet.columns = [
@@ -262,7 +262,7 @@ export async function exportComprehensiveFinancialReportExcel({
     netProfit?: number
   }
 }): Promise<void> {
-  const workbook = await createWorkbook('Clinic OS V2 — Medical ERP')
+  const workbook = await createWorkbook('Yalla Clinic — Medical ERP')
 
   // ─────────────────────────────────────────────
   // SHEET 1: SUMMARY (الملخص التنفيذي)
@@ -454,99 +454,506 @@ export async function exportComprehensiveFinancialReportExcel({
 }
 
 /**
- * Exports all Doctor accounts, clinic information, and working schedules to an Excel sheet.
+ * Helper to determine numeric package price for a clinic
  */
-export async function exportDoctorsExcel(clinics: any[]): Promise<void> {
-  const workbook = await createWorkbook('Clinic OS Owner')
-  const sheet = workbook.addWorksheet('بيانات الأطباء والمواعيد')
+function getClinicNumericPrice(c: any, packagesList: any[] = []): number {
+  if (c.packagePrice !== undefined && c.packagePrice !== null && c.packagePrice !== '') {
+    const num = Number(c.packagePrice)
+    if (!isNaN(num) && num > 0) return num
+  }
+  const pkg = packagesList.find(p => p.name === c.packageName)
+  if (pkg && pkg.price) {
+    const num = Number(pkg.price)
+    if (!isNaN(num) && num > 0) return num
+  }
+  const pName = (c.packageName || '').toLowerCase()
+  if (pName.includes('1800') || pName.includes('ماس') || pName.includes('diamond') || pName.includes('vip')) return 1800
+  if (pName.includes('950') || pName.includes('احتراف') || pName.includes('pro')) return 950
+  if (pName.includes('سنو') || pName.includes('annual')) return 9500
+  return 450
+}
 
-  sheet.columns = [
-    { header: '#', key: 'index', width: 8 },
-    { header: 'اسم الطبيب', key: 'doctorName', width: 24 },
-    { header: 'اسم العيادة', key: 'clinicName', width: 24 },
-    { header: 'التخصص الطبي', key: 'specialty', width: 22 },
-    { header: 'هاتف العيادة', key: 'clinicPhone', width: 18 },
-    { header: 'هاتف الطبيب الشخصي', key: 'doctorPhone', width: 18 },
-    { header: 'البريد الإلكتروني للطبيب', key: 'doctorEmail', width: 26 },
-    { header: 'كلمة مرور الطبيب', key: 'doctorPassword', width: 18 },
-    { header: 'بريد المساعد', key: 'assistantEmail', width: 24 },
-    { header: 'كلمة مرور المساعد', key: 'assistantPassword', width: 18 },
-    { header: 'العنوان / المحافظة', key: 'address', width: 28 },
-    { header: 'رابط العيادة (Slug)', key: 'slug', width: 18 },
-    { header: 'مواعيد وجدول العمل الأسبوعي', key: 'schedule', width: 45 },
-    { header: 'الباقة الحالية', key: 'packageName', width: 18 },
-    { header: 'تاريخ بدء الاشتراك', key: 'activationDate', width: 16 },
-    { header: 'تاريخ انتهاء الاشتراك', key: 'expirationDate', width: 16 },
-    { header: 'حالة الحساب والاشتراك', key: 'status', width: 18 },
-    { header: 'المساعد الذكي (AI)', key: 'aiStatus', width: 16 },
-    { header: 'استهلاك ردود AI', key: 'aiUsage', width: 18 },
-    { header: 'الحد الأقصى للفروع', key: 'maxBranches', width: 16 }
+/**
+ * Super-Professional Financial & Doctors Accounts Excel Export.
+ * Features:
+ * - Grand KPI summary cards at top (Total Due, Total Collected, Total Remaining, Unpaid count, Expiring count)
+ * - Detailed financial breakdown (Price due, Collected, Remaining, Payment status)
+ * - Dedicated 2nd sheet specifically for subscriptions expiring soon (or expired)
+ * - Strictly NO password or sensitive credential leaks
+ */
+export async function exportDoctorsExcel(clinics: any[], packagesList: any[] = []): Promise<void> {
+  const workbook = await createWorkbook('Yalla Clinic Super Admin')
+  const now = new Date()
+  const todayStr = now.toISOString().split('T')[0]
+
+  // Calculate Global Financial KPIs
+  let totalDue = 0
+  let totalCollected = 0
+  let unpaidCount = 0
+  let expiringSoonCount = 0
+
+  clinics.forEach(c => {
+    const price = getClinicNumericPrice(c, packagesList)
+    totalDue += price
+    const paid = Number(c.paidAmount ?? (c.isPaid ? price : 0))
+    totalCollected += paid
+    if (paid < price) unpaidCount++
+
+    if (c.expirationDate) {
+      const exp = new Date(c.expirationDate)
+      const diffDays = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+      if (diffDays <= 7) expiringSoonCount++
+    }
+  })
+
+  const totalRemaining = Math.max(0, totalDue - totalCollected)
+
+  // ==========================================
+  // SHEET 1: تقرير الحسابات والتحصيل الشامل
+  // ==========================================
+  const sheet = workbook.addWorksheet('الحسابات والتحصيل الشامل')
+  sheet.views = [{ rightToLeft: true }]
+
+  // 1. Title Banner (Row 1)
+  sheet.mergeCells('A1:N1')
+  const titleCell = sheet.getCell('A1')
+  titleCell.value = 'تقرير الحسابات والاشتراكات المالية والتحصيل - Yalla Clinic Super Admin'
+  titleCell.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FFFFFFFF' } }
+  titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F766E' } } // Teal 700
+  titleCell.alignment = { vertical: 'middle', horizontal: 'center' }
+  sheet.getRow(1).height = 36
+
+  // 2. Subtitle / Meta (Row 2)
+  sheet.mergeCells('A2:N2')
+  const subCell = sheet.getCell('A2')
+  subCell.value = `تاريخ التصدير: ${todayStr} | إجمالي الأطباء والعيادات المسجلة: ${clinics.length} عيادة | تم التوليد آلياً من لوحة المالك`
+  subCell.font = { name: 'Arial', size: 9, italic: true, color: { argb: 'FF475569' } }
+  subCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } }
+  subCell.alignment = { vertical: 'middle', horizontal: 'center' }
+  sheet.getRow(2).height = 20
+
+  // 3. Grand KPI Summary Cards (Row 3 & Row 4)
+  sheet.mergeCells('B3:D3')
+  const kpiDueTitle = sheet.getCell('B3')
+  kpiDueTitle.value = 'إجمالي المبلغ المستحق (المطلوب)'
+  kpiDueTitle.font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FF94A3B8' } }
+  kpiDueTitle.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } }
+  kpiDueTitle.alignment = { vertical: 'middle', horizontal: 'center' }
+
+  sheet.mergeCells('B4:D4')
+  const kpiDueVal = sheet.getCell('B4')
+  kpiDueVal.value = `${totalDue.toLocaleString('ar-EG')} ج.م`
+  kpiDueVal.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FFFBBF24' } } // Amber
+  kpiDueVal.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } }
+  kpiDueVal.alignment = { vertical: 'middle', horizontal: 'center' }
+
+  sheet.mergeCells('E3:G3')
+  const kpiCollTitle = sheet.getCell('E3')
+  kpiCollTitle.value = 'المبلغ المحصل (اللي استلمته)'
+  kpiCollTitle.font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FFA7F3D0' } }
+  kpiCollTitle.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF064E3B' } }
+  kpiCollTitle.alignment = { vertical: 'middle', horizontal: 'center' }
+
+  sheet.mergeCells('E4:G4')
+  const kpiCollVal = sheet.getCell('E4')
+  kpiCollVal.value = `${totalCollected.toLocaleString('ar-EG')} ج.م`
+  kpiCollVal.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FF34D399' } } // Emerald
+  kpiCollVal.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF064E3B' } }
+  kpiCollVal.alignment = { vertical: 'middle', horizontal: 'center' }
+
+  sheet.mergeCells('H3:J3')
+  const kpiRemTitle = sheet.getCell('H3')
+  kpiRemTitle.value = 'المبلغ المتبقي (غير المسدد ⚠️)'
+  kpiRemTitle.font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FFFECDD3' } }
+  kpiRemTitle.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF881337' } }
+  kpiRemTitle.alignment = { vertical: 'middle', horizontal: 'center' }
+
+  sheet.mergeCells('H4:J4')
+  const kpiRemVal = sheet.getCell('H4')
+  kpiRemVal.value = `${totalRemaining.toLocaleString('ar-EG')} ج.م (${unpaidCount} عيادات)`
+  kpiRemVal.font = { name: 'Arial', size: 13, bold: true, color: { argb: 'FFF43F5E' } } // Rose
+  kpiRemVal.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF881337' } }
+  kpiRemVal.alignment = { vertical: 'middle', horizontal: 'center' }
+
+  sheet.mergeCells('K3:M3')
+  const kpiExpTitle = sheet.getCell('K3')
+  kpiExpTitle.value = 'اشتراكات أوشكت على الانتهاء'
+  kpiExpTitle.font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FFFEF08A' } }
+  kpiExpTitle.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF713F12' } }
+  kpiExpTitle.alignment = { vertical: 'middle', horizontal: 'center' }
+
+  sheet.mergeCells('K4:M4')
+  const kpiExpVal = sheet.getCell('K4')
+  kpiExpVal.value = `${expiringSoonCount} اشتراكات تحتاج متابعة`
+  kpiExpVal.font = { name: 'Arial', size: 12, bold: true, color: { argb: 'FFFACC15' } }
+  kpiExpVal.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF713F12' } }
+  kpiExpVal.alignment = { vertical: 'middle', horizontal: 'center' }
+
+  sheet.getRow(3).height = 18
+  sheet.getRow(4).height = 26
+
+  // Row 5: Spacer
+  sheet.getRow(5).height = 10
+
+  // 4. Table Columns Header (Row 6)
+  const headers = [
+    '#',
+    'اسم الطبيب المعالج',
+    'رقم الهاتف للتواصل',
+    'اسم العيادة',
+    'تاريخ بدء الاشتراك',
+    'تاريخ انتهاء الاشتراك',
+    'المتبقي على الانتهاء',
+    'باقة الاشتراك',
+    'سعر الباقة المستحق (ج.م)',
+    'المبلغ المحصل (ج.م)',
+    'المبلغ المتبقي (ج.م)',
+    'حالة السداد',
+    'حالة الحساب',
+    'مواعيد العمل الأسبوعية'
   ]
 
-  const now = new Date()
-
-  clinics.forEach((c, idx) => {
-    // Format working schedule into readable string
-    let scheduleStr = 'غير محدد'
-    if (Array.isArray(c.weeklySchedule) && c.weeklySchedule.length > 0) {
-      const openDays = c.weeklySchedule
-        .filter((s: any) => s.isOpen)
-        .map((s: any) => `${s.day || s.id}: ${s.start || '09:00'} - ${s.end || '22:00'}`)
-      if (openDays.length > 0) {
-        scheduleStr = openDays.join(' | ')
-      } else {
-        scheduleStr = 'مغلق طوال الأسبوع'
-      }
-    } else if (c.workingDays && c.workingDays.length > 0) {
-      scheduleStr = `${c.workingDays.join(', ')} (${c.workingHoursStart || '09:00'} - ${c.workingHoursEnd || '22:00'})`
+  const headerRow = sheet.getRow(6)
+  headerRow.height = 26
+  headers.forEach((h, i) => {
+    const cell = headerRow.getCell(i + 1)
+    cell.value = h
+    cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } } // Slate 800
+    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
+    cell.border = {
+      top: { style: 'thin', color: { argb: 'FF334155' } },
+      bottom: { style: 'medium', color: { argb: 'FF0F172A' } },
+      left: { style: 'thin', color: { argb: 'FF334155' } },
+      right: { style: 'thin', color: { argb: 'FF334155' } }
     }
+  })
 
-    // Determine expiration status
-    let statusStr = c.isActive === false ? 'معطل' : 'نشط'
+  // 5. Add Data Rows
+  clinics.forEach((c, idx) => {
+    const rowNum = 7 + idx
+    const row = sheet.getRow(rowNum)
+    row.height = 24
+    const isEven = idx % 2 === 0
+
+    const price = getClinicNumericPrice(c, packagesList)
+    const paid = Number(c.paidAmount ?? (c.isPaid ? price : 0))
+    const remaining = Math.max(0, price - paid)
+    const isFullyPaid = paid >= price
+
+    // Expiration
+    let remainingDaysStr = 'اشتراك مفتوح'
+    let statusAccountStr = c.isActive === false ? 'موقوف' : 'نشط'
     if (c.expirationDate) {
       const exp = new Date(c.expirationDate)
       const diffDays = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
       if (diffDays < 0) {
-        statusStr = `منتهي الصلاحية (${Math.abs(diffDays)} يوم)`
+        remainingDaysStr = `منتهي منذ ${Math.abs(diffDays)} يوم 🛑`
+        statusAccountStr = 'منتهي الصلاحية'
       } else if (diffDays <= 7) {
-        statusStr = `ينتهي قريباً (متبقي ${diffDays} يوم)`
+        remainingDaysStr = `ينتهي خلال ${diffDays} يوم ⚠️`
+        statusAccountStr = 'ينتهي قريباً'
       } else {
-        statusStr = `ساري (متبقي ${diffDays} يوم)`
+        remainingDaysStr = `متبقي ${diffDays} يوم`
+        statusAccountStr = 'ساري'
       }
     }
 
-    // AI quota string
-    const aiLimit = c.aiResponsesLimit ?? 100
-    const aiCount = c.aiResponsesCount ?? 0
-    const aiUsageStr = `${aiCount} / ${aiLimit}`
+    // Schedule string
+    let scheduleStr = 'السبت - الخميس (05:00 م - 10:00 م)'
+    if (Array.isArray(c.weeklySchedule) && c.weeklySchedule.length > 0) {
+      const open = c.weeklySchedule.filter((s: any) => s.isOpen !== false)
+      if (open.length === 7) scheduleStr = 'طوال أيام الأسبوع'
+      else if (open.length > 0) scheduleStr = `${open.length} أيام أسبوعياً`
+      else scheduleStr = 'مغلق مؤقتاً'
+    }
 
-    sheet.addRow({
-      index: idx + 1,
-      doctorName: sanitizeExcelValue(c.doctorName || '—'),
-      clinicName: sanitizeExcelValue(c.clinicName || '—'),
-      specialty: sanitizeExcelValue(c.specialty || 'طبيب عام'),
-      clinicPhone: sanitizeExcelValue(c.clinicPhone || c.clinicPhones?.[0] || '—'),
-      doctorPhone: sanitizeExcelValue(c.doctorPhone || '—'),
-      doctorEmail: sanitizeExcelValue(c.doctorEmail || '—'),
-      doctorPassword: sanitizeExcelValue(c.doctorPassword || '—'),
-      assistantEmail: sanitizeExcelValue(c.assistantEmail || '—'),
-      assistantPassword: sanitizeExcelValue(c.assistantPassword || '—'),
-      address: sanitizeExcelValue(c.clinicAddress || '—'),
-      slug: sanitizeExcelValue(c.slug || '—'),
-      schedule: sanitizeExcelValue(scheduleStr),
-      packageName: sanitizeExcelValue(c.packageName || 'الأساسية'),
-      activationDate: sanitizeExcelValue(c.activationDate || '—'),
-      expirationDate: sanitizeExcelValue(c.expirationDate || '—'),
-      status: sanitizeExcelValue(statusStr),
-      aiStatus: c.aiEnabled !== false ? 'مفعل' : 'معطل',
-      aiUsage: sanitizeExcelValue(aiUsageStr),
-      maxBranches: c.maxBranches || 1
-    })
+    const phoneStr = c.doctorPhone || c.clinicPhone || '—'
+
+    row.getCell(1).value = idx + 1
+    row.getCell(2).value = sanitizeExcelValue(c.doctorName ? `د. ${c.doctorName}` : 'طبيب العيادة')
+    row.getCell(3).value = sanitizeExcelValue(phoneStr)
+    row.getCell(4).value = sanitizeExcelValue(c.clinicName || '—')
+    row.getCell(5).value = sanitizeExcelValue(c.activationDate || '—')
+    row.getCell(6).value = sanitizeExcelValue(c.expirationDate || 'مفتوح')
+    row.getCell(7).value = sanitizeExcelValue(remainingDaysStr)
+    row.getCell(8).value = sanitizeExcelValue(c.packageName || 'الباقة الأساسية')
+    row.getCell(9).value = price
+    row.getCell(10).value = paid
+    row.getCell(11).value = remaining
+    row.getCell(12).value = isFullyPaid ? 'مسدد بالكامل ✅' : 'غير مسدد 🛑'
+    row.getCell(13).value = sanitizeExcelValue(statusAccountStr)
+    row.getCell(14).value = sanitizeExcelValue(scheduleStr)
+
+    // Format Cells
+    for (let colIdx = 1; colIdx <= 14; colIdx++) {
+      const cell = row.getCell(colIdx)
+      cell.font = { name: 'Arial', size: 9, color: { argb: 'FF1F2937' } }
+      cell.alignment = { vertical: 'middle', horizontal: [1, 5, 6, 7, 9, 10, 11, 12, 13].includes(colIdx) ? 'center' : 'right' }
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: isEven ? 'FFF8FAFC' : 'FFFFFFFF' }
+      }
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+      }
+    }
+
+    // Numbers & Currency format
+    row.getCell(9).numFmt = '#,##0 "ج.م"'
+    row.getCell(10).numFmt = '#,##0 "ج.م"'
+    row.getCell(11).numFmt = '#,##0 "ج.م"'
+
+    // Payment Status badge highlight
+    const paymentCell = row.getCell(12)
+    if (isFullyPaid) {
+      paymentCell.font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FF065F46' } }
+      paymentCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } } // Light green
+    } else {
+      paymentCell.font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FF9F1239' } }
+      paymentCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE4E6' } } // Light rose
+    }
+
+    // Remaining days urgency highlight
+    if (remainingDaysStr.includes('🛑') || remainingDaysStr.includes('⚠️')) {
+      const remCell = row.getCell(7)
+      remCell.font = { name: 'Arial', size: 9, bold: true, color: { argb: remainingDaysStr.includes('🛑') ? 'FF991B1B' : 'FF92400E' } }
+      remCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: remainingDaysStr.includes('🛑') ? 'FFFEE2E2' : 'FFFEF3C7' } }
+    }
   })
 
-  styleWorksheet(sheet)
+  // Set Column Widths for Sheet 1
+  const colWidths = [6, 24, 18, 26, 15, 15, 20, 20, 18, 18, 18, 18, 16, 28]
+  colWidths.forEach((w, i) => {
+    sheet.getColumn(i + 1).width = w
+  })
 
-  const todayStr = new Date().toISOString().split('T')[0]
-  await downloadWorkbook(workbook, `حسابات_الأطباء_ومواعيد_العيادات_${todayStr}.xlsx`)
+  // ==========================================
+  // SHEET 2: اشتراكات قاربت على الانتهاء
+  // ==========================================
+  const expiringClinics = clinics.filter(c => {
+    if (!c.expirationDate) return false
+    const exp = new Date(c.expirationDate)
+    const diffDays = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    return diffDays <= 14 // Expiring in 14 days or already expired
+  })
+
+  const sheetExp = workbook.addWorksheet('اشتراكات أوشكت على الانتهاء')
+  sheetExp.views = [{ rightToLeft: true }]
+
+  sheetExp.mergeCells('A1:J1')
+  const expTitle = sheetExp.getCell('A1')
+  expTitle.value = 'كشف الاشتراكات التي أوشكت على الانتهاء والمنتهية (متابعة التجديد الفوري)'
+  expTitle.font = { name: 'Arial', size: 13, bold: true, color: { argb: 'FFFFFFFF' } }
+  expTitle.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFB45309' } } // Amber 700
+  expTitle.alignment = { vertical: 'middle', horizontal: 'center' }
+  sheetExp.getRow(1).height = 34
+
+  sheetExp.mergeCells('A2:J2')
+  const expSub = sheetExp.getCell('A2')
+  expSub.value = `إجمالي الاشتراكات التي تتطلب تجديداً: ${expiringClinics.length} عيادة | يرجى التواصل مع الأطباء لتجديد الاشتراك قبل إيقاف الخدمة`
+  expSub.font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FF78350F' } }
+  expSub.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } }
+  expSub.alignment = { vertical: 'middle', horizontal: 'center' }
+  sheetExp.getRow(2).height = 22
+
+  const expHeaders = [
+    '#',
+    'اسم الطبيب',
+    'رقم الهاتف',
+    'اسم العيادة',
+    'تاريخ انتهاء الاشتراك',
+    'المدة المتبقية على الانتهاء',
+    'باقة الاشتراك الحالية',
+    'قيمة التجديد (ج.م)',
+    'حالة سداد الاشتراك الحالي',
+    'رابط المتابعة واتساب'
+  ]
+
+  const expHeaderRow = sheetExp.getRow(4)
+  expHeaderRow.height = 26
+  expHeaders.forEach((h, i) => {
+    const cell = expHeaderRow.getCell(i + 1)
+    cell.value = h
+    cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF78350F' } }
+    cell.alignment = { vertical: 'middle', horizontal: 'center' }
+    cell.border = {
+      top: { style: 'thin', color: { argb: 'FFB45309' } },
+      bottom: { style: 'medium', color: { argb: 'FF451A03' } },
+      left: { style: 'thin', color: { argb: 'FFB45309' } },
+      right: { style: 'thin', color: { argb: 'FFB45309' } }
+    }
+  })
+
+  expiringClinics.forEach((c, idx) => {
+    const rowNum = 5 + idx
+    const row = sheetExp.getRow(rowNum)
+    row.height = 24
+    const isEven = idx % 2 === 0
+    const price = getClinicNumericPrice(c, packagesList)
+    const paid = Number(c.paidAmount ?? (c.isPaid ? price : 0))
+    const isFullyPaid = paid >= price
+
+    const exp = new Date(c.expirationDate)
+    const diffDays = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    const remainingText = diffDays < 0 ? `منتهي منذ ${Math.abs(diffDays)} يوم 🛑` : diffDays === 0 ? 'ينتهي اليوم ⚠️' : `متبقي ${diffDays} يوم ⚠️`
+    const phoneClean = (c.doctorPhone || c.clinicPhone || '').replace(/\D/g, '')
+    const waLink = phoneClean ? `https://wa.me/2${phoneClean.replace(/^0+/, '')}` : '—'
+
+    row.getCell(1).value = idx + 1
+    row.getCell(2).value = sanitizeExcelValue(c.doctorName ? `د. ${c.doctorName}` : 'طبيب العيادة')
+    row.getCell(3).value = sanitizeExcelValue(c.doctorPhone || c.clinicPhone || '—')
+    row.getCell(4).value = sanitizeExcelValue(c.clinicName || '—')
+    row.getCell(5).value = sanitizeExcelValue(c.expirationDate)
+    row.getCell(6).value = sanitizeExcelValue(remainingText)
+    row.getCell(7).value = sanitizeExcelValue(c.packageName || 'الباقة الأساسية')
+    row.getCell(8).value = price
+    row.getCell(9).value = isFullyPaid ? 'مسدد ✅' : 'غير مسدد 🛑'
+    row.getCell(10).value = waLink
+
+    for (let colIdx = 1; colIdx <= 10; colIdx++) {
+      const cell = row.getCell(colIdx)
+      cell.font = { name: 'Arial', size: 9, color: { argb: 'FF1F2937' } }
+      cell.alignment = { vertical: 'middle', horizontal: [1, 5, 6, 8, 9].includes(colIdx) ? 'center' : 'right' }
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: isEven ? 'FFFFFBEB' : 'FFFFFFFF' }
+      }
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FFFDE68A' } },
+        bottom: { style: 'thin', color: { argb: 'FFFDE68A' } },
+        left: { style: 'thin', color: { argb: 'FFFDE68A' } },
+        right: { style: 'thin', color: { argb: 'FFFDE68A' } }
+      }
+    }
+
+    row.getCell(8).numFmt = '#,##0 "ج.م"'
+    const remCell = row.getCell(6)
+    remCell.font = { name: 'Arial', size: 9, bold: true, color: { argb: diffDays < 0 ? 'FF991B1B' : 'FF92400E' } }
+    remCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: diffDays < 0 ? 'FFFEE2E2' : 'FFFEF3C7' } }
+  })
+
+  const expWidths = [6, 24, 18, 26, 18, 22, 20, 18, 16, 28]
+  expWidths.forEach((w, i) => {
+    sheetExp.getColumn(i + 1).width = w
+  })
+
+  await downloadWorkbook(workbook, `تقرير_الحسابات_والتحصيل_والاشتراكات_${todayStr}.xlsx`)
+}
+
+/**
+ * Dedicated Export for Expiring and Overdue Subscriptions.
+ */
+export async function exportExpiringSubscriptionsExcel(clinics: any[], packagesList: any[] = []): Promise<void> {
+  const workbook = await createWorkbook('Yalla Clinic Super Admin')
+  const now = new Date()
+  const todayStr = now.toISOString().split('T')[0]
+
+  const expiringClinics = clinics.filter(c => {
+    if (!c.expirationDate) return false
+    const exp = new Date(c.expirationDate)
+    const diffDays = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    return diffDays <= 14 // Expiring within 14 days or expired
+  })
+
+  const sheet = workbook.addWorksheet('اشتراكات قاربت على الانتهاء')
+  sheet.views = [{ rightToLeft: true }]
+
+  sheet.mergeCells('A1:I1')
+  const titleCell = sheet.getCell('A1')
+  titleCell.value = 'كشف الأطباء والعيادات التي قاربت اشتراكاتهم على الانتهاء - متابعة التجديد'
+  titleCell.font = { name: 'Arial', size: 13, bold: true, color: { argb: 'FFFFFFFF' } }
+  titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD97706' } } // Amber 600
+  titleCell.alignment = { vertical: 'middle', horizontal: 'center' }
+  sheet.getRow(1).height = 36
+
+  sheet.mergeCells('A2:I2')
+  const subCell = sheet.getCell('A2')
+  subCell.value = `تاريخ التقرير: ${todayStr} | عدد العيادات المستهدفة للتجديد: ${expiringClinics.length} عيادة`
+  subCell.font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FF92400E' } }
+  subCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } }
+  subCell.alignment = { vertical: 'middle', horizontal: 'center' }
+  sheet.getRow(2).height = 22
+
+  const headers = [
+    '#',
+    'اسم الطبيب',
+    'رقم هاتف الطبيب',
+    'اسم العيادة',
+    'تاريخ انتهاء الاشتراك',
+    'المدة المتبقية على الانتهاء',
+    'باقة الاشتراك الحالية',
+    'رسوم التجديد المستحقة (ج.م)',
+    'رابط المتابعة واتساب'
+  ]
+
+  const headerRow = sheet.getRow(4)
+  headerRow.height = 26
+  headers.forEach((h, i) => {
+    const cell = headerRow.getCell(i + 1)
+    cell.value = h
+    cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } }
+    cell.alignment = { vertical: 'middle', horizontal: 'center' }
+  })
+
+  expiringClinics.forEach((c, idx) => {
+    const rowNum = 5 + idx
+    const row = sheet.getRow(rowNum)
+    row.height = 24
+    const isEven = idx % 2 === 0
+    const price = getClinicNumericPrice(c, packagesList)
+
+    const exp = new Date(c.expirationDate)
+    const diffDays = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    const remainingText = diffDays < 0 ? `منتهي منذ ${Math.abs(diffDays)} يوم 🛑` : diffDays === 0 ? 'ينتهي اليوم ⚠️' : `متبقي ${diffDays} يوم ⚠️`
+    const phoneClean = (c.doctorPhone || c.clinicPhone || '').replace(/\D/g, '')
+    const waLink = phoneClean ? `https://wa.me/2${phoneClean.replace(/^0+/, '')}` : '—'
+
+    row.getCell(1).value = idx + 1
+    row.getCell(2).value = sanitizeExcelValue(c.doctorName ? `د. ${c.doctorName}` : 'طبيب العيادة')
+    row.getCell(3).value = sanitizeExcelValue(c.doctorPhone || c.clinicPhone || '—')
+    row.getCell(4).value = sanitizeExcelValue(c.clinicName || '—')
+    row.getCell(5).value = sanitizeExcelValue(c.expirationDate)
+    row.getCell(6).value = sanitizeExcelValue(remainingText)
+    row.getCell(7).value = sanitizeExcelValue(c.packageName || 'الباقة الأساسية')
+    row.getCell(8).value = price
+    row.getCell(9).value = waLink
+
+    for (let colIdx = 1; colIdx <= 9; colIdx++) {
+      const cell = row.getCell(colIdx)
+      cell.font = { name: 'Arial', size: 9, color: { argb: 'FF1F2937' } }
+      cell.alignment = { vertical: 'middle', horizontal: [1, 5, 6, 8].includes(colIdx) ? 'center' : 'right' }
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: isEven ? 'FFFFFBEB' : 'FFFFFFFF' }
+      }
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FFFDE68A' } },
+        bottom: { style: 'thin', color: { argb: 'FFFDE68A' } },
+        left: { style: 'thin', color: { argb: 'FFFDE68A' } },
+        right: { style: 'thin', color: { argb: 'FFFDE68A' } }
+      }
+    }
+
+    row.getCell(8).numFmt = '#,##0 "ج.م"'
+    const remCell = row.getCell(6)
+    remCell.font = { name: 'Arial', size: 9, bold: true, color: { argb: diffDays < 0 ? 'FF991B1B' : 'FF92400E' } }
+    remCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: diffDays < 0 ? 'FFFEE2E2' : 'FFFEF3C7' } }
+  })
+
+  const colWidths = [6, 24, 18, 26, 18, 24, 20, 20, 28]
+  colWidths.forEach((w, i) => {
+    sheet.getColumn(i + 1).width = w
+  })
+
+  await downloadWorkbook(workbook, `كشف_الاشتراكات_التي_قاربت_على_الانتهاء_${todayStr}.xlsx`)
 }
 

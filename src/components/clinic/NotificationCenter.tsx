@@ -165,7 +165,7 @@ export function NotificationCenter({
       case 'prescription_ready':
         return <FileText className="w-4 h-4 text-blue-500" />
       case 'new_booking':
-        return <Sparkles className="w-4 h-4 text-[#15B8A6]" />
+        return <Sparkles className="w-4 h-4 text-[#087CF4]" />
       case 'system':
         return <AlertCircle className="w-4 h-4 text-rose-500" />
       default:
@@ -200,7 +200,7 @@ export function NotificationCenter({
             {/* Header */}
             <div className="p-3.5 border-b border-[#E5EAF0] flex items-center justify-between bg-slate-50">
               <div className="flex items-center gap-2">
-                <Bell className="w-4 h-4 text-[#15B8A6]" />
+                <Bell className="w-4 h-4 text-[#087CF4]" />
                 <h4 className="font-bold text-xs text-[#182230]">
                   مركز التنبيهات ({notifications.length})
                 </h4>
@@ -208,16 +208,16 @@ export function NotificationCenter({
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleTestSound}
-                  className="text-[10px] font-bold text-slate-500 hover:text-[#15B8A6] flex items-center gap-1 cursor-pointer bg-white px-2 py-1 rounded-lg border border-slate-200"
+                  className="text-[10px] font-bold text-slate-500 hover:text-[#087CF4] flex items-center gap-1 cursor-pointer bg-white px-2 py-1 rounded-lg border border-slate-200"
                   title="تجربة صوت التنبيه"
                 >
-                  <Volume2 className="w-3 h-3 text-[#15B8A6]" />
+                  <Volume2 className="w-3 h-3 text-[#087CF4]" />
                   <span>صوت</span>
                 </button>
                 {unreadCount > 0 && (
                   <button
                     onClick={handleMarkAllRead}
-                    className="text-[10px] font-bold text-[#15B8A6] hover:underline cursor-pointer"
+                    className="text-[10px] font-bold text-[#087CF4] hover:underline cursor-pointer"
                   >
                     تعليم الكل كمقروء
                   </button>
@@ -233,14 +233,14 @@ export function NotificationCenter({
 
             {/* Browser push permission banner if not granted */}
             {!hasPushPermission && typeof window !== 'undefined' && 'Notification' in window && (
-              <div className="p-2.5 bg-teal-50 border-b border-teal-100 flex items-center justify-between text-xs">
-                <span className="text-[11px] font-semibold text-teal-900">
+              <div className="p-2.5 bg-blue-50 border-b border-blue-100 flex items-center justify-between text-xs">
+                <span className="text-[11px] font-semibold text-blue-900">
                   تفعيل الإشعارات الصوتية والمباشرة
                 </span>
                 <Button
                   size="sm"
                   onClick={handleEnablePush}
-                  className="h-7 text-[10px] px-2.5 bg-[#15B8A6] hover:bg-[#0D9488] text-white font-bold rounded-lg cursor-pointer"
+                  className="h-7 text-[10px] px-2.5 bg-[#087CF4] hover:bg-[#0769D1] text-white font-bold rounded-lg cursor-pointer"
                 >
                   تفعيل التنبيه
                 </Button>
@@ -269,7 +269,7 @@ export function NotificationCenter({
                         ? 'bg-amber-50/80 border-r-4 border-r-amber-500'
                         : n.isRead
                         ? 'bg-white hover:bg-slate-50/80 opacity-80'
-                        : 'bg-teal-50/40 hover:bg-teal-50/70 border-r-4 border-r-[#15B8A6]'
+                        : 'bg-blue-50/40 hover:bg-blue-50/70 border-r-4 border-r-[#087CF4]'
                     }`}
                   >
                     <div className="p-2 rounded-xl bg-white border border-[#E5EAF0] shrink-0 mt-0.5 shadow-2xs">

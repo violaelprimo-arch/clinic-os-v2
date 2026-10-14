@@ -105,7 +105,7 @@ export async function POST(request: Request) {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            sender: { name: clinicName || 'Clinic OS', email: 'no-reply@clinicos.com' },
+            sender: { name: clinicName || 'Yalla Clinic', email: 'no-reply@clinicos.com' },
             to: [{ email, name: doctorName || 'Doctor' }],
             subject: emailSubject,
             htmlContent: htmlBody

@@ -188,7 +188,7 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
     const effectiveTo = toDate || todayCairoStr
 
     const html = generateFinancialReportHtml({
-      clinicName: clinic?.clinicName || 'Clinic OS',
+      clinicName: clinic?.clinicName || 'Yalla Clinic',
       doctorName: clinic?.doctorName,
       branchLabel: 'جميع الفروع',
       clinicAddress: clinic?.clinicAddress,
@@ -243,7 +243,7 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
     const effectiveTo = toDate || todayCairoStr
 
     await exportComprehensiveFinancialReportExcel({
-      clinicName: clinic?.clinicName || 'Clinic OS',
+      clinicName: clinic?.clinicName || 'Yalla Clinic',
       branchLabel: 'جميع الفروع',
       fromDate: effectiveFrom,
       toDate: effectiveTo,
@@ -269,7 +269,7 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-black text-[#182230] flex items-center gap-2">
-            <Receipt className="w-6 h-6 text-[#15B8A6]" />
+            <Receipt className="w-6 h-6 text-[#087CF4]" />
             الحسابات والتقارير المالية
           </h1>
           <p className="text-xs text-slate-400 mt-1">
@@ -282,7 +282,7 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
           <Button
             variant="outline"
             onClick={handleExportExcel}
-            className="h-10 text-xs font-bold border-teal-200 text-teal-700 hover:bg-teal-50 rounded-xl flex items-center gap-1.5"
+            className="h-10 text-xs font-bold border-blue-200 text-blue-700 hover:bg-blue-50 rounded-xl flex items-center gap-1.5"
           >
             <FileSpreadsheet className="w-4 h-4 ml-1 text-emerald-600" />
             تصدير إكسيل (Excel)
@@ -321,10 +321,10 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
           <p className="text-xs font-bold text-slate-400 mb-1">
             {fromDate || toDate ? 'إجمالي إيراد الفترة' : 'إجمالي إيراد العمليات'}
           </p>
-          <h3 className="text-2xl font-black text-[#15B8A6]">
+          <h3 className="text-2xl font-black text-[#087CF4]">
             {metrics.periodTotal.toLocaleString()} <span className="text-sm font-bold text-slate-500">ج.م</span>
           </h3>
-          <span className="text-[11px] font-semibold text-[#15B8A6]/80 mt-1 inline-block">
+          <span className="text-[11px] font-semibold text-[#087CF4]/80 mt-1 inline-block">
             {fromDate || toDate ? 'حسب الفرز الزمني' : 'كافة العمليات'}
           </span>
         </div>
@@ -344,7 +344,7 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
       <div className="medical-card p-4 bg-white space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-            <Calendar className="w-4 h-4 text-[#15B8A6]" />
+            <Calendar className="w-4 h-4 text-[#087CF4]" />
             <span>فرز المعاملات والتقارير بالتاريخ (من / إلى):</span>
           </div>
 
@@ -354,7 +354,7 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
               type="button"
               onClick={() => setDatePreset('all')}
               className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
-                !fromDate && !toDate ? 'bg-[#15B8A6] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                !fromDate && !toDate ? 'bg-[#087CF4] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
               الكل
@@ -363,7 +363,7 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
               type="button"
               onClick={() => setDatePreset('today')}
               className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
-                fromDate === todayCairoStr && toDate === todayCairoStr ? 'bg-[#15B8A6] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                fromDate === todayCairoStr && toDate === todayCairoStr ? 'bg-[#087CF4] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
               اليوم
@@ -591,7 +591,7 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
                                 queueNumber: item.queue_number
                               })
                             }}
-                            className="h-7 px-2 text-[11px] text-slate-600 hover:text-[#15B8A6]"
+                            className="h-7 px-2 text-[11px] text-slate-600 hover:text-[#087CF4]"
                             title="عرض وطباعة الفاتورة"
                           >
                             <Eye className="w-3.5 h-3.5 ml-1" />
@@ -604,7 +604,7 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
                                 size="sm"
                                 disabled={isProcessing}
                                 onClick={() => handleConfirmPayment(item)}
-                                className="h-7 text-[11px] bg-[#15B8A6] hover:bg-[#0D9488] text-white px-2.5 rounded-lg"
+                                className="h-7 text-[11px] bg-[#087CF4] hover:bg-[#0769D1] text-white px-2.5 rounded-lg shadow-2xs"
                               >
                                 تأكيد
                               </Button>
@@ -650,7 +650,7 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
 
       {/* TASK 12: Standardized Copyright Footer */}
       <footer className="text-center text-xs text-slate-400 pt-6 border-t border-slate-100">
-        جميع الحقوق محفوظة © {new Date().getFullYear()} Clinic OS
+        جميع الحقوق محفوظة YallaCodeX 2026
       </footer>
     </div>
   )

@@ -60,13 +60,13 @@ export function PwaInstallPrompt() {
   return (
     <>
       {/* Floating or Top Install Banner on Mobile */}
-      <div className="fixed bottom-16 sm:bottom-4 left-3 right-3 sm:left-auto sm:right-4 z-40 max-w-sm bg-[#0B1F33] text-white p-3 rounded-2xl shadow-2xl border border-[#1E3A5F] flex items-center justify-between gap-3 animate-in slide-in-from-bottom-5" dir="rtl">
+      <div className="fixed bottom-16 sm:bottom-4 left-3 right-3 sm:left-auto sm:right-4 z-40 max-w-sm bg-[#061A38] text-white p-3 rounded-2xl shadow-2xl border border-[#1E3A5F] flex items-center justify-between gap-3 animate-in slide-in-from-bottom-5" dir="rtl">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-[#15B8A6] text-white flex items-center justify-center shrink-0 shadow-xs">
+          <div className="w-9 h-9 rounded-xl bg-[#087CF4] text-white flex items-center justify-center shrink-0 shadow-xs">
             <Download className="w-5 h-5" />
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-black truncate">تطبيق Clinic OS الطبي</p>
+            <p className="text-xs font-black truncate">تطبيق Yalla Clinic الطبي</p>
             <p className="text-[10px] text-slate-300 truncate">تثبيت التطبيق على شاشتك الرئيسية</p>
           </div>
         </div>
@@ -75,7 +75,7 @@ export function PwaInstallPrompt() {
           <Button
             size="sm"
             onClick={handleInstallClick}
-            className="h-8 px-3 text-[11px] font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-xs cursor-pointer"
+            className="h-8 px-3 text-[11px] font-bold bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl shadow-xs cursor-pointer"
           >
             تثبيت
           </Button>
@@ -99,7 +99,7 @@ export function PwaInstallPrompt() {
               </button>
             </div>
             <p className="text-xs text-slate-600 leading-relaxed">
-              لتثبيت Clinic OS على شاشتك الرئيسية وتفعيل التنبيهات:
+              لتثبيت Yalla Clinic على شاشتك الرئيسية وتفعيل التنبيهات:
             </p>
             <ol className="text-xs space-y-2 text-slate-700 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
               <li className="flex items-center gap-2">
@@ -109,13 +109,13 @@ export function PwaInstallPrompt() {
               </li>
               <li className="flex items-center gap-2">
                 <span>2. مرر للأسفل واختر</span>
-                <span className="font-bold text-[#15B8A6]">"إضافة إلى الصفحة الرئيسية"</span>
-                <PlusSquare className="w-4 h-4 text-[#15B8A6]" />
+                <span className="font-bold text-[#087CF4]">"إضافة إلى الصفحة الرئيسية"</span>
+                <PlusSquare className="w-4 h-4 text-[#087CF4]" />
               </li>
               <li>3. اضغط "إضافة (Add)" في أعلى اليمين.</li>
             </ol>
             <Button
-              className="w-full h-10 text-xs font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl"
+              className="w-full h-10 text-xs font-bold bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl"
               onClick={() => setShowIosModal(false)}
             >
               فهمت، شكراً

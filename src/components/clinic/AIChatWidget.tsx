@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Bot, X, Send, User, Loader2, Sparkles } from 'lucide-react'
+import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 
 export function AIChatWidget({ clinic }: { clinic: any }) {
-  if (clinic?.aiEnabled === false || clinic?.aiLockedByOwner === true) return null
+  if (!isClinicFeatureEnabled(clinic, 'ai') || clinic?.aiEnabled === false || clinic?.aiLockedByOwner === true) return null
 
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState<{ role: 'user' | 'bot', text: string }[]>([
@@ -67,7 +68,7 @@ export function AIChatWidget({ clinic }: { clinic: any }) {
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 left-6 w-14 h-14 rounded-full shadow-2xl bg-[#15B8A6] hover:bg-[#0D9488] text-white z-50 flex items-center justify-center transition-all hover:scale-110 active:scale-95 group cursor-pointer border-2 border-white"
+          className="fixed bottom-6 left-6 w-14 h-14 rounded-full shadow-2xl bg-[#087CF4] hover:bg-[#0769D1] text-white z-50 flex items-center justify-center transition-all hover:scale-110 active:scale-95 group cursor-pointer border-2 border-white"
           title="تحدث مع المساعد الذكي"
         >
           <Bot className="w-7 h-7" />
@@ -84,14 +85,14 @@ export function AIChatWidget({ clinic }: { clinic: any }) {
           dir="rtl"
         >
           {/* Header */}
-          <div className="bg-[#0B1F33] text-white px-5 py-4 flex items-center justify-between">
+          <div className="bg-[#061A38] text-white px-5 py-4 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-teal-500/20 text-[#15B8A6] flex items-center justify-center">
+              <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-[#087CF4] flex items-center justify-center">
                 <Bot className="w-5 h-5" />
               </div>
               <div>
                 <h3 className="font-bold text-sm text-white">المساعد الذكي للعيادة</h3>
-                <span className="text-[10px] text-teal-300 font-semibold flex items-center gap-1">
+                <span className="text-[10px] text-blue-300 font-semibold flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                   متصل ومتاح للرد فوراً
                 </span>
@@ -113,7 +114,7 @@ export function AIChatWidget({ clinic }: { clinic: any }) {
                 <div
                   className={`max-w-[85%] rounded-2xl p-3 text-xs leading-relaxed shadow-xs ${
                     m.role === 'user'
-                      ? 'bg-[#15B8A6] text-white rounded-tr-none'
+                      ? 'bg-[#087CF4] text-white rounded-tr-none'
                       : 'bg-white text-[#182230] border border-[#E5EAF0] rounded-tl-none font-medium'
                   }`}
                 >
@@ -125,7 +126,7 @@ export function AIChatWidget({ clinic }: { clinic: any }) {
             {isLoading && (
               <div className="flex justify-end">
                 <div className="bg-white border border-[#E5EAF0] rounded-2xl rounded-tl-none p-3 shadow-xs flex items-center gap-2 text-xs text-slate-400 font-bold">
-                  <Loader2 className="w-4 h-4 animate-spin text-[#15B8A6]" />
+                  <Loader2 className="w-4 h-4 animate-spin text-[#087CF4]" />
                   جاري صياغة الإجابة...
                 </div>
               </div>
@@ -147,7 +148,7 @@ export function AIChatWidget({ clinic }: { clinic: any }) {
                 type="submit"
                 size="icon"
                 disabled={!input.trim() || isLoading}
-                className="absolute left-1 top-1 w-9 h-9 bg-[#15B8A6] hover:bg-[#0D9488] rounded-lg text-white"
+                className="absolute left-1 top-1 w-9 h-9 bg-[#087CF4] hover:bg-[#0769D1] rounded-lg text-white"
               >
                 <Send className="w-4 h-4" />
               </Button>

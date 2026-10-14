@@ -344,7 +344,7 @@ async function captureElementCanvas(element: HTMLElement, scale: number = 2.5): 
 }
 
 /**
- * High-fidelity Client-Side PDF Renderer for Clinic OS V2
+ * High-fidelity Client-Side PDF Renderer for Yalla Clinic
  * Uses dynamic imports for html2canvas & jsPDF for maximum performance.
  * Supports A4, A5, and Thermal 80mm formats.
  */

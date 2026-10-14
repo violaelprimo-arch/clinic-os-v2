@@ -153,9 +153,9 @@ export function InvoiceView({
       {/* Control Actions Header (Excluded from any print) */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#E5EAF0]">
         <div className="flex items-center gap-2">
-          <Receipt className="w-5 h-5 text-[#15B8A6]" />
+          <Receipt className="w-5 h-5 text-[#087CF4]" />
           <h3 className="font-black text-sm text-[#182230]">
-            فاتورة رقم: <span className="font-mono text-[#15B8A6]">{invoice.invoiceNumber}</span>
+            فاتورة رقم: <span className="font-mono text-[#087CF4]">{invoice.invoiceNumber}</span>
           </h3>
         </div>
 
@@ -178,7 +178,7 @@ export function InvoiceView({
             variant="outline"
             onClick={handleDownloadImage}
             disabled={isGeneratingImage}
-            className="h-9 px-3 text-xs font-bold border-[#E5EAF0] text-slate-700 hover:text-[#15B8A6] rounded-xl flex items-center gap-1.5"
+            className="h-9 px-3 text-xs font-bold border-[#E5EAF0] text-slate-700 hover:text-[#087CF4] rounded-xl flex items-center gap-1.5"
             title="تنزيل الفاتورة كصورة عالية الدقة"
           >
             <ImageIcon className="w-4 h-4 ml-1" />
@@ -191,7 +191,7 @@ export function InvoiceView({
             variant="outline"
             onClick={handleDownloadPdf}
             disabled={isGeneratingPdf}
-            className="h-9 px-3 text-xs font-bold border-[#E5EAF0] text-slate-700 hover:text-[#15B8A6] rounded-xl flex items-center gap-1.5"
+            className="h-9 px-3 text-xs font-bold border-[#E5EAF0] text-slate-700 hover:text-[#087CF4] rounded-xl flex items-center gap-1.5"
           >
             <Download className="w-4 h-4 ml-1" />
             {isGeneratingPdf ? 'جاري إنشاء PDF...' : 'تحميل PDF'}
@@ -202,7 +202,7 @@ export function InvoiceView({
             <Button
               size="sm"
               onClick={handlePrintThermal}
-              className="h-9 px-3.5 text-xs font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-xs flex items-center gap-1.5"
+              className="h-9 px-3.5 text-xs font-bold bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl shadow-xs flex items-center gap-1.5"
             >
               <Printer className="w-4 h-4 ml-1" />
               طباعة (80mm)
@@ -236,7 +236,7 @@ export function InvoiceView({
               <h2 className="text-lg font-black text-[#182230]">{invoice.clinicName}</h2>
             </div>
             {invoice.doctorName && (
-              <p className="text-xs font-bold text-[#15B8A6] mt-1">د. {invoice.doctorName}</p>
+              <p className="text-xs font-bold text-[#087CF4] mt-1">د. {invoice.doctorName}</p>
             )}
             {invoice.branchName && (
               <span className="inline-block mt-1 text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
@@ -280,9 +280,9 @@ export function InvoiceView({
           </div>
 
           {invoice.queueNumber !== undefined && invoice.queueNumber !== null && invoice.queueNumber !== '' && (
-            <div className="text-center p-2 rounded-xl bg-teal-50 border border-teal-200">
-              <span className="text-[10px] font-bold text-teal-800 block">رقم الدور في الانتظار</span>
-              <span className="text-2xl font-black text-[#15B8A6] font-mono block">#{invoice.queueNumber}</span>
+            <div className="text-center p-2 rounded-xl bg-blue-50 border border-blue-200">
+              <span className="text-[10px] font-bold text-blue-800 block">رقم الدور في الانتظار</span>
+              <span className="text-2xl font-black text-[#087CF4] font-mono block">#{invoice.queueNumber}</span>
             </div>
           )}
 
@@ -354,15 +354,15 @@ export function InvoiceView({
             ) : null}
             <div className="flex justify-between text-sm font-black text-[#182230] border-t border-slate-200 pt-2">
               <span>الإجمالي المستحق:</span>
-              <span className="text-[#15B8A6]">{invoice.netTotal} ج.م</span>
+              <span className="text-[#087CF4]">{invoice.netTotal} ج.م</span>
             </div>
           </div>
         </div>
 
         {/* Standard Platform Footer */}
         <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
-          <span>فاتورة معتمدة صادرة من نظام Clinic OS</span>
-          <span>جميع الحقوق محفوظة © {new Date().getFullYear()} Clinic OS</span>
+          <span>فاتورة معتمدة صادرة من نظام Yalla Clinic</span>
+          <span>جميع الحقوق محفوظة YallaCodeX 2026</span>
         </div>
       </div>
     </div>

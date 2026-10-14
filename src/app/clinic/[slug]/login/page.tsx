@@ -190,10 +190,10 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
       <div className="w-full max-w-5xl bg-white rounded-3xl border border-[#E5EAF0] shadow-2xl overflow-hidden grid lg:grid-cols-12 min-h-[640px]">
         
         {/* RIGHT SIDE: Branding Doctor Visual Hero (in RTL this appears first/right) */}
-        <div className="lg:col-span-5 bg-gradient-to-br from-[#0B1F33] via-[#0F2840] to-[#0B1F33] relative p-8 flex flex-col justify-between text-white overflow-hidden hidden lg:flex">
+        <div className="lg:col-span-5 bg-gradient-to-br from-[#061A38] via-[#0E2342] to-[#07162D] relative p-8 flex flex-col justify-between text-white overflow-hidden hidden lg:flex">
           {/* Decorative background glow */}
-          <div className="absolute top-0 right-0 w-80 h-80 bg-[#15B8A6]/20 rounded-full blur-3xl pointer-events-none"></div>
-          <div className="absolute bottom-0 left-0 w-80 h-80 bg-[#2F80ED]/20 rounded-full blur-3xl pointer-events-none"></div>
+          <div className="absolute top-0 right-0 w-80 h-80 bg-[#087CF4]/20 rounded-full blur-3xl pointer-events-none"></div>
+          <div className="absolute bottom-0 left-0 w-80 h-80 bg-[#02CFF3]/20 rounded-full blur-3xl pointer-events-none"></div>
 
           {/* Top Logo */}
           <div className="relative z-10">
@@ -208,15 +208,15 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
                 alt="Doctor Medical Team"
                 className="w-full h-full object-cover object-top"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#0B1F33] via-transparent to-transparent opacity-80"></div>
+              <div className="absolute inset-0 bg-gradient-to-t from-[#061A38] via-transparent to-transparent opacity-80"></div>
             </div>
 
             <div className="space-y-2">
               <h2 className="text-3xl font-black text-white tracking-wide">
                 أدر عيادتك بذكاء
               </h2>
-              <p className="text-xs text-teal-300 font-semibold tracking-wide">
-                Clinic OS — شريكك الذكي في تطوير العيادة
+              <p className="text-xs text-[#77E7FF] font-semibold tracking-wide">
+                Yalla Clinic — شريكك الذكي في تطوير العيادة
               </p>
             </div>
           </div>
@@ -224,7 +224,7 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
           {/* Bottom Security Badge */}
           <div className="relative z-10 flex items-center justify-between text-xs text-slate-400 border-t border-white/10 pt-4">
             <span className="flex items-center gap-1.5 text-slate-300">
-              <ShieldCheck className="w-4 h-4 text-[#15B8A6]" />
+              <ShieldCheck className="w-4 h-4 text-[#087CF4]" />
               نظام تشفير وحماية معتمد
             </span>
             <span className="font-mono text-[11px] text-slate-400">/clinic/{slug}</span>
@@ -267,7 +267,7 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
               </div>
               
               {!resetOtpSent ? (
-                <Button onClick={handleForgotPassword} disabled={isLoading} className="w-full h-12 bg-[#15B8A6] hover:bg-[#0D9488] text-white font-bold rounded-xl shadow-lg">
+                <Button onClick={handleForgotPassword} disabled={isLoading} className="w-full h-12 bg-[#087CF4] hover:bg-[#0769D1] text-white font-bold rounded-xl shadow-lg">
                   {isLoading ? 'جاري الإرسال...' : 'طلب رمز التحقق عبر البريد الإلكتروني (Gmail)'}
                 </Button>
               ) : (
@@ -348,7 +348,7 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
                 <Label className="text-xs font-bold text-slate-600">كلمة المرور</Label>
                 <Link
                   href={`/clinic/${slug}/login/update-password`}
-                  className="text-xs font-bold text-[#15B8A6] hover:underline"
+                  className="text-xs font-bold text-[#087CF4] hover:underline"
                 >
                   نسيت كلمة المرور؟
                 </Link>
@@ -369,7 +369,7 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
                 id="remember"
                 checked={rememberMe}
                 onChange={e => setRememberMe(e.target.checked)}
-                className="rounded text-[#15B8A6] focus:ring-[#15B8A6] w-4 h-4 cursor-pointer"
+                className="rounded text-[#087CF4] focus:ring-[#087CF4] w-4 h-4 cursor-pointer"
               />
               <label htmlFor="remember" className="text-xs font-semibold text-slate-600 cursor-pointer">
                 تذكر تسجيل الدخول على هذا الجهاز
@@ -380,7 +380,7 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
             <Button
               type="submit"
               disabled={isLoading}
-              className="w-full h-12 text-sm font-black bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-lg shadow-[#15B8A6]/25 transition-all cursor-pointer"
+              className="w-full h-12 text-sm font-black bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl shadow-lg shadow-[#087CF4]/25 transition-all cursor-pointer"
             >
               {isLoading ? 'جاري التحقق من البيانات...' : 'تسجيل الدخول'}
             </Button>
@@ -431,7 +431,7 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
               href="https://wa.me/201012345678"
               target="_blank"
               rel="noreferrer"
-              className="text-[#15B8A6] font-bold hover:underline"
+              className="text-[#087CF4] font-bold hover:underline"
             >
               تواصل مع إدارة المنصة
             </a>

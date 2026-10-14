@@ -49,73 +49,83 @@
 }
 
 :root {
-  --background: #F6F8FB;
-  --foreground: #182230;
+  --brand-navy: #061A38;
+  --brand-deep-navy: #07162D;
+  --brand-primary: #087CF4;
+  --brand-cyan: #02CFF3;
+  --brand-sky: #77E7FF;
+  --brand-ice: #F4FAFF;
+  --brand-white: #FFFFFF;
+  --brand-muted: #7387A3;
+
+  --background: #F4FAFF;
+  --foreground: #092145;
   --card: #FFFFFF;
-  --card-foreground: #182230;
+  --card-foreground: #092145;
   --popover: #FFFFFF;
-  --popover-foreground: #182230;
-  --primary: #15B8A6;
+  --popover-foreground: #092145;
+  --primary: #087CF4;
   --primary-foreground: #FFFFFF;
-  --secondary: #F0F4F8;
-  --secondary-foreground: #182230;
-  --muted: #F1F5F9;
-  --muted-foreground: #687386;
-  --accent: #E6FFFA;
-  --accent-foreground: #0D9488;
+  --secondary: #EAF4FD;
+  --secondary-foreground: #092145;
+  --muted: #EAF4FD;
+  --muted-foreground: #60758F;
+  --accent: #E0F7FE;
+  --accent-foreground: #087CF4;
   --destructive: #EF4444;
   --destructive-foreground: #FFFFFF;
-  --border: #E5EAF0;
-  --input: #E5EAF0;
-  --ring: #15B8A6;
-  --chart-1: #15B8A6;
-  --chart-2: #2F80ED;
+  --border: #DCE9F5;
+  --input: #DCE9F5;
+  --ring: #087CF4;
+  --chart-1: #087CF4;
+  --chart-2: #02CFF3;
   --chart-3: #F59E0B;
-  --chart-4: #22C55E;
+  --chart-4: #10B981;
   --chart-5: #6366F1;
   --radius: 0.875rem;
-  --sidebar: #0B1F33;
-  --sidebar-foreground: #E2E8F0;
-  --sidebar-primary: #15B8A6;
+  --sidebar: #061A38;
+  --sidebar-foreground: #F3FAFF;
+  --sidebar-primary: #087CF4;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #132B45;
+  --sidebar-accent: #0E2342;
   --sidebar-accent-foreground: #FFFFFF;
-  --sidebar-border: #1E3A5F;
-  --sidebar-ring: #15B8A6;
+  --sidebar-border: #142D50;
+  --sidebar-ring: #02CFF3;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #07162D;
+  --foreground: #F3FAFF;
+  --card: #0E2342;
+  --card-foreground: #F3FAFF;
+  --popover: #0E2342;
+  --popover-foreground: #F3FAFF;
+  --primary: #087CF4;
+  --primary-foreground: #FFFFFF;
+  --secondary: #142D50;
+  --secondary-foreground: #F3FAFF;
+  --muted: #142D50;
+  --muted-foreground: #AEC1D7;
+  --accent: #113158;
+  --accent-foreground: #02CFF3;
+  --destructive: #EF4444;
+  --destructive-foreground: #FFFFFF;
+  --border: #254565;
+  --input: #254565;
+  --ring: #02CFF3;
+  --chart-1: #087CF4;
+  --chart-2: #02CFF3;
+  --chart-3: #FBBF24;
+  --chart-4: #34D399;
+  --chart-5: #818CF8;
+  --sidebar: #061A38;
+  --sidebar-foreground: #F3FAFF;
+  --sidebar-primary: #087CF4;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #0E2342;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: #1E3A5F;
+  --sidebar-ring: #02CFF3;
 }
 
 @layer base {
@@ -130,17 +140,113 @@
   }
 }
 
-/* Custom Medical Design Utilities */
+/* Yalla Clinic Premium Utilities */
+.yalla-gradient-btn {
+  background: linear-gradient(135deg, #087CF4 0%, #02CFF3 100%);
+  color: #FFFFFF;
+  box-shadow: 0 4px 14px 0 rgba(8, 124, 244, 0.35);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.yalla-gradient-btn:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 6px 20px 0 rgba(8, 124, 244, 0.45);
+}
+
 .medical-card {
   background-color: #FFFFFF;
   border-radius: 1rem;
-  border: 1px solid #E5EAF0;
-  box-shadow: 0 1px 3px 0 rgba(11, 31, 51, 0.04), 0 1px 2px -1px rgba(11, 31, 51, 0.04);
+  border: 1px solid #DCE9F5;
+  box-shadow: 0 1px 3px 0 rgba(6, 26, 56, 0.04), 0 1px 2px -1px rgba(6, 26, 56, 0.04);
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .medical-card:hover {
-  box-shadow: 0 6px 20px 0 rgba(11, 31, 51, 0.07);
+  box-shadow: 0 8px 24px 0 rgba(8, 124, 244, 0.08);
+  border-color: rgba(8, 124, 244, 0.25);
+}
+
+/* Dark Theme Overrides for Components */
+.dark .medical-card {
+  background-color: #0E2342 !important;
+  border-color: #254565 !important;
+  color: #F3FAFF !important;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4);
+}
+
+.dark .medical-card:hover {
+  box-shadow: 0 8px 25px 0 rgba(8, 124, 244, 0.15);
+  border-color: rgba(2, 207, 243, 0.4) !important;
+}
+
+.dark .bg-white {
+  background-color: #0E2342 !important;
+}
+
+.dark .bg-\[\#F6F8FB\],
+.dark .bg-slate-50,
+.dark .bg-\[\#F8FAFC\],
+.dark .bg-\[\#F4FAFF\] {
+  background-color: #07162D !important;
+}
+
+.dark .border-\[\#E5EAF0\],
+.dark .border-\[\#DCE9F5\],
+.dark .border-slate-200 {
+  border-color: #254565 !important;
+}
+
+.dark .text-\[\#182230\],
+.dark .text-\[\#092145\] {
+  color: #F3FAFF !important;
+}
+
+.dark .text-slate-800 {
+  color: #F3FAFF !important;
+}
+
+.dark .text-slate-700 {
+  color: #E2E8F0 !important;
+}
+
+.dark .text-slate-600,
+.dark .text-\[\#60758F\] {
+  color: #AEC1D7 !important;
+}
+
+.dark .text-slate-500,
+.dark .text-slate-400 {
+  color: #AEC1D7 !important;
+}
+
+.dark .divide-\[\#E5EAF0\],
+.dark .divide-\[\#DCE9F5\],
+.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #254565 !important;
+}
+
+.dark table thead {
+  background-color: #0B1C33 !important;
+  color: #AEC1D7 !important;
+}
+
+.dark tbody tr:hover {
+  background-color: #142D50 !important;
+}
+
+.dark input:not([type="checkbox"]):not([type="radio"]),
+.dark select,
+.dark textarea {
+  background-color: #07162D !important;
+  border-color: #254565 !important;
+  color: #F3FAFF !important;
+}
+
+.dark input:not([type="checkbox"]):not([type="radio"]):focus,
+.dark select:focus,
+.dark textarea:focus {
+  background-color: #0E2342 !important;
+  border-color: #087CF4 !important;
+  box-shadow: 0 0 0 2px rgba(8, 124, 244, 0.25);
 }
 
 .medical-card-interactive {
@@ -148,7 +254,7 @@
 }
 .medical-card-interactive:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 25px -5px rgba(21, 184, 166, 0.12), 0 8px 10px -6px rgba(21, 184, 166, 0.08);
+  box-shadow: 0 10px 25px -5px rgba(8, 124, 244, 0.2), 0 8px 10px -6px rgba(8, 124, 244, 0.1);
 }
 
 /* Custom Scrollbar for Arabic RTL */

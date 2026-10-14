@@ -1,5 +1,5 @@
 /**
- * Clinic OS V2 - Intelligent Queue & Turn Calculation Engine
+ * Yalla Clinic - Intelligent Queue & Turn Calculation Engine
  * Strictly distinguishes between static ticket number (queue_number) and dynamic entry position (effective_queue_position).
  * Handles all edge cases: in_progress exams, skipped, no_show, completed, cancelled, and branch isolation.
  */
@@ -134,6 +134,7 @@ export interface PatientQueueStatusResult {
   isNextInLine: boolean
   aheadCount: number
   effectivePosition: number
+  averageVisitMins: number
   estimatedWaitMins: number
   formattedWaitTime: string
   currentPatientExamining: {
@@ -158,6 +159,8 @@ export function calculatePatientLivePosition({
   allTodayAppointments: any[]
   clinic?: any
 }): PatientQueueStatusResult {
+  const avgMins = Number(clinic?.averageVisitTime) || Number(clinic?.average_consultation_time) || 15
+
   if (!targetAppointment) {
     return {
       status: 'not_found',
@@ -166,6 +169,7 @@ export function calculatePatientLivePosition({
       isNextInLine: false,
       aheadCount: 0,
       effectivePosition: 0,
+      averageVisitMins: avgMins,
       estimatedWaitMins: 0,
       formattedWaitTime: '—',
       currentPatientExamining: null
@@ -174,7 +178,7 @@ export function calculatePatientLivePosition({
 
   // 1. Branch isolation: filter appointments by target's branch_id (if branch_id exists)
   const branchFilteredAppts = targetAppointment.branch_id
-    ? allTodayAppointments.filter(a => !a.branch_id || a.branch_id === targetAppointment.branch_id)
+    ? allTodayAppointments.filter(a => !a.branch_id || a.branch_id === targetAppointment.branch_id || a.branchName === targetAppointment.branchName)
     : allTodayAppointments
 
   // 2. Identify currently examining patient in this branch
@@ -197,6 +201,7 @@ export function calculatePatientLivePosition({
       isNextInLine: false,
       aheadCount: 0,
       effectivePosition: 0,
+      averageVisitMins: avgMins,
       estimatedWaitMins: 0,
       formattedWaitTime: 'تم الانتهاء',
       currentPatientExamining: currentExamining
@@ -211,6 +216,7 @@ export function calculatePatientLivePosition({
       isNextInLine: false,
       aheadCount: 0,
       effectivePosition: 1,
+      averageVisitMins: avgMins,
       estimatedWaitMins: 0,
       formattedWaitTime: 'دورك الآن',
       currentPatientExamining: currentExamining
@@ -225,6 +231,7 @@ export function calculatePatientLivePosition({
       isNextInLine: false,
       aheadCount: 0,
       effectivePosition: 0,
+      averageVisitMins: avgMins,
       estimatedWaitMins: 0,
       formattedWaitTime: 'ملغي',
       currentPatientExamining: currentExamining
@@ -239,6 +246,7 @@ export function calculatePatientLivePosition({
       isNextInLine: false,
       aheadCount: 0,
       effectivePosition: 0,
+      averageVisitMins: avgMins,
       estimatedWaitMins: 0,
       formattedWaitTime: 'مؤجل / تم التخطي',
       currentPatientExamining: currentExamining
@@ -249,36 +257,31 @@ export function calculatePatientLivePosition({
   const orderedWaiting = sortQueue(branchFilteredAppts, clinic)
   const myIndex = orderedWaiting.findIndex(a => a.id === targetAppointmentId)
 
-  const avgMins = Number(clinic?.averageVisitTime) || 15
+  // Doctor busy with someone else
+  const doctorBusyWithOther = Boolean(inProgressAppt && inProgressAppt.id !== targetAppointmentId)
 
-  if (myIndex === -1) {
-    // Patient is waiting but not yet sequenced in today's branch queue
-    return {
-      status: 'waiting',
-      statusLabel: 'في قائمة الانتظار',
-      isCurrentTurn: false,
-      isNextInLine: false,
-      aheadCount: orderedWaiting.length,
-      effectivePosition: orderedWaiting.length + 1,
-      estimatedWaitMins: (orderedWaiting.length + (inProgressAppt ? 1 : 0)) * avgMins,
-      formattedWaitTime: formatWaitDuration((orderedWaiting.length + (inProgressAppt ? 1 : 0)) * avgMins),
-      currentPatientExamining: currentExamining
-    }
+  // How many prior queue tickets exist and what is their status?
+  const myQueueNum = Number(targetAppointment.queue_number) || 1
+  const priorAppts = branchFilteredAppts.filter(a => a.id !== targetAppointmentId && (Number(a.queue_number) || 0) < myQueueNum)
+  const priorCompleted = priorAppts.filter(a => a.status === 'completed').length
+  const priorSkipped = priorAppts.filter(a => a.status === 'skipped' || a.status === 'cancelled' || a.status === 'no_show').length
+  const priorFinished = priorCompleted + priorSkipped
+  const priorActive = priorAppts.filter(a => a.status === 'waiting' || a.status === 'in_progress' || !a.status).length
+
+  // Calculate actual patients ahead:
+  let totalAhead = (myIndex >= 0 ? myIndex : orderedWaiting.length) + (doctorBusyWithOther ? 1 : 0)
+
+  if (priorActive > 0 && totalAhead < priorActive) {
+    totalAhead = priorActive
+  } else if (totalAhead === 0 && myQueueNum > 1 && priorFinished === 0) {
+    totalAhead = myQueueNum - 1
   }
 
-  // 5. Patient is found at index myIndex:
-  // How many waiting patients are ahead?
-  const waitingAhead = myIndex // 0 means next among waiting patients
-  // Is doctor currently examining someone?
-  const doctorBusy = Boolean(inProgressAppt)
-  const totalAhead = waitingAhead + (doctorBusy ? 1 : 0)
-
   // Is it truly their turn?
-  // Only if there is NO one in progress and myIndex === 0
-  const isCurrentTurn = !doctorBusy && myIndex === 0
-  const isNextInLine = doctorBusy && myIndex === 0
+  const isCurrentTurn = totalAhead === 0 && (myQueueNum <= 1 || priorFinished >= myQueueNum - 1)
+  const isNextInLine = !isCurrentTurn && totalAhead === 1
 
-  const waitMins = isCurrentTurn ? 0 : Math.max(5, totalAhead * avgMins)
+  const waitMins = isCurrentTurn ? 0 : totalAhead * avgMins
   const statusLabel = isCurrentTurn
     ? 'دورك الآن — تفضل بالدخول'
     : isNextInLine
@@ -291,7 +294,8 @@ export function calculatePatientLivePosition({
     isCurrentTurn,
     isNextInLine,
     aheadCount: totalAhead,
-    effectivePosition: myIndex + 1,
+    effectivePosition: (myIndex >= 0 ? myIndex : orderedWaiting.length) + 1,
+    averageVisitMins: avgMins,
     estimatedWaitMins: waitMins,
     formattedWaitTime: isCurrentTurn ? 'دورك الآن' : formatWaitDuration(waitMins, false),
     currentPatientExamining: currentExamining

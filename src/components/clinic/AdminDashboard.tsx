@@ -23,8 +23,15 @@ import { ThermalReceiptData } from '@/lib/printService'
 import { openManualWhatsAppChat, formatQueueAlertWhatsAppMessage, formatPaymentConfirmationWhatsAppMessage } from '@/lib/whatsappShare'
 import { exportAppointmentsToExcel } from '@/lib/excelExport'
 import { createClinicNotification } from '@/lib/notificationService'
+import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
+import { useLanguage } from '@/context/LanguageContext'
 
 export function AdminDashboard({ clinic }: { clinic: any }) {
+  const { t, language, dir, isRtl } = useLanguage()
+  const isFinanceEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'finance'), [clinic])
+  const isPrescriptionsEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'prescriptions'), [clinic])
+  const isPatientAlertsEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'patientAlerts'), [clinic])
+
   const [rawAppointments, setRawAppointments] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -555,7 +562,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'in_progress':
-        return <Badge className="bg-[#15B8A6] text-white hover:bg-[#15B8A6] border-none font-bold px-3 py-1">بالداخل</Badge>
+        return <Badge className="bg-[#087CF4] text-white hover:bg-[#087CF4] border-none font-bold px-3 py-1">بالداخل</Badge>
       case 'waiting':
         return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200 font-bold px-3 py-1">في الانتظار</Badge>
       case 'completed':
@@ -610,7 +617,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
             }
           }}
           variant={clinic?.isClinicOpen !== false ? 'destructive' : 'default'}
-          className={`font-bold text-xs h-10 px-5 rounded-xl w-full sm:w-auto ${clinic?.isClinicOpen !== false ? '' : 'bg-[#15B8A6] hover:bg-[#0D9488] text-white'}`}
+          className={`font-bold text-xs h-10 px-5 rounded-xl w-full sm:w-auto ${clinic?.isClinicOpen !== false ? '' : 'bg-[#087CF4] hover:bg-[#0662C4] text-white'}`}
           disabled={isProcessing}
         >
           {clinic?.isClinicOpen !== false ? 'إغلاق العيادة (إيقاف الحجز)' : 'فتح العيادة (بدء الحجز)'}
@@ -621,7 +628,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between p-4 bg-slate-50/80 border border-[#E5EAF0] rounded-2xl gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 ml-1">
-            <Calendar className="w-4 h-4 text-[#15B8A6]" />
+            <Calendar className="w-4 h-4 text-[#087CF4]" />
             حجوزات تاريخ:
           </span>
           <button
@@ -629,7 +636,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
             onClick={() => setSelectedDashboardDate(getCairoTodayDate())}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               selectedDashboardDate === getCairoTodayDate()
-                ? 'bg-[#15B8A6] text-white shadow-xs'
+                ? 'bg-[#087CF4] text-white shadow-xs'
                 : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
             }`}
           >
@@ -652,7 +659,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
 
         {/* Dynamic Average Consultation Duration Banner */}
         <div className="flex items-center gap-2 px-3.5 py-1.5 bg-white border border-teal-200/80 rounded-xl shadow-2xs self-start md:self-auto">
-          <Clock className="w-4 h-4 text-[#15B8A6] shrink-0" />
+          <Clock className="w-4 h-4 text-[#087CF4] shrink-0" />
           <div className="text-right">
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] font-bold text-slate-600">متوسط وقت الكشف التقديري:</span>
@@ -668,7 +675,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
       </div>
 
       {/* TOP STATS CARDS */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className={`grid grid-cols-2 ${isFinanceEnabled ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-4`}>
         {/* Card 1: Total Bookings */}
         <div className="medical-card p-5 flex items-center justify-between">
           <div>
@@ -676,7 +683,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
             <h3 className="text-3xl font-black text-[#182230]">{bookings.length}</h3>
             <span className="text-[11px] font-semibold text-slate-400 mt-1 inline-block">حجز مسجل اليوم</span>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center text-[#15B8A6]">
+          <div className="w-12 h-12 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center text-[#087CF4]">
             <Calendar className="w-6 h-6" />
           </div>
         </div>
@@ -705,19 +712,21 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
           </div>
         </div>
 
-        {/* Card 4: Total Revenue */}
-        <div className="medical-card p-5 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold text-slate-400 mb-1">إجمالي الإيرادات</p>
-            <h3 className="text-3xl font-black text-emerald-600">
-              {totalRevenue.toLocaleString()} <span className="text-base font-bold text-slate-500">ج.م</span>
-            </h3>
-            <span className="text-[11px] font-semibold text-emerald-600/80 mt-1 inline-block">تحصيل اليوم</span>
+        {/* Card 4: Total Revenue (Only when finance is enabled) */}
+        {isFinanceEnabled && (
+          <div className="medical-card p-5 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-slate-400 mb-1">إجمالي الإيرادات</p>
+              <h3 className="text-3xl font-black text-emerald-600">
+                {totalRevenue.toLocaleString()} <span className="text-base font-bold text-slate-500">ج.م</span>
+              </h3>
+              <span className="text-[11px] font-semibold text-emerald-600/80 mt-1 inline-block">تحصيل اليوم</span>
+            </div>
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-500">
+              <DollarSign className="w-6 h-6" />
+            </div>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-500">
-            <DollarSign className="w-6 h-6" />
-          </div>
-        </div>
+        )}
       </div>
 
       {/* PENDING PAYMENTS SECTION: مدفوعات في انتظار التأكيد */}
@@ -860,7 +869,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
             {/* Header with Title and Filter Dropdown */}
             <div className="p-5 border-b border-[#E5EAF0] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50/50">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-teal-500/10 text-[#15B8A6] flex items-center justify-center">
+                <div className="w-9 h-9 rounded-xl bg-teal-500/10 text-[#087CF4] flex items-center justify-center">
                   <Users className="w-5 h-5" />
                 </div>
                 <div>
@@ -885,7 +894,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                   <select
                     value={serviceFilter}
                     onChange={(e) => setServiceFilter(e.target.value)}
-                    className="h-9 pr-8 pl-3 rounded-xl bg-white border border-[#E5EAF0] text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#15B8A6]/20 focus:border-[#15B8A6] cursor-pointer appearance-none"
+                    className="h-9 pr-8 pl-3 rounded-xl bg-white border border-[#E5EAF0] text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#087CF4]/20 focus:border-[#087CF4] cursor-pointer appearance-none"
                   >
                     <option value="ALL">كل الخدمات</option>
                     {clinic?.services?.map((s: any) => (
@@ -908,7 +917,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
             <div className="p-0">
               {isLoading ? (
                 <div className="py-16 text-center text-slate-400">
-                  <div className="w-8 h-8 border-2 border-[#15B8A6] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                  <div className="w-8 h-8 border-2 border-[#087CF4] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
                   جاري تحميل الدور...
                 </div>
               ) : filteredBookings.length === 0 ? (
@@ -921,7 +930,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                     يمكن للمرضى حجز المواعيد عبر رابط العيادة المباشر، أو يمكنك إضافة موعد يدوي.
                   </p>
                   <Link href={`/clinic/${clinic.slug}`} target="_blank">
-                    <Button variant="outline" size="sm" className="mt-2 text-xs font-bold border-[#15B8A6] text-[#15B8A6]">
+                    <Button variant="outline" size="sm" className="mt-2 text-xs font-bold border-[#087CF4] text-[#087CF4]">
                       فتح صفحة الحجز
                     </Button>
                   </Link>
@@ -937,7 +946,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                         key={b.id}
                         className={`transition-colors ${
                           isCurrent
-                            ? 'bg-[#E6FFFA]/50 border-r-4 border-r-[#15B8A6]'
+                            ? 'bg-[#E6FFFA]/50 border-r-4 border-r-[#087CF4]'
                             : b.status === 'completed'
                             ? 'bg-slate-50/60 opacity-80'
                             : 'hover:bg-slate-50/80 bg-white'
@@ -951,7 +960,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                               <div
                                 className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center shrink-0 font-black shadow-xs ${
                                   isCurrent
-                                    ? 'bg-[#15B8A6] text-white ring-2 ring-[#15B8A6]/20'
+                                    ? 'bg-[#087CF4] text-white ring-2 ring-[#087CF4]/20'
                                     : b.status === 'completed'
                                     ? 'bg-slate-100 text-slate-500'
                                     : 'bg-[#0B1F33] text-white'
@@ -1011,7 +1020,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                             {b.status === 'waiting' && (
                               <Button
                                 size="sm"
-                                className="flex-1 h-9 text-xs font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-xs"
+                                className="flex-1 h-9 text-xs font-bold bg-[#087CF4] hover:bg-[#0662C4] text-white rounded-xl shadow-xs"
                                 onClick={() => handleStartExam(b)}
                                 disabled={isProcessing}
                               >
@@ -1052,7 +1061,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                               variant="outline"
                               onClick={() => setExpandedCardId(isExpanded ? null : b.id)}
                               className={`h-9 px-2.5 rounded-xl border-slate-200 text-slate-600 transition-colors ${
-                                isExpanded ? 'bg-slate-100 text-[#15B8A6]' : 'hover:bg-slate-50'
+                                isExpanded ? 'bg-slate-100 text-[#087CF4]' : 'hover:bg-slate-50'
                               }`}
                               title="المزيد من الخيارات"
                             >
@@ -1085,7 +1094,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                                   إيصال حراري
                                 </Button>
 
-                                {b.phone && (
+                                {isPatientAlertsEnabled && b.phone && (
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -1109,19 +1118,21 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                                   </Button>
                                 )}
 
-                                <Link
-                                  href={`/clinic/${clinic.slug}/admin/prescriptions?appointmentId=${b.id}&patientName=${encodeURIComponent(b.patientName)}&patientPhone=${encodeURIComponent(b.phone)}&age=${encodeURIComponent(b.age || b.dob || '')}`}
-                                  className="col-span-2"
-                                >
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="w-full h-8 text-xs font-bold text-[#15B8A6] border-teal-200 hover:bg-white rounded-lg justify-center"
+                                {isPrescriptionsEnabled && (
+                                  <Link
+                                    href={`/clinic/${clinic.slug}/admin/prescriptions?appointmentId=${b.id}&patientName=${encodeURIComponent(b.patientName)}&patientPhone=${encodeURIComponent(b.phone)}&age=${encodeURIComponent(b.age || b.dob || '')}`}
+                                    className="col-span-2"
                                   >
-                                    <FileSignature className="w-3.5 h-3.5 ml-1.5" />
-                                    كتابة روشتة طبية
-                                  </Button>
-                                </Link>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="w-full h-8 text-xs font-bold text-[#087CF4] border-teal-200 hover:bg-white rounded-lg justify-center"
+                                    >
+                                      <FileSignature className="w-3.5 h-3.5 ml-1.5" />
+                                      كتابة روشتة طبية
+                                    </Button>
+                                  </Link>
+                                )}
                               </div>
                             </div>
                           )}
@@ -1135,7 +1146,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                             <div
                               className={`w-11 h-11 rounded-xl flex flex-col items-center justify-center shrink-0 font-black shadow-xs ${
                                 isCurrent
-                                  ? 'bg-[#15B8A6] text-white ring-2 ring-[#15B8A6]/20'
+                                  ? 'bg-[#087CF4] text-white ring-2 ring-[#087CF4]/20'
                                   : b.status === 'completed'
                                   ? 'bg-slate-100 text-slate-500'
                                   : 'bg-[#0B1F33] text-white'
@@ -1226,7 +1237,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                             </Button>
 
                             {/* WhatsApp alert button (MANUAL click-to-chat) */}
-                            {b.status === 'waiting' && b.phone && (
+                            {isPatientAlertsEnabled && b.status === 'waiting' && b.phone && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -1257,7 +1268,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                             {b.status === 'waiting' && (
                               <Button
                                 size="sm"
-                                className="h-8 px-3 text-xs font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-xs"
+                                className="h-8 px-3 text-xs font-bold bg-[#087CF4] hover:bg-[#0662C4] text-white rounded-xl shadow-xs"
                                 onClick={() => handleStartExam(b)}
                                 disabled={isProcessing}
                               >
@@ -1266,16 +1277,18 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                             )}
 
                             {/* Rx Shortcut */}
-                            <Link href={`/clinic/${clinic.slug}/admin/prescriptions?appointmentId=${b.id}&patientName=${encodeURIComponent(b.patientName)}&patientPhone=${encodeURIComponent(b.phone)}&age=${encodeURIComponent(b.age || b.dob || '')}`}>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 px-2 text-slate-400 hover:text-[#15B8A6] hover:bg-teal-50 rounded-xl"
-                                title="كتابة روشتة"
-                              >
-                                <FileSignature className="w-4 h-4" />
-                              </Button>
-                            </Link>
+                            {isPrescriptionsEnabled && (
+                              <Link href={`/clinic/${clinic.slug}/admin/prescriptions?appointmentId=${b.id}&patientName=${encodeURIComponent(b.patientName)}&patientPhone=${encodeURIComponent(b.phone)}&age=${encodeURIComponent(b.age || b.dob || '')}`}>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 px-2 text-slate-400 hover:text-[#087CF4] hover:bg-teal-50 rounded-xl"
+                                  title="كتابة روشتة"
+                                >
+                                  <FileSignature className="w-4 h-4" />
+                                </Button>
+                              </Link>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1291,18 +1304,18 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
         <div className="lg:col-span-4 space-y-4">
           
           {/* Panel 1: Current Patient (المريض الحالي) */}
-          <div className="medical-card border-t-4 border-t-[#15B8A6] p-5 space-y-4 relative overflow-hidden">
+          <div className="medical-card border-t-4 border-t-[#087CF4] p-5 space-y-4 relative overflow-hidden">
             <div className="flex items-center justify-between pb-3 border-b border-[#E5EAF0]">
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#15B8A6] animate-ping"></span>
+                <span className="w-2.5 h-2.5 rounded-full bg-[#087CF4] animate-ping"></span>
                 <h3 className="font-bold text-sm text-[#182230]">المريض الحالي</h3>
               </div>
-              <Badge className="bg-[#E6FFFA] text-[#0D9488] border-none font-bold text-xs">بالداخل الآن</Badge>
+              <Badge className="bg-[#E6FFFA] text-[#0662C4] border-none font-bold text-xs">بالداخل الآن</Badge>
             </div>
 
             {currentPatient ? (
               <div className="space-y-4 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-teal-50 border-2 border-teal-200 text-[#15B8A6] flex items-center justify-center mx-auto text-2xl font-black shadow-xs">
+                <div className="w-16 h-16 rounded-2xl bg-teal-50 border-2 border-teal-200 text-[#087CF4] flex items-center justify-center mx-auto text-2xl font-black shadow-xs">
                   #{currentPatient.queue_number}
                 </div>
 
@@ -1315,7 +1328,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                 </div>
 
                 {currentPatient.startedAt && (
-                  <p className="text-xs font-semibold text-[#15B8A6] bg-teal-50 py-1.5 px-3 rounded-lg">
+                  <p className="text-xs font-semibold text-[#087CF4] bg-teal-50 py-1.5 px-3 rounded-lg">
                     بدأ الكشف: {new Date(currentPatient.startedAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 )}
@@ -1323,7 +1336,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                 {/* Actions Grid */}
                 <div className="grid grid-cols-1 gap-2 pt-2">
                   <Button
-                    className="w-full h-11 bg-[#15B8A6] hover:bg-[#0D9488] text-white font-bold rounded-xl shadow-md shadow-[#15B8A6]/20 transition-all text-sm"
+                    className="w-full h-11 bg-[#087CF4] hover:bg-[#0662C4] text-white font-bold rounded-xl shadow-md shadow-[#087CF4]/20 transition-all text-sm"
                     onClick={() => handleCompleteExam(currentPatient.id, currentPatient.patientName)}
                     disabled={isProcessing}
                   >
@@ -1354,15 +1367,17 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                     </Button>
                   </div>
 
-                  <Link href={`/clinic/${clinic.slug}/admin/prescriptions?appointmentId=${currentPatient.id}&patientName=${encodeURIComponent(currentPatient.patientName)}&patientPhone=${encodeURIComponent(currentPatient.phone)}&age=${encodeURIComponent(currentPatient.age || currentPatient.dob || '')}`}>
-                    <Button
-                      variant="ghost"
-                      className="w-full h-9 text-xs font-bold text-[#15B8A6] hover:bg-teal-50 rounded-xl mt-1"
-                    >
-                      <FileSignature className="w-4 h-4 ml-1.5" />
-                      إصدار روشتة للمريض الآن
-                    </Button>
-                  </Link>
+                  {isPrescriptionsEnabled && (
+                    <Link href={`/clinic/${clinic.slug}/admin/prescriptions?appointmentId=${currentPatient.id}&patientName=${encodeURIComponent(currentPatient.patientName)}&patientPhone=${encodeURIComponent(currentPatient.phone)}&age=${encodeURIComponent(currentPatient.age || currentPatient.dob || '')}`}>
+                      <Button
+                        variant="ghost"
+                        className="w-full h-9 text-xs font-bold text-[#087CF4] hover:bg-teal-50 rounded-xl mt-1"
+                      >
+                        <FileSignature className="w-4 h-4 ml-1.5" />
+                        إصدار روشتة للمريض الآن
+                      </Button>
+                    </Link>
+                  )}
                 </div>
               </div>
             ) : (
@@ -1374,7 +1389,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                 {nextPatient && (
                   <Button
                     size="sm"
-                    className="bg-[#15B8A6] hover:bg-[#0D9488] text-white font-bold rounded-xl"
+                    className="bg-[#087CF4] hover:bg-[#0662C4] text-white font-bold rounded-xl"
                     onClick={() => handleStartExam(nextPatient)}
                     disabled={isProcessing}
                   >
@@ -1417,7 +1432,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                   <ArrowLeft className="w-5 h-5 mr-2" />
                 </Button>
 
-                {nextPatient.phone && (
+                {isPatientAlertsEnabled && nextPatient.phone && (
                   <button
                     onClick={() => handleManualWhatsApp(nextPatient)}
                     className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center justify-center gap-1.5 mx-auto"
@@ -1521,7 +1536,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                 type="button"
                 onClick={handleSaveEditTurn}
                 disabled={isUpdatingQueue}
-                className="flex-1 bg-[#15B8A6] hover:bg-[#0D9488] text-white font-bold h-11 rounded-xl"
+                className="flex-1 bg-[#087CF4] hover:bg-[#0662C4] text-white font-bold h-11 rounded-xl"
               >
                 {isUpdatingQueue ? 'جاري الحفظ...' : 'حفظ تعديل الدور'}
               </Button>
@@ -1578,7 +1593,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                     onClick={() => setDiscountType('fixed')}
                     className={`py-2 text-xs font-bold rounded-xl border transition-all ${
                       discountType === 'fixed'
-                        ? 'bg-[#15B8A6] text-white border-[#15B8A6]'
+                        ? 'bg-[#087CF4] text-white border-[#087CF4]'
                         : 'bg-white text-slate-700 border-slate-200'
                     }`}
                   >
@@ -1589,7 +1604,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                     onClick={() => setDiscountType('percentage')}
                     className={`py-2 text-xs font-bold rounded-xl border transition-all ${
                       discountType === 'percentage'
-                        ? 'bg-[#15B8A6] text-white border-[#15B8A6]'
+                        ? 'bg-[#087CF4] text-white border-[#087CF4]'
                         : 'bg-white text-slate-700 border-slate-200'
                     }`}
                   >
@@ -1607,7 +1622,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                   value={discountValue}
                   onChange={(e) => setDiscountValue(e.target.value)}
                   placeholder={discountType === 'percentage' ? 'مثال: 15' : 'مثال: 50'}
-                  className="w-full h-11 px-3.5 rounded-xl border border-slate-200 font-mono font-black text-base focus:outline-none focus:ring-2 focus:ring-[#15B8A6] text-right"
+                  className="w-full h-11 px-3.5 rounded-xl border border-slate-200 font-mono font-black text-base focus:outline-none focus:ring-2 focus:ring-[#087CF4] text-right"
                   dir="ltr"
                 />
               </div>
@@ -1618,7 +1633,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                 type="button"
                 onClick={handleSaveDiscount}
                 disabled={isSavingDiscount}
-                className="flex-1 bg-[#15B8A6] hover:bg-[#0D9488] text-white font-bold h-11 rounded-xl"
+                className="flex-1 bg-[#087CF4] hover:bg-[#0662C4] text-white font-bold h-11 rounded-xl"
               >
                 {isSavingDiscount ? 'جاري الحفظ...' : 'تأكيد الخصم'}
               </Button>

@@ -1,5 +1,5 @@
 /**
- * PWA Service & Push Notification Manager for Clinic OS V2
+ * PWA Service & Push Notification Manager for Yalla Clinic
  * Handles:
  * - Service Worker registration
  * - Push subscription with VAPID

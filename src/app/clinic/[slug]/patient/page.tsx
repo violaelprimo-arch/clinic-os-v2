@@ -74,7 +74,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
           clinicName: 'العيادة التخصصية',
           doctorName: 'الطبيب',
           specialty: 'استشاري الطب المتخصص',
-          primaryColor: '#15B8A6'
+          primaryColor: '#087CF4'
         })
       }
     })
@@ -200,7 +200,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
       <div className="min-h-screen bg-[#F6F8FB] flex flex-col items-center justify-center gap-4" dir="rtl">
         <ClinicLogo size="lg" variant="light" />
         <div className="flex items-center gap-2 text-sm font-semibold text-slate-500">
-          <div className="w-5 h-5 border-2 border-[#15B8A6] border-t-transparent rounded-full animate-spin"></div>
+          <div className="w-5 h-5 border-2 border-[#087CF4] border-t-transparent rounded-full animate-spin"></div>
           جاري تحميل ملفك الطبي...
         </div>
       </div>
@@ -236,7 +236,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
             )}
 
             <Link href={`/clinic/${slug}`}>
-              <Button variant="ghost" size="sm" className="text-xs font-bold text-slate-600 hover:text-[#15B8A6]">
+              <Button variant="ghost" size="sm" className="text-xs font-bold text-slate-600 hover:text-[#087CF4]">
                 الصفحة الرئيسية
                 <ArrowRight className="w-3.5 h-3.5 mr-1" />
               </Button>
@@ -261,12 +261,12 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="medical-card bg-gradient-to-br from-[#0B1F33] via-[#0F2840] to-[#0B1F33] rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6"
+          className="medical-card bg-gradient-to-br from-[#061A38] via-[#0E2342] to-[#07162D] rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6"
         >
-          <div className="absolute top-0 right-0 w-80 h-80 bg-[#15B8A6]/20 rounded-full blur-3xl pointer-events-none"></div>
+          <div className="absolute top-0 right-0 w-80 h-80 bg-[#087CF4]/20 rounded-full blur-3xl pointer-events-none"></div>
 
           <div className="relative z-10 space-y-2 flex-1">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-500/20 text-teal-300 border border-teal-500/30 text-xs font-bold">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 text-xs font-bold">
               <ShieldCheck className="w-3.5 h-3.5" />
               <span>الملف الطبي الشخصي المعتمد</span>
             </div>
@@ -280,7 +280,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
 
           <div className="relative z-10 shrink-0">
             <Dialog>
-              <DialogTrigger className="inline-flex items-center justify-center bg-[#15B8A6] hover:bg-[#0D9488] text-white font-black text-xs h-11 px-6 rounded-xl shadow-lg shadow-[#15B8A6]/30 transition-all cursor-pointer">
+              <DialogTrigger className="inline-flex items-center justify-center bg-[#087CF4] hover:bg-[#0769D1] text-white font-black text-xs h-11 px-6 rounded-xl shadow-lg shadow-[#087CF4]/30 transition-all cursor-pointer">
                 <Plus className="w-4 h-4 ml-1.5" />
                 حجز كشف جديد بالعيادة
               </DialogTrigger>
@@ -309,7 +309,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-black text-[#182230] flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-[#15B8A6]" />
+              <Calendar className="w-5 h-5 text-[#087CF4]" />
               سجل الزيارات والروشتات الطبية
             </h2>
             <span className="text-xs font-bold text-slate-400">
@@ -384,7 +384,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
                               queueNumber: appt.queue_number
                             })
                           }}
-                          className="h-8 text-xs font-bold border-[#E5EAF0] text-slate-700 hover:text-[#15B8A6] rounded-xl flex items-center gap-1"
+                          className="h-8 text-xs font-bold border-[#E5EAF0] text-slate-700 hover:text-[#087CF4] rounded-xl flex items-center gap-1"
                         >
                           <Receipt className="w-3.5 h-3.5" />
                           الفاتورة الإلكترونية PDF
@@ -404,8 +404,8 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
 
                     {/* Diagnosis Strip */}
                     {appt.diagnosis && (
-                      <div className="p-3.5 rounded-xl bg-teal-50/60 border border-teal-100 space-y-1">
-                        <h4 className="font-bold text-xs text-[#0D9488] flex items-center gap-1.5">
+                      <div className="p-3.5 rounded-xl bg-blue-50/60 border border-blue-100 space-y-1">
+                        <h4 className="font-bold text-xs text-[#087CF4] flex items-center gap-1.5">
                           <Activity className="w-3.5 h-3.5" />
                           تشخيص الطبيب المعالج:
                         </h4>
@@ -420,7 +420,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
                       <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
                         <div className="flex items-center justify-between">
                           <h4 className="font-bold text-xs text-[#182230] flex items-center gap-1.5">
-                            <FileText className="w-4 h-4 text-[#15B8A6]" />
+                            <FileText className="w-4 h-4 text-[#087CF4]" />
                             الروشتة الطبية المعتمدة (Rx)
                           </h4>
 
@@ -433,7 +433,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
                             <Button
                               size="sm"
                               onClick={() => setSelectedPrescription(relatedRx)}
-                              className="h-7 px-3 text-[11px] font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-lg shadow-2xs flex items-center gap-1"
+                              className="h-7 px-3 text-[11px] font-bold bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-lg shadow-2xs flex items-center gap-1"
                             >
                               <Eye className="w-3 h-3 ml-1" />
                               عرض وتحميل الروشتة PDF
@@ -454,7 +454,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
                                     {drug.dosage} {drug.duration ? `— ${drug.duration}` : ''}
                                   </div>
                                 </div>
-                                <span className="text-[10px] font-mono font-bold text-[#15B8A6] bg-teal-50 px-2 py-0.5 rounded-md">
+                                <span className="text-[10px] font-mono font-bold text-[#087CF4] bg-blue-50 px-2 py-0.5 rounded-md">
                                   #{dIdx + 1}
                                 </span>
                               </div>
@@ -497,7 +497,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
           <div className="bg-white rounded-3xl p-5 max-w-3xl w-full max-h-[95vh] overflow-y-auto shadow-2xl space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-[#15B8A6]" />
+                <FileText className="w-5 h-5 text-[#087CF4]" />
                 <h3 className="font-black text-sm text-[#182230]">
                   الروشتة الطبية الرسمية المعروضة
                 </h3>
@@ -529,7 +529,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
                   size="sm"
                   onClick={handleDownloadRxPdf}
                   disabled={isDownloadingRx}
-                  className="h-9 px-4 text-xs font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-xs flex items-center gap-1.5"
+                  className="h-9 px-4 text-xs font-bold bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl shadow-xs flex items-center gap-1.5"
                 >
                   <Download className="w-4 h-4 ml-1" />
                   {isDownloadingRx ? 'جاري التحميل...' : 'تحميل PDF'}
@@ -572,7 +572,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
         <div className="flex items-center justify-center gap-4">
           <TechnicalSupportButton variant="compact" />
         </div>
-        <p>جميع الحقوق محفوظة © {new Date().getFullYear()} Clinic OS</p>
+        <p>جميع الحقوق محفوظة YallaCodeX 2026</p>
       </footer>
     </div>
   )

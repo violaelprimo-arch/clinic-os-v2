@@ -96,7 +96,7 @@ export default function PublicPrescriptionPage({
       certificationTitle: clinic?.certificationTitle,
       clinicPhone: clinic?.clinicPhone,
       clinicAddress: clinic?.clinicAddress,
-      primaryColor: clinic?.primaryColor || '#15B8A6',
+      primaryColor: clinic?.primaryColor || '#087CF4',
       logoUrl: clinic?.logoUrl,
       patientName,
       patientAge,
@@ -183,7 +183,7 @@ export default function PublicPrescriptionPage({
     return (
       <div className="min-h-screen bg-[#F6F8FB] flex items-center justify-center p-4" dir="rtl">
         <div className="text-center space-y-3">
-          <Loader2 className="w-10 h-10 animate-spin text-[#15B8A6] mx-auto" />
+          <Loader2 className="w-10 h-10 animate-spin text-[#087CF4] mx-auto" />
           <p className="text-xs font-bold text-slate-500">جاري تحميل بيانات الروشتة الطبية...</p>
         </div>
       </div>
@@ -200,7 +200,7 @@ export default function PublicPrescriptionPage({
             لم نتمكن من العثور على بيانات هذه الروشتة أو قد تم حذف الحجز.
           </p>
           <Link href={`/clinic/${slug}`}>
-            <Button className="w-full bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl text-xs font-bold">
+            <Button className="w-full bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl text-xs font-bold">
               العودة إلى العيادة
             </Button>
           </Link>
@@ -225,9 +225,9 @@ export default function PublicPrescriptionPage({
             </Link>
             <div>
               <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-[#15B8A6]" />
+                <FileText className="w-4 h-4 text-[#087CF4]" />
                 <h1 className="text-sm font-black text-[#182230]">الروشتة الطبية الرسمية</h1>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-[#0D9488] border border-teal-100">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-[#087CF4] border border-blue-100">
                   معتمدة
                 </span>
               </div>
@@ -253,7 +253,7 @@ export default function PublicPrescriptionPage({
             <Button
               onClick={handleDownload}
               disabled={isDownloading}
-              className="flex-1 sm:flex-none h-10 px-4 text-xs font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-xs cursor-pointer"
+              className="flex-1 sm:flex-none h-10 px-4 text-xs font-bold bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl shadow-xs cursor-pointer"
             >
               <Download className="w-4 h-4 ml-1.5" />
               {isDownloading ? 'جاري التحميل...' : 'تحميل PDF'}
@@ -300,12 +300,12 @@ export default function PublicPrescriptionPage({
         {/* Bottom Support & Standard Footer */}
         <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
           <div>
-            جميع الحقوق محفوظة © {new Date().getFullYear()} Clinic OS
+            جميع الحقوق محفوظة YallaCodeX 2026
           </div>
           <div className="flex items-center gap-3">
             <TechnicalSupportButton />
             <span>•</span>
-            <Link href={`/clinic/${slug}`} className="hover:text-[#15B8A6]">
+            <Link href={`/clinic/${slug}`} className="hover:text-[#087CF4]">
               {clinic?.clinicName || 'صفحة العيادة'}
             </Link>
           </div>

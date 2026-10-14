@@ -47,8 +47,8 @@ export function A4Prescription({
   printBackground = true
 }: A4PrescriptionProps) {
   const safeOffset = typeof topOffset === 'number' && topOffset <= 60 && topOffset >= 0 ? topOffset : 25
-  const pColor = primaryColor || clinic?.primaryColor || '#0B1F33'
-  const sColor = secondaryColor || clinic?.secondaryColor || '#15B8A6'
+  const pColor = primaryColor || clinic?.primaryColor || '#061A38'
+  const sColor = secondaryColor || clinic?.secondaryColor || '#087CF4'
   const isA5 = pageSize === 'a5'
 
   return (
@@ -144,7 +144,7 @@ export function A4Prescription({
                   <ClinicLogo size="sm" variant="light" showSubtitle={false} />
                 )}
                 <span className={`${isA5 ? 'text-[10px]' : 'text-xs'} font-bold text-[#334155] mt-1`}>
-                  {clinic?.clinicName || 'Clinic OS'}
+                  {clinic?.clinicName || 'Yalla Clinic'}
                 </span>
                 {branchName && (
                   <span className="text-[10px] font-bold text-[#94A3B8]">
@@ -192,8 +192,8 @@ export function A4Prescription({
 
           {/* Diagnosis (if present) */}
           {diagnosis && (
-            <div className={`mb-3 ${isA5 ? 'text-[10px]' : 'text-xs'} font-bold px-3 py-1.5 bg-[#F0FDFA] rounded-lg border border-[#CCFBF1] flex items-center gap-2`}>
-              <span className="text-[#0D9488]">التشخيص الطبي:</span>
+            <div className={`mb-3 ${isA5 ? 'text-[10px]' : 'text-xs'} font-bold px-3 py-1.5 bg-[#F0F7FF] rounded-lg border border-[#D0E2FF] flex items-center gap-2`}>
+              <span className="text-[#087CF4]">التشخيص الطبي:</span>
               <span className="text-[#182230]">{diagnosis}</span>
             </div>
           )}
@@ -226,7 +226,7 @@ export function A4Prescription({
                     </h3>
                     <div className={`flex flex-wrap items-center gap-x-3 gap-y-0.5 ${isA5 ? 'text-[10px]' : 'text-xs'}`}>
                       {drug.dosage && (
-                        <span className="font-bold text-[#0D9488]">
+                        <span className="font-bold text-[#087CF4]">
                           الجرعة: {drug.dosage}
                         </span>
                       )}
@@ -282,7 +282,7 @@ export function A4Prescription({
               <p>{clinic?.clinicAddress || 'العنوان: مسجل بالعيادة'}</p>
               <p dir="ltr">هاتف: {clinic?.clinicPhone || clinic?.phones?.[0] || 'مسجل بالعيادة'}</p>
               <p className="text-[9px] text-[#94A3B8] pt-0.5">
-                جميع الحقوق محفوظة © {new Date().getFullYear()} Clinic OS
+                جميع الحقوق محفوظة YallaCodeX 2026
               </p>
             </div>
           </div>

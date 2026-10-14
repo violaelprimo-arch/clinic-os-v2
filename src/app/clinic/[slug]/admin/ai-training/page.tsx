@@ -121,7 +121,7 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-black text-[#182230] flex items-center gap-2">
-            <Bot className="w-6 h-6 text-[#15B8A6]" />
+            <Bot className="w-6 h-6 text-[#087CF4]" />
             تدريب المساعد الذكي للعيادة
           </h1>
           <p className="text-xs text-slate-400 mt-0.5">
@@ -157,7 +157,7 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
 
           <div className="text-left">
             <div className="flex items-baseline gap-1 font-mono font-black" dir="ltr">
-              <span className={`text-xl ${aiResponsesCount >= aiResponsesLimit ? 'text-rose-600' : 'text-[#15B8A6]'}`}>
+              <span className={`text-xl ${aiResponsesCount >= aiResponsesLimit ? 'text-rose-600' : 'text-[#087CF4]'}`}>
                 {aiResponsesCount}
               </span>
               <span className="text-xs text-slate-400">/ {aiResponsesLimit} رد</span>
@@ -178,7 +178,7 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
                 ? 'bg-rose-500'
                 : (aiResponsesCount / aiResponsesLimit) >= 0.8
                 ? 'bg-amber-400'
-                : 'bg-[#15B8A6]'
+                : 'bg-[#087CF4]'
             }`}
             style={{ width: `${Math.min(100, Math.round((aiResponsesCount / Math.max(1, aiResponsesLimit)) * 100))}%` }}
           />
@@ -233,12 +233,12 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
               <div
                 className={`max-w-[85%] sm:max-w-[75%] rounded-2xl p-4 text-xs sm:text-sm leading-relaxed shadow-xs flex items-start gap-3 ${
                   m.role === 'user'
-                    ? 'bg-[#15B8A6] text-white rounded-tr-none'
+                    ? 'bg-[#087CF4] text-white rounded-tr-none'
                     : 'bg-white text-slate-800 border border-[#E5EAF0] rounded-tl-none'
                 }`}
               >
                 {m.role === 'model' && (
-                  <div className="w-7 h-7 rounded-lg bg-teal-50 text-[#15B8A6] flex items-center justify-center shrink-0">
+                  <div className="w-7 h-7 rounded-lg bg-blue-50 text-[#087CF4] flex items-center justify-center shrink-0">
                     <Bot className="w-4 h-4" />
                   </div>
                 )}
@@ -255,7 +255,7 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
           {isLoading && (
             <div className="flex justify-end">
               <div className="bg-white border border-[#E5EAF0] rounded-2xl rounded-tl-none p-3 shadow-xs flex items-center gap-2 text-xs text-slate-500 font-bold">
-                <Loader2 className="w-4 h-4 animate-spin text-[#15B8A6]" />
+                <Loader2 className="w-4 h-4 animate-spin text-[#087CF4]" />
                 جاري استيعاب وتطبيق التعليمات...
               </div>
             </div>
@@ -275,7 +275,7 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
             <Button
               type="submit"
               disabled={!input.trim() || isLoading}
-              className="h-12 px-6 font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-md shadow-[#15B8A6]/20"
+              className="h-12 px-6 font-bold bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl shadow-md shadow-[#087CF4]/20"
             >
               <Send className="w-4 h-4 ml-1.5" />
               إرسال

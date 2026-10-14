@@ -24,7 +24,7 @@ export default function AdminPage({ params }: { params: Promise<{ slug: string }
             clinicName: 'العيادة التخصصية',
             doctorName: 'الطبيب',
             specialty: 'استشاري الطب المتخصص',
-            primaryColor: '#15B8A6'
+            primaryColor: '#087CF4'
           })
         }
       },

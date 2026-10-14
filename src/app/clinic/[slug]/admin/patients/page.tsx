@@ -280,7 +280,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
     const totalVisits = filtered.reduce((s, p) => s + (Number(p.visitsCount) || 1), 0)
 
     const html = generatePatientsReportHtml({
-      clinicName: clinic?.clinicName || 'Clinic OS',
+      clinicName: clinic?.clinicName || 'Yalla Clinic',
       doctorName: clinic?.doctorName,
       branchLabel: 'جميع الفروع',
       clinicAddress: clinic?.clinicAddress,
@@ -338,7 +338,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
             onClick={handlePrintPatientsReport}
             className="h-10 px-4 border-[#E5EAF0] text-slate-700 hover:bg-slate-100 font-bold rounded-xl text-xs inline-flex items-center cursor-pointer"
           >
-            <Printer className="w-4 h-4 ml-1.5 text-[#15B8A6]" />
+            <Printer className="w-4 h-4 ml-1.5 text-[#087CF4]" />
             طباعة تقرير المرضى (PDF / A4)
           </Button>
 
@@ -353,7 +353,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
           
           {/* Add Patient Modal */}
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-          <DialogTrigger className="h-10 px-4 bg-[#15B8A6] hover:bg-[#0D9488] text-white font-bold rounded-xl shadow-md shadow-[#15B8A6]/20 transition-all text-xs inline-flex items-center justify-center cursor-pointer">
+          <DialogTrigger className="h-10 px-4 yalla-gradient-btn text-white font-bold rounded-xl shadow-md transition-all text-xs inline-flex items-center justify-center cursor-pointer">
             <Plus className="w-4 h-4 ml-1.5" />
             إضافة مريض جديد
           </DialogTrigger>
@@ -435,7 +435,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                 <Button
                   type="submit"
                   disabled={isAdding}
-                  className="flex-1 bg-[#15B8A6] hover:bg-[#0D9488] text-white font-bold h-10 rounded-xl text-xs"
+                  className="flex-1 yalla-gradient-btn text-white font-bold h-10 rounded-xl text-xs"
                 >
                   {isAdding ? 'جاري الحفظ...' : 'حفظ المريض'}
                 </Button>
@@ -458,7 +458,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
       <div className="medical-card p-4 bg-white space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-            <Calendar className="w-4 h-4 text-[#15B8A6]" />
+            <Calendar className="w-4 h-4 text-[#087CF4]" />
             <span>فرز سجل المرضى بالتاريخ (من / إلى):</span>
           </div>
 
@@ -468,7 +468,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
               type="button"
               onClick={() => setDatePreset('all')}
               className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
-                !fromDate && !toDate ? 'bg-[#15B8A6] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                !fromDate && !toDate ? 'bg-[#087CF4] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
               الكل
@@ -477,7 +477,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
               type="button"
               onClick={() => setDatePreset('today')}
               className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
-                fromDate === todayCairoStr && toDate === todayCairoStr ? 'bg-[#15B8A6] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                fromDate === todayCairoStr && toDate === todayCairoStr ? 'bg-[#087CF4] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
               اليوم
@@ -554,7 +554,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
           <select
             value={statusFilter}
             onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-            className="h-10 px-4 rounded-xl border border-[#E5EAF0] text-xs font-bold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#15B8A6]/20"
+            className="h-10 px-4 rounded-xl border border-[#E5EAF0] text-xs font-bold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#087CF4]/20"
           >
             <option value="ALL">كل الحالات</option>
             <option value="نشط">نشط</option>
@@ -583,7 +583,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
               {loading ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-slate-400">
-                    <div className="w-7 h-7 border-2 border-[#15B8A6] border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                    <div className="w-7 h-7 border-2 border-[#087CF4] border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
                     جاري تحميل سجل المرضى...
                   </td>
                 </tr>
@@ -601,13 +601,13 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                       <td className="py-3.5 px-4">
                         <Link href={`/clinic/${slug}/admin/patients/${encodeURIComponent(patient.phone)}`}>
                           <div className="flex items-center gap-3 cursor-pointer">
-                            <Avatar className="w-9 h-9 border border-teal-100 bg-teal-50 text-[#15B8A6] shrink-0">
-                              <AvatarFallback className="font-bold text-xs bg-teal-50 text-[#15B8A6]">
+                            <Avatar className="w-9 h-9 border border-blue-100 bg-[#087CF4]/10 text-[#087CF4] shrink-0">
+                              <AvatarFallback className="font-bold text-xs bg-[#087CF4]/10 text-[#087CF4]">
                                 {patient.name.charAt(0)}
                               </AvatarFallback>
                             </Avatar>
                             <div>
-                              <p className="font-bold text-xs text-[#182230] group-hover:text-[#15B8A6] transition-colors">
+                              <p className="font-bold text-xs text-[#182230] group-hover:text-[#087CF4] transition-colors">
                                 {patient.name}
                               </p>
                               <span className="text-[10px] text-slate-400 font-mono sm:hidden">
@@ -664,7 +664,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                             <Button
                               size="sm"
                               variant="outline"
-                              className="h-8 px-3 text-xs font-bold text-[#15B8A6] border-teal-200 hover:bg-teal-50 rounded-xl"
+                              className="h-8 px-3 text-xs font-bold text-[#087CF4] border-blue-200 hover:bg-blue-50 rounded-xl"
                             >
                               ملف المريض
                             </Button>
@@ -721,7 +721,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                 variant={currentPage === page ? 'default' : 'outline'}
                 onClick={() => setCurrentPage(page)}
                 className={`h-8 w-8 text-xs font-bold rounded-xl ${
-                  currentPage === page ? 'bg-[#15B8A6] text-white hover:bg-[#0D9488]' : ''
+                  currentPage === page ? 'bg-[#087CF4] text-white hover:bg-[#0662C4]' : ''
                 }`}
               >
                 {page}

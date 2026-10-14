@@ -86,7 +86,7 @@ export function PushPermissionModal({
         
         {/* Header Icon & Close */}
         <div className="flex items-start justify-between">
-          <div className="w-12 h-12 rounded-2xl bg-teal-50 border border-teal-100 text-[#15B8A6] flex items-center justify-center shadow-xs">
+          <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 text-[#087CF4] flex items-center justify-center shadow-xs">
             <Bell className="w-6 h-6 animate-bounce" />
           </div>
           <button
@@ -114,7 +114,7 @@ export function PushPermissionModal({
             <p className="font-bold text-[#182230]">لتفعيل الإشعارات على iPhone:</p>
             <ol className="space-y-1 text-slate-600 list-decimal list-inside">
               <li>اضغط على زر المشاركة <Share className="w-3.5 h-3.5 inline mx-1 text-blue-500" /> في متصفح Safari بالأسفل.</li>
-              <li>اختر <span className="font-bold text-slate-800">"إضافة إلى الصفحة الرئيسية" <PlusSquare className="w-3.5 h-3.5 inline mx-1 text-[#15B8A6]" /></span>.</li>
+              <li>اختر <span className="font-bold text-slate-800">"إضافة إلى الصفحة الرئيسية" <PlusSquare className="w-3.5 h-3.5 inline mx-1 text-[#087CF4]" /></span>.</li>
               <li>افتح التطبيق من شاشتك الرئيسية لتفعيل الإشعارات الفورية.</li>
             </ol>
           </div>
@@ -125,7 +125,7 @@ export function PushPermissionModal({
           <Button
             onClick={handleEnable}
             disabled={isSubscribing}
-            className="flex-1 h-11 text-xs sm:text-sm font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-md shadow-[#15B8A6]/25 cursor-pointer"
+            className="flex-1 h-11 text-xs sm:text-sm font-bold bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl shadow-md shadow-[#087CF4]/25 cursor-pointer"
           >
             {isSubscribing ? 'جاري التفعيل...' : 'تفعيل الإشعارات'}
           </Button>

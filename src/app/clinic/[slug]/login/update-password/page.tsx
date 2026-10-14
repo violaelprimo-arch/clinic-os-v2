@@ -210,7 +210,7 @@ export default function UpdatePassword({ params }: { params: Promise<{ slug: str
             <Button
               type="submit"
               disabled={isLoading}
-              className="w-full h-12 text-sm font-black bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-lg shadow-[#15B8A6]/20 transition-all cursor-pointer"
+              className="w-full h-12 text-sm font-black bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl shadow-lg shadow-[#087CF4]/20 transition-all cursor-pointer"
             >
               <KeyRound className="w-4 h-4 ml-2" />
               {isLoading ? 'جاري إرسال الرمز...' : 'إرسال رمز التحقق (OTP) إلى بريدي الإلكتروني'}
@@ -221,9 +221,9 @@ export default function UpdatePassword({ params }: { params: Promise<{ slug: str
         {/* STEP 2: Verify OTP & Enter New Password */}
         {step === 'verify' && (
           <form onSubmit={handleResetPassword} className="space-y-4">
-            <div className="p-3.5 bg-teal-50 border border-teal-200 rounded-xl flex items-start gap-2.5">
-              <ShieldCheck className="w-5 h-5 text-teal-600 shrink-0 mt-0.5" />
-              <p className="text-xs text-teal-900 font-medium leading-relaxed">
+            <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-2.5">
+              <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+              <p className="text-xs text-blue-900 font-medium leading-relaxed">
                 تم إرسال كود التحقق <strong>OTP</strong> إلى بريدك الإلكتروني (Gmail). يرجى تفقد صندوق الوارد أو مجلد الرسائل غير المرغوب فيها (Spam) وكتابة الرمز بالأسفل.
               </p>
             </div>
@@ -238,7 +238,7 @@ export default function UpdatePassword({ params }: { params: Promise<{ slug: str
                 required
                 maxLength={6}
                 dir="ltr"
-                className="h-12 text-base text-center font-mono tracking-widest font-black rounded-xl bg-[#F6F8FB] border-amber-300 focus:border-[#15B8A6]"
+                className="h-12 text-base text-center font-mono tracking-widest font-black rounded-xl bg-[#F6F8FB] border-amber-300 focus:border-[#087CF4]"
               />
             </div>
 
@@ -269,7 +269,7 @@ export default function UpdatePassword({ params }: { params: Promise<{ slug: str
             <Button
               type="submit"
               disabled={isLoading}
-              className="w-full h-12 text-sm font-black bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-lg shadow-[#15B8A6]/20 transition-all cursor-pointer"
+              className="w-full h-12 text-sm font-black bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl shadow-lg shadow-[#087CF4]/20 transition-all cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4 ml-2" />
               {isLoading ? 'جاري الحفظ...' : 'تأكيد وحفظ كلمة المرور الجديدة'}
@@ -289,7 +289,7 @@ export default function UpdatePassword({ params }: { params: Promise<{ slug: str
         <div className="text-center pt-2 border-t border-[#E5EAF0]">
           <Link
             href={`/clinic/${slug}/login`}
-            className="text-xs font-bold text-slate-500 hover:text-[#15B8A6] inline-flex items-center gap-1"
+            className="text-xs font-bold text-slate-500 hover:text-[#087CF4] inline-flex items-center gap-1"
           >
             <ArrowRight className="w-3.5 h-3.5" />
             العودة لصفحة تسجيل الدخول

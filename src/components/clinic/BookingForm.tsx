@@ -432,7 +432,7 @@ export function BookingForm({
   if (successInfo) {
     return (
       <div className="medical-card p-6 sm:p-8 max-w-lg mx-auto text-center space-y-6 shadow-2xl bg-white border border-[#E5EAF0] rounded-3xl" dir="rtl">
-        <div className="w-20 h-20 bg-teal-50 border-4 border-teal-100 text-[#15B8A6] rounded-full flex items-center justify-center mx-auto shadow-md">
+        <div className="w-20 h-20 bg-teal-50 border-4 border-teal-100 text-[#087CF4] rounded-full flex items-center justify-center mx-auto shadow-md">
           <CheckCircle2 className="w-10 h-10" />
         </div>
 
@@ -446,7 +446,7 @@ export function BookingForm({
         {/* Big Queue Number Card */}
         <div className="bg-[#F8FAFC] border border-[#E5EAF0] rounded-3xl p-6 space-y-2">
           <p className="text-xs font-bold text-slate-400">رقمك في دور الفرع</p>
-          <div className="text-6xl font-black text-[#15B8A6] tracking-tight">
+          <div className="text-6xl font-black text-[#087CF4] tracking-tight">
             #{successInfo.queueNumber}
           </div>
           <p className="text-[11px] font-bold text-slate-500">{successInfo.branchName}</p>
@@ -463,12 +463,12 @@ export function BookingForm({
 
           <div className="p-3.5 rounded-2xl bg-[#F8FAFC] border border-[#E5EAF0] space-y-1">
             <span className="text-[11px] font-bold text-slate-400">المرضى في الانتظار قبلك</span>
-            <p className="text-sm font-black text-[#15B8A6]">{successInfo.aheadCount} مرضى</p>
+            <p className="text-sm font-black text-[#087CF4]">{successInfo.aheadCount} مرضى</p>
           </div>
         </div>
 
         <div className="p-3 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 text-xs font-bold flex items-center justify-center gap-2">
-          <Bell className="w-4 h-4 text-[#15B8A6]" />
+          <Bell className="w-4 h-4 text-[#087CF4]" />
           <span>ستصلك تنبيهات صوتية ومباشرة فور اقتراب دورك (من أول متبقي 5 أدوار) ومع كل دخول مريض</span>
         </div>
 
@@ -478,7 +478,7 @@ export function BookingForm({
             href={`/clinic/${clinic.slug}/track/${successInfo.trackingId}`}
             className="block w-full"
           >
-            <Button className="w-full h-12 text-sm font-black bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-lg shadow-[#15B8A6]/25">
+            <Button className="w-full h-12 text-sm font-black bg-[#087CF4] hover:bg-[#0662C4] text-white rounded-xl shadow-lg shadow-[#087CF4]/25">
               تابع الحجز وإشعار اقتراب الدور مباشرة
             </Button>
           </Link>
@@ -486,7 +486,7 @@ export function BookingForm({
           {selectedBranch?.mapsLink ? (
             <a href={selectedBranch.mapsLink} target="_blank" rel="noreferrer" className="block w-full">
               <Button variant="outline" className="w-full h-11 text-xs font-bold border-[#E5EAF0] text-slate-700 hover:bg-slate-50 rounded-xl">
-                <MapPin className="w-4 h-4 ml-1.5 text-[#15B8A6]" />
+                <MapPin className="w-4 h-4 ml-1.5 text-[#087CF4]" />
                 موقع فرع ({successInfo.branchName}) عبر Google Maps
               </Button>
             </a>
@@ -515,7 +515,7 @@ export function BookingForm({
         <div className="flex items-center justify-between text-center relative px-2">
           <div className="absolute top-4 inset-x-8 h-0.5 bg-slate-200 -z-0">
             <div
-              className="h-full bg-[#15B8A6] transition-all duration-300"
+              className="h-full bg-[#087CF4] transition-all duration-300"
               style={{ width: step === 1 ? '0%' : step === 2 ? '50%' : '100%' }}
             />
           </div>
@@ -532,7 +532,7 @@ export function BookingForm({
                 <div
                   className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-all ${
                     isCurrent
-                      ? 'bg-[#15B8A6] text-white ring-4 ring-teal-100 shadow-md'
+                      ? 'bg-[#087CF4] text-white ring-4 ring-teal-100 shadow-md'
                       : isCompleted
                       ? 'bg-emerald-600 text-white'
                       : 'bg-white border-2 border-slate-300 text-slate-400'
@@ -540,7 +540,7 @@ export function BookingForm({
                 >
                   {isCompleted ? <CheckCircle2 className="w-4 h-4" /> : s.num}
                 </div>
-                <span className={`text-[11px] font-bold mt-1.5 ${isCurrent ? 'text-[#15B8A6]' : 'text-slate-400'}`}>
+                <span className={`text-[11px] font-bold mt-1.5 ${isCurrent ? 'text-[#087CF4]' : 'text-slate-400'}`}>
                   {s.label}
                 </span>
               </div>
@@ -557,7 +557,7 @@ export function BookingForm({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <h3 className="font-bold text-base text-[#182230] flex items-center gap-1.5">
-                  <Building2 className="w-4 h-4 text-[#15B8A6]" />
+                  <Building2 className="w-4 h-4 text-[#087CF4]" />
                   اختار الفرع الأنسب ليك
                 </h3>
                 <p className="text-[11px] text-slate-400">حدد فرع العيادة الأقرب لك لحجز دورك به</p>
@@ -599,7 +599,7 @@ export function BookingForm({
                     type="button"
                     onClick={() => setAreaFilter(area)}
                     className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all ${
-                      areaFilter === area ? 'bg-[#15B8A6] text-white' : 'bg-slate-100 text-slate-600'
+                      areaFilter === area ? 'bg-[#087CF4] text-white' : 'bg-slate-100 text-slate-600'
                     }`}
                   >
                     {area}
@@ -619,7 +619,7 @@ export function BookingForm({
                     onClick={() => b.isOpen && setSelectedBranchId(b.id)}
                     className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex items-start justify-between gap-3 ${
                       isSelected
-                        ? 'border-[#15B8A6] bg-teal-50/40 shadow-xs ring-2 ring-[#15B8A6]/20'
+                        ? 'border-[#087CF4] bg-teal-50/40 shadow-xs ring-2 ring-[#087CF4]/20'
                         : b.isOpen
                         ? 'border-[#E5EAF0] hover:border-slate-300 bg-white'
                         : 'border-slate-200 bg-slate-50 opacity-60 cursor-not-allowed'
@@ -654,7 +654,7 @@ export function BookingForm({
                           target="_blank"
                           rel="noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="text-[10px] font-bold text-[#15B8A6] hover:underline flex items-center gap-0.5"
+                          className="text-[10px] font-bold text-[#087CF4] hover:underline flex items-center gap-0.5"
                         >
                           <span>الخريطة</span>
                           <ExternalLink className="w-2.5 h-2.5" />
@@ -711,11 +711,11 @@ export function BookingForm({
             <div className="space-y-2 pt-1">
               <div className="flex items-center justify-between">
                 <Label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Calendar className="w-4 h-4 text-[#15B8A6]" />
+                  <Calendar className="w-4 h-4 text-[#087CF4]" />
                   يوم الحجز (مواعيد {selectedBranch?.name || 'الفرع'})
                 </Label>
                 {selectedDate && (
-                  <span className="text-[11px] font-bold text-[#15B8A6]">
+                  <span className="text-[11px] font-bold text-[#087CF4]">
                     {availableDays.find((d) => d.iso === selectedDate)?.label} ({availableDays.find((d) => d.iso === selectedDate)?.formattedDate})
                   </span>
                 )}
@@ -732,8 +732,8 @@ export function BookingForm({
                         onClick={() => setSelectedDate(d.iso)}
                         className={`p-3 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
                           isSelected
-                            ? 'bg-[#15B8A6] text-white border-[#15B8A6] shadow-md shadow-[#15B8A6]/20 ring-2 ring-[#15B8A6]/30'
-                            : 'bg-white text-slate-700 border-[#E5EAF0] hover:border-[#15B8A6] hover:bg-teal-50/20'
+                            ? 'bg-[#087CF4] text-white border-[#087CF4] shadow-md shadow-[#087CF4]/20 ring-2 ring-[#087CF4]/30'
+                            : 'bg-white text-slate-700 border-[#E5EAF0] hover:border-[#087CF4] hover:bg-teal-50/20'
                         }`}
                       >
                         <span className={`text-xs font-black ${isSelected ? 'text-white' : 'text-[#182230]'}`}>
@@ -756,7 +756,7 @@ export function BookingForm({
 
           <Button
             onClick={handleNextStep1}
-            className="w-full h-12 text-sm font-black bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-md shadow-[#15B8A6]/20 mt-2"
+            className="w-full h-12 text-sm font-black bg-[#087CF4] hover:bg-[#0662C4] text-white rounded-xl shadow-md shadow-[#087CF4]/20 mt-2"
           >
             التالي: اختيار الخدمة
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -783,14 +783,14 @@ export function BookingForm({
                   onClick={() => setSelectedServiceId(service.id)}
                   className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex items-center justify-between gap-3 ${
                     isSelected
-                      ? 'border-[#15B8A6] bg-teal-50/40 shadow-sm'
+                      ? 'border-[#087CF4] bg-teal-50/40 shadow-sm'
                       : 'border-[#E5EAF0] hover:border-slate-300 bg-white'
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     <div
                       className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                        isSelected ? 'border-[#15B8A6] bg-[#15B8A6]' : 'border-slate-300'
+                        isSelected ? 'border-[#087CF4] bg-[#087CF4]' : 'border-slate-300'
                       }`}
                     >
                       {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
@@ -810,11 +810,9 @@ export function BookingForm({
                     </div>
                   </div>
 
-                  {showPrices && (
-                    <span className="text-sm font-black text-[#15B8A6] shrink-0">
-                      {service.price} ج.م
-                    </span>
-                  )}
+                  <span className="text-sm font-black text-[#087CF4] shrink-0">
+                    {Number(service.price || 250).toLocaleString('ar-EG')} ج.م
+                  </span>
                 </div>
               )
             })}
@@ -823,7 +821,7 @@ export function BookingForm({
           <div className="flex gap-2.5 pt-2">
             <Button
               onClick={handleNextStep2}
-              className="flex-1 h-12 text-sm font-black bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-md shadow-[#15B8A6]/20"
+              className="flex-1 h-12 text-sm font-black bg-[#087CF4] hover:bg-[#0662C4] text-white rounded-xl shadow-md shadow-[#087CF4]/20"
             >
               التالي: التأكيد والدفع
               <ArrowLeft className="w-4 h-4 mr-2" />
@@ -866,12 +864,12 @@ export function BookingForm({
               <span className="font-bold font-mono text-[#182230]">{selectedDate}</span>
             </div>
             <div className="flex justify-between pt-1">
-              <span className="text-slate-600 font-bold">الإجمالي المستحق:</span>
-              {showPrices ? (
-                <span className="font-black text-base text-[#15B8A6]">{selectedService.price} ج.م</span>
-              ) : (
-                <span className="font-black text-base text-[#15B8A6]">يحدد بالعيادة</span>
-              )}
+              <span className="text-slate-600 dark:text-slate-300 font-bold">الإجمالي المستحق:</span>
+              <span className="font-black text-lg text-[#087CF4]">
+                {selectedService?.price !== undefined && selectedService?.price !== null && selectedService?.price !== ''
+                  ? `${Number(selectedService.price).toLocaleString('ar-EG')} ج.م`
+                  : '250 ج.م'}
+              </span>
             </div>
           </div>
 
@@ -884,7 +882,7 @@ export function BookingForm({
                 onClick={() => setPaymentMethod('cash')}
                 className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
                   paymentMethod === 'cash'
-                    ? 'border-[#15B8A6] bg-teal-50 text-[#15B8A6] font-black'
+                    ? 'border-[#087CF4] bg-teal-50 text-[#087CF4] font-black'
                     : 'border-[#E5EAF0] bg-white text-slate-600 font-bold'
                 }`}
               >
@@ -897,7 +895,7 @@ export function BookingForm({
                 onClick={() => setPaymentMethod('instapay')}
                 className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
                   paymentMethod === 'instapay'
-                    ? 'border-[#15B8A6] bg-teal-50 text-[#15B8A6] font-black'
+                    ? 'border-[#087CF4] bg-teal-50 text-[#087CF4] font-black'
                     : 'border-[#E5EAF0] bg-white text-slate-600 font-bold'
                 }`}
               >
@@ -910,7 +908,7 @@ export function BookingForm({
                 onClick={() => setPaymentMethod('wallet')}
                 className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
                   paymentMethod === 'wallet'
-                    ? 'border-[#15B8A6] bg-teal-50 text-[#15B8A6] font-black'
+                    ? 'border-[#087CF4] bg-teal-50 text-[#087CF4] font-black'
                     : 'border-[#E5EAF0] bg-white text-slate-600 font-bold'
                 }`}
               >
@@ -925,10 +923,10 @@ export function BookingForm({
             <div className="p-4 rounded-2xl bg-teal-50/70 border-2 border-teal-200 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-xs font-bold text-teal-800">
-                  <CreditCard className="w-4 h-4 text-[#15B8A6]" />
+                  <CreditCard className="w-4 h-4 text-[#087CF4]" />
                   <span>بيانات التحويل عبر InstaPay للفرع:</span>
                 </div>
-                <Badge className="bg-[#15B8A6] text-white border-none font-bold text-[10px]">
+                <Badge className="bg-[#087CF4] text-white border-none font-bold text-[10px]">
                   في انتظار التأكيد
                 </Badge>
               </div>
@@ -940,12 +938,12 @@ export function BookingForm({
                     {clinic.instapayHandle || selectedBranch?.phone || clinic.doctorPhone || 'يرجى التواصل مع الفرع'}
                   </span>
                 </div>
-                {showPrices && (
-                  <div className="flex justify-between items-center text-xs pt-1.5 border-t border-slate-100">
-                    <span className="text-slate-500 font-bold">المبلغ المطلوب:</span>
-                    <span className="font-black text-base text-[#15B8A6]">{selectedService.price} ج.م</span>
-                  </div>
-                )}
+                <div className="flex justify-between items-center text-xs pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                  <span className="text-slate-500 dark:text-slate-400 font-bold">المبلغ المطلوب للتحويل:</span>
+                  <span className="font-black text-base text-[#087CF4]">
+                    {Number(selectedService?.price || 250).toLocaleString('ar-EG')} ج.م
+                  </span>
+                </div>
               </div>
 
               <div className="space-y-1.5">
@@ -977,7 +975,7 @@ export function BookingForm({
                   type="file"
                   accept="image/*"
                   onChange={handleReceiptProofUpload}
-                  className="h-10 text-xs bg-white rounded-xl file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-xs file:bg-teal-50 file:text-[#0D9488]"
+                  className="h-10 text-xs bg-white rounded-xl file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-xs file:bg-teal-50 file:text-[#0662C4]"
                 />
               </div>
 
@@ -1007,12 +1005,12 @@ export function BookingForm({
                     {clinic.walletNumber || selectedBranch?.phone || clinic.doctorPhone || 'يرجى التواصل مع الفرع'}
                   </span>
                 </div>
-                {showPrices && (
-                  <div className="flex justify-between items-center text-xs pt-1.5 border-t border-slate-100">
-                    <span className="text-slate-500 font-bold">المبلغ المطلوب:</span>
-                    <span className="font-black text-base text-[#15B8A6]">{selectedService.price} ج.م</span>
-                  </div>
-                )}
+                <div className="flex justify-between items-center text-xs pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                  <span className="text-slate-500 dark:text-slate-400 font-bold">المبلغ المطلوب للتحويل:</span>
+                  <span className="font-black text-base text-[#087CF4]">
+                    {Number(selectedService?.price || 250).toLocaleString('ar-EG')} ج.م
+                  </span>
+                </div>
               </div>
 
               <div className="space-y-1.5">
@@ -1047,7 +1045,7 @@ export function BookingForm({
             <Button
               onClick={handleBooking}
               disabled={isBooking}
-              className="flex-1 h-12 text-sm font-black bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-lg shadow-[#15B8A6]/25"
+              className="flex-1 h-12 text-sm font-black bg-[#087CF4] hover:bg-[#0662C4] text-white rounded-xl shadow-lg shadow-[#087CF4]/25"
             >
               {isBooking ? 'جاري تأكيد الحجز...' : 'تأكيد الحجز النهائي'}
             </Button>

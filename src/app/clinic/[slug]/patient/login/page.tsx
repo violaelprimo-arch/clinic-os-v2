@@ -227,13 +227,13 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
     <div className="min-h-screen flex items-center justify-center bg-[#F6F8FB] font-sans relative p-4 text-[#182230]" dir="rtl">
       {/* Floating Back Button */}
       <Link href={`/clinic/${slug}`} className="absolute top-6 right-6 z-50">
-        <Button variant="outline" className="rounded-xl shadow-xs bg-white text-xs font-bold text-slate-700 hover:text-[#15B8A6] hover:bg-slate-50 border-[#E5EAF0] h-9 px-4">
+        <Button variant="outline" className="rounded-xl shadow-xs bg-white text-xs font-bold text-slate-700 hover:text-[#087CF4] hover:bg-slate-50 border-[#E5EAF0] h-9 px-4">
           <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
           العودة للعيادة
         </Button>
       </Link>
 
-      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#15B8A6]/5 rounded-full blur-3xl pointer-events-none -translate-y-1/2 translate-x-1/3"></div>
+      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#087CF4]/5 rounded-full blur-3xl pointer-events-none -translate-y-1/2 translate-x-1/3"></div>
       
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -245,7 +245,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
           <Link href={`/clinic/${slug}`} className="inline-block">
             <ClinicLogo size="md" variant="light" />
           </Link>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-50 text-[#15B8A6] text-xs font-bold border border-teal-100 mt-2">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-[#087CF4] text-xs font-bold border border-blue-100 mt-2">
             <ShieldCheck className="w-3.5 h-3.5" />
             <span>بوابة المريض المعتمدة</span>
           </div>
@@ -263,7 +263,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
               type="button"
               onClick={() => setIsRegistering(false)}
               className={`py-2 text-xs font-black rounded-lg transition-all cursor-pointer ${
-                !isRegistering ? 'bg-white text-[#15B8A6] shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                !isRegistering ? 'bg-white text-[#087CF4] shadow-xs' : 'text-slate-500 hover:text-slate-800'
               }`}
             >
               تسجيل الدخول
@@ -272,7 +272,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
               type="button"
               onClick={() => setIsRegistering(true)}
               className={`py-2 text-xs font-black rounded-lg transition-all cursor-pointer ${
-                isRegistering ? 'bg-white text-[#15B8A6] shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                isRegistering ? 'bg-white text-[#087CF4] shadow-xs' : 'text-slate-500 hover:text-slate-800'
               }`}
             >
               مريض جديد (حساب جديد)
@@ -401,7 +401,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
 
             <Button
               type="submit"
-              className="w-full h-11 text-xs font-black bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-lg shadow-[#15B8A6]/25 transition-all cursor-pointer"
+              className="w-full h-11 text-xs font-black bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl shadow-lg shadow-[#087CF4]/25 transition-all cursor-pointer"
               disabled={isLoading}
             >
               {isLoading ? (
@@ -423,7 +423,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
                 setPassword('')
                 setConfirmPassword('')
               }}
-              className="text-xs text-[#15B8A6] font-bold hover:underline cursor-pointer"
+              className="text-xs text-[#087CF4] font-bold hover:underline cursor-pointer"
             >
               {isRegistering ? 'لديك ملف مسجل بالفعل؟ سجل دخولك الآن' : 'أول زيارة للعيادة؟ أنشئ حسابك الطبي في ثوانٍ'}
             </button>

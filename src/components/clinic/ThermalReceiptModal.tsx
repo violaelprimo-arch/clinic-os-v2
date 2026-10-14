@@ -115,7 +115,7 @@ export function ThermalReceiptModal({
         {/* Header */}
         <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
           <div className="flex items-center gap-2">
-            <Receipt className="w-5 h-5 text-[#15B8A6]" />
+            <Receipt className="w-5 h-5 text-[#087CF4]" />
             <h3 className="font-black text-sm text-[#182230]">فاتورة كشف حرارية (80mm)</h3>
           </div>
           <button
@@ -239,7 +239,7 @@ export function ThermalReceiptModal({
             {/* Footer */}
             <div className="text-center pt-2 text-[10px] text-slate-500 space-y-1">
               <p className="font-bold text-black">{data.footerNote || 'نتمنى لكم دوام الصحة والعافية'}</p>
-              <p>Clinic OS • نظام إدارة العيادات</p>
+              <p>Yalla Clinic • جميع الحقوق محفوظة YallaCodeX 2026</p>
             </div>
           </div>
         </div>
@@ -290,7 +290,7 @@ export function ThermalReceiptModal({
           {/* Thermal Print xp-80 */}
           <Button
             onClick={handlePrint}
-            className="h-9 px-4 bg-[#0B1F33] hover:bg-[#15B8A6] text-white font-bold rounded-xl shadow-md text-xs shrink-0"
+            className="h-9 px-4 bg-[#061A38] hover:bg-[#087CF4] text-white font-bold rounded-xl shadow-md text-xs shrink-0 transition-colors"
           >
             <Printer className="w-4 h-4 ml-1.5" />
             طباعة (80mm)

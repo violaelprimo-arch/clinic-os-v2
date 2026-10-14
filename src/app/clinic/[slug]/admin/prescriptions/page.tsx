@@ -9,8 +9,9 @@ import { Badge } from '@/components/ui/badge'
 import {
   Plus, Printer, Trash2, Search, FileSignature, MapPin,
   Phone, User as UserIcon, Star, Check, MessageCircle,
-  FileText, ShieldCheck, ChevronDown, Sparkles, Download, Palette, Image as ImageIcon
+  FileText, ShieldCheck, ChevronDown, Sparkles, Download, Palette, Image as ImageIcon, Lock
 } from 'lucide-react'
+import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
 import { collection, addDoc, query, where, getDocs, doc, updateDoc, onSnapshot } from 'firebase/firestore'
@@ -54,8 +55,8 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const [showHeaderFooter, setShowHeaderFooter] = useState<boolean>(true)
   const [printBackground, setPrintBackground] = useState<boolean>(true)
   const [topOffset, setTopOffset] = useState<number>(25)
-  const [primaryColor, setPrimaryColor] = useState('#0B1F33')
-  const [secondaryColor, setSecondaryColor] = useState('#15B8A6')
+  const [primaryColor, setPrimaryColor] = useState('#061A38')
+  const [secondaryColor, setSecondaryColor] = useState('#087CF4')
 
   const [isSaving, setIsSaving] = useState(false)
   const [isSharingPdf, setIsSharingPdf] = useState(false)
@@ -103,6 +104,15 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
 
     return () => unsubClinic()
   }, [slug, dateStr])
+
+  const isCustomTemplateEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'customTemplate'), [clinic])
+  const isDrugsDbEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'drugs'), [clinic])
+
+  useEffect(() => {
+    if (!isCustomTemplateEnabled && templateMode === 'custom') {
+      setTemplateMode('standard')
+    }
+  }, [isCustomTemplateEnabled, templateMode])
 
   const addDrug = (name = '', dosage = '', duration = '', notes = '') => {
     setDrugs([...drugs, { id: Date.now(), name, dosage, duration, notes }])
@@ -307,7 +317,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   // Clean Isolated Print via iframe
   const handlePrint = () => {
     const html = generateA4PrescriptionHtml({
-      clinicName: clinic?.clinicName || 'Clinic OS',
+      clinicName: clinic?.clinicName || 'Yalla Clinic',
       doctorName: clinic?.doctorName || 'طبيب العيادة',
       specialty: clinic?.specialty,
       degreeTitle: clinic?.certificationTitle,
@@ -351,7 +361,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-2xl border border-[#E5EAF0] shadow-xs">
         <div>
           <h1 className="text-2xl font-black text-[#182230] flex items-center gap-2">
-            <FileSignature className="w-6 h-6 text-[#15B8A6]" />
+            <FileSignature className="w-6 h-6 text-[#087CF4]" />
             إصدار روشتة طبية (A4 Premium)
           </h1>
           <p className="text-xs text-slate-400 mt-0.5">
@@ -412,7 +422,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           <Button
             onClick={handlePrint}
             variant="outline"
-            className="h-10 text-xs font-bold border-[#15B8A6] text-[#15B8A6] hover:bg-teal-50 rounded-xl"
+            className="h-10 text-xs font-bold border-[#087CF4] text-[#087CF4] hover:bg-blue-50 rounded-xl"
           >
             <Printer className="w-4 h-4 ml-1.5" />
             طباعة {pageSize.toUpperCase()}
@@ -421,7 +431,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           <Button
             onClick={handleSave}
             disabled={isSaving}
-            className="h-10 px-5 text-xs font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-md shadow-[#15B8A6]/20"
+            className="h-10 px-5 text-xs font-bold yalla-gradient-btn text-white rounded-xl shadow-md"
           >
             {isSaving ? 'جاري الحفظ...' : 'اعتماد وحفظ بالملف'}
           </Button>
@@ -438,7 +448,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           <div className="medical-card p-5 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-[#E5EAF0]">
               <h3 className="font-bold text-sm text-[#182230] flex items-center gap-2">
-                <UserIcon className="w-4 h-4 text-[#15B8A6]" />
+                <UserIcon className="w-4 h-4 text-[#087CF4]" />
                 بيانات المريض والزيارة
               </h3>
 
@@ -525,62 +535,71 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           <div className="medical-card p-5 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-[#E5EAF0]">
               <h3 className="font-bold text-sm text-[#182230] flex items-center gap-2">
-                <FileText className="w-4 h-4 text-[#15B8A6]" />
+                <FileText className="w-4 h-4 text-[#087CF4]" />
                 الأدوية والعلاج المطلوب (Rx)
               </h3>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => addDrug()}
-                className="h-8 text-xs font-bold border-[#15B8A6] text-[#15B8A6] hover:bg-teal-50 rounded-lg"
+                className="h-8 text-xs font-bold border-[#087CF4] text-[#087CF4] hover:bg-blue-50 rounded-lg"
               >
                 <Plus className="w-3.5 h-3.5 ml-1" />
                 إضافة دواء جديد
               </Button>
             </div>
 
-            {/* Quick Favorites Bar */}
-            <div className="space-y-1.5">
-              <span className="text-[11px] font-bold text-slate-400">الأدوية الأكثر تكراراً:</span>
-              <div className="flex flex-wrap gap-1.5">
-                {favoriteDrugs.map((fav, i) => (
-                  <button
-                    key={i}
-                    onClick={() => addDrug(fav, 'قرص كل 12 ساعة', 'لمدة 5 أيام')}
-                    className="px-2.5 py-1 text-[11px] font-bold bg-slate-100 hover:bg-teal-50 text-slate-700 hover:text-[#15B8A6] rounded-lg transition-colors"
-                  >
-                    + {fav}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Drug Search Input */}
-            <div className="relative">
-              <Search className="w-4 h-4 absolute right-3 top-3 text-slate-400" />
-              <Input
-                value={drugSearch}
-                onChange={e => setDrugSearch(e.target.value)}
-                placeholder="ابحث في قاعدة الأدوية المصرية..."
-                className="h-10 pr-9 text-xs rounded-xl"
-              />
-              {filteredSearchDrugs.length > 0 && (
-                <div className="absolute top-full right-0 w-full mt-1 bg-white border border-[#E5EAF0] shadow-xl rounded-xl z-50 overflow-hidden divide-y divide-slate-100">
-                  {filteredSearchDrugs.map((d, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => {
-                        addDrug(d, 'قرص كل 12 ساعة', 'لمدة 5 أيام')
-                        setDrugSearch('')
-                      }}
-                      className="w-full text-right p-2.5 text-xs font-bold text-slate-700 hover:bg-teal-50 hover:text-[#15B8A6] transition-colors"
-                    >
-                      + {d}
-                    </button>
-                  ))}
+            {/* Quick Favorites Bar & Drug Search */}
+            {isDrugsDbEnabled ? (
+              <>
+                <div className="space-y-1.5">
+                  <span className="text-[11px] font-bold text-slate-400">الأدوية الأكثر تكراراً:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {favoriteDrugs.map((fav, i) => (
+                      <button
+                        key={i}
+                        onClick={() => addDrug(fav, 'قرص كل 12 ساعة', 'لمدة 5 أيام')}
+                        className="px-2.5 py-1 text-[11px] font-bold bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-[#087CF4] rounded-lg transition-colors"
+                      >
+                        + {fav}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              )}
-            </div>
+
+                {/* Drug Search Input */}
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute right-3 top-3 text-slate-400" />
+                  <Input
+                    value={drugSearch}
+                    onChange={e => setDrugSearch(e.target.value)}
+                    placeholder="ابحث في قاعدة الأدوية المصرية..."
+                    className="h-10 pr-9 text-xs rounded-xl"
+                  />
+                  {filteredSearchDrugs.length > 0 && (
+                    <div className="absolute top-full right-0 w-full mt-1 bg-white border border-[#E5EAF0] shadow-xl rounded-xl z-50 overflow-hidden divide-y divide-slate-100">
+                      {filteredSearchDrugs.map((d, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => {
+                            addDrug(d, 'قرص كل 12 ساعة', 'لمدة 5 أيام')
+                            setDrugSearch('')
+                          }}
+                          className="w-full text-right p-2.5 text-xs font-bold text-slate-700 hover:bg-blue-50 hover:text-[#087CF4] transition-colors"
+                        >
+                          + {d}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center gap-2">
+                <Lock className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>دليل وقاعدة الأدوية المصرية غير مفعلة في باقة اشتراكك الحالية. يمكنك كتابة أسماء الأدوية والجرعات يدوياً بالأسفل.</span>
+              </div>
+            )}
 
             {/* Drugs List Rows */}
             <div className="space-y-3 pt-2">
@@ -633,7 +652,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           {/* TASK 8: Accent Color Customizer */}
           <div className="medical-card p-4 space-y-3">
             <h4 className="font-bold text-xs text-slate-700 flex items-center gap-1.5">
-              <Palette className="w-4 h-4 text-[#15B8A6]" />
+              <Palette className="w-4 h-4 text-[#087CF4]" />
               تخصيص ألوان وتصميم الروشتة (Live Color Accents)
             </h4>
             <div className="grid grid-cols-2 gap-4 text-xs">
@@ -679,29 +698,43 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                   onClick={() => setTemplateMode('standard')}
                   className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                     templateMode === 'standard'
-                      ? 'bg-white text-[#15B8A6] shadow-xs'
+                      ? 'bg-white text-[#087CF4] shadow-xs'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
                   Option B (النموذج الفاخر)
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!clinic?.prescriptionTemplateUrl) {
-                      toast.info('لم يتم رفع تصميم روشتة مخصص لهذه العيادة من لوحة المالك بعد')
-                    } else {
-                      setTemplateMode('custom')
-                    }
-                  }}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                    templateMode === 'custom'
-                      ? 'bg-white text-[#15B8A6] shadow-xs'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  Option A (تصميم العيادة) {clinic?.prescriptionTemplateUrl && '✓'}
-                </button>
+                {isCustomTemplateEnabled ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!clinic?.prescriptionTemplateUrl) {
+                        toast.info('لم يتم رفع تصميم روشتة مخصص لهذه العيادة من لوحة المالك بعد')
+                      } else {
+                        setTemplateMode('custom')
+                      }
+                    }}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      templateMode === 'custom'
+                        ? 'bg-white text-[#087CF4] shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    Option A (تصميم العيادة) {clinic?.prescriptionTemplateUrl && '✓'}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toast.error('ميزة قالب الروشتة المخصص (Option A) مقفولة في باقة اشتراكك الحالية. يرجى الترقية لتفعيلها.')
+                    }}
+                    className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-not-allowed opacity-60 flex items-center gap-1 text-slate-400 bg-slate-200/50"
+                    title="ميزة مقفولة في باقتك الحالية"
+                  >
+                    <Lock className="w-3 h-3 text-amber-600" />
+                    Option A (مقفول)
+                  </button>
+                )}
               </div>
             </div>
 
@@ -714,7 +747,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                   onClick={() => setPageSize('a4')}
                   className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
                     pageSize === 'a4'
-                      ? 'bg-white text-[#15B8A6] shadow-xs'
+                      ? 'bg-white text-[#087CF4] shadow-xs'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
@@ -725,7 +758,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                   onClick={() => setPageSize('a5')}
                   className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
                     pageSize === 'a5'
-                      ? 'bg-white text-[#15B8A6] shadow-xs'
+                      ? 'bg-white text-[#087CF4] shadow-xs'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
@@ -741,7 +774,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                   type="checkbox"
                   checked={showHeaderFooter}
                   onChange={(e) => setShowHeaderFooter(e.target.checked)}
-                  className="rounded text-[#15B8A6] focus:ring-[#15B8A6]"
+                  className="rounded text-[#087CF4] focus:ring-[#087CF4]"
                 />
                 <span>إظهار الترويسة والفوتر (تعطيل للورق الجاهز)</span>
               </label>
@@ -752,7 +785,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                     type="checkbox"
                     checked={printBackground}
                     onChange={(e) => setPrintBackground(e.target.checked)}
-                    className="rounded text-[#15B8A6] focus:ring-[#15B8A6]"
+                    className="rounded text-[#087CF4] focus:ring-[#087CF4]"
                   />
                   <span>طباعة صورة الخلفية (تفعيل للـ PDF)</span>
                 </label>
@@ -771,9 +804,9 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                     step="1"
                     value={topOffset}
                     onChange={e => setTopOffset(Number(e.target.value))}
-                    className="w-28 accent-[#15B8A6]"
+                    className="w-28 accent-[#087CF4]"
                   />
-                  <span className="font-mono text-[11px] text-[#15B8A6] font-bold">{topOffset}%</span>
+                  <span className="font-mono text-[11px] text-[#087CF4] font-bold">{topOffset}%</span>
                 </div>
               </div>
             )}

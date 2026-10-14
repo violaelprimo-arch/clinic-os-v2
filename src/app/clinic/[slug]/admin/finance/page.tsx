@@ -192,7 +192,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
       // Prepare Services Chart
       let totalServices = 0
       Object.values(servicesMap).forEach((v: any) => totalServices += v)
-      const colors = ['bg-[#15B8A6]', 'bg-[#2F80ED]', 'bg-amber-500', 'bg-emerald-500', 'bg-purple-500']
+      const colors = ['bg-[#087CF4]', 'bg-[#02CFF3]', 'bg-amber-500', 'bg-emerald-500', 'bg-purple-500']
       const newServices = Object.keys(servicesMap).map((k, idx) => ({
         name: k,
         pct: totalServices > 0 ? Math.round((servicesMap[k] / totalServices) * 100) : 0,
@@ -320,12 +320,12 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-black text-[#182230] flex items-center gap-2">
-              <TrendingUp className="w-6 h-6 text-[#15B8A6]" />
+            <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+              <TrendingUp className="w-6 h-6 text-[#087CF4]" />
               التقارير المالية والتحليلات
             </h1>
             {selectedBranchId && selectedBranchId !== 'all' && (
-              <Badge variant="outline" className="text-teal-700 bg-teal-50 border-teal-200 font-bold">
+              <Badge variant="outline" className="text-blue-700 bg-blue-50 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800 font-bold">
                 <Building2 className="w-3.5 h-3.5 ml-1" />
                 {branches.find(b => b.id === selectedBranchId)?.name || 'فرع محدد'}
               </Badge>
@@ -341,7 +341,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
           <Button
             variant="outline"
             onClick={handleExportExcel}
-            className="h-10 text-xs font-bold border-teal-200 text-teal-700 hover:bg-teal-50 rounded-xl"
+            className="h-10 text-xs font-bold border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-900/30 rounded-xl"
           >
             <FileSpreadsheet className="w-4 h-4 ml-1.5 text-emerald-600" />
             تصدير إكسيل كامل (.xlsx)
@@ -350,7 +350,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
           {/* Professional A4 Multi-page Print via Isolated Iframe */}
           <Button
             onClick={handlePrintFinancialReport}
-            className="h-10 text-xs font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-xs"
+            className="h-10 text-xs font-bold bg-[#087CF4] hover:bg-[#0668cc] text-white rounded-xl shadow-xs"
           >
             <Printer className="w-4 h-4 ml-1.5" />
             طباعة تقرير A4 معتمد
@@ -359,34 +359,34 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
       </div>
 
       {/* 2. Date & Branch Filter Bar */}
-      <div className="medical-card p-4 bg-white">
+      <div className="medical-card p-4 bg-white dark:bg-[#0E2342] dark:border-[#254565]">
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
           <div className="space-y-1">
-            <Label className="text-xs font-bold text-slate-600">من تاريخ</Label>
+            <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">من تاريخ</Label>
             <Input
               type="date"
               value={fromDate}
               onChange={e => setFromDate(e.target.value)}
-              className="h-10 text-xs rounded-xl bg-[#F6F8FB]"
+              className="h-10 text-xs rounded-xl bg-[#F6F8FB] dark:bg-[#142D50] dark:border-[#254565] dark:text-white"
             />
           </div>
 
           <div className="space-y-1">
-            <Label className="text-xs font-bold text-slate-600">إلى تاريخ</Label>
+            <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">إلى تاريخ</Label>
             <Input
               type="date"
               value={toDate}
               onChange={e => setToDate(e.target.value)}
-              className="h-10 text-xs rounded-xl bg-[#F6F8FB]"
+              className="h-10 text-xs rounded-xl bg-[#F6F8FB] dark:bg-[#142D50] dark:border-[#254565] dark:text-white"
             />
           </div>
 
           <div className="space-y-1">
-            <Label className="text-xs font-bold text-slate-600">تصفية حسب الفرع</Label>
+            <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">تصفية حسب الفرع</Label>
             <select
               value={selectedBranchId}
               onChange={e => setSelectedBranchId(e.target.value)}
-              className="w-full h-10 px-3 rounded-xl border border-[#E5EAF0] text-xs font-bold text-slate-700 bg-[#F6F8FB] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#15B8A6]/20"
+              className="w-full h-10 px-3 rounded-xl border border-[#E5EAF0] dark:border-[#254565] text-xs font-bold text-slate-700 dark:text-slate-200 bg-[#F6F8FB] dark:bg-[#142D50] focus:bg-white dark:focus:bg-[#0E2342] focus:outline-none focus:ring-2 focus:ring-[#087CF4]/20"
             >
               <option value="all">جميع الفروع</option>
               {branches.map(b => (
@@ -398,7 +398,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
           <Button
             onClick={generateReport}
             disabled={isLoading}
-            className="w-full h-10 px-6 font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl text-xs"
+            className="w-full h-10 px-6 font-bold bg-[#087CF4] hover:bg-[#0668cc] text-white rounded-xl text-xs"
           >
             {isLoading ? 'جاري التحميل...' : 'تحديث التقرير'}
           </Button>
@@ -408,23 +408,23 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
       {/* 3. KPI 5 Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Card 1: Total Revenue */}
-        <div className="medical-card p-5">
+        <div className="medical-card p-5 bg-white dark:bg-[#0E2342] dark:border-[#254565]">
           <p className="text-xs font-bold text-slate-400 mb-1">إجمالي المبيعات</p>
-          <h3 className="text-2xl font-black text-[#182230]">
+          <h3 className="text-2xl font-black text-slate-900 dark:text-white">
             {totals.revenue.toLocaleString()} <span className="text-sm font-bold text-slate-500">ج.م</span>
           </h3>
-          <span className="text-[11px] font-semibold text-[#15B8A6] mt-1 inline-block">القيمة الإجمالية</span>
+          <span className="text-[11px] font-semibold text-[#087CF4] mt-1 inline-block">القيمة الإجمالية</span>
         </div>
 
         {/* Card 2: Operations Count */}
-        <div className="medical-card p-5">
+        <div className="medical-card p-5 bg-white dark:bg-[#0E2342] dark:border-[#254565]">
           <p className="text-xs font-bold text-slate-400 mb-1">عدد العمليات</p>
-          <h3 className="text-2xl font-black text-[#2F80ED]">{totals.patients}</h3>
+          <h3 className="text-2xl font-black text-[#087CF4]">{totals.patients}</h3>
           <span className="text-[11px] font-semibold text-slate-400 mt-1 inline-block">زيارة مسجلة</span>
         </div>
 
         {/* Card 3: Collected */}
-        <div className="medical-card p-5">
+        <div className="medical-card p-5 bg-white dark:bg-[#0E2342] dark:border-[#254565]">
           <p className="text-xs font-bold text-slate-400 mb-1">تم التحصيل</p>
           <h3 className="text-2xl font-black text-emerald-600">
             {totals.collected.toLocaleString()} <span className="text-sm font-bold text-slate-500">ج.م</span>
@@ -433,7 +433,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
         </div>
 
         {/* Card 4: Due */}
-        <div className="medical-card p-5">
+        <div className="medical-card p-5 bg-white dark:bg-[#0E2342] dark:border-[#254565]">
           <p className="text-xs font-bold text-slate-400 mb-1">مستحق / آجل</p>
           <h3 className="text-2xl font-black text-rose-600">
             {totals.due.toLocaleString()} <span className="text-sm font-bold text-slate-500">ج.م</span>
@@ -442,7 +442,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
         </div>
 
         {/* Card 5: Discounts */}
-        <div className="medical-card p-5 col-span-2 lg:col-span-1">
+        <div className="medical-card p-5 col-span-2 lg:col-span-1 bg-white dark:bg-[#0E2342] dark:border-[#254565]">
           <p className="text-xs font-bold text-slate-400 mb-1">إجمالي الخصومات</p>
           <h3 className="text-2xl font-black text-amber-600">
             {totals.discounts.toLocaleString()} <span className="text-sm font-bold text-slate-500">ج.م</span>
@@ -455,11 +455,11 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
       <div className="grid lg:grid-cols-12 gap-6 items-start">
         
         {/* Daily Revenue Bar Chart (7 cols) */}
-        <div className="lg:col-span-7 medical-card p-6 space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-[#E5EAF0]">
+        <div className="lg:col-span-7 medical-card p-6 space-y-4 bg-white dark:bg-[#0E2342] dark:border-[#254565]">
+          <div className="flex items-center justify-between pb-3 border-b border-[#E5EAF0] dark:border-[#254565]">
             <div className="flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-[#15B8A6]" />
-              <h3 className="font-bold text-sm text-[#182230]">الإيرادات اليومية حسب أيام الأسبوع</h3>
+              <BarChart3 className="w-5 h-5 text-[#087CF4]" />
+              <h3 className="font-bold text-sm text-slate-900 dark:text-white">الإيرادات اليومية حسب أيام الأسبوع</h3>
             </div>
             <span className="text-xs font-bold text-slate-400">
               متوسط يومي: {Math.round(totals.collected / 7).toLocaleString()} ج.م
@@ -469,14 +469,14 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
           <div className="h-56 flex items-end justify-between gap-2 pt-6 pb-2 px-2">
             {dailyData.map((item, i) => (
               <div key={i} className="flex-1 flex flex-col items-center gap-2 group h-full justify-end">
-                <div className="text-[10px] font-black text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="text-[10px] font-black text-slate-500 dark:text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
                   {item.val.toLocaleString()}
                 </div>
                 <div
                   style={{ height: `${item.pct}%` }}
-                  className="w-full max-w-[36px] bg-[#15B8A6] hover:bg-[#0D9488] rounded-t-lg transition-all relative group-hover:shadow-md group-hover:shadow-[#15B8A6]/20"
+                  className="w-full max-w-[36px] bg-[#087CF4] hover:bg-[#0668cc] rounded-t-lg transition-all relative group-hover:shadow-md group-hover:shadow-[#087CF4]/20"
                 ></div>
-                <span className="text-[11px] font-bold text-slate-500 mt-1">{item.day}</span>
+                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-1">{item.day}</span>
               </div>
             ))}
           </div>
@@ -486,9 +486,9 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
         <div className="lg:col-span-5 space-y-6">
           
           {/* Card: Payment Methods Breakdown with Amounts */}
-          <div className="medical-card p-5 space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-[#E5EAF0]">
-              <h3 className="font-bold text-xs text-[#182230]">طرق الدفع والتحصيل</h3>
+          <div className="medical-card p-5 space-y-3 bg-white dark:bg-[#0E2342] dark:border-[#254565]">
+            <div className="flex items-center justify-between pb-2 border-b border-[#E5EAF0] dark:border-[#254565]">
+              <h3 className="font-bold text-xs text-slate-900 dark:text-white">طرق الدفع والتحصيل</h3>
               <span className="text-[10px] font-bold text-slate-400">المبلغ والنسبة</span>
             </div>
 
@@ -497,13 +497,13 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
                 <p className="text-xs text-slate-400 text-center py-4">لا توجد بيانات كافية</p>
               ) : paymentsData.map((p, idx) => (
                 <div key={idx} className="space-y-1">
-                  <div className="flex justify-between text-xs font-bold text-slate-700">
+                  <div className="flex justify-between text-xs font-bold text-slate-700 dark:text-slate-200">
                     <span>{p.name}</span>
-                    <span className="text-slate-500">
+                    <span className="text-slate-500 dark:text-slate-400">
                       {p.amount?.toLocaleString()} ج.م ({p.pct}%)
                     </span>
                   </div>
-                  <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                  <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
                     <div style={{ width: `${p.pct}%` }} className={`h-full ${p.color} rounded-full`}></div>
                   </div>
                 </div>
@@ -512,9 +512,9 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
           </div>
 
           {/* Card: Most Requested Services */}
-          <div className="medical-card p-5 space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-[#E5EAF0]">
-              <h3 className="font-bold text-xs text-[#182230]">الخدمات الأكثر طلباً</h3>
+          <div className="medical-card p-5 space-y-3 bg-white dark:bg-[#0E2342] dark:border-[#254565]">
+            <div className="flex items-center justify-between pb-2 border-b border-[#E5EAF0] dark:border-[#254565]">
+              <h3 className="font-bold text-xs text-slate-900 dark:text-white">الخدمات الأكثر طلباً</h3>
               <span className="text-[10px] font-bold text-slate-400">النسبة المئوية</span>
             </div>
 
@@ -523,11 +523,11 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
                 <p className="text-xs text-slate-400 text-center py-4">لا توجد بيانات كافية</p>
               ) : servicesData.map((s, idx) => (
                 <div key={idx} className="space-y-1">
-                  <div className="flex justify-between text-xs font-bold text-slate-700">
+                  <div className="flex justify-between text-xs font-bold text-slate-700 dark:text-slate-200">
                     <span>{s.name}</span>
                     <span>{s.pct}%</span>
                   </div>
-                  <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                  <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
                     <div style={{ width: `${s.pct}%` }} className={`h-full ${s.color} rounded-full`}></div>
                   </div>
                 </div>
@@ -541,12 +541,12 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
 
       {/* 5. BRANCHES COMPARISON TABLE (When multiple branches exist) */}
       {branchBreakdown.length > 0 && (
-        <div className="medical-card overflow-hidden">
-          <div className="p-5 border-b border-[#E5EAF0] flex items-center justify-between bg-slate-50/50">
+        <div className="medical-card overflow-hidden bg-white dark:bg-[#0E2342] dark:border-[#254565]">
+          <div className="p-5 border-b border-[#E5EAF0] dark:border-[#254565] flex items-center justify-between bg-slate-50/50 dark:bg-[#142D50]/50">
             <div className="flex items-center gap-2.5">
-              <Building2 className="w-5 h-5 text-[#15B8A6]" />
+              <Building2 className="w-5 h-5 text-[#087CF4]" />
               <div>
-                <h3 className="font-bold text-base text-[#182230]">مقارنة أداء الفروع</h3>
+                <h3 className="font-bold text-base text-slate-900 dark:text-white">مقارنة أداء الفروع</h3>
                 <p className="text-xs text-slate-400">توزيع الحجوزات والإيرادات والمتحصلات بين فروع العيادة</p>
               </div>
             </div>
@@ -554,7 +554,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
 
           <div className="overflow-x-auto">
             <table className="w-full text-right text-xs">
-              <thead className="bg-[#F8FAFC] border-b border-[#E5EAF0] text-slate-500 font-bold select-none">
+              <thead className="bg-[#F8FAFC] dark:bg-[#142D50] border-b border-[#E5EAF0] dark:border-[#254565] text-slate-500 dark:text-slate-400 font-bold select-none">
                 <tr>
                   <th className="py-3 px-4">اسم الفرع</th>
                   <th className="py-3 px-4 text-center">عدد الحجوزات</th>
@@ -564,18 +564,18 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
                   <th className="py-3 px-4 text-center">نسبة التحصيل</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E5EAF0]">
+              <tbody className="divide-y divide-[#E5EAF0] dark:divide-[#254565]">
                 {branchBreakdown.map((b, idx) => {
                   const pct = b.revenue > 0 ? Math.round((b.collected / b.revenue) * 100) : 0
                   return (
-                    <tr key={idx} className="hover:bg-slate-50">
-                      <td className="py-3.5 px-4 font-bold text-[#182230]">{b.name}</td>
-                      <td className="py-3.5 px-4 text-center font-bold">{b.bookingsCount}</td>
-                      <td className="py-3.5 px-4 font-black">{b.revenue.toLocaleString()} ج.م</td>
+                    <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                      <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">{b.name}</td>
+                      <td className="py-3.5 px-4 text-center font-bold text-slate-800 dark:text-slate-200">{b.bookingsCount}</td>
+                      <td className="py-3.5 px-4 font-black text-slate-900 dark:text-white">{b.revenue.toLocaleString()} ج.م</td>
                       <td className="py-3.5 px-4 font-bold text-emerald-600">{b.collected.toLocaleString()} ج.م</td>
                       <td className="py-3.5 px-4 font-bold text-rose-600">{b.due.toLocaleString()} ج.م</td>
                       <td className="py-3.5 px-4 text-center">
-                        <span className="inline-block px-2.5 py-0.5 rounded-full bg-teal-50 text-teal-800 font-black border border-teal-200">
+                        <span className="inline-block px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 font-black border border-blue-200 dark:border-blue-800">
                           {pct}%
                         </span>
                       </td>

@@ -1,5 +1,5 @@
 /**
- * Universal Print & Document Engine for Clinic OS V2
+ * Universal Print & Document Engine for Yalla Clinic
  * Supports XP-80C 80mm Thermal Receipt Printers (72mm printable width) and A4 Medical Documents.
  * Isolates printed content into dedicated iframes with precise CSS media print definitions,
  * eliminating all website UI artifacts (modals, overlays, sidebars, buttons, backgrounds).
@@ -552,7 +552,7 @@ export function generateThermalReceiptHtml(data: ThermalReceiptData): string {
 
   <div class="footer">
     <p class="font-bold">${data.footerNote || 'يرجى الاحتفاظ بالإيصال • نتمنى لكم الشفاء العاجل'}</p>
-    <p class="footer-copy">Clinic OS • جميع الحقوق محفوظة © ${new Date().getFullYear()}</p>
+    <p class="footer-copy">Yalla Clinic • جميع الحقوق محفوظة YallaCodeX 2026</p>
     <div class="receipt-id">* ${data.invoiceNumber} *</div>
   </div>
 </body>
@@ -731,7 +731,7 @@ export function generateExaminationTicketHtml(data: ExaminationTicketData): stri
 
   <div class="footer">
     <p style="font-weight:bold;">يرجى التواجد في استراحة الانتظار حتى استدعاء رقم دورك.</p>
-    <p style="font-size:8.5px; margin-top:3px;">Clinic OS • جميع الحقوق محفوظة © ${new Date().getFullYear()}</p>
+    <p style="font-size:8.5px; margin-top:3px;">Yalla Clinic • جميع الحقوق محفوظة YallaCodeX 2026</p>
   </div>
 </body>
 </html>`
@@ -927,7 +927,7 @@ export function generateMedicalReportHtml(data: MedicalReportData): string {
   <div class="footer">
     <div style="font-size:8.5pt; color:#64748b;">
       <div>صدر هذا التقرير رسمياً من عيادة د. ${data.doctorName}</div>
-      <div>نظام Clinic OS لإدارة العيادات • جميع الحقوق محفوظة © ${new Date().getFullYear()}</div>
+      <div>نظام Yalla Clinic لإدارة العيادات • جميع الحقوق محفوظة YallaCodeX 2026</div>
     </div>
 
     <div class="signature-box">
@@ -1188,7 +1188,7 @@ export function generateFinancialReportHtml(data: FinancialReportPrintData): str
   }
 
   <div class="footer">
-    <div>تم استخراج هذا التقرير آلياً بواسطة نظام Clinic OS V2 • جميع الحقوق محفوظة © ${new Date().getFullYear()}</div>
+    <div>تم استخراج هذا التقرير آلياً بواسطة نظام Yalla Clinic • جميع الحقوق محفوظة YallaCodeX 2026</div>
     <div>صفحة 1 من 1</div>
   </div>
 </body>
@@ -1199,8 +1199,8 @@ export function generateFinancialReportHtml(data: FinancialReportPrintData): str
  * TASK 8 & PHASE 3: Modern Premium Medical Prescription A4 & A5 HTML
  */
 export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string {
-  const pColor = data.primaryColor || '#0B1F33'
-  const sColor = data.secondaryColor || '#15B8A6'
+  const pColor = data.primaryColor || '#061A38'
+  const sColor = data.secondaryColor || '#087CF4'
   const isA5 = data.pageSize === 'a5'
   const showHeaderFooter = data.showHeaderFooter !== false
   const isCustom = data.templateMode === 'custom' && !!data.prescriptionTemplateUrl
@@ -1459,7 +1459,7 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
         </div>
         <div class="clinic-logo-box">
           ${data.logoUrl ? `<img src="${data.logoUrl}" class="clinic-logo" alt="Logo" />` : ''}
-          <div class="clinic-title">${data.clinicName || 'Clinic OS'}</div>
+          <div class="clinic-title">${data.clinicName || 'Yalla Clinic'}</div>
           ${data.branchName ? `<div class="branch-badge">فرع: ${data.branchName}</div>` : ''}
         </div>
       </div>
@@ -1507,7 +1507,7 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
       <div class="clinic-meta">
         <div>${data.clinicAddress || 'العنوان: مسجل بالعيادة'}</div>
         <div>هاتف: ${data.clinicPhone || 'مسجل بالعيادة'}</div>
-        <div class="copy-note">تم استخراج الروشتة إلكترونياً عبر Clinic OS V2 • جميع الحقوق محفوظة © ${new Date().getFullYear()}</div>
+        <div class="copy-note">تم استخراج الروشتة إلكترونياً عبر Yalla Clinic • جميع الحقوق محفوظة YallaCodeX 2026</div>
       </div>
 
       <div class="signature-area">
@@ -1701,7 +1701,7 @@ export function generatePatientsReportHtml(data: PatientsReportPrintData): strin
   </div>
 
   <div class="footer">
-    <div>تم استخراج هذا التقرير آلياً عبر نظام Clinic OS V2 • منصة إدارة العيادات والمراكز الطبية</div>
+    <div>تم استخراج هذا التقرير آلياً عبر نظام Yalla Clinic • جميع الحقوق محفوظة YallaCodeX 2026</div>
     <div>الصفحة 1 من 1</div>
   </div>
 </body>

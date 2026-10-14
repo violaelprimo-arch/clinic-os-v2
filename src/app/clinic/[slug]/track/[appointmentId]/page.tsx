@@ -19,7 +19,6 @@ import {
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { formatCairo12Hour } from '@/lib/queue-calculator'
 import { InvoiceView } from '@/components/clinic/InvoiceView'
-import { TechnicalSupportButton } from '@/components/clinic/TechnicalSupportButton'
 import { NotificationCenter } from '@/components/clinic/NotificationCenter'
 import { toast } from 'sonner'
 
@@ -40,7 +39,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
     const qClinic = query(collection(db, 'clinics'), where('slug', '==', slug))
     const unsubClinic = onSnapshot(qClinic, (snapshot) => {
       if (!snapshot.empty) {
-        setClinic(snapshot.docs[0].data())
+        setClinic({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() })
       }
     })
 
@@ -61,9 +60,6 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
           where('clinic_id', '==', apptData.clinic_id),
           where('date', '==', todayDate)
         ]
-        if (apptData.branch_id) {
-          constraints.push(where('branch_id', '==', apptData.branch_id))
-        }
 
         const qQueue = query(collection(db, 'appointments'), ...constraints)
         unsubQueue = onSnapshot(qQueue, (queueSnap) => {
@@ -150,9 +146,12 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
         <div className="medical-card p-8 text-center max-w-sm w-full space-y-4">
           <AlertCircle className="w-12 h-12 text-rose-500 mx-auto" />
           <h2 className="text-lg font-bold text-[#182230]">لم يتم العثور على تذكرة الحجز</h2>
-          <p className="text-xs text-slate-400">تأكد من صحة الرابط أو تواصل مع العيادة للاستعلام.</p>
           <div className="pt-2">
-            <TechnicalSupportButton variant="block" />
+            <a href={`/clinic/${slug}`} className="block w-full">
+              <Button variant="outline" className="w-full text-xs font-bold rounded-xl">
+                العودة لرئيسية العيادة
+              </Button>
+            </a>
           </div>
         </div>
       </div>
@@ -165,8 +164,22 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
   const isSkippedOrNoShow = liveQueue.status === 'skipped' || liveQueue.status === 'no_show'
   const isCancelled = liveQueue.status === 'cancelled'
 
+  const avgVisitMins = liveQueue.averageVisitMins || Number(clinic?.averageVisitTime) || 15
+  const totalWaitMins = Math.max(0, liveQueue.aheadCount * avgVisitMins)
+
+  const formatWaitText = (mins: number) => {
+    if (mins <= 0) return 'خلال دقائق معدودة'
+    if (mins < 60) return `حوالي ${mins} دقيقة`
+    const h = Math.floor(mins / 60)
+    const m = mins % 60
+    return m > 0 ? `حوالي ${h} ساعة و ${m} دقيقة` : `حوالي ${h} ساعة`
+  }
+
+  const estimatedDurationText = formatWaitText(totalWaitMins)
+  const expectedClockTime = formatEstimatedTime(totalWaitMins)
+
   return (
-    <div className="min-h-screen bg-[#F6F8FB] flex flex-col items-center justify-center p-4 font-sans" dir="rtl">
+    <div className="min-h-screen bg-[#F6F8FB] dark:bg-[#0A131F] flex flex-col items-center justify-center p-4 font-sans text-[#182230] dark:text-slate-100 transition-colors" dir="rtl">
       
       {/* Container Card */}
       <div className="w-full max-w-md bg-white border border-[#E5EAF0] shadow-2xl rounded-3xl p-6 sm:p-8 space-y-6">
@@ -191,7 +204,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
               مرحباً {appointment.patientName} • شاشة متابعة الدور المباشرة
             </p>
             {appointment.branchName && (
-              <span className="inline-block mt-1 text-[11px] font-bold text-[#15B8A6] bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-100">
+              <span className="inline-block mt-1 text-[11px] font-bold text-[#087CF4] bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100">
                 فرع {appointment.branchName}
               </span>
             )}
@@ -208,12 +221,12 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
             </p>
           </div>
         ) : isCurrentTurn ? (
-          <div className="p-6 rounded-3xl bg-teal-50 border-2 border-[#15B8A6] text-center space-y-3 animate-pulse">
-            <div className="w-14 h-14 rounded-full bg-[#15B8A6] text-white flex items-center justify-center mx-auto text-2xl font-black shadow-lg shadow-[#15B8A6]/30">
+          <div className="p-6 rounded-3xl bg-blue-50 border-2 border-[#087CF4] text-center space-y-3 animate-pulse">
+            <div className="w-14 h-14 rounded-full bg-[#087CF4] text-white flex items-center justify-center mx-auto text-2xl font-black shadow-lg shadow-[#087CF4]/30">
               #{appointment.queue_number}
             </div>
-            <h3 className="text-xl font-black text-[#15B8A6]">دورك الآن!</h3>
-            <p className="text-xs text-teal-800 font-bold">
+            <h3 className="text-xl font-black text-[#087CF4]">دورك الآن!</h3>
+            <p className="text-xs text-blue-800 font-bold">
               يرجى التوجه إلى غرفة الكشف مباشرة لمقابلة الطبيب.
             </p>
           </div>
@@ -234,14 +247,14 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
         ) : (
           <div className="space-y-4">
             {/* Big Queue Card */}
-            <div className="bg-[#F8FAFC] border border-[#E5EAF0] rounded-3xl p-6 text-center space-y-2">
+            <div className="bg-[#F8FAFC] dark:bg-[#0E2342] border border-[#E5EAF0] dark:border-[#254565] rounded-3xl p-6 text-center space-y-2">
               <span className="text-xs font-bold text-slate-400">رقم تذكرة الحجز</span>
-              <div className="text-6xl font-black text-[#15B8A6] tracking-tight">
+              <div className="text-6xl font-black text-[#087CF4] tracking-tight">
                 #{appointment.queue_number}
               </div>
               
               <div className="pt-1 flex flex-wrap items-center justify-center gap-2">
-                <span className="px-3 py-1 rounded-full bg-teal-50 text-[#0D9488] text-xs font-bold border border-teal-100">
+                <span className="px-3 py-1 rounded-full bg-blue-50 text-[#087CF4] text-xs font-bold border border-blue-100">
                   ترتيب الدخول الفعلي: #{liveQueue.effectivePosition}
                 </span>
 
@@ -255,23 +268,76 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
 
             {/* In-Progress Doctor Indicator */}
             {liveQueue.currentPatientExamining && (
-              <div className="p-3 rounded-2xl bg-teal-50/70 border border-teal-100 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2 text-teal-800 font-bold">
-                  <Activity className="w-4 h-4 text-[#15B8A6] animate-pulse" />
+              <div className="p-3 rounded-2xl bg-blue-50/70 border border-blue-100 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2 text-blue-800 font-bold">
+                  <Activity className="w-4 h-4 text-[#087CF4] animate-pulse" />
                   <span>الطبيب مع مريض رقم:</span>
                 </div>
-                <Badge className="bg-[#15B8A6] text-white font-mono font-bold text-xs">
+                <Badge className="bg-[#087CF4] text-white font-mono font-bold text-xs">
                   #{liveQueue.currentPatientExamining.queueNumber}
                 </Badge>
               </div>
             )}
 
-            {/* Queue Metrics without estimated time */}
-            <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#E5EAF0] text-center space-y-1">
-              <span className="text-xs font-bold text-slate-400 block">المرضى في الانتظار قبلك</span>
-              <p className="text-3xl font-black text-[#15B8A6] font-mono">
-                {liveQueue.aheadCount} <span className="text-sm font-bold text-slate-600">{liveQueue.aheadCount === 1 ? 'مريض فقط' : 'مرضى'}</span>
-              </p>
+            {/* Queue Intelligence Card: Ahead Count, Average Consultation Time & Estimated Entry Time */}
+            <div className="p-5 rounded-3xl bg-gradient-to-br from-blue-50/90 via-white to-cyan-50/40 dark:from-[#07162D] dark:to-[#0E2342] border border-blue-100 dark:border-[#254565] shadow-xs space-y-4">
+              
+              {/* Row 1: How many patients ahead */}
+              <div className="flex items-center justify-between pb-3 border-b border-blue-100/70 dark:border-[#254565]">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-[#087CF4]/10 text-[#087CF4] flex items-center justify-center shrink-0">
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300 block">فاضل كام مريض قدامك</span>
+                    <span className="text-[11px] text-slate-400">في قائمة الانتظار الحالية</span>
+                  </div>
+                </div>
+                <div className="text-left">
+                  <span className="text-3xl font-black text-[#087CF4] font-mono">
+                    {liveQueue.aheadCount}
+                  </span>
+                  <span className="text-xs font-bold text-slate-600 dark:text-slate-300 mr-1.5">
+                    {liveQueue.aheadCount === 1 ? 'مريض فقط' : liveQueue.aheadCount === 2 ? 'مريضان' : 'مرضى'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Row 2: Average Consultation Time */}
+              <div className="flex items-center justify-between pb-3 border-b border-blue-100/70 dark:border-[#254565] text-xs">
+                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 font-bold">
+                  <Activity className="w-4 h-4 text-[#087CF4]" />
+                  <span>متوسط وقت الكشف:</span>
+                </div>
+                <span className="font-bold text-[#182230] dark:text-slate-100 bg-white dark:bg-[#142D50] px-2.5 py-1 rounded-lg border border-slate-200 dark:border-[#254565] shadow-xs font-mono">
+                  {avgVisitMins} دقيقة / كشف
+                </span>
+              </div>
+
+              {/* Row 3: Estimated Entry Time & Duration (Ahead Count * Average Time) */}
+              <div className="p-3.5 rounded-2xl bg-blue-500/10 dark:bg-blue-500/20 border border-blue-500/20 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-blue-900 dark:text-blue-200">
+                    <Clock className="w-4 h-4 text-[#087CF4] animate-pulse" />
+                    <span>الوقت المتوقع لدخولك:</span>
+                  </div>
+                  <span className="text-base font-black text-[#087CF4] dark:text-[#02CFF3] font-mono">
+                    {estimatedDurationText}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs text-teal-800/90 dark:text-teal-300/90 pt-1">
+                  <span className="font-medium">الساعة المتوقعة للدخول:</span>
+                  <span className="font-black font-mono bg-white dark:bg-[#101F31] px-2 py-0.5 rounded-md border border-teal-200 dark:border-teal-800/60">
+                    {expectedClockTime} تقريباً
+                  </span>
+                </div>
+
+                <div className="text-[10.5px] text-slate-400 dark:text-slate-400 pt-1.5 border-t border-teal-500/15 text-center font-mono">
+                  (حساب تقديري: {liveQueue.aheadCount} مرضى × {avgVisitMins} دقيقة = {liveQueue.aheadCount * avgVisitMins} دقيقة)
+                </div>
+              </div>
+
             </div>
 
             {/* 5-Turns or less prominent alert banner */}
@@ -334,7 +400,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
           {(isCompleted || (appointment.drugs && appointment.drugs.length > 0)) && (
             <a href={`/clinic/${slug}/prescription/${appointmentId}`} className="block w-full">
               <Button
-                className="w-full h-11 text-xs font-bold bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-xs flex items-center justify-center gap-2"
+                className="w-full h-11 text-xs font-bold bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl shadow-xs flex items-center justify-center gap-2"
               >
                 <FileText className="w-4 h-4 ml-1.5" />
                 عرض وتحميل الروشتة الطبية الرسمية PDF
@@ -347,13 +413,13 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
             onClick={() => setShowInvoiceModal(true)}
             className="w-full h-11 text-xs font-bold border-[#E5EAF0] text-slate-700 hover:bg-slate-50 rounded-xl flex items-center justify-center gap-2"
           >
-            <Receipt className="w-4 h-4 text-[#15B8A6]" />
+            <Receipt className="w-4 h-4 text-[#087CF4]" />
             عرض وتحميل الفاتورة الإلكترونية PDF
           </Button>
 
           {clinic?.mapsLink && (
             <a href={clinic.mapsLink} target="_blank" rel="noreferrer" className="block w-full">
-              <Button className="w-full h-12 text-xs font-black bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-md shadow-[#15B8A6]/20">
+              <Button className="w-full h-12 text-xs font-black bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl shadow-md shadow-[#087CF4]/20">
                 <Navigation className="w-4 h-4 ml-1.5" />
                 فتح موقع العيادة عبر خرائط جوجل
               </Button>
@@ -379,16 +445,11 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
               خروج والعودة للرئيسية
             </Button>
           </a>
-
-          {/* TASK 11: Technical Support Button */}
-          <div className="pt-2 flex justify-center">
-            <TechnicalSupportButton variant="pill" />
-          </div>
         </div>
 
         {/* TASK 12: Standardized Copyright Footer */}
-        <div className="text-center text-[11px] text-slate-400 border-t border-[#E5EAF0] pt-4">
-          جميع الحقوق محفوظة © {new Date().getFullYear()} Clinic OS
+        <div className="text-center text-[11px] text-slate-400 border-t border-[#E5EAF0] dark:border-[#1E3A5F] pt-4">
+          جميع الحقوق محفوظة YallaCodeX 2026
         </div>
 
       </div>

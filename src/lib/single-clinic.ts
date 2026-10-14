@@ -1,6 +1,6 @@
 /**
  * Single Clinic Configuration & Enforcement
- * Clinic OS V2 is locked strictly to a Single Clinic System.
+ * Yalla Clinic is configured as a specialized clinic platform.
  */
 
 import { collection, query, where, getDocs, limit, Firestore } from 'firebase/firestore'

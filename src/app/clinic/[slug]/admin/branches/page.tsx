@@ -109,7 +109,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
 
   const openAddModal = () => {
     if (!branchesEnabled) {
-      toast.error('ميزة تعدد الفروع غير مفعلة لاشتراك عيادتكم. يرجى التواصل مع إدارة Clinic OS.')
+      toast.error('ميزة تعدد الفروع غير مفعلة لاشتراك عيادتكم. يرجى التواصل مع إدارة Yalla Clinic.')
       return
     }
     if (isLimitReached) {
@@ -177,7 +177,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
 
     if (!editingBranchId) {
       if (!branchesEnabled) {
-        return toast.error('ميزة تعدد الفروع غير مفعلة لاشتراك عيادتكم. يرجى التواصل مع إدارة Clinic OS.')
+        return toast.error('ميزة تعدد الفروع غير مفعلة لاشتراك عيادتكم. يرجى التواصل مع إدارة Yalla Clinic.')
       }
       if (isLimitReached) {
         return toast.error(`تم الوصول للحد الأقصى للفروع المسموح بها (${maxBranches} فروع). يرجى ترقية الباقة لإضافة فروع جديدة.`)
@@ -285,7 +285,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-black text-[#182230] flex items-center gap-2.5">
-            <Building2 className="w-7 h-7 text-[#15B8A6]" />
+            <Building2 className="w-7 h-7 text-[#087CF4]" />
             إدارة فروع العيادة
           </h1>
           <p className="text-xs text-slate-400 mt-1">
@@ -301,7 +301,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                 ? 'bg-rose-50 text-rose-700 border-rose-200'
                 : isLimitReached
                 ? 'bg-amber-50 text-amber-700 border-amber-200'
-                : 'bg-teal-50 text-[#0D9488] border-teal-200'
+                : 'bg-blue-50 text-[#087CF4] border-blue-200'
             }`}
           >
             {!branchesEnabled
@@ -312,7 +312,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
           {canAddBranch && (
             <Button
               onClick={openAddModal}
-              className="h-10 px-4 bg-[#15B8A6] hover:bg-[#0D9488] text-white font-bold rounded-xl shadow-md text-xs cursor-pointer"
+              className="h-10 px-4 bg-[#087CF4] hover:bg-[#0769D1] text-white font-bold rounded-xl shadow-md text-xs cursor-pointer"
             >
               <Plus className="w-4 h-4 ml-1.5" />
               إضافة فرع جديد
@@ -326,18 +326,18 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
           <div className="flex items-center gap-2">
             <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
             <span>
-              ميزة تعدد الفروع غير مفعلة في اشتراك هذه العيادة. يعمل الفرع الرئيسي حالياً بصورة طبيعية، ولطلب زيادة عدد الفروع يرجى التواصل مع إدارة Clinic OS.
+              ميزة تعدد الفروع غير مفعلة في اشتراك هذه العيادة. يعمل الفرع الرئيسي حالياً بصورة طبيعية، ولطلب زيادة عدد الفروع يرجى التواصل مع إدارة Yalla Clinic.
             </span>
           </div>
         </div>
       )}
 
       {branchesEnabled && isLimitReached && (
-        <div className="p-4 rounded-2xl bg-teal-50 border border-teal-200 text-[#0D9488] text-xs flex items-center justify-between">
+        <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200 text-blue-900 text-xs flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-5 h-5 text-[#15B8A6] shrink-0" />
+            <CheckCircle2 className="w-5 h-5 text-[#087CF4] shrink-0" />
             <span>
-              تم استهلاك السعة القصوى للفروع المتاحة في باقتكم ({activeBranches.length} من أصل {maxBranches} فروع). لترقية الباقة يرجى التواصل مع إدارة Clinic OS.
+              تم استهلاك السعة القصوى للفروع المتاحة في باقتكم ({activeBranches.length} من أصل {maxBranches} فروع). لترقية الباقة يرجى التواصل مع إدارة Yalla Clinic.
             </span>
           </div>
         </div>
@@ -346,7 +346,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
       {/* Branches Cards Grid */}
       {isLoading ? (
         <div className="py-20 text-center text-slate-400">
-          <div className="w-8 h-8 border-2 border-[#15B8A6] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+          <div className="w-8 h-8 border-2 border-[#087CF4] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
           جاري تحميل الفروع...
         </div>
       ) : branches.length === 0 ? (
@@ -354,7 +354,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
           <Building2 className="w-12 h-12 text-slate-300 mx-auto" />
           <h3 className="font-bold text-base text-slate-700">لا توجد فروع مسجلة</h3>
           <p className="text-xs text-slate-400">يمكنك إضافة فروع جديدة لتمكين المرضى من اختيار الفرع الأقرب إليهم.</p>
-          <Button onClick={openAddModal} size="sm" className="bg-[#15B8A6] text-white rounded-xl">
+          <Button onClick={openAddModal} size="sm" className="bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl">
             إضافة الفرع الأول
           </Button>
         </div>
@@ -373,7 +373,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                   <div className="flex items-center gap-2">
                     <h3 className="font-black text-base text-[#182230]">{b.name}</h3>
                     {b.isMain && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-[#0D9488] border border-teal-200">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-[#087CF4] border border-blue-200 dark:bg-blue-900/30 dark:text-[#02CFF3] dark:border-blue-800">
                         الرئيسي
                       </span>
                     )}
@@ -485,7 +485,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
             {/* Modal Header */}
             <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
               <div className="flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-[#15B8A6]" />
+                <Building2 className="w-5 h-5 text-[#087CF4]" />
                 <h3 className="font-black text-sm text-[#182230]">
                   {editingBranchId ? 'تعديل بيانات الفرع' : 'إضافة فرع جديد للعيادة'}
                 </h3>
@@ -694,7 +694,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                 <Button
                   type="submit"
                   disabled={isSaving}
-                  className="bg-[#15B8A6] hover:bg-[#0D9488] text-white font-bold rounded-xl text-xs px-6 shadow-md"
+                  className="bg-[#087CF4] hover:bg-[#0769D1] text-white font-bold rounded-xl text-xs px-6 shadow-md transition-colors"
                 >
                   {isSaving ? 'جاري الحفظ...' : editingBranchId ? 'حفظ التعديلات' : 'إضافة الفرع'}
                 </Button>

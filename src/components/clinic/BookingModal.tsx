@@ -19,6 +19,7 @@ import { Branch } from '@/types/clinic'
 import { getClinicBranches, ensureClinicHasMainBranch } from '@/lib/branchService'
 import { createClinicNotification } from '@/lib/notificationService'
 import { getClinicUrl } from '@/lib/clinic-url'
+import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 
 interface BookingModalProps {
   isOpen: boolean
@@ -38,7 +39,7 @@ export function BookingModal({
   initialBranchId = null
 }: BookingModalProps) {
   const router = useRouter()
-  const primaryColor = clinic?.primaryColor || '#15B8A6'
+  const primaryColor = clinic?.primaryColor || '#087CF4'
   const showPrices = clinic?.showPrices !== false && clinic?.hidePrices !== true
 
   // Step state: 1: Branch & Date, 2: Patient Info, 3: Service, 4: Payment, 5: Review & Submit
@@ -445,6 +446,41 @@ export function BookingModal({
 
   if (!isOpen) return null
 
+  const isBookingAllowed = isClinicFeatureEnabled(clinic, 'onlineBooking') && clinic?.allowOnlineBooking !== false
+
+  if (!isBookingAllowed) {
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+        dir="rtl"
+        onClick={handleClose}
+      >
+        <div
+          className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 sm:p-8 text-center space-y-5 border border-slate-200"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto">
+            <AlertCircle className="w-8 h-8" />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-lg font-black text-[#182230]">الحجز الإلكتروني غير متاح</h3>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              الحجز الذاتي عبر الموقع غير مفعل لهذه العيادة حالياً. يرجى التواصل مع العيادة هاتفياً لتسجيل موعدك.
+            </p>
+          </div>
+          {(clinic?.clinicPhone || clinic?.doctorPhone) && (
+            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs font-bold text-slate-700 font-mono" dir="ltr">
+              {clinic?.clinicPhone || clinic?.doctorPhone}
+            </div>
+          )}
+          <Button onClick={handleClose} className="w-full h-11 bg-[#0B1F33] hover:bg-[#132B45] text-white rounded-xl text-xs font-bold">
+            إغلاق
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
@@ -458,7 +494,7 @@ export function BookingModal({
         {/* MODAL HEADER */}
         <div className="p-4 sm:p-6 bg-gradient-to-r from-[#0B1F33] to-[#132B45] text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#15B8A6]/20 text-[#15B8A6] border border-[#15B8A6]/30 flex items-center justify-center font-bold">
+            <div className="w-10 h-10 rounded-xl bg-[#087CF4]/20 text-[#087CF4] border border-[#087CF4]/30 flex items-center justify-center font-bold">
               <Calendar className="w-5 h-5" />
             </div>
             <div>
@@ -484,15 +520,15 @@ export function BookingModal({
         {!successData && (
           <div className="px-4 sm:px-6 pt-4 pb-2 bg-slate-50 border-b border-[#E5EAF0] shrink-0">
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-2">
-              <span className={step >= 1 ? 'text-[#15B8A6]' : ''}>1. الفرع واليوم</span>
-              <span className={step >= 2 ? 'text-[#15B8A6]' : ''}>2. البيانات</span>
-              <span className={step >= 3 ? 'text-[#15B8A6]' : ''}>3. الخدمة</span>
-              <span className={step >= 4 ? 'text-[#15B8A6]' : ''}>4. الدفع</span>
-              <span className={step >= 5 ? 'text-[#15B8A6]' : ''}>5. التأكيد</span>
+              <span className={step >= 1 ? 'text-[#087CF4]' : ''}>1. الفرع واليوم</span>
+              <span className={step >= 2 ? 'text-[#087CF4]' : ''}>2. البيانات</span>
+              <span className={step >= 3 ? 'text-[#087CF4]' : ''}>3. الخدمة</span>
+              <span className={step >= 4 ? 'text-[#087CF4]' : ''}>4. الدفع</span>
+              <span className={step >= 5 ? 'text-[#087CF4]' : ''}>5. التأكيد</span>
             </div>
             <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
               <div
-                className="h-full bg-[#15B8A6] transition-all duration-300 rounded-full"
+                className="h-full bg-[#087CF4] transition-all duration-300 rounded-full"
                 style={{ width: `${(step / 5) * 100}%` }}
               />
             </div>
@@ -504,7 +540,7 @@ export function BookingModal({
           {/* ==================== SUCCESS SCREEN ==================== */}
           {successData ? (
             <div className="py-4 text-center space-y-6">
-              <div className="w-20 h-20 bg-teal-50 border-4 border-teal-100 text-[#15B8A6] rounded-full flex items-center justify-center mx-auto shadow-md animate-in zoom-in-75 duration-300">
+              <div className="w-20 h-20 bg-teal-50 border-4 border-teal-100 text-[#087CF4] rounded-full flex items-center justify-center mx-auto shadow-md animate-in zoom-in-75 duration-300">
                 <CheckCircle2 className="w-10 h-10" />
               </div>
 
@@ -518,7 +554,7 @@ export function BookingModal({
               {/* Big Queue Number Card */}
               <div className="p-6 bg-gradient-to-br from-teal-50 to-emerald-50 border-2 border-teal-200 rounded-3xl max-w-sm mx-auto shadow-sm space-y-2">
                 <p className="text-xs font-bold text-slate-500">رقمك في دور اليوم</p>
-                <div className="text-6xl font-black text-[#15B8A6] tracking-tight">
+                <div className="text-6xl font-black text-[#087CF4] tracking-tight">
                   #{successData.queueNumber}
                 </div>
                 <div className="pt-2 border-t border-teal-200/60 flex items-center justify-center gap-2 text-xs font-bold text-slate-600">
@@ -542,7 +578,7 @@ export function BookingModal({
               <div className="space-y-2 max-w-md mx-auto pt-2">
                 <Button
                   onClick={handleGoToTracking}
-                  className="w-full h-12 bg-[#15B8A6] hover:bg-[#0D9488] text-white font-black text-sm rounded-xl shadow-lg shadow-[#15B8A6]/25 cursor-pointer"
+                  className="w-full h-12 bg-[#087CF4] hover:bg-[#0662C4] text-white font-black text-sm rounded-xl shadow-lg shadow-[#087CF4]/25 cursor-pointer"
                 >
                   <ExternalLink className="w-4 h-4 ml-2" />
                   تتبع دورك لحظياً الآن
@@ -566,7 +602,7 @@ export function BookingModal({
                   {/* Branch Selection */}
                   <div className="space-y-2">
                     <Label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                      <Building2 className="w-4 h-4 text-[#15B8A6]" />
+                      <Building2 className="w-4 h-4 text-[#087CF4]" />
                       اختيار فرع العيادة <span className="text-rose-500">*</span>
                     </Label>
 
@@ -585,7 +621,7 @@ export function BookingModal({
                               onClick={() => setSelectedBranchId(b.id)}
                               className={`p-3.5 rounded-2xl border text-right transition-all flex items-start justify-between cursor-pointer ${
                                 isSelected
-                                  ? 'border-[#15B8A6] bg-teal-50/50 ring-2 ring-[#15B8A6]/20'
+                                  ? 'border-[#087CF4] bg-teal-50/50 ring-2 ring-[#087CF4]/20'
                                   : 'border-[#E5EAF0] bg-white hover:border-slate-300'
                               } ${b.isOpen === false ? 'opacity-60' : ''}`}
                             >
@@ -620,7 +656,7 @@ export function BookingModal({
                   {/* Date Selection */}
                   <div className="space-y-2 pt-2 border-t border-slate-100">
                     <Label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                      <Calendar className="w-4 h-4 text-[#15B8A6]" />
+                      <Calendar className="w-4 h-4 text-[#087CF4]" />
                       اختيار يوم الحجز <span className="text-rose-500">*</span>
                     </Label>
 
@@ -639,7 +675,7 @@ export function BookingModal({
                               onClick={() => setSelectedDate(d.iso)}
                               className={`p-3 rounded-2xl border text-center transition-all cursor-pointer ${
                                 isSelected
-                                  ? 'border-[#15B8A6] bg-[#15B8A6] text-white shadow-md shadow-[#15B8A6]/20 font-bold'
+                                  ? 'border-[#087CF4] bg-[#087CF4] text-white shadow-md shadow-[#087CF4]/20 font-bold'
                                   : 'border-[#E5EAF0] bg-white hover:border-slate-300 text-slate-700 font-medium'
                               }`}
                             >
@@ -783,7 +819,7 @@ export function BookingModal({
                           onClick={() => setSelectedServiceId(service.id)}
                           className={`w-full p-4 rounded-2xl border text-right transition-all flex items-center justify-between cursor-pointer ${
                             isSelected
-                              ? 'border-[#15B8A6] bg-teal-50/50 ring-2 ring-[#15B8A6]/20'
+                              ? 'border-[#087CF4] bg-teal-50/50 ring-2 ring-[#087CF4]/20'
                               : 'border-[#E5EAF0] bg-white hover:border-slate-300'
                           }`}
                         >
@@ -801,7 +837,7 @@ export function BookingModal({
 
                           {showPrices && (
                             <div className="text-left shrink-0">
-                              <span className="text-lg font-black text-[#15B8A6]">
+                              <span className="text-lg font-black text-[#087CF4]">
                                 {service.price} <span className="text-xs font-bold text-slate-500">ج.م</span>
                               </span>
                             </div>
@@ -846,7 +882,7 @@ export function BookingModal({
                       onClick={() => setPaymentMethod('cash')}
                       className={`p-3.5 rounded-2xl border text-center transition-all cursor-pointer ${
                         paymentMethod === 'cash'
-                          ? 'border-[#15B8A6] bg-teal-50/50 ring-2 ring-[#15B8A6]/20 text-[#15B8A6] font-black'
+                          ? 'border-[#087CF4] bg-teal-50/50 ring-2 ring-[#087CF4]/20 text-[#087CF4] font-black'
                           : 'border-[#E5EAF0] bg-white text-slate-700 font-bold hover:border-slate-300'
                       }`}
                     >
@@ -859,7 +895,7 @@ export function BookingModal({
                       onClick={() => setPaymentMethod('instapay')}
                       className={`p-3.5 rounded-2xl border text-center transition-all cursor-pointer ${
                         paymentMethod === 'instapay'
-                          ? 'border-[#15B8A6] bg-teal-50/50 ring-2 ring-[#15B8A6]/20 text-[#15B8A6] font-black'
+                          ? 'border-[#087CF4] bg-teal-50/50 ring-2 ring-[#087CF4]/20 text-[#087CF4] font-black'
                           : 'border-[#E5EAF0] bg-white text-slate-700 font-bold hover:border-slate-300'
                       }`}
                     >
@@ -872,7 +908,7 @@ export function BookingModal({
                       onClick={() => setPaymentMethod('wallet')}
                       className={`p-3.5 rounded-2xl border text-center transition-all cursor-pointer ${
                         paymentMethod === 'wallet'
-                          ? 'border-[#15B8A6] bg-teal-50/50 ring-2 ring-[#15B8A6]/20 text-[#15B8A6] font-black'
+                          ? 'border-[#087CF4] bg-teal-50/50 ring-2 ring-[#087CF4]/20 text-[#087CF4] font-black'
                           : 'border-[#E5EAF0] bg-white text-slate-700 font-bold hover:border-slate-300'
                       }`}
                     >
@@ -911,7 +947,7 @@ export function BookingModal({
                             {paymentMethod === 'instapay' ? 'عنوان انستاباي IPA:' : 'رقم المحفظة (فودافون/أورنج كاش):'}
                           </span>
                           <div className="flex items-center gap-2">
-                            <span className="font-mono font-black text-[#15B8A6] text-sm select-all">
+                            <span className="font-mono font-black text-[#087CF4] text-sm select-all">
                               {paymentMethod === 'instapay'
                                 ? (clinic?.instapayHandle || clinic?.instapayUsername || clinic?.clinicPhone || 'clinic@instapay')
                                 : (clinic?.walletNumber || clinic?.walletPhone || clinic?.clinicPhone || '01012345678')}
@@ -961,7 +997,7 @@ export function BookingModal({
                         <Label className="text-xs font-bold text-slate-700">
                           صورة إيصال التحويل (اختياري)
                         </Label>
-                        <label className="flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-slate-300 hover:border-[#15B8A6] bg-white cursor-pointer transition-colors text-xs text-slate-600">
+                        <label className="flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-slate-300 hover:border-[#087CF4] bg-white cursor-pointer transition-colors text-xs text-slate-600">
                           <Upload className="w-4 h-4 text-slate-400" />
                           <span>{transferProofUrl ? 'تم إرفاق الإيصال بنجاح ✓ (تغيير)' : 'انقر لرفع لقطة شاشة التحويل'}</span>
                           <input type="file" accept="image/*" onChange={handleReceiptProofUpload} className="hidden" />
@@ -1025,7 +1061,7 @@ export function BookingModal({
                     {showPrices && (
                       <div className="flex justify-between items-center pt-1 text-sm">
                         <span className="text-slate-800 font-black">إجمالي التكلفة:</span>
-                        <span className="text-base font-black text-[#15B8A6]">
+                        <span className="text-base font-black text-[#087CF4]">
                           {selectedService.price} ج.م
                         </span>
                       </div>
@@ -1057,7 +1093,7 @@ export function BookingModal({
             {step < 5 ? (
               <Button
                 onClick={handleNext}
-                className="h-10 px-6 text-xs font-black bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-md shadow-[#15B8A6]/20 cursor-pointer"
+                className="h-10 px-6 text-xs font-black bg-[#087CF4] hover:bg-[#0662C4] text-white rounded-xl shadow-md shadow-[#087CF4]/20 cursor-pointer"
               >
                 التالي
                 <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
@@ -1066,7 +1102,7 @@ export function BookingModal({
               <Button
                 onClick={handleFinalSubmit}
                 disabled={isSubmitting}
-                className="h-11 px-8 text-xs font-black bg-[#15B8A6] hover:bg-[#0D9488] text-white rounded-xl shadow-lg shadow-[#15B8A6]/25 cursor-pointer"
+                className="h-11 px-8 text-xs font-black bg-[#087CF4] hover:bg-[#0662C4] text-white rounded-xl shadow-lg shadow-[#087CF4]/25 cursor-pointer"
               >
                 {isSubmitting ? (
                   <>

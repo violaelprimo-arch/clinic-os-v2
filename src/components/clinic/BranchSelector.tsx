@@ -45,9 +45,9 @@ export function BranchSelector({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="h-10 px-3.5 rounded-xl bg-white border border-[#E5EAF0] text-slate-700 hover:border-[#15B8A6] flex items-center gap-2.5 shadow-2xs transition-all cursor-pointer font-bold text-xs"
+        className="h-10 px-3.5 rounded-xl bg-white border border-[#E5EAF0] text-slate-700 hover:border-[#087CF4] flex items-center gap-2.5 shadow-2xs transition-all cursor-pointer font-bold text-xs"
       >
-        <div className="w-6 h-6 rounded-lg bg-teal-50 text-[#15B8A6] flex items-center justify-center shrink-0">
+        <div className="w-6 h-6 rounded-lg bg-blue-50 text-[#087CF4] flex items-center justify-center shrink-0">
           <Building2 className="w-3.5 h-3.5" />
         </div>
         <div className="text-right">
@@ -79,7 +79,7 @@ export function BranchSelector({
               }}
               className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 selectedBranchId === 'all'
-                  ? 'bg-teal-50 text-[#0D9488]'
+                  ? 'bg-blue-50 text-[#087CF4]'
                   : 'text-slate-700 hover:bg-slate-50'
               }`}
             >
@@ -87,7 +87,7 @@ export function BranchSelector({
                 <Building2 className="w-4 h-4 text-slate-500" />
                 <span>جميع الفروع (تقرير مجمع)</span>
               </div>
-              {selectedBranchId === 'all' && <Check className="w-4 h-4 text-[#15B8A6]" />}
+              {selectedBranchId === 'all' && <Check className="w-4 h-4 text-[#087CF4]" />}
             </button>
 
             {/* Individual branches */}
@@ -101,7 +101,7 @@ export function BranchSelector({
                 }}
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   selectedBranchId === b.id
-                    ? 'bg-teal-50 text-[#0D9488]'
+                    ? 'bg-blue-50 text-[#087CF4]'
                     : 'text-slate-700 hover:bg-slate-50'
                 }`}
               >
@@ -112,7 +112,7 @@ export function BranchSelector({
                     <p className="text-[10px] text-slate-400 font-normal truncate">{b.area || b.city || b.address}</p>
                   </div>
                 </div>
-                {selectedBranchId === b.id && <Check className="w-4 h-4 text-[#15B8A6] shrink-0" />}
+                {selectedBranchId === b.id && <Check className="w-4 h-4 text-[#087CF4] shrink-0" />}
               </button>
             ))}
 
@@ -120,7 +120,7 @@ export function BranchSelector({
               <Link
                 href={`/clinic/${clinic.slug}/admin/branches`}
                 onClick={() => setIsOpen(false)}
-                className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-bold text-[#15B8A6] hover:bg-teal-50 rounded-xl transition-colors"
+                className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-bold text-[#087CF4] hover:bg-blue-50 rounded-xl transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>إدارة وإضافة الفروع</span>
