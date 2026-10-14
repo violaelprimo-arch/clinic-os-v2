@@ -119,6 +119,127 @@ async function inlineImagesAsBase64(element: HTMLElement): Promise<void> {
 }
 
 /**
+ * Sanitizes all computed styles and element properties in clonedDoc from modern CSS
+ * color spaces (lab, oklab, oklch, lch, color-mix) into standard RGBA.
+ * Prevents html2canvas from throwing: Attempting to parse an unsupported color function "lab"
+ */
+function sanitizeColorsToRgb(clonedDoc: Document, clonedEl: HTMLElement) {
+  const win = clonedDoc.defaultView || window
+  let dummyCanvas: HTMLCanvasElement | null = null
+  let ctx: CanvasRenderingContext2D | null = null
+
+  function toSafeRgb(colorStr: string): string {
+    if (!colorStr) return colorStr
+    if (
+      !colorStr.includes('lab') &&
+      !colorStr.includes('oklab') &&
+      !colorStr.includes('oklch') &&
+      !colorStr.includes('lch') &&
+      !colorStr.includes('color(') &&
+      !colorStr.includes('color-mix')
+    ) {
+      return colorStr
+    }
+
+    try {
+      if (!dummyCanvas && typeof document !== 'undefined') {
+        dummyCanvas = document.createElement('canvas')
+        dummyCanvas.width = 1
+        dummyCanvas.height = 1
+        ctx = dummyCanvas.getContext('2d', { willReadFrequently: true })
+      }
+      if (ctx) {
+        ctx.clearRect(0, 0, 1, 1)
+        ctx.fillStyle = colorStr
+        ctx.fillRect(0, 0, 1, 1)
+        const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data
+        return `rgba(${r}, ${g}, ${b}, ${+(a / 255).toFixed(3)})`
+      }
+    } catch {}
+    return 'rgba(0,0,0,1)'
+  }
+
+  const colorProperties = [
+    'color',
+    'backgroundColor',
+    'borderColor',
+    'borderTopColor',
+    'borderRightColor',
+    'borderBottomColor',
+    'borderLeftColor',
+    'outlineColor',
+    'textDecorationColor'
+  ]
+
+  const allNodes = [clonedEl, ...Array.from(clonedEl.querySelectorAll<HTMLElement>('*'))]
+  for (const node of allNodes) {
+    if (!node || !node.style) continue
+    try {
+      const computed = win.getComputedStyle(node)
+      for (const prop of colorProperties) {
+        const val = computed.getPropertyValue(prop)
+        if (
+          val &&
+          (val.includes('lab') ||
+            val.includes('oklab') ||
+            val.includes('oklch') ||
+            val.includes('lch') ||
+            val.includes('color(') ||
+            val.includes('color-mix'))
+        ) {
+          node.style[prop as any] = toSafeRgb(val)
+        }
+      }
+    } catch {}
+  }
+
+  // Also wrap getComputedStyle on clonedDoc.defaultView so html2canvas color parser only receives safe RGBA
+  if (win && win.getComputedStyle) {
+    const origGetComputedStyle = win.getComputedStyle.bind(win)
+    win.getComputedStyle = function(el: Element, pseudo?: string | null) {
+      const cs = origGetComputedStyle(el, pseudo)
+      return new Proxy(cs, {
+        get(target, prop) {
+          if (prop === 'getPropertyValue') {
+            return function(propName: string) {
+              const val = target.getPropertyValue(propName)
+              if (
+                val &&
+                (val.includes('lab') ||
+                  val.includes('oklab') ||
+                  val.includes('oklch') ||
+                  val.includes('lch') ||
+                  val.includes('color(') ||
+                  val.includes('color-mix'))
+              ) {
+                return toSafeRgb(val)
+              }
+              return val
+            }
+          }
+          const val = (target as any)[prop]
+          if (
+            typeof val === 'string' &&
+            (val.includes('lab') ||
+              val.includes('oklab') ||
+              val.includes('oklch') ||
+              val.includes('lch') ||
+              val.includes('color(') ||
+              val.includes('color-mix'))
+          ) {
+            return toSafeRgb(val)
+          }
+          if (typeof val === 'function') {
+            return val.bind(target)
+          }
+          return val
+        }
+      })
+    }
+  }
+}
+
+/**
  * Captures an element using html2canvas safely with inlined Base64 images and isolated dimensions.
  * GUARANTEES allowTaint = false so canvas.toDataURL() and canvas.toBlob() NEVER throw SecurityError.
  */
@@ -144,6 +265,9 @@ async function captureElementCanvas(element: HTMLElement, scale: number = 2.5): 
       foreignObjectRendering: false,
       windowWidth: 1200,
       onclone: (clonedDoc, clonedEl) => {
+        // Universal color sanitization to neutralize any Tailwind 4 lab/oklab colors
+        sanitizeColorsToRgb(clonedDoc, clonedEl)
+
         const sheet = (clonedEl.querySelector('#patient-a4-print-sheet') || clonedEl) as HTMLElement
         const isA5 = sheet.classList?.contains('max-w-[560px]') || sheet.innerText?.includes('A5')
 
@@ -203,6 +327,7 @@ async function captureElementCanvas(element: HTMLElement, scale: number = 2.5): 
     document.body.appendChild(container)
 
     try {
+      sanitizeColorsToRgb(document, container)
       return await html2canvas(container, {
         scale: 2.0,
         useCORS: true,

@@ -132,7 +132,7 @@ export function A4Prescription({
                 <p className={`${isA5 ? 'text-xs' : 'text-sm'} font-black`} style={{ color: sColor }}>
                   {clinic?.specialty || 'استشاري العيادة الطبية'}
                 </p>
-                <p className={`${isA5 ? 'text-[10px]' : 'text-xs'} text-slate-500 font-medium`}>
+                <p className={`${isA5 ? 'text-[10px]' : 'text-xs'} text-[#64748B] font-medium`}>
                   {clinic?.certificationTitle || 'عضو الجمعية الطبية المصرية'} • {clinic?.certificationEntity || 'نقابة الأطباء'}
                 </p>
               </div>
@@ -143,11 +143,11 @@ export function A4Prescription({
                 ) : (
                   <ClinicLogo size="sm" variant="light" showSubtitle={false} />
                 )}
-                <span className={`${isA5 ? 'text-[10px]' : 'text-xs'} font-bold text-slate-700 mt-1`}>
+                <span className={`${isA5 ? 'text-[10px]' : 'text-xs'} font-bold text-[#334155] mt-1`}>
                   {clinic?.clinicName || 'Clinic OS'}
                 </span>
                 {branchName && (
-                  <span className="text-[10px] font-bold text-slate-400">
+                  <span className="text-[10px] font-bold text-[#94A3B8]">
                     فرع: {branchName}
                   </span>
                 )}
@@ -161,30 +161,30 @@ export function A4Prescription({
               isA5 ? 'text-[10px]' : 'text-xs'
             } font-bold mb-3 rounded-xl ${
               templateMode === 'custom'
-                ? 'bg-transparent text-slate-900 border-none'
-                : 'bg-slate-50 border border-slate-100'
+                ? 'bg-transparent text-[#0F172A] border-none'
+                : 'bg-[#F8FAFC] border border-[#F1F5F9]'
             }`}
           >
             <div className="flex items-center gap-1.5">
-              <span className="text-slate-400 font-semibold">المريض:</span>
+              <span className="text-[#94A3B8] font-semibold">المريض:</span>
               <span className="text-[#182230] font-black">{patientName || 'المريض'}</span>
             </div>
 
             {age && (
               <div className="flex items-center gap-1.5">
-                <span className="text-slate-400 font-semibold">السن:</span>
+                <span className="text-[#94A3B8] font-semibold">السن:</span>
                 <span className="text-[#182230] font-black">{age} سنة</span>
               </div>
             )}
 
             <div className="flex items-center gap-1.5">
-              <span className="text-slate-400 font-semibold">التاريخ:</span>
+              <span className="text-[#94A3B8] font-semibold">التاريخ:</span>
               <span className="text-[#182230] font-mono" dir="ltr">{date}</span>
             </div>
 
             {prescriptionNumber && (
               <div className="flex items-center gap-1.5">
-                <span className="text-slate-400 font-semibold">رقم الروشتة:</span>
+                <span className="text-[#94A3B8] font-semibold">رقم الروشتة:</span>
                 <span className="text-[#182230] font-mono" dir="ltr">#{prescriptionNumber}</span>
               </div>
             )}
@@ -192,7 +192,7 @@ export function A4Prescription({
 
           {/* Diagnosis (if present) */}
           {diagnosis && (
-            <div className={`mb-3 ${isA5 ? 'text-[10px]' : 'text-xs'} font-bold px-3 py-1.5 bg-teal-50/50 rounded-lg border border-teal-100 flex items-center gap-2`}>
+            <div className={`mb-3 ${isA5 ? 'text-[10px]' : 'text-xs'} font-bold px-3 py-1.5 bg-[#F0FDFA] rounded-lg border border-[#CCFBF1] flex items-center gap-2`}>
               <span className="text-[#0D9488]">التشخيص الطبي:</span>
               <span className="text-[#182230]">{diagnosis}</span>
             </div>
@@ -213,7 +213,7 @@ export function A4Prescription({
             {drugs
               ?.filter((d: any) => d.name?.trim())
               .map((drug: any, index: number) => (
-                <div key={index} className="flex gap-3 pb-2 border-b border-dashed border-slate-100">
+                <div key={index} className="flex gap-3 pb-2 border-b border-dashed border-[#F1F5F9]">
                   <span
                     className={`${isA5 ? 'text-xs' : 'text-sm'} font-black pt-0.5 shrink-0`}
                     style={{ color: sColor }}
@@ -231,12 +231,12 @@ export function A4Prescription({
                         </span>
                       )}
                       {drug.duration && (
-                        <span className="text-slate-500 font-medium">
+                        <span className="text-[#64748B] font-medium">
                           المدة: {drug.duration}
                         </span>
                       )}
                       {drug.notes && (
-                        <span className="text-slate-400 italic">
+                        <span className="text-[#94A3B8] italic">
                           ({drug.notes})
                         </span>
                       )}
@@ -248,9 +248,9 @@ export function A4Prescription({
 
           {/* Doctor Clinical Instructions */}
           {instructions && (
-            <div className={`mt-3 p-2.5 bg-slate-50 rounded-xl border border-slate-200 ${isA5 ? 'text-[10px]' : 'text-xs'} text-right leading-relaxed`}>
-              <strong className="text-slate-700 block mb-0.5">تعليمات هامة للمريض:</strong>
-              <p className="text-slate-600">{instructions}</p>
+            <div className={`mt-3 p-2.5 bg-[#F8FAFC] rounded-xl border border-[#E2E8F0] ${isA5 ? 'text-[10px]' : 'text-xs'} text-right leading-relaxed`}>
+              <strong className="text-[#334155] block mb-0.5">تعليمات هامة للمريض:</strong>
+              <p className="text-[#475569]">{instructions}</p>
             </div>
           )}
         </div>
@@ -260,20 +260,20 @@ export function A4Prescription({
           <div
             className={`rx-footer mt-5 pt-3 border-t-2 flex items-end justify-between ${
               isA5 ? 'text-[10px]' : 'text-xs'
-            } font-bold text-slate-500 pb-1`}
+            } font-bold text-[#64748B] pb-1`}
             style={{ borderColor: sColor }}
           >
             {/* Doctor Signature & Stamp */}
             <div className="text-center">
-              <div className={`${isA5 ? 'w-28' : 'w-36'} border-b-2 border-slate-300 pb-1 italic font-serif text-slate-600 ${isA5 ? 'text-xs' : 'text-sm'}`}>
+              <div className={`${isA5 ? 'w-28' : 'w-36'} border-b-2 border-[#CBD5E1] pb-1 italic font-serif text-[#475569] ${isA5 ? 'text-xs' : 'text-sm'}`}>
                 {clinic?.doctorName ? `د. ${clinic.doctorName}` : 'د. الطبيب'}
               </div>
-              <span className="text-[9px] text-slate-400 font-bold block mt-1">توقيع وختم الطبيب</span>
+              <span className="text-[9px] text-[#94A3B8] font-bold block mt-1">توقيع وختم الطبيب</span>
             </div>
 
             {/* Verification Badge */}
-            <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-[10px] text-slate-600">
-              <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+            <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-[10px] text-[#475569]">
+              <ShieldCheck className="w-4 h-4 text-[#059669] shrink-0" />
               <span>روشتة رسمية موثقة إلكترونياً</span>
             </div>
 
@@ -281,7 +281,7 @@ export function A4Prescription({
             <div className="text-right space-y-0.5 text-[10px]">
               <p>{clinic?.clinicAddress || 'العنوان: مسجل بالعيادة'}</p>
               <p dir="ltr">هاتف: {clinic?.clinicPhone || clinic?.phones?.[0] || 'مسجل بالعيادة'}</p>
-              <p className="text-[9px] text-slate-400 pt-0.5">
+              <p className="text-[9px] text-[#94A3B8] pt-0.5">
                 جميع الحقوق محفوظة © {new Date().getFullYear()} Clinic OS
               </p>
             </div>
