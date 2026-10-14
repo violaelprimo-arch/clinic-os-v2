@@ -12,7 +12,8 @@ import {
   Sparkles, Upload, Search, ExternalLink, Power, Check,
   AlertCircle, Eye, ShieldCheck, Clock, Users, ArrowUpRight,
   Copy, CheckCircle, RefreshCw, ChevronLeft, Calendar, Download,
-  FileSpreadsheet, Layers, Key, EyeOff, Package, Crown
+  FileSpreadsheet, Layers, Key, EyeOff, Package, Crown,
+  Gem, Rocket, Stethoscope, Building2, Star, Award, Zap, X
 } from 'lucide-react'
 import { db } from '@/lib/firebase'
 import { collection, addDoc, getDocs, deleteDoc, updateDoc, doc, setDoc, onSnapshot } from 'firebase/firestore'
@@ -48,6 +49,10 @@ export default function OwnerDashboard() {
   const [isPackageModalOpen, setIsPackageModalOpen] = useState(false)
   const [editingPackageId, setEditingPackageId] = useState<string | null>(null)
   const [pkgName, setPkgName] = useState('')
+  const [pkgSubtitle, setPkgSubtitle] = useState('')
+  const [pkgLogoUrl, setPkgLogoUrl] = useState('')
+  const [pkgIcon, setPkgIcon] = useState('crown')
+  const [pkgColor, setPkgColor] = useState('#15B8A6')
   const [pkgPrice, setPkgPrice] = useState<number | string>(450)
   const [pkgPeriod, setPkgPeriod] = useState('شهري')
   const [pkgAiLimit, setPkgAiLimit] = useState<number | string>(100)
@@ -55,6 +60,7 @@ export default function OwnerDashboard() {
   const [pkgBadge, setPkgBadge] = useState('')
   const [pkgIsPopular, setPkgIsPopular] = useState(false)
   const [pkgFeatures, setPkgFeatures] = useState('')
+  const [pkgNewFeatureInput, setPkgNewFeatureInput] = useState('')
 
   // Clinic Package & AI Limits for active clinic
   const [packageName, setPackageName] = useState('الباقة الأساسية')
@@ -260,33 +266,132 @@ export default function OwnerDashboard() {
     }
   }
 
+  const AVAILABLE_PACKAGE_ICONS = [
+    { id: 'crown', label: 'تاج ملكي', Icon: Crown },
+    { id: 'sparkles', label: 'نجوم وابتكار', Icon: Sparkles },
+    { id: 'zap', label: 'برق وسرعة', Icon: Zap },
+    { id: 'gem', label: 'جوهرة VIP', Icon: Gem },
+    { id: 'rocket', label: 'صاروخ انطلاق', Icon: Rocket },
+    { id: 'shield', label: 'درع أمان', Icon: ShieldCheck },
+    { id: 'stethoscope', label: 'طبي وسماعة', Icon: Stethoscope },
+    { id: 'building', label: 'مراكز ومستشفيات', Icon: Building2 },
+    { id: 'star', label: 'نجمة تميز', Icon: Star },
+    { id: 'award', label: 'وسام معتمد', Icon: Award },
+  ]
+
+  const PACKAGE_THEME_COLORS = [
+    { id: 'teal', value: '#15B8A6', label: 'تركواز' },
+    { id: 'amber', value: '#F59E0B', label: 'ذهبي' },
+    { id: 'purple', value: '#8B5CF6', label: 'بنفسجي' },
+    { id: 'blue', value: '#2563EB', label: 'أزرق' },
+    { id: 'rose', value: '#E11D48', label: 'وردي' },
+    { id: 'emerald', value: '#059669', label: 'زمردي' },
+    { id: 'indigo', value: '#4F46E5', label: 'نيلي' },
+    { id: 'slate', value: '#334155', label: 'فحمي' }
+  ]
+
+  const renderPackageIcon = (pkgOrData: { logoUrl?: string; icon?: string; color?: string; name?: string }, size: 'sm' | 'md' | 'lg' = 'md') => {
+    const dim = size === 'lg' ? 'w-14 h-14' : size === 'sm' ? 'w-8 h-8' : 'w-11 h-11'
+    const iconDim = size === 'lg' ? 'w-7 h-7' : size === 'sm' ? 'w-4 h-4' : 'w-5 h-5'
+
+    if (pkgOrData.logoUrl) {
+      return (
+        <div className={`${dim} rounded-2xl bg-white border border-slate-200 p-1 flex items-center justify-center shrink-0 shadow-xs overflow-hidden`}>
+          <img src={pkgOrData.logoUrl} alt={pkgOrData.name || 'Package'} className="w-full h-full object-contain" />
+        </div>
+      )
+    }
+
+    const iconId = (pkgOrData.icon || 'crown').toLowerCase()
+    let IconComp = Crown
+    if (iconId === 'sparkles') IconComp = Sparkles
+    else if (iconId === 'zap') IconComp = Zap
+    else if (iconId === 'gem') IconComp = Gem
+    else if (iconId === 'rocket') IconComp = Rocket
+    else if (iconId === 'shield') IconComp = ShieldCheck
+    else if (iconId === 'stethoscope') IconComp = Stethoscope
+    else if (iconId === 'building') IconComp = Building2
+    else if (iconId === 'star') IconComp = Star
+    else if (iconId === 'award') IconComp = Award
+
+    return (
+      <div
+        className={`${dim} rounded-2xl flex items-center justify-center shrink-0 text-white shadow-md`}
+        style={{ backgroundColor: pkgOrData.color || '#15B8A6' }}
+      >
+        <IconComp className={iconDim} />
+      </div>
+    )
+  }
+
+  const handlePackageLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error('حجم لوجو الباقة كبير، يرجى اختيار صورة أقل من 2 ميجابايت')
+        return
+      }
+      const reader = new FileReader()
+      reader.onload = () => {
+        setPkgLogoUrl(reader.result as string)
+        toast.success('تم تحميل لوجو الباقة بنجاح!')
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleAddFeatureItem = () => {
+    if (!pkgNewFeatureInput.trim()) return
+    const currentList = pkgFeatures ? pkgFeatures.split('\n').filter(f => f.trim()) : []
+    const updated = [...currentList, pkgNewFeatureInput.trim()].join('\n')
+    setPkgFeatures(updated)
+    setPkgNewFeatureInput('')
+  }
+
+  const handleRemoveFeatureItem = (index: number) => {
+    const currentList = pkgFeatures.split('\n').filter(f => f.trim())
+    currentList.splice(index, 1)
+    setPkgFeatures(currentList.join('\n'))
+  }
+
   const handleOpenNewPackage = () => {
     setEditingPackageId(null)
     setPkgName('')
+    setPkgSubtitle('')
+    setPkgLogoUrl('')
+    setPkgIcon('crown')
+    setPkgColor('#15B8A6')
     setPkgPrice(450)
     setPkgPeriod('شهري')
     setPkgAiLimit(100)
     setPkgMaxBranches(1)
-    setPkgBadge('')
+    setPkgBadge('الأكثر طلباً وموصى بها 🔥')
     setPkgIsPopular(false)
     setPkgFeatures([
       'روشتات ذكية غير محدودة (A4 / A5)',
-      'تصدير PDF وصور للروشتات',
-      'بوابة الحجز الذاتي وتتبع الدور'
+      'تصدير PDF وصور عالية الدقة للروشتة',
+      'بوابة الحجز الذاتي للمرضى وتتبع الدور',
+      'إشعارات وتنبيهات تلقائية قبل الكشف'
     ].join('\n'))
+    setPkgNewFeatureInput('')
     setIsPackageModalOpen(true)
   }
 
   const handleEditPackage = (pkg: any) => {
     setEditingPackageId(pkg.id)
     setPkgName(pkg.name || '')
+    setPkgSubtitle(pkg.subtitle || '')
+    setPkgLogoUrl(pkg.logoUrl || '')
+    setPkgIcon(pkg.icon || 'crown')
+    setPkgColor(pkg.color || '#15B8A6')
     setPkgPrice(pkg.price || 0)
     setPkgPeriod(pkg.period || 'شهري')
     setPkgAiLimit(pkg.aiResponsesLimit || 100)
     setPkgMaxBranches(pkg.maxBranches || 1)
     setPkgBadge(pkg.badge || '')
-    setPkgIsPopular(!!pkg.isPopular)
+    setPkgIsPopular(!!pkg.isPopular || !!pkg.isRecommended)
     setPkgFeatures(Array.isArray(pkg.features) ? pkg.features.join('\n') : '')
+    setPkgNewFeatureInput('')
     setIsPackageModalOpen(true)
   }
 
@@ -301,12 +406,17 @@ export default function OwnerDashboard() {
 
     const pkgData = {
       name: pkgName.trim(),
+      subtitle: pkgSubtitle.trim(),
+      logoUrl: pkgLogoUrl.trim(),
+      icon: pkgIcon || 'crown',
+      color: pkgColor || '#15B8A6',
       price: Number(pkgPrice) || 0,
       period: pkgPeriod || 'شهري',
       aiResponsesLimit: Number(pkgAiLimit) || 100,
       maxBranches: Number(pkgMaxBranches) || 1,
       badge: pkgBadge.trim(),
       isPopular: pkgIsPopular,
+      isRecommended: pkgIsPopular,
       features: featuresList,
       updatedAt: new Date().toISOString()
     }
@@ -314,13 +424,13 @@ export default function OwnerDashboard() {
     try {
       if (editingPackageId) {
         await updateDoc(doc(db, 'packages', editingPackageId), pkgData)
-        toast.success('تم تحديث بيانات الباقة بنجاح!')
+        toast.success('تم تحديث بيانات وهيكلة الباقة بنجاح!')
       } else {
         await addDoc(collection(db, 'packages'), {
           ...pkgData,
           createdAt: new Date().toISOString()
         })
-        toast.success('تم إنشاء الباقة الجديدة بنجاح!')
+        toast.success('تم إنشاء وتكوين الباقة الجديدة بنجاح!')
       }
       setIsPackageModalOpen(false)
       setEditingPackageId(null)
@@ -1459,112 +1569,294 @@ export default function OwnerDashboard() {
 
           {/* Packages Grid */}
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {packages.map(pkg => (
-              <div
-                key={pkg.id}
-                className={`medical-card relative bg-white border rounded-3xl p-6 flex flex-col justify-between transition-all hover:shadow-lg ${
-                  pkg.isPopular ? 'border-amber-400 shadow-md ring-2 ring-amber-400/20' : 'border-[#E5EAF0] shadow-sm'
-                }`}
-              >
-                {/* Popular or Custom Badge */}
-                {pkg.badge && (
-                  <div className="absolute -top-3 right-6">
-                    <span className="px-3 py-1 rounded-full text-[11px] font-black bg-amber-500 text-white shadow-xs">
-                      {pkg.badge}
-                    </span>
-                  </div>
-                )}
-
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-lg font-black text-[#182230] flex items-center gap-2">
-                      <Crown className={`w-5 h-5 ${pkg.isPopular ? 'text-amber-500' : 'text-slate-400'}`} />
-                      {pkg.name}
-                    </h3>
-                  </div>
-
-                  <div className="flex items-baseline gap-1 mb-4" dir="rtl">
-                    <span className="text-3xl font-black text-slate-900">{pkg.price}</span>
-                    <span className="text-xs font-bold text-slate-500">ج.م / {pkg.period || 'شهري'}</span>
-                  </div>
-
-                  {/* Highlights */}
-                  <div className="grid grid-cols-2 gap-2 mb-4 p-3 rounded-2xl bg-slate-50 border border-slate-100 text-center">
-                    <div>
-                      <span className="text-[10px] text-slate-400 block font-bold">ردود الذكاء الاصطناعي</span>
-                      <span className="text-xs font-black text-purple-700 font-mono">
-                        {pkg.aiResponsesLimit?.toLocaleString() || 100} رد
+            {packages.map(pkg => {
+              const isPop = pkg.isPopular || pkg.isRecommended
+              return (
+                <div
+                  key={pkg.id}
+                  className={`medical-card relative bg-white border rounded-3xl p-6 flex flex-col justify-between transition-all hover:shadow-xl ${
+                    isPop
+                      ? 'border-[#15B8A6] shadow-lg ring-2 ring-[#15B8A6]/20'
+                      : 'border-[#E5EAF0] shadow-sm'
+                  }`}
+                >
+                  {/* Recommended / Custom Badge */}
+                  {(pkg.badge || isPop) && (
+                    <div className="absolute -top-3.5 right-6 z-10">
+                      <span className={`px-3.5 py-1 rounded-full text-[11px] font-black shadow-md flex items-center gap-1.5 ${
+                        isPop
+                          ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-teal-500 text-white'
+                          : 'bg-slate-800 text-white'
+                      }`}>
+                        {isPop && <Sparkles className="w-3.5 h-3.5 text-amber-200" />}
+                        <span>{pkg.badge || '⭐ موصى بها للعيادات'}</span>
                       </span>
                     </div>
-                    <div>
-                      <span className="text-[10px] text-slate-400 block font-bold">عدد الفروع</span>
-                      <span className="text-xs font-black text-blue-700 font-mono">
-                        {pkg.maxBranches || 1} {pkg.maxBranches === 1 ? 'فرع' : 'فروع'}
-                      </span>
-                    </div>
-                  </div>
+                  )}
 
-                  {/* Features List */}
-                  <div className="space-y-2 mb-6">
-                    <span className="text-[11px] font-black text-slate-700 block">مميزات الباقة:</span>
-                    {Array.isArray(pkg.features) && pkg.features.map((feat: string, idx: number) => (
-                      <div key={idx} className="flex items-start gap-2 text-xs text-slate-600">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                        <span>{feat}</span>
+                  <div>
+                    {/* Package Logo & Name Header */}
+                    <div className="flex items-start gap-3 mb-3 pt-1">
+                      {renderPackageIcon(pkg, 'md')}
+                      <div className="flex-1 overflow-hidden">
+                        <h3 className="text-lg font-black text-[#182230] truncate">
+                          {pkg.name}
+                        </h3>
+                        {pkg.subtitle && (
+                          <p className="text-[11px] text-slate-500 font-medium leading-tight mt-0.5 line-clamp-2">
+                            {pkg.subtitle}
+                          </p>
+                        )}
                       </div>
-                    ))}
+                    </div>
+
+                    <div className="flex items-baseline gap-1 my-3 py-2 px-3 rounded-2xl bg-slate-50 border border-slate-100" dir="rtl">
+                      <span className="text-3xl font-black text-slate-900 font-mono">{pkg.price}</span>
+                      <span className="text-xs font-bold text-slate-500">ج.م / {pkg.period || 'شهري'}</span>
+                    </div>
+
+                    {/* Highlights */}
+                    <div className="grid grid-cols-2 gap-2 mb-4 p-3 rounded-2xl bg-slate-50/80 border border-slate-100 text-center">
+                      <div>
+                        <span className="text-[10px] text-slate-400 block font-bold">ردود الذكاء الاصطناعي</span>
+                        <span className="text-xs font-black text-purple-700 font-mono">
+                          {pkg.aiResponsesLimit?.toLocaleString() || 100} رد
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 block font-bold">عدد الفروع</span>
+                        <span className="text-xs font-black text-blue-700 font-mono">
+                          {pkg.maxBranches || 1} {pkg.maxBranches === 1 ? 'فرع' : 'فروع'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Features List */}
+                    <div className="space-y-2 mb-6">
+                      <span className="text-[11px] font-black text-slate-700 block">مميزات الباقة:</span>
+                      {Array.isArray(pkg.features) && pkg.features.map((feat: string, idx: number) => (
+                        <div key={idx} className="flex items-start gap-2 text-xs text-slate-600">
+                          <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                          <span>{feat}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Card Actions */}
+                  <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleEditPackage(pkg)}
+                      className="flex-1 h-9 rounded-xl text-xs font-bold text-blue-600 border-blue-200 hover:bg-blue-50"
+                    >
+                      <Edit className="w-3.5 h-3.5 ml-1" />
+                      تعديل الباقة
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleDeletePackage(pkg.id, pkg.name)}
+                      className="h-9 px-3 rounded-xl text-xs font-bold text-rose-500 hover:bg-rose-50 hover:text-rose-700"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
                   </div>
                 </div>
-
-                {/* Card Actions */}
-                <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleEditPackage(pkg)}
-                    className="flex-1 h-9 rounded-xl text-xs font-bold text-blue-600 border-blue-200 hover:bg-blue-50"
-                  >
-                    <Edit className="w-3.5 h-3.5 ml-1" />
-                    تعديل الباقة
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleDeletePackage(pkg.id, pkg.name)}
-                    className="h-9 px-3 rounded-xl text-xs font-bold text-rose-500 hover:bg-rose-50 hover:text-rose-700"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
 
-          {/* Add / Edit Package Modal */}
+          {/* Add / Edit Package Modal with Full Customization */}
           <Dialog open={isPackageModalOpen} onOpenChange={setIsPackageModalOpen}>
-            <DialogContent className="max-w-md w-full p-6 rounded-3xl" dir="rtl">
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-6 sm:p-7 rounded-3xl" dir="rtl">
               <DialogHeader className="text-right">
-                <DialogTitle className="text-lg font-black text-[#182230]">
-                  {editingPackageId ? 'تعديل بيانات الباقة' : 'إنشاء باقة اشتراك جديدة'}
+                <DialogTitle className="text-lg font-black text-[#182230] flex items-center gap-2">
+                  <Package className="w-5 h-5 text-amber-600" />
+                  <span>{editingPackageId ? 'تخصيص وتعديل بيانات الباقة' : 'إنشاء وتخصيص باقة جديدة'}</span>
                 </DialogTitle>
                 <DialogDescription className="text-xs text-slate-400">
-                  تحدد هذه الإعدادات المميزات وحدود الذكاء الاصطناعي التي تظهر للأطباء.
+                  تحكم كامل في لوجو الباقة، الألوان، تمييز الباقة الموصى بها (Recommended)، والاسم والوصف والمميزات.
                 </DialogDescription>
               </DialogHeader>
 
-              <form onSubmit={handleSavePackage} className="space-y-4 pt-2">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-700">اسم الباقة *</Label>
-                  <Input
-                    value={pkgName}
-                    onChange={e => setPkgName(e.target.value)}
-                    placeholder="مثل: الباقة الاحترافية (Pro)"
-                    required
-                    className="h-10 text-xs rounded-xl"
-                  />
+              <form onSubmit={handleSavePackage} className="space-y-6 pt-3">
+                {/* 1. Basic Names & Tagline */}
+                <div className="space-y-3 p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                  <h4 className="text-xs font-black text-slate-800 flex items-center gap-2">
+                    <Edit className="w-4 h-4 text-blue-600" />
+                    <span>الأسماء والوصف الترويجي للباقة</span>
+                  </h4>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-slate-700">اسم الباقة الأساسي *</Label>
+                      <Input
+                        value={pkgName}
+                        onChange={e => setPkgName(e.target.value)}
+                        placeholder="مثل: الباقة الاحترافية (Pro)"
+                        required
+                        className="h-10 text-xs rounded-xl bg-white"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-slate-700">الوصف أو الشعار الترويجي (Subtitle)</Label>
+                      <Input
+                        value={pkgSubtitle}
+                        onChange={e => setPkgSubtitle(e.target.value)}
+                        placeholder="مثل: الخيار الأكثر ترشيحاً لعيادات النخبة والمراكز الطبية"
+                        className="h-10 text-xs rounded-xl bg-white"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                {/* 2. Logo & Visual Identity */}
+                <div className="space-y-3 p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                  <h4 className="text-xs font-black text-slate-800 flex items-center gap-2">
+                    <Crown className="w-4 h-4 text-amber-500" />
+                    <span>تخصيص لوجو وهوية الباقة</span>
+                  </h4>
+
+                  {/* Logo Upload or URL */}
+                  <div className="grid sm:grid-cols-2 gap-3 items-center">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-slate-700">رفع لوجو مخصص (صورة)</Label>
+                      <div className="flex items-center gap-2">
+                        <label className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-[#E5EAF0] hover:bg-slate-100 cursor-pointer text-xs font-bold text-slate-700 transition-colors shadow-2xs">
+                          <Upload className="w-4 h-4 text-[#15B8A6]" />
+                          <span>رفع لوجو صورة</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handlePackageLogoUpload}
+                            className="hidden"
+                          />
+                        </label>
+                        {pkgLogoUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setPkgLogoUrl('')}
+                            className="text-[11px] font-bold text-rose-500 hover:text-rose-700 cursor-pointer"
+                          >
+                            إزالة اللوجو
+                          </button>
+                        )}
+                      </div>
+                      <Input
+                        value={pkgLogoUrl}
+                        onChange={e => setPkgLogoUrl(e.target.value)}
+                        placeholder="أو الصق رابط صورة اللوجو (https://...)"
+                        dir="ltr"
+                        className="h-9 text-xs rounded-xl bg-white font-mono text-right"
+                      />
+                    </div>
+
+                    {/* Live Preview Box */}
+                    <div className="p-3 rounded-2xl bg-white border border-slate-200 flex items-center gap-3">
+                      {renderPackageIcon({ logoUrl: pkgLogoUrl, icon: pkgIcon, color: pkgColor, name: pkgName }, 'lg')}
+                      <div className="overflow-hidden">
+                        <span className="text-[10px] text-slate-400 block font-bold">معاينة هوية الباقة:</span>
+                        <h5 className="font-black text-sm text-[#182230] truncate">{pkgName || 'اسم الباقة'}</h5>
+                        <span className="text-[10px] font-mono font-bold" style={{ color: pkgColor }}>
+                          {pkgColor}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Icon Selector (used when no custom logo is uploaded) */}
+                  <div className="space-y-2 pt-2 border-t border-slate-200">
+                    <Label className="text-xs font-bold text-slate-700 block">
+                      أو اختر أيقونة الباقة (عند عدم رفع صورة):
+                    </Label>
+                    <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5">
+                      {AVAILABLE_PACKAGE_ICONS.map(ic => {
+                        const Icon = ic.Icon
+                        const isSelected = pkgIcon === ic.id
+                        return (
+                          <button
+                            key={ic.id}
+                            type="button"
+                            onClick={() => setPkgIcon(ic.id)}
+                            className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-white border-[#15B8A6] ring-2 ring-[#15B8A6]/20 shadow-xs'
+                                : 'bg-white/60 border-slate-200 hover:bg-white text-slate-600'
+                            }`}
+                            title={ic.label}
+                          >
+                            <Icon className={`w-4 h-4 ${isSelected ? 'text-[#15B8A6]' : 'text-slate-500'}`} />
+                            <span className="text-[9px] font-medium truncate max-w-[45px]">{ic.label}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Theme Color Selector */}
+                  <div className="space-y-2 pt-2 border-t border-slate-200">
+                    <Label className="text-xs font-bold text-slate-700 block">
+                      لون ثيم الباقة (Theme Color):
+                    </Label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {PACKAGE_THEME_COLORS.map(c => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => setPkgColor(c.value)}
+                          className={`w-7 h-7 rounded-xl transition-all cursor-pointer flex items-center justify-center border ${
+                            pkgColor === c.value ? 'ring-2 ring-offset-2 ring-slate-400 scale-110 shadow-xs' : 'hover:scale-105'
+                          }`}
+                          style={{ backgroundColor: c.value }}
+                          title={c.label}
+                        >
+                          {pkgColor === c.value && <Check className="w-3.5 h-3.5 text-white" />}
+                        </button>
+                      ))}
+                      <div className="flex items-center gap-1.5 mr-auto">
+                        <input
+                          type="color"
+                          value={pkgColor}
+                          onChange={e => setPkgColor(e.target.value)}
+                          className="w-7 h-7 rounded-lg cursor-pointer border border-slate-200 p-0.5 bg-white"
+                        />
+                        <span className="text-xs font-mono font-bold text-slate-600" dir="ltr">{pkgColor}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Recommended / Popular Settings */}
+                <div className="space-y-3 p-4 rounded-2xl bg-amber-50/50 border border-amber-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                        <Sparkles className="w-4 h-4 text-amber-500" />
+                        <span>تخصيص الباقة الموصى بها (Recommended / الأكثر طلباً)</span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        عند التفعيل، تظهر الباقة للطبيب بإطار مميز وشارة براقة كخيار مقترح للعيادات
+                      </p>
+                    </div>
+                    <Switch checked={pkgIsPopular} onCheckedChange={setPkgIsPopular} />
+                  </div>
+
+                  {pkgIsPopular && (
+                    <div className="space-y-1.5 pt-2 border-t border-amber-200">
+                      <Label className="text-xs font-bold text-slate-700">نص شارة التوصية (Badge Text)</Label>
+                      <Input
+                        value={pkgBadge}
+                        onChange={e => setPkgBadge(e.target.value)}
+                        placeholder="مثل: الأكثر طلباً وموصى بها 🔥 أو الخيار الأفضل 💎"
+                        className="h-10 text-xs rounded-xl bg-white"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* 4. Pricing & Limits */}
+                <div className="grid sm:grid-cols-4 gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-200">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-bold text-slate-700">السعر (ج.م) *</Label>
                     <Input
@@ -1573,7 +1865,7 @@ export default function OwnerDashboard() {
                       value={pkgPrice}
                       onChange={e => setPkgPrice(e.target.value)}
                       required
-                      className="h-10 text-xs font-mono font-bold rounded-xl"
+                      className="h-10 text-xs font-mono font-bold rounded-xl bg-white"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -1583,20 +1875,17 @@ export default function OwnerDashboard() {
                       onChange={e => setPkgPeriod(e.target.value)}
                       placeholder="شهري / سنوي"
                       required
-                      className="h-10 text-xs rounded-xl"
+                      className="h-10 text-xs rounded-xl bg-white"
                     />
                   </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-bold text-slate-700">حد ردود AI (رد شهرياً)</Label>
+                    <Label className="text-xs font-bold text-slate-700">حد ردود AI شهرياً</Label>
                     <Input
                       type="number"
                       min="0"
                       value={pkgAiLimit}
                       onChange={e => setPkgAiLimit(e.target.value)}
-                      className="h-10 text-xs font-mono font-bold rounded-xl"
+                      className="h-10 text-xs font-mono font-bold rounded-xl bg-white"
                       placeholder="500"
                     />
                   </div>
@@ -1608,52 +1897,94 @@ export default function OwnerDashboard() {
                       max="50"
                       value={pkgMaxBranches}
                       onChange={e => setPkgMaxBranches(e.target.value)}
-                      className="h-10 text-xs font-mono font-bold rounded-xl"
+                      className="h-10 text-xs font-mono font-bold rounded-xl bg-white"
                       placeholder="1"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-700">شارة مميزة (Badge)</Label>
-                  <Input
-                    value={pkgBadge}
-                    onChange={e => setPkgBadge(e.target.value)}
-                    placeholder="مثل: الأكثر طلباً، باقة المراكز"
-                    className="h-10 text-xs rounded-xl"
-                  />
+                {/* 5. Features Customization */}
+                <div className="space-y-3 p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                  <h4 className="text-xs font-black text-slate-800 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>تخصيص مميزات الباقة</span>
+                  </h4>
+
+                  {/* Add New Feature Item Field */}
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={pkgNewFeatureInput}
+                      onChange={e => setPkgNewFeatureInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleAddFeatureItem()
+                        }
+                      }}
+                      placeholder="اكتب ميزة جديدة واضغط إضافة (مثل: إرسال تنبيهات تلقائية للمرضى)"
+                      className="h-10 text-xs rounded-xl bg-white flex-1"
+                    />
+                    <Button
+                      type="button"
+                      onClick={handleAddFeatureItem}
+                      className="h-10 px-4 text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs shrink-0 cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4 ml-1" />
+                      إضافة ميزة
+                    </Button>
+                  </div>
+
+                  {/* Features Chips / Items List */}
+                  {pkgFeatures && (
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      {pkgFeatures.split('\n').filter(f => f.trim()).map((feat, fIdx) => (
+                        <span
+                          key={fIdx}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 shadow-2xs"
+                        >
+                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span>{feat}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveFeatureItem(fIdx)}
+                            className="text-slate-400 hover:text-rose-500 rounded-full p-0.5 transition-colors cursor-pointer"
+                            title="حذف هذه الميزة"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Direct Multi-line Textarea for Bulk Editing */}
+                  <div className="space-y-1.5 pt-2 border-t border-slate-200">
+                    <Label className="text-[11px] font-bold text-slate-500">
+                      أو تعديل قائمة المميزات مباشرة (سطر واحد لكل ميزة للنسخ واللصق السريع):
+                    </Label>
+                    <textarea
+                      value={pkgFeatures}
+                      onChange={e => setPkgFeatures(e.target.value)}
+                      rows={4}
+                      placeholder="روشتات ذكية غير محدودة&#10;تنبيهات للمرضى قبل الكشف&#10;تصدير إكسيل متقدم"
+                      className="w-full text-xs rounded-xl border border-slate-200 p-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#15B8A6]/20 focus:border-[#15B8A6]"
+                    />
+                  </div>
                 </div>
 
-                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200">
-                  <Label className="text-xs font-bold text-slate-700 cursor-pointer" onClick={() => setPkgIsPopular(!pkgIsPopular)}>
-                    تمييز كـ «الباقة الأكثر طلباً» (Popular)
-                  </Label>
-                  <Switch checked={pkgIsPopular} onCheckedChange={setPkgIsPopular} />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-700">المميزات (اكتب كل ميزة في سطر منفصل)</Label>
-                  <textarea
-                    value={pkgFeatures}
-                    onChange={e => setPkgFeatures(e.target.value)}
-                    rows={4}
-                    placeholder="روشتات ذكية غير محدودة&#10;تنبيهات للمرضى قبل الكشف&#10;تصدير إكسيل متقدم"
-                    className="w-full text-xs rounded-xl border border-slate-200 p-2.5 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#15B8A6]/20 focus:border-[#15B8A6]"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2 pt-2">
+                {/* Submit Actions */}
+                <div className="flex items-center gap-2 pt-3 border-t border-slate-200">
                   <Button
                     type="submit"
-                    className="flex-1 h-11 text-xs font-black bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-md cursor-pointer"
+                    className="flex-1 h-12 text-xs font-black bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-md cursor-pointer"
                   >
-                    {editingPackageId ? 'حفظ التعديلات' : 'إنشاء الباقة'}
+                    {editingPackageId ? 'حفظ كافة تعديلات الباقة' : 'إنشاء وحفظ الباقة في المنصة'}
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => setIsPackageModalOpen(false)}
-                    className="h-11 px-4 text-xs font-bold rounded-xl"
+                    className="h-12 px-6 text-xs font-bold rounded-xl"
                   >
                     إلغاء
                   </Button>

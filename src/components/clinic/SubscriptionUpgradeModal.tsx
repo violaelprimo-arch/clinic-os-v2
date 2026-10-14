@@ -20,13 +20,21 @@ import {
   ShieldCheck,
   Zap,
   Clock,
-  ArrowRight
+  ArrowRight,
+  Crown,
+  Gem,
+  Rocket,
+  Stethoscope,
+  Building2,
+  Star,
+  Award
 } from 'lucide-react'
 import { openManualWhatsAppChat } from '@/lib/whatsappShare'
 
-interface PackageItem {
+export interface PackageItem {
   id?: string
   name: string
+  subtitle?: string
   code?: string
   price: number | string
   period?: string
@@ -34,8 +42,11 @@ interface PackageItem {
   maxBranches?: number
   features?: string[]
   isPopular?: boolean
+  isRecommended?: boolean
   badge?: string
   color?: string
+  logoUrl?: string
+  icon?: string
 }
 
 interface SubscriptionUpgradeModalProps {
@@ -46,10 +57,46 @@ interface SubscriptionUpgradeModalProps {
   supportPhone?: string
 }
 
+function renderPackageLogo(pkg: PackageItem) {
+  if (pkg.logoUrl) {
+    return (
+      <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200/80 p-1.5 flex items-center justify-center mx-auto mb-2.5 shadow-xs">
+        <img src={pkg.logoUrl} alt={pkg.name} className="w-full h-full object-contain" />
+      </div>
+    )
+  }
+
+  const iconName = (pkg.icon || '').toLowerCase()
+  let IconComp = Crown
+  if (iconName === 'sparkles') IconComp = Sparkles
+  else if (iconName === 'zap') IconComp = Zap
+  else if (iconName === 'gem' || iconName === 'diamond') IconComp = Gem
+  else if (iconName === 'rocket') IconComp = Rocket
+  else if (iconName === 'shield' || iconName === 'shieldcheck') IconComp = ShieldCheck
+  else if (iconName === 'stethoscope') IconComp = Stethoscope
+  else if (iconName === 'building' || iconName === 'building2') IconComp = Building2
+  else if (iconName === 'star') IconComp = Star
+  else if (iconName === 'award') IconComp = Award
+
+  const color = pkg.color || (pkg.isPopular || pkg.isRecommended ? '#15B8A6' : '#64748B')
+
+  return (
+    <div
+      className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-2.5 text-white shadow-md transition-transform group-hover:scale-105"
+      style={{ backgroundColor: color }}
+    >
+      <IconComp className="w-6 h-6" />
+    </div>
+  )
+}
+
 const DEFAULT_PACKAGES: PackageItem[] = [
   {
     name: 'الباقة الأساسية',
+    subtitle: 'انطلاقة مثالية للعيادات الفردية',
     code: 'basic',
+    icon: 'stethoscope',
+    color: '#0284C7',
     price: 450,
     period: 'شهري',
     aiResponsesLimit: 100,
@@ -67,13 +114,17 @@ const DEFAULT_PACKAGES: PackageItem[] = [
   },
   {
     name: 'الباقة الاحترافية',
+    subtitle: 'الخيار الأكثر ترشيحاً لعيادات النخبة',
     code: 'pro',
+    icon: 'crown',
+    color: '#15B8A6',
     price: 950,
     period: 'شهري',
     aiResponsesLimit: 500,
     maxBranches: 3,
     isPopular: true,
-    badge: 'الأكثر طلباً 🔥',
+    isRecommended: true,
+    badge: 'الأكثر طلباً وموصى بها 🔥',
     features: [
       'جميع مميزات الباقة الأساسية',
       'حتى 3 فروع طبية متكاملة',
@@ -86,13 +137,16 @@ const DEFAULT_PACKAGES: PackageItem[] = [
   },
   {
     name: 'الباقة الماسية (VIP)',
+    subtitle: 'حل شامل للمراكز الطبية الكبرى والمستشفيات',
     code: 'vip',
+    icon: 'gem',
+    color: '#8B5CF6',
     price: 1800,
     period: 'شهري',
     aiResponsesLimit: 2500,
     maxBranches: 10,
     isPopular: false,
-    badge: 'المراكز الطبية الكبرى',
+    badge: 'المراكز الطبية الكبرى 💎',
     features: [
       'جميع مميزات الباقة الاحترافية',
       'فروع طبية غير محدودة',
@@ -223,31 +277,40 @@ export function SubscriptionUpgradeModal({
         {/* Available Packages Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
           {activePackages.map((pkg, idx) => {
-            const isPop = pkg.isPopular
+            const isPop = pkg.isPopular || pkg.isRecommended
             return (
               <div
                 key={idx}
-                className={`rounded-2xl p-5 flex flex-col justify-between transition-all duration-300 relative border ${
+                className={`rounded-3xl p-5 sm:p-6 flex flex-col justify-between transition-all duration-300 relative border group ${
                   isPop
-                    ? 'bg-white border-[#15B8A6] shadow-xl shadow-teal-500/10 ring-2 ring-[#15B8A6]/20'
-                    : 'bg-[#F8FAFC] border-slate-200 hover:border-slate-300'
+                    ? 'bg-white border-[#15B8A6] shadow-xl shadow-teal-500/15 ring-2 ring-[#15B8A6]/30'
+                    : 'bg-[#F8FAFC] border-slate-200 hover:border-slate-300 hover:bg-white'
                 }`}
               >
-                {/* Popular / Feature Tag */}
-                {pkg.badge && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <span className={`px-3 py-0.5 rounded-full text-[11px] font-black shadow-xs ${
-                      isPop ? 'bg-[#15B8A6] text-white' : 'bg-slate-800 text-white'
+                {/* Popular / Recommended Tag */}
+                {(pkg.badge || isPop) && (
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-10 whitespace-nowrap">
+                    <span className={`px-3.5 py-1 rounded-full text-[11px] font-black shadow-md flex items-center gap-1.5 ${
+                      isPop
+                        ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-teal-500 text-white ring-2 ring-white'
+                        : 'bg-slate-800 text-white'
                     }`}>
-                      {pkg.badge}
+                      {isPop && <Sparkles className="w-3.5 h-3.5 text-amber-200 animate-spin" />}
+                      <span>{pkg.badge || '⭐ موصى بها للعيادات'}</span>
                     </span>
                   </div>
                 )}
 
                 <div>
                   <div className="pt-2 text-center border-b border-slate-100 pb-4">
+                    {renderPackageLogo(pkg)}
                     <h4 className="text-lg font-black text-[#182230]">{pkg.name}</h4>
-                    <div className="mt-2 flex items-baseline justify-center gap-1">
+                    {pkg.subtitle && (
+                      <p className="text-[11px] text-slate-500 font-medium mt-1 leading-normal max-w-xs mx-auto">
+                        {pkg.subtitle}
+                      </p>
+                    )}
+                    <div className="mt-3 flex items-baseline justify-center gap-1">
                       <span className="text-3xl font-black text-[#15B8A6] font-mono">{pkg.price}</span>
                       <span className="text-xs font-bold text-slate-500">ج.م / {pkg.period || 'شهري'}</span>
                     </div>
