@@ -108,8 +108,7 @@ export async function shareDocumentOrImage({
   a.download = fileName
   document.body.appendChild(a)
   a.click()
-  document.body.removeChild(a)
-  window.URL.revokeObjectURL(downloadUrl)
+  setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 30000)
 
   // 4. Open WhatsApp Click-to-Chat with message
   const extraNote = copiedToClipboard

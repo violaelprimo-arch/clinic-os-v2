@@ -139,7 +139,7 @@ export function A4Prescription({
 
               <div className="text-left flex flex-col items-end">
                 {clinic?.logoUrl ? (
-                  <img src={clinic.logoUrl} alt="Logo" className={`${isA5 ? 'max-h-9' : 'max-h-12'} object-contain mb-1`} />
+                  <img src={clinic.logoUrl} alt="Logo" crossOrigin="anonymous" className={`${isA5 ? 'max-h-9' : 'max-h-12'} object-contain mb-1`} />
                 ) : (
                   <ClinicLogo size="sm" variant="light" showSubtitle={false} />
                 )}

@@ -307,7 +307,6 @@ export function BookingForm({
   // Step 1 Validation
   const handleNextStep1 = () => {
     if (!selectedBranch) return toast.error('يرجى اختيار فرع العيادة أولاً')
-    if (selectedBranch.isOpen === false) return toast.error('هذا الفرع مغلق حالياً، يرجى اختيار فرع آخر')
     if (!name.trim()) return toast.error('يرجى إدخال اسم المريض')
     if (!phone.trim() || phone.length < 10) return toast.error('يرجى إدخال رقم هاتف صحيح')
     if (!age.trim()) return toast.error('يرجى إدخال السن')

@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import {
   Search, UserPlus, Phone, Calendar, Clock, MessageCircle,
   FileText, ChevronLeft, ChevronRight, Filter, User, Plus,
-  FileSignature, ArrowUpDown, MoreVertical, X, Trash2, FileSpreadsheet
+  FileSignature, ArrowUpDown, MoreVertical, X, Trash2, FileSpreadsheet, Printer
 } from 'lucide-react'
 import Link from 'next/link'
 import { db } from '@/lib/firebase'
@@ -18,14 +18,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { exportPatientsToExcel } from '@/lib/excelExport'
+import { printHtmlViaIframe, generatePatientsReportHtml } from '@/lib/printService'
 
 export default function PatientsPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
+  const [clinic, setClinic] = useState<any>(null)
   const [patients, setPatients] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
   const [clinicId, setClinicId] = useState<string | null>(null)
   
   // Add Patient Modal State
@@ -37,6 +41,33 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
   const [newService, setNewService] = useState('كشف عادي')
   const [newPrice, setNewPrice] = useState(250)
   const [isAdding, setIsAdding] = useState(false)
+
+  const todayCairoStr = useMemo(() => {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date())
+  }, [])
+
+  const setDatePreset = (preset: 'today' | 'week' | 'month' | 'all') => {
+    setCurrentPage(1)
+    if (preset === 'today') {
+      setFromDate(todayCairoStr)
+      setToDate(todayCairoStr)
+    } else if (preset === 'week') {
+      const d = new Date()
+      d.setDate(d.getDate() - 7)
+      const weekAgo = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(d)
+      setFromDate(weekAgo)
+      setToDate(todayCairoStr)
+    } else if (preset === 'month') {
+      const d = new Date()
+      const year = d.getFullYear()
+      const month = String(d.getMonth() + 1).padStart(2, '0')
+      setFromDate(`${year}-${month}-01`)
+      setToDate(todayCairoStr)
+    } else {
+      setFromDate('')
+      setToDate('')
+    }
+  }
 
   const handleAgeChange = (val: string) => {
     setNewAge(val)
@@ -70,10 +101,11 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
         const clinicQ = query(collection(db, 'clinics'), where('slug', '==', slug))
         const clinicSnap = await getDocs(clinicQ)
         if (clinicSnap.empty) return
-        const cId = clinicSnap.docs[0].id
-        setClinicId(cId)
+        const cData = { id: clinicSnap.docs[0].id, ...clinicSnap.docs[0].data() }
+        setClinic(cData)
+        setClinicId(cData.id)
 
-        const apptQ = query(collection(db, 'appointments'), where('clinic_id', '==', cId))
+        const apptQ = query(collection(db, 'appointments'), where('clinic_id', '==', cData.id))
         unsubAppts = onSnapshot(apptQ, (apptSnap) => {
           const pMap = new Map()
           apptSnap.docs.forEach(doc => {
@@ -84,17 +116,24 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                 id: d.phone,
                 name: d.patientName,
                 phone: d.phone,
+                age: d.age || '',
                 visitsCount: 1,
                 lastVisit: d.date,
+                allVisits: [d.date],
                 lastService: d.serviceName || 'كشف',
                 status: 'نشط'
               })
             } else {
               const existing = pMap.get(d.phone)
               existing.visitsCount += 1
+              if (d.date && !existing.allVisits.includes(d.date)) {
+                existing.allVisits.push(d.date)
+              }
+              if (d.age && !existing.age) existing.age = d.age
               if (new Date(d.date) > new Date(existing.lastVisit)) {
                 existing.lastVisit = d.date
                 existing.name = d.patientName
+                existing.lastService = d.serviceName || existing.lastService
               }
             }
           })
@@ -117,9 +156,14 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
     return patients.filter(p => {
       const matchSearch = p.name.includes(search) || p.phone.includes(search)
       const matchStatus = statusFilter === 'ALL' || p.status === statusFilter
-      return matchSearch && matchStatus
+
+      const hasVisitInRange = (!fromDate && !toDate) || (
+        p.allVisits && p.allVisits.some((v: string) => (!fromDate || v >= fromDate) && (!toDate || v <= toDate))
+      ) || ((!fromDate || p.lastVisit >= fromDate) && (!toDate || p.lastVisit <= toDate))
+
+      return matchSearch && matchStatus && hasVisitInRange
     })
-  }, [patients, search, statusFilter])
+  }, [patients, search, statusFilter, fromDate, toDate])
 
   // Pagination slice
   const paginatedPatients = useMemo(() => {
@@ -219,6 +263,52 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
     window.open(`https://wa.me/${formattedPhone}?text=${message}`, '_blank')
   }
 
+  // Export Patients List to Excel
+  const handleExportExcel = async () => {
+    if (filtered.length === 0) return toast.info('لا يوجد مرضى لتصديرهم في النطاق المحدد')
+    await exportPatientsToExcel(filtered, clinic?.clinicName || 'العيادة', { fromDate, toDate })
+    toast.success('تم تصدير سجل المرضى إلى إكسيل بنجاح')
+  }
+
+  // Print Isolated A4 Patients Report
+  const handlePrintPatientsReport = () => {
+    if (filtered.length === 0) {
+      return toast.info('لا يوجد مرضى لتصديرهم في النطاق المحدد')
+    }
+    const effectiveFrom = fromDate || (filtered.length > 0 ? filtered[filtered.length - 1].lastVisit : todayCairoStr)
+    const effectiveTo = toDate || todayCairoStr
+    const totalVisits = filtered.reduce((s, p) => s + (Number(p.visitsCount) || 1), 0)
+
+    const html = generatePatientsReportHtml({
+      clinicName: clinic?.clinicName || 'Clinic OS',
+      doctorName: clinic?.doctorName,
+      branchLabel: 'جميع الفروع',
+      clinicAddress: clinic?.clinicAddress,
+      clinicPhone: clinic?.clinicPhone,
+      logoUrl: clinic?.logoUrl,
+      fromDate: effectiveFrom,
+      toDate: effectiveTo,
+      generatedAtCairo: new Intl.DateTimeFormat('ar-EG', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+        timeZone: 'Africa/Cairo'
+      }).format(new Date()),
+      generatedBy: clinic?.doctorName || 'إدارة العيادة',
+      totalPatients: filtered.length,
+      totalVisits: totalVisits,
+      patients: filtered.map(p => ({
+        name: p.name,
+        phone: p.phone,
+        age: p.age,
+        visitsCount: Number(p.visitsCount) || 1,
+        lastVisit: p.lastVisit,
+        lastService: p.lastService || 'كشف',
+        status: p.status || 'نشط'
+      }))
+    })
+    printHtmlViaIframe(html, 'a4')
+  }
+
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto" dir="rtl">
       
@@ -227,22 +317,29 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
         <div>
           <h1 className="text-2xl font-black text-[#182230]">سجل المرضى</h1>
           <p className="text-xs text-slate-400 mt-1">
-            إدارة السجلات الطبية وملفات المرضى والمواعيد السابقة
+            إدارة السجلات الطبية، ملفات المرضى وتصدير السجل بالتاريخ (PDF & Excel)
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Excel Export */}
           <Button
             variant="outline"
-            onClick={async () => {
-              if (patients.length === 0) return toast.info('لا يوجد مرضى لتصديرهم')
-              await exportPatientsToExcel(patients, 'العيادة')
-              toast.success('تم تصدير سجل المرضى إلى إكسيل بنجاح')
-            }}
-            className="h-10 px-4 border-teal-200 text-teal-700 hover:bg-teal-50 font-bold rounded-xl text-xs inline-flex items-center"
+            onClick={handleExportExcel}
+            className="h-10 px-4 border-teal-200 text-teal-700 hover:bg-teal-50 font-bold rounded-xl text-xs inline-flex items-center cursor-pointer"
           >
             <FileSpreadsheet className="w-4 h-4 ml-1.5 text-emerald-600" />
             تصدير المرضى (Excel)
+          </Button>
+
+          {/* PDF Report Export */}
+          <Button
+            variant="outline"
+            onClick={handlePrintPatientsReport}
+            className="h-10 px-4 border-[#E5EAF0] text-slate-700 hover:bg-slate-100 font-bold rounded-xl text-xs inline-flex items-center cursor-pointer"
+          >
+            <Printer className="w-4 h-4 ml-1.5 text-[#15B8A6]" />
+            طباعة تقرير المرضى (PDF / A4)
           </Button>
 
           <Button 
@@ -354,6 +451,90 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
             </form>
           </DialogContent>
         </Dialog>
+        </div>
+      </div>
+
+      {/* Date Range Filter Bar */}
+      <div className="medical-card p-4 bg-white space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+            <Calendar className="w-4 h-4 text-[#15B8A6]" />
+            <span>فرز سجل المرضى بالتاريخ (من / إلى):</span>
+          </div>
+
+          {/* Quick presets */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setDatePreset('all')}
+              className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+                !fromDate && !toDate ? 'bg-[#15B8A6] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              الكل
+            </button>
+            <button
+              type="button"
+              onClick={() => setDatePreset('today')}
+              className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+                fromDate === todayCairoStr && toDate === todayCairoStr ? 'bg-[#15B8A6] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              اليوم
+            </button>
+            <button
+              type="button"
+              onClick={() => setDatePreset('week')}
+              className="px-3 py-1 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
+            >
+              آخر 7 أيام
+            </button>
+            <button
+              type="button"
+              onClick={() => setDatePreset('month')}
+              className="px-3 py-1 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
+            >
+              هذا الشهر
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-slate-100 items-center">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-500 shrink-0">من تاريخ:</span>
+            <Input
+              type="date"
+              value={fromDate}
+              onChange={e => { setFromDate(e.target.value); setCurrentPage(1); }}
+              className="h-9 text-xs bg-[#F6F8FB] border-[#E5EAF0] rounded-xl font-mono"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-500 shrink-0">إلى تاريخ:</span>
+            <Input
+              type="date"
+              value={toDate}
+              onChange={e => { setToDate(e.target.value); setCurrentPage(1); }}
+              className="h-9 text-xs bg-[#F6F8FB] border-[#E5EAF0] rounded-xl font-mono"
+            />
+          </div>
+
+          {(fromDate || toDate) && (
+            <div className="sm:col-span-2 flex items-center justify-end gap-2">
+              <span className="text-xs text-teal-700 font-semibold bg-teal-50 px-2.5 py-1 rounded-lg border border-teal-200">
+                مفلتر: {fromDate || 'البداية'} ⬅ {toDate || 'اليوم'} ({filtered.length} مريض)
+              </span>
+              <button
+                type="button"
+                onClick={() => { setFromDate(''); setToDate(''); setCurrentPage(1); }}
+                className="h-9 px-3 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+                إلغاء الفرز
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

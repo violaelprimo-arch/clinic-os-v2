@@ -8,12 +8,13 @@ import { Input } from '@/components/ui/input'
 import {
   Receipt, DollarSign, Wallet, CreditCard, Banknote,
   Search, Filter, CheckCircle2, Clock, Printer, Download,
-  ArrowUpRight, Users, Calendar, Eye
+  ArrowUpRight, Users, Calendar, Eye, FileSpreadsheet, X
 } from 'lucide-react'
 import { db } from '@/lib/firebase'
 import { collection, query, where, getDocs, onSnapshot, updateDoc, doc } from 'firebase/firestore'
 import { toast } from 'sonner'
 import { printHtmlViaIframe, generateFinancialReportHtml } from '@/lib/printService'
+import { exportComprehensiveFinancialReportExcel } from '@/lib/excelExport'
 import { InvoiceView, InvoiceData } from '@/components/clinic/InvoiceView'
 import { formatCairo12Hour } from '@/lib/queue-calculator'
 
@@ -27,8 +28,36 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
   const [methodFilter, setMethodFilter] = useState('ALL')
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [search, setSearch] = useState('')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceData | null>(null)
+
+  const todayCairoStr = useMemo(() => {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date())
+  }, [])
+
+  const setDatePreset = (preset: 'today' | 'week' | 'month' | 'all') => {
+    if (preset === 'today') {
+      setFromDate(todayCairoStr)
+      setToDate(todayCairoStr)
+    } else if (preset === 'week') {
+      const d = new Date()
+      d.setDate(d.getDate() - 7)
+      const weekAgo = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(d)
+      setFromDate(weekAgo)
+      setToDate(todayCairoStr)
+    } else if (preset === 'month') {
+      const d = new Date()
+      const year = d.getFullYear()
+      const month = String(d.getMonth() + 1).padStart(2, '0')
+      setFromDate(`${year}-${month}-01`)
+      setToDate(todayCairoStr)
+    } else {
+      setFromDate('')
+      setToDate('')
+    }
+  }
 
   useEffect(() => {
     const fetchTransactions = async () => {
@@ -55,7 +84,7 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
     fetchTransactions()
   }, [slug])
 
-  // TASK 14: Confirm payment with audit trail
+  // Confirm payment with audit trail
   const handleConfirmPayment = async (item: any) => {
     if (!item.id || isProcessing) return
     setIsProcessing(true)
@@ -73,7 +102,7 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
     }
   }
 
-  // TASK 14: Record discount with previous price preserved
+  // Record discount with previous price preserved
   const applyDiscount = async (item: any, discountAmount: number) => {
     if (!item.id || isProcessing) return
     setIsProcessing(true)
@@ -92,19 +121,39 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
     }
   }
 
-  // Aggregate metrics
+  // Filtered transactions (with search, method, status, and date range)
+  const filtered = useMemo(() => {
+    return appointments.filter(a => {
+      const matchSearch =
+        !search ||
+        (a.patientName && a.patientName.includes(search)) ||
+        (a.phone && a.phone.includes(search))
+      const matchMethod = methodFilter === 'ALL' || a.paymentMethod === methodFilter
+      const isPaid = a.paymentStatus === 'paid' || a.status === 'completed'
+      const matchStatus =
+        statusFilter === 'ALL' ||
+        (statusFilter === 'paid' && isPaid) ||
+        (statusFilter === 'pending' && !isPaid)
+
+      const itemDate = a.date || (a.createdAt ? a.createdAt.split('T')[0] : '')
+      const matchFrom = !fromDate || (itemDate && itemDate >= fromDate)
+      const matchTo = !toDate || (itemDate && itemDate <= toDate)
+
+      return matchSearch && matchMethod && matchStatus && matchFrom && matchTo
+    })
+  }, [appointments, search, methodFilter, statusFilter, fromDate, toDate])
+
+  // Aggregate metrics for filtered data
   const metrics = useMemo(() => {
     let collected = 0
     let pending = 0
-    let todayTotal = 0
+    let periodTotal = 0
     let cashTotal = 0
     let walletTotal = 0
     let instapayTotal = 0
     let totalDiscounts = 0
 
-    const todayStr = new Date().toISOString().split('T')[0]
-
-    appointments.forEach((item) => {
+    filtered.forEach((item) => {
       const price = Number(item.servicePrice) || 0
       const isPaid = item.paymentStatus === 'paid' || item.status === 'completed'
       totalDiscounts += Number(item.discountApplied) || 0
@@ -118,42 +167,26 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
         pending += price
       }
 
-      if (item.date === todayStr) {
-        todayTotal += price
-      }
+      periodTotal += price
     })
 
     return {
       collected,
       pending,
-      todayTotal,
-      transactionsCount: appointments.length,
+      periodTotal,
+      transactionsCount: filtered.length,
       cashTotal,
       walletTotal,
       instapayTotal,
       totalDiscounts
     }
-  }, [appointments])
+  }, [filtered])
 
-  // Filtered transactions
-  const filtered = useMemo(() => {
-    return appointments.filter(a => {
-      const matchSearch =
-        !search ||
-        (a.patientName && a.patientName.includes(search)) ||
-        (a.phone && a.phone.includes(search))
-      const matchMethod = methodFilter === 'ALL' || a.paymentMethod === methodFilter
-      const isPaid = a.paymentStatus === 'paid' || a.status === 'completed'
-      const matchStatus =
-        statusFilter === 'ALL' ||
-        (statusFilter === 'paid' && isPaid) ||
-        (statusFilter === 'pending' && !isPaid)
-      return matchSearch && matchMethod && matchStatus
-    })
-  }, [appointments, search, methodFilter, statusFilter])
-
-  // TASK 13: Clean isolated A4 Financial Statement Print (XP-80C & A4 separation)
+  // Clean isolated A4 Financial Statement Print (XP-80C & A4 separation)
   const handlePrintFinancialReport = () => {
+    const effectiveFrom = fromDate || (filtered.length > 0 ? filtered[filtered.length - 1].date : todayCairoStr)
+    const effectiveTo = toDate || todayCairoStr
+
     const html = generateFinancialReportHtml({
       clinicName: clinic?.clinicName || 'Clinic OS',
       doctorName: clinic?.doctorName,
@@ -161,8 +194,8 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
       clinicAddress: clinic?.clinicAddress,
       clinicPhone: clinic?.clinicPhone,
       logoUrl: clinic?.logoUrl,
-      fromDate: appointments.length > 0 ? appointments[appointments.length - 1].date : new Date().toISOString().split('T')[0],
-      toDate: new Date().toISOString().split('T')[0],
+      fromDate: effectiveFrom,
+      toDate: effectiveTo,
       generatedAtCairo: new Intl.DateTimeFormat('ar-EG', {
         dateStyle: 'medium',
         timeStyle: 'short',
@@ -177,7 +210,7 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
         cash: metrics.cashTotal,
         instapay: metrics.instapayTotal,
         wallet: metrics.walletTotal,
-        patientsCount: appointments.length
+        patientsCount: filtered.length
       },
       transactions: filtered.map(a => ({
         id: a.id,
@@ -201,6 +234,34 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
     printHtmlViaIframe(html, 'a4')
   }
 
+  // Export Formatted Multi-Sheet Excel
+  const handleExportExcel = async () => {
+    if (filtered.length === 0) {
+      return toast.info('لا توجد معاملات لتصديرها في النطاق المحدد')
+    }
+    const effectiveFrom = fromDate || (filtered.length > 0 ? filtered[filtered.length - 1].date : todayCairoStr)
+    const effectiveTo = toDate || todayCairoStr
+
+    await exportComprehensiveFinancialReportExcel({
+      clinicName: clinic?.clinicName || 'Clinic OS',
+      branchLabel: 'جميع الفروع',
+      fromDate: effectiveFrom,
+      toDate: effectiveTo,
+      appointments: filtered,
+      totals: {
+        revenue: metrics.collected + metrics.pending,
+        collected: metrics.collected,
+        due: metrics.pending,
+        cash: metrics.cashTotal,
+        instapay: metrics.instapayTotal,
+        wallet: metrics.walletTotal,
+        discounts: metrics.totalDiscounts,
+        patientsCount: filtered.length
+      }
+    })
+    toast.success('تم تصدير التقرير المالي المنسق (Excel) بنجاح')
+  }
+
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto" dir="rtl">
       
@@ -212,19 +273,30 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
             الحسابات والتقارير المالية
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            متابعة التحصيل اليومي، الفواتير، التدفقات النقدية والخصومات المعتمدة
+            متابعة التحصيل، الفواتير، التقارير المالية وتصدير الحسابات بالتاريخ
           </p>
         </div>
 
-        {/* TASK 13: Clean A4 Statement Print Button */}
-        <Button
-          variant="outline"
-          onClick={handlePrintFinancialReport}
-          className="h-10 text-xs font-bold border-[#E5EAF0] text-slate-700 hover:bg-slate-100 rounded-xl flex items-center gap-1.5"
-        >
-          <Printer className="w-4 h-4 ml-1" />
-          طباعة تقرير الحسابات (A4)
-        </Button>
+        {/* Action Buttons: Excel + PDF Export */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={handleExportExcel}
+            className="h-10 text-xs font-bold border-teal-200 text-teal-700 hover:bg-teal-50 rounded-xl flex items-center gap-1.5"
+          >
+            <FileSpreadsheet className="w-4 h-4 ml-1 text-emerald-600" />
+            تصدير إكسيل (Excel)
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={handlePrintFinancialReport}
+            className="h-10 text-xs font-bold border-[#E5EAF0] text-slate-700 hover:bg-slate-100 rounded-xl flex items-center gap-1.5"
+          >
+            <Printer className="w-4 h-4 ml-1" />
+            طباعة تقرير مالي (A4 / PDF)
+          </Button>
+        </div>
       </div>
 
       {/* 2. KPI Stat Cards (4 Cards Grid) */}
@@ -246,11 +318,15 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
         </div>
 
         <div className="medical-card p-5">
-          <p className="text-xs font-bold text-slate-400 mb-1">إجمالي إيراد اليوم</p>
+          <p className="text-xs font-bold text-slate-400 mb-1">
+            {fromDate || toDate ? 'إجمالي إيراد الفترة' : 'إجمالي إيراد العمليات'}
+          </p>
           <h3 className="text-2xl font-black text-[#15B8A6]">
-            {metrics.todayTotal.toLocaleString()} <span className="text-sm font-bold text-slate-500">ج.م</span>
+            {metrics.periodTotal.toLocaleString()} <span className="text-sm font-bold text-slate-500">ج.م</span>
           </h3>
-          <span className="text-[11px] font-semibold text-[#15B8A6]/80 mt-1 inline-block">عمليات اليوم</span>
+          <span className="text-[11px] font-semibold text-[#15B8A6]/80 mt-1 inline-block">
+            {fromDate || toDate ? 'حسب الفرز الزمني' : 'كافة العمليات'}
+          </span>
         </div>
 
         <div className="medical-card p-5">
@@ -261,6 +337,90 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
           <span className="text-[11px] font-semibold text-slate-400 mt-1 inline-block">
             من إجمالي {metrics.transactionsCount} معاملة
           </span>
+        </div>
+      </div>
+
+      {/* Date Range Filter Bar */}
+      <div className="medical-card p-4 bg-white space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+            <Calendar className="w-4 h-4 text-[#15B8A6]" />
+            <span>فرز المعاملات والتقارير بالتاريخ (من / إلى):</span>
+          </div>
+
+          {/* Quick presets */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setDatePreset('all')}
+              className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+                !fromDate && !toDate ? 'bg-[#15B8A6] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              الكل
+            </button>
+            <button
+              type="button"
+              onClick={() => setDatePreset('today')}
+              className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+                fromDate === todayCairoStr && toDate === todayCairoStr ? 'bg-[#15B8A6] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              اليوم
+            </button>
+            <button
+              type="button"
+              onClick={() => setDatePreset('week')}
+              className="px-3 py-1 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
+            >
+              آخر 7 أيام
+            </button>
+            <button
+              type="button"
+              onClick={() => setDatePreset('month')}
+              className="px-3 py-1 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
+            >
+              هذا الشهر
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-slate-100 items-center">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-500 shrink-0">من تاريخ:</span>
+            <Input
+              type="date"
+              value={fromDate}
+              onChange={e => setFromDate(e.target.value)}
+              className="h-9 text-xs bg-[#F6F8FB] border-[#E5EAF0] rounded-xl font-mono"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-500 shrink-0">إلى تاريخ:</span>
+            <Input
+              type="date"
+              value={toDate}
+              onChange={e => setToDate(e.target.value)}
+              className="h-9 text-xs bg-[#F6F8FB] border-[#E5EAF0] rounded-xl font-mono"
+            />
+          </div>
+
+          {(fromDate || toDate) && (
+            <div className="sm:col-span-2 flex items-center justify-end gap-2">
+              <span className="text-xs text-teal-700 font-semibold bg-teal-50 px-2.5 py-1 rounded-lg border border-teal-200">
+                مفلتر: {fromDate || 'البداية'} ⬅ {toDate || 'اليوم'} ({filtered.length} معاملة)
+              </span>
+              <button
+                type="button"
+                onClick={() => { setFromDate(''); setToDate(''); }}
+                className="h-9 px-3 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+                إلغاء الفرز
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

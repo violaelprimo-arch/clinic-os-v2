@@ -149,6 +149,30 @@ export interface FinancialReportPrintData {
   }>
 }
 
+export interface PatientsReportPrintData {
+  clinicName: string
+  doctorName?: string
+  branchLabel?: string
+  clinicAddress?: string
+  clinicPhone?: string
+  logoUrl?: string
+  fromDate?: string
+  toDate?: string
+  generatedAtCairo: string
+  generatedBy?: string
+  totalPatients: number
+  totalVisits: number
+  patients: Array<{
+    name: string
+    phone: string
+    age?: string
+    visitsCount: number
+    lastVisit: string
+    lastService: string
+    status: string
+  }>
+}
+
 /**
  * Injects HTML into an isolated invisible iframe and triggers the native browser print dialog.
  * @param htmlContent Full standalone HTML string
@@ -1496,3 +1520,191 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
 </body>
 </html>`
 }
+
+/**
+ * Generates an isolated, print-ready A4 HTML document for Patients Records & List.
+ */
+export function generatePatientsReportHtml(data: PatientsReportPrintData): string {
+  const periodLabel = data.fromDate || data.toDate
+    ? `من: ${data.fromDate || 'البداية'} &nbsp; إلى: ${data.toDate || 'اليوم'}`
+    : 'كافة الفترات المسجلة'
+
+  return `<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="utf-8">
+  <title>تقرير سجل المرضى - ${data.clinicName}</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 12mm 10mm;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Tahoma, -apple-system, Roboto, Arial, sans-serif;
+      color: #1e293b;
+      background: #ffffff;
+      font-size: 10pt;
+      line-height: 1.45;
+      padding: 8px;
+    }
+    .header-table {
+      width: 100%;
+      border-bottom: 2px solid #0f766e;
+      padding-bottom: 10px;
+      margin-bottom: 14px;
+    }
+    .header-title { font-size: 18pt; font-weight: 900; color: #0f766e; }
+    .header-subtitle { font-size: 10.5pt; color: #64748b; font-weight: 600; margin-top: 3px; }
+    .badge {
+      display: inline-block;
+      background: #f0fdf4;
+      color: #166534;
+      border: 1px solid #bbf7d0;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      font-size: 8.5pt;
+      font-weight: bold;
+    }
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .kpi-card {
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      border-radius: 8px;
+      padding: 8px 12px;
+      text-align: right;
+    }
+    .kpi-card.highlight {
+      background: #f0fdfa;
+      border-color: #99f6e4;
+    }
+    .kpi-label { font-size: 8pt; color: #64748b; font-weight: bold; margin-bottom: 3px; }
+    .kpi-value { font-size: 14pt; font-weight: 900; color: #0f766e; }
+    .table-container { width: 100%; margin-top: 10px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9pt;
+      text-align: right;
+    }
+    th {
+      background-color: #0f766e;
+      color: #ffffff;
+      padding: 8px 6px;
+      font-weight: bold;
+      border: 1px solid #0f766e;
+      font-size: 8.5pt;
+      white-space: nowrap;
+    }
+    td {
+      padding: 6px 6px;
+      border: 1px solid #e2e8f0;
+      font-size: 8.5pt;
+    }
+    tr:nth-child(even) td { background-color: #f8fafc; }
+    .footer {
+      margin-top: 20px;
+      padding-top: 10px;
+      border-top: 1px solid #e2e8f0;
+      font-size: 8pt;
+      color: #94a3b8;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      tr { page-break-inside: avoid; }
+      thead { display: table-header-group; }
+    }
+  </style>
+</head>
+<body>
+  <table class="header-table">
+    <tr>
+      <td style="border:none; width: 60%; vertical-align: top;">
+        <div class="header-title">${data.clinicName}</div>
+        <div class="header-subtitle">
+          ${data.doctorName ? `د. ${data.doctorName}` : ''} 
+          ${data.branchLabel ? `• فرع ${data.branchLabel}` : ''}
+        </div>
+        <div style="font-size: 8.5pt; color: #64748b; margin-top: 4px;">
+          ${data.clinicAddress ? `العنوان: ${data.clinicAddress} | ` : ''}
+          ${data.clinicPhone ? `هاتف: ${data.clinicPhone}` : ''}
+        </div>
+      </td>
+      <td style="border:none; width: 40%; text-align: left; vertical-align: top;" dir="ltr">
+        <div style="font-size: 13pt; font-weight: 800; color: #0f766e;">تقرير سجل وملفات المرضى</div>
+        <div style="font-size: 8.5pt; color: #64748b; margin-top: 3px;" dir="rtl">
+          الفترة: <strong>${periodLabel}</strong>
+        </div>
+        <div style="font-size: 8pt; color: #94a3b8; margin-top: 2px;" dir="rtl">
+          تاريخ الاستخراج: ${data.generatedAtCairo}
+        </div>
+      </td>
+    </tr>
+  </table>
+
+  <div class="kpi-grid">
+    <div class="kpi-card highlight">
+      <div class="kpi-label">إجمالي المرضى بالتقرير</div>
+      <div class="kpi-value">${data.totalPatients} <span style="font-size: 9pt; font-weight: normal; color: #64748b;">مريض</span></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">إجمالي الزيارات المسجلة</div>
+      <div class="kpi-value">${data.totalVisits} <span style="font-size: 9pt; font-weight: normal; color: #64748b;">زيارة</span></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">مسؤول الاستخراج</div>
+      <div class="kpi-value" style="font-size: 11pt; padding-top: 4px;">${data.generatedBy || 'إدارة العيادة'}</div>
+    </div>
+  </div>
+
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 30px; text-align: center;">#</th>
+          <th>اسم المريض</th>
+          <th>رقم الهاتف</th>
+          <th style="text-align: center;">السن</th>
+          <th style="text-align: center;">عدد الزيارات</th>
+          <th>آخر خدمة</th>
+          <th>تاريخ آخر زيارة</th>
+          <th style="text-align: center;">الحالة</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.patients.map((p, idx) => `
+          <tr>
+            <td style="text-align: center; font-weight: bold; color: #64748b;">${idx + 1}</td>
+            <td style="font-weight: bold;">${p.name}</td>
+            <td dir="ltr" style="text-align: right; font-family: monospace;">${p.phone || '—'}</td>
+            <td style="text-align: center;">${p.age || '—'}</td>
+            <td style="text-align: center; font-weight: bold; color: #0f766e;">${p.visitsCount}</td>
+            <td>${p.lastService || 'كشف'}</td>
+            <td dir="ltr" style="text-align: right; font-family: monospace;">${p.lastVisit || '—'}</td>
+            <td style="text-align: center;">
+              <span class="badge" style="${p.status === 'نشط' ? 'background:#f0fdf4;color:#166534;' : 'background:#fef2f2;color:#991b1b;'}">
+                ${p.status || 'نشط'}
+              </span>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="footer">
+    <div>تم استخراج هذا التقرير آلياً عبر نظام Clinic OS V2 • منصة إدارة العيادات والمراكز الطبية</div>
+    <div>الصفحة 1 من 1</div>
+  </div>
+</body>
+</html>`
+}
+

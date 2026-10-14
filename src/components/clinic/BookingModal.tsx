@@ -246,7 +246,6 @@ export function BookingModal({
   const validateStep1 = () => {
     const errs: typeof errors = {}
     if (!selectedBranch) errs.branch = 'يرجى اختيار فرع العيادة'
-    if (selectedBranch?.isOpen === false) errs.branch = 'هذا الفرع مغلق حالياً، اختر فرعاً آخر'
     if (!selectedDate) errs.date = 'يرجى اختيار تاريخ الموعد'
 
     setErrors(errs)
@@ -817,6 +816,20 @@ export function BookingModal({
               {/* ==================== STEP 4: PAYMENT ==================== */}
               {step === 4 && (
                 <div className="space-y-4">
+                  {/* Service & Price Summary Card */}
+                  <div className="p-4 rounded-2xl bg-teal-50/80 border border-teal-200 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-teal-800">الخدمة المختارة:</p>
+                      <p className="text-sm font-black text-slate-900">{selectedService?.name || 'كشف طبي'}</p>
+                    </div>
+                    <div className="text-left">
+                      <p className="text-[11px] font-bold text-teal-700">المبلغ المطلوب سداده:</p>
+                      <p className="text-xl font-black text-teal-700">
+                        {selectedService?.price || 0} <span className="text-xs font-bold text-slate-600">ج.م</span>
+                      </p>
+                    </div>
+                  </div>
+
                   <div className="space-y-1">
                     <Label className="text-xs font-bold text-slate-700">
                       طريقة الدفع وتأكيد الحجز <span className="text-rose-500">*</span>
@@ -871,17 +884,52 @@ export function BookingModal({
                   {/* Transfer Details for InstaPay or Wallet */}
                   {paymentMethod !== 'cash' && (
                     <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3 animate-in fade-in duration-200">
+                      {/* Price to transfer badge */}
+                      <div className="p-3 bg-white rounded-xl border border-teal-200 flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-700">المبلغ المطلوب تحويله:</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-base font-black text-teal-700 font-mono">
+                            {selectedService?.price || 0} ج.م
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(String(selectedService?.price || 0))
+                              toast.success('تم نسخ المبلغ المطلوب!')
+                            }}
+                            className="h-7 px-2 text-[10px] font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            <Copy className="w-3 h-3" /> نسخ المبلغ
+                          </button>
+                        </div>
+                      </div>
+
                       <div className="text-xs font-bold text-slate-700 space-y-1">
                         <p>بيانات التحويل الخاصة بالعيادة:</p>
-                        <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex justify-between items-center text-xs">
+                        <div className="p-3 rounded-xl bg-white border border-slate-200 flex justify-between items-center text-xs">
                           <span className="text-slate-500 font-medium">
-                            {paymentMethod === 'instapay' ? 'عنوان انستاباي IPA:' : 'رقم فودافون / أورنج كاش:'}
+                            {paymentMethod === 'instapay' ? 'عنوان انستاباي IPA:' : 'رقم المحفظة (فودافون/أورنج كاش):'}
                           </span>
-                          <span className="font-mono font-bold text-[#15B8A6]">
-                            {paymentMethod === 'instapay'
-                              ? clinic?.instapayUsername || clinic?.clinicPhone || 'clinic@instapay'
-                              : clinic?.walletPhone || clinic?.clinicPhone || '01012345678'}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-black text-[#15B8A6] text-sm select-all">
+                              {paymentMethod === 'instapay'
+                                ? (clinic?.instapayHandle || clinic?.instapayUsername || clinic?.clinicPhone || 'clinic@instapay')
+                                : (clinic?.walletNumber || clinic?.walletPhone || clinic?.clinicPhone || '01012345678')}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const target = paymentMethod === 'instapay'
+                                  ? (clinic?.instapayHandle || clinic?.instapayUsername || clinic?.clinicPhone || 'clinic@instapay')
+                                  : (clinic?.walletNumber || clinic?.walletPhone || clinic?.clinicPhone || '01012345678')
+                                navigator.clipboard.writeText(target)
+                                toast.success('تم نسخ رقم/عنوان التحويل!')
+                              }}
+                              className="h-7 px-2 text-[10px] font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
+                            >
+                              <Copy className="w-3 h-3" /> نسخ
+                            </button>
+                          </div>
                         </div>
                       </div>
 

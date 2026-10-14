@@ -9,31 +9,77 @@ export interface PdfRenderOptions {
 }
 
 /**
- * Captures an element using html2canvas safely with CORS proxy and no canvas tainting.
+ * Pre-converts any external images (img tags and background-image) inside the element
+ * into inline base64 DataURLs using our server-side image proxy.
+ * This guarantees html2canvas NEVER taints the canvas and eliminates CORS/blank export errors.
+ */
+async function inlineImagesAsBase64(element: HTMLElement): Promise<void> {
+  // 1. Process <img> elements
+  const imgs = Array.from(element.querySelectorAll('img'))
+  for (const img of imgs) {
+    const src = img.getAttribute('src')
+    if (src && !src.startsWith('data:') && !src.startsWith('blob:')) {
+      try {
+        const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(src)}`
+        const res = await fetch(proxyUrl)
+        if (res.ok) {
+          const blob = await res.blob()
+          const dataUrl = await new Promise<string>((resolve) => {
+            const reader = new FileReader()
+            reader.onloadend = () => resolve(reader.result as string)
+            reader.readAsDataURL(blob)
+          })
+          img.setAttribute('src', dataUrl)
+        }
+      } catch (err) {
+        // Fallback: continue with current src
+      }
+    }
+  }
+
+  // 2. Process background-image elements
+  const bgElements = Array.from(element.querySelectorAll<HTMLElement>('*')).filter(
+    (el) => el.style && el.style.backgroundImage && el.style.backgroundImage.includes('url(')
+  )
+  for (const el of bgElements) {
+    const match = el.style.backgroundImage.match(/url\(["']?(.*?)["']?\)/)
+    if (match && match[1] && !match[1].startsWith('data:') && !match[1].startsWith('blob:')) {
+      try {
+        const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(match[1])}`
+        const res = await fetch(proxyUrl)
+        if (res.ok) {
+          const blob = await res.blob()
+          const dataUrl = await new Promise<string>((resolve) => {
+            const reader = new FileReader()
+            reader.onloadend = () => resolve(reader.result as string)
+            reader.readAsDataURL(blob)
+          })
+          el.style.backgroundImage = `url("${dataUrl}")`
+        }
+      } catch (err) {}
+    }
+  }
+}
+
+/**
+ * Captures an element using html2canvas safely with inlined base64 images.
  */
 async function captureElementCanvas(element: HTMLElement, scale: number = 2.5) {
   const { default: html2canvas } = await import('html2canvas')
 
   try {
-    return await html2canvas(element, {
-      scale,
-      useCORS: true,
-      allowTaint: false,
-      logging: false,
-      backgroundColor: '#ffffff',
-      proxy: '/api/image-proxy'
-    })
-  } catch (err) {
-    console.warn('Initial html2canvas capture failed, attempting fallback without external proxy:', err)
-    // Fallback: capture without proxy but guaranteed allowTaint: false
-    return await html2canvas(element, {
-      scale: 2.0,
-      useCORS: true,
-      allowTaint: false,
-      logging: false,
-      backgroundColor: '#ffffff'
-    })
+    await inlineImagesAsBase64(element)
+  } catch (e) {
+    console.warn('Image inlining step skipped:', e)
   }
+
+  return await html2canvas(element, {
+    scale,
+    useCORS: true,
+    allowTaint: true,
+    logging: false,
+    backgroundColor: '#ffffff'
+  })
 }
 
 /**
@@ -129,7 +175,8 @@ export async function downloadElementAsPdf(
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
-  URL.revokeObjectURL(downloadUrl)
+  // Defer revocation so mobile browsers don't abort download stream
+  setTimeout(() => URL.revokeObjectURL(downloadUrl), 30000)
 }
 
 /**
@@ -169,7 +216,7 @@ export async function downloadElementAsImage(
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
-  URL.revokeObjectURL(downloadUrl)
+  setTimeout(() => URL.revokeObjectURL(downloadUrl), 30000)
 }
 
 /**

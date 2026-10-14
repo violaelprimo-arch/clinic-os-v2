@@ -115,7 +115,11 @@ function styleWorksheet(worksheet: ExcelJS.Worksheet) {
 /**
  * 1. Export Patients List
  */
-export async function exportPatientsToExcel(patients: any[], clinicName: string = 'العيادة'): Promise<void> {
+export async function exportPatientsToExcel(
+  patients: any[],
+  clinicName: string = 'العيادة',
+  dateRange?: { fromDate?: string; toDate?: string }
+): Promise<void> {
   const workbook = await createWorkbook('Clinic OS V2')
 
   const worksheet = workbook.addWorksheet('سجل المرضى')
@@ -145,7 +149,10 @@ export async function exportPatientsToExcel(patients: any[], clinicName: string 
 
   styleWorksheet(worksheet)
   const today = new Date().toISOString().split('T')[0]
-  await downloadWorkbook(workbook, `مرضى_${clinicName}_${today}.xlsx`)
+  const dateSuffix = dateRange?.fromDate || dateRange?.toDate
+    ? `${dateRange.fromDate ? `_من_${dateRange.fromDate}` : ''}${dateRange.toDate ? `_إلى_${dateRange.toDate}` : ''}`
+    : `_${today}`
+  await downloadWorkbook(workbook, `مرضى_${clinicName}${dateSuffix}.xlsx`)
 }
 
 /**

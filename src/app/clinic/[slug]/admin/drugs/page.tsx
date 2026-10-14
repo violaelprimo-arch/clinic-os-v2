@@ -44,6 +44,51 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
     name: '', activeIngredient: '', company: '', form: 'أقراص', price: 0
   })
 
+  // Sync state & automatic daily trigger
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [lastSyncDate, setLastSyncDate] = useState<string>('')
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedSync = localStorage.getItem('last_drug_sync') || ''
+      if (savedSync) setLastSyncDate(savedSync)
+
+      // Automatic daily check: if not synced today in Africa/Cairo, trigger silent sync
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date())
+      if (savedSync !== today) {
+        fetch('/api/sync-daily-prices')
+          .then((res) => {
+            if (res.ok) {
+              localStorage.setItem('last_drug_sync', today)
+              setLastSyncDate(today)
+            }
+          })
+          .catch(() => {})
+      }
+    }
+  }, [])
+
+  const handleManualSync = async () => {
+    setIsSyncing(true)
+    toast.info('جاري جلب أحدث أسعار الأدوية من السوق وتحديث قاعدة البيانات...')
+    try {
+      const res = await fetch('/api/sync-daily-prices')
+      if (res.ok) {
+        const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date())
+        localStorage.setItem('last_drug_sync', today)
+        setLastSyncDate(today)
+        toast.success('تم فحص وتحديث أسعار الأدوية بنجاح!')
+        setTimeout(() => window.location.reload(), 1000)
+      } else {
+        toast.error('تعذر إكمال التحديث حالياً، جاري استخدام آخر أسعار مخزنة.')
+      }
+    } catch (e) {
+      toast.error('حدث خطأ أثناء فحص وتحديث الأسعار.')
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
   // 1. Fetch clinic favorites
   useEffect(() => {
     const fetchClinicSettings = async () => {
@@ -161,20 +206,38 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
             <Pill className="w-6 h-6 text-[#15B8A6]" />
             دليل الأدوية المركزي
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            قاعدة بيانات الأدوية المصرية المصنفة بالمواد الفعالة والشركات وتحديث الأسعار التلقائي
-          </p>
+          <div className="flex flex-wrap items-center gap-2 mt-1">
+            <p className="text-xs text-slate-400">
+              قاعدة بيانات الأدوية المصرية المصنفة بالمواد الفعالة وتحديث الأسعار
+            </p>
+            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-emerald-600" />
+              تحديث تلقائي يومي {lastSyncDate ? `(تاريخ: ${lastSyncDate})` : 'مفعل'}
+            </span>
+          </div>
         </div>
 
-        {/* Add Custom Drug Dialog */}
-        <div className="flex gap-2">
-        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-          <DialogTrigger>
-            <Button className="bg-[#15B8A6] hover:bg-[#0D9488] text-white font-bold h-10 px-4 rounded-xl text-xs">
-              <Plus className="w-4 h-4 ml-1.5" />
-              إضافة دواء جديد
-            </Button>
-          </DialogTrigger>
+        {/* Header Actions */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Manual Sync Button */}
+          <Button
+            onClick={handleManualSync}
+            disabled={isSyncing}
+            variant="outline"
+            className="h-10 px-3.5 text-xs font-bold border-teal-200 text-teal-700 bg-teal-50/70 hover:bg-teal-100 rounded-xl cursor-pointer shadow-2xs"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ml-1.5 ${isSyncing ? 'animate-spin' : ''}`} />
+            {isSyncing ? 'جاري التحديث...' : 'تحديث يدوي للأسعار'}
+          </Button>
+
+          {/* Add Custom Drug Dialog */}
+          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+            <DialogTrigger>
+              <Button className="bg-[#15B8A6] hover:bg-[#0D9488] text-white font-bold h-10 px-4 rounded-xl text-xs shadow-xs">
+                <Plus className="w-4 h-4 ml-1.5" />
+                إضافة دواء جديد
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-md bg-white border-none shadow-xl rounded-2xl" dir="rtl">
             <DialogHeader>
               <DialogTitle className="text-lg font-black text-[#182230] flex items-center gap-2">

@@ -71,14 +71,26 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     }
   }, [])
 
-  // Subscribe to real-time appointments for today
+  // Today in Cairo Timezone (Africa/Cairo)
+  const getCairoTodayDate = () => {
+    try {
+      return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date())
+    } catch (e) {
+      const d = new Date()
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    }
+  }
+
+  const [selectedDashboardDate, setSelectedDashboardDate] = useState<string>(getCairoTodayDate())
+
+  // Subscribe to real-time appointments for selected date
   useEffect(() => {
     if (!clinic?.id) return
-    const today = new Date().toISOString().split('T')[0]
+    setIsLoading(true)
     const q = query(
       collection(db, 'appointments'),
       where('clinic_id', '==', clinic.id),
-      where('date', '==', today)
+      where('date', '==', selectedDashboardDate)
     )
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -87,7 +99,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
       setIsLoading(false)
     })
     return () => unsubscribe()
-  }, [clinic?.id])
+  }, [clinic?.id, selectedDashboardDate])
 
   // Filter by selected branch
   const branchFilteredAppointments = useMemo(() => {
@@ -137,6 +149,18 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
       (b.paymentMethod && b.paymentMethod !== 'cash' && b.paymentStatus !== 'paid')
     )
   }, [bookings])
+
+  // Dynamic Average Visit Duration calculation from completed exams today
+  const dynamicAverageVisitTime = useMemo(() => {
+    const completedWithDuration = rawAppointments.filter(
+      (a: any) => a.status === 'completed' && a.durationMinutes && a.durationMinutes > 0
+    )
+    if (completedWithDuration.length > 0) {
+      const sum = completedWithDuration.reduce((acc: number, curr: any) => acc + Number(curr.durationMinutes), 0)
+      return Math.round(sum / completedWithDuration.length)
+    }
+    return Number(clinic?.averageVisitTime) || 15
+  }, [rawAppointments, clinic?.averageVisitTime])
 
   // Check 5-patient threshold and trigger notification
   useEffect(() => {
@@ -318,9 +342,15 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     setIsProcessing(true)
     try {
       if (currentPatient && currentPatient.id !== patient.id) {
+        let prevDuration: number | null = null
+        if (currentPatient.startedAt) {
+          const startMs = new Date(currentPatient.startedAt).getTime()
+          prevDuration = Math.max(1, Math.round((new Date().getTime() - startMs) / 60000))
+        }
         await updateDoc(doc(db, 'appointments', currentPatient.id), {
           status: 'completed',
-          completedAt: new Date().toISOString()
+          completedAt: new Date().toISOString(),
+          ...(prevDuration ? { durationMinutes: prevDuration } : {})
         })
       }
 
@@ -385,11 +415,39 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     if (isProcessing) return
     setIsProcessing(true)
     try {
-      await updateDoc(doc(db, 'appointments', patientId), {
+      const appt = bookings.find(b => b.id === patientId)
+      let durationMinutes: number | null = null
+      if (appt?.startedAt) {
+        const startMs = new Date(appt.startedAt).getTime()
+        const nowMs = new Date().getTime()
+        durationMinutes = Math.max(1, Math.round((nowMs - startMs) / 60000))
+      }
+
+      const updateData: any = {
         status: 'completed',
         completedAt: new Date().toISOString()
-      })
-      toast.success(`تم إنهاء كشف: ${patientName}`)
+      }
+      if (durationMinutes) {
+        updateData.durationMinutes = durationMinutes
+      }
+
+      await updateDoc(doc(db, 'appointments', patientId), updateData)
+
+      // Dynamically recalculate average visit time and update clinic document
+      if (durationMinutes && clinic?.id) {
+        const allCompleted = rawAppointments
+          .filter(a => a.id !== patientId && a.status === 'completed' && a.durationMinutes)
+          .map(a => Number(a.durationMinutes))
+        allCompleted.push(durationMinutes)
+        const newAvg = Math.round(allCompleted.reduce((a, b) => a + b, 0) / allCompleted.length)
+        if (newAvg > 0) {
+          updateDoc(doc(db, 'clinics', clinic.id), {
+            averageVisitTime: newAvg
+          }).catch(() => {})
+        }
+      }
+
+      toast.success(`تم إنهاء كشف: ${patientName}${durationMinutes ? ` (استغرق ${durationMinutes} دقيقة)` : ''}`)
     } catch (err) {
       toast.error('حدث خطأ أثناء إنهاء الكشف.')
     } finally {
@@ -597,6 +655,56 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
         >
           {clinic?.isClinicOpen !== false ? 'إغلاق العيادة (إيقاف الحجز)' : 'فتح العيادة (بدء الحجز)'}
         </Button>
+      </div>
+
+      {/* Date Filter & Dynamic Consultation Average Duration Bar */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between p-4 bg-slate-50/80 border border-[#E5EAF0] rounded-2xl gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 ml-1">
+            <Calendar className="w-4 h-4 text-[#15B8A6]" />
+            حجوزات تاريخ:
+          </span>
+          <button
+            type="button"
+            onClick={() => setSelectedDashboardDate(getCairoTodayDate())}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              selectedDashboardDate === getCairoTodayDate()
+                ? 'bg-[#15B8A6] text-white shadow-xs'
+                : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+            }`}
+          >
+            اليوم (الحالي)
+          </button>
+          <input
+            type="date"
+            value={selectedDashboardDate}
+            onChange={(e) => {
+              if (e.target.value) setSelectedDashboardDate(e.target.value)
+            }}
+            className="h-8 px-3 text-xs font-bold font-mono rounded-xl bg-white border border-slate-200 text-slate-800"
+          />
+          {selectedDashboardDate !== getCairoTodayDate() && (
+            <span className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+              تستعرض تاريخ: {selectedDashboardDate}
+            </span>
+          )}
+        </div>
+
+        {/* Dynamic Average Consultation Duration Banner */}
+        <div className="flex items-center gap-2 px-3.5 py-1.5 bg-white border border-teal-200/80 rounded-xl shadow-2xs self-start md:self-auto">
+          <Clock className="w-4 h-4 text-[#15B8A6] shrink-0" />
+          <div className="text-right">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-bold text-slate-600">متوسط وقت الكشف التقديري:</span>
+              <span className="text-xs font-black text-teal-800 font-mono bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+                ~ {dynamicAverageVisitTime} دقيقة
+              </span>
+            </div>
+            <p className="text-[9.5px] text-slate-400 font-medium">
+              محسوب تلقائياً وتراكمياً من الكشوفات المكتملة
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* TOP STATS CARDS */}

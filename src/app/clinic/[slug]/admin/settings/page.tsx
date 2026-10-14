@@ -595,7 +595,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               </div>
 
               {/* Thermal Paper Simulation */}
-              <div className="bg-white p-5 rounded-xl shadow-xs border border-slate-200 text-center font-mono text-xs space-y-3 max-w-[280px] mx-auto text-slate-900">
+              <div className="bg-white p-5 rounded-xl shadow-xs border border-slate-200 text-center font-mono text-xs space-y-2.5 max-w-[290px] mx-auto text-slate-900" dir="rtl">
                 {thermalMonoLogoUrl || logoUrl ? (
                   <img
                     src={thermalMonoLogoUrl || logoUrl}
@@ -608,31 +608,46 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                   </div>
                 )}
                 <div>
-                  <h5 className="font-black text-sm">{clinicName || 'عيادة الأمل'}</h5>
-                  <p className="text-[10px] text-slate-600">{receiptHeaderNote || doctorTitle + ' ' + (doctorName || 'الطبيب')}</p>
+                  <h5 className="font-black text-sm text-[#182230]">{clinicName || 'عيادة الأمل التخصصية'}</h5>
+                  <p className="text-[10px] text-slate-600 font-bold">{receiptHeaderNote || `${doctorTitle} ${doctorName || 'الطبيب'}`}</p>
                 </div>
+
+                {/* Prominent Large Queue Number At Top */}
+                <div className="bg-slate-900 text-white rounded-xl py-2 px-3 text-center my-2 shadow-xs">
+                  <div className="text-[9.5px] font-bold text-slate-300">رقم الدور في الكشف</div>
+                  <div className="text-3xl font-black tracking-wider font-mono"># 3</div>
+                </div>
+
                 <div className="border-t border-dashed border-slate-400 my-2"></div>
-                <div className="text-right text-[11px] space-y-1">
+                <div className="text-right text-[11px] space-y-1.5">
                   <div className="flex justify-between">
-                    <span>رقم الإيصال:</span>
-                    <span className="font-bold">#INV-2026-0042</span>
+                    <span className="text-slate-500">رقم الإيصال:</span>
+                    <span className="font-bold font-mono">#INV-2026-0042</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>التاريخ:</span>
-                    <span>{new Date().toISOString().split('T')[0]}</span>
+                    <span className="text-slate-500">التاريخ:</span>
+                    <span className="font-mono">{new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date())}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>الخدمة:</span>
-                    <span className="font-bold">كشف عادي</span>
+                    <span className="text-slate-500">المريض:</span>
+                    <span className="font-bold">أحمد محمد علي</span>
                   </div>
-                  <div className="flex justify-between font-black text-xs pt-1 border-t border-slate-200">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">الخدمة:</span>
+                    <span className="font-bold">كشف عيادة عادي</span>
+                  </div>
+                  <div className="flex justify-between items-center font-black text-xs pt-1.5 border-t border-slate-200">
                     <span>المبلغ المطلوب:</span>
-                    <span>300 ج.م</span>
+                    <span className="text-sm font-black text-[#15B8A6]">300 ج.م</span>
+                  </div>
+                  <div className="flex justify-between text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-bold">
+                    <span>حالة الدفع:</span>
+                    <span>تم السداد بالكامل ✓</span>
                   </div>
                 </div>
                 <div className="border-t border-dashed border-slate-400 my-2"></div>
                 <p className="text-[10px] text-slate-500 leading-tight">
-                  {receiptFooterNote || 'يرجى الاحتفاظ بالإيصال للاستشارة'}
+                  {receiptFooterNote || 'يرجى الاحتفاظ بالإيصال للاستشارة - نتمنى لكم الشفاء العاجل'}
                 </p>
               </div>
             </div>
@@ -672,45 +687,6 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       {/* TAB 1: Profile & Visual Identity */}
       {activeTab === 'profile' && (
         <div className="space-y-6">
-          {/* Direct Subdomain Banner */}
-          <div className="p-4 bg-teal-50/80 border-2 border-teal-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-teal-600" />
-                <span className="text-xs font-black text-slate-800">رابط العيادة المباشر الخاص بك (Subdomain):</span>
-              </div>
-              <div className="font-mono text-sm font-black text-teal-800 bg-white px-3 py-1 rounded-xl border border-teal-200 inline-block select-all" dir="ltr">
-                https://{slug}.yalla-clinic.com
-              </div>
-              <p className="text-[11px] text-slate-500 font-medium">
-                هذا هو الرابط الرسمي لحجز مرضاك ومتابعة الدور بدون الحاجة للبحث.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => {
-                  navigator.clipboard.writeText(`https://${slug}.yalla-clinic.com`)
-                  toast.success('تم نسخ رابط العيادة المباشر!')
-                }}
-                className="flex-1 sm:flex-none h-9 px-3.5 bg-[#15B8A6] hover:bg-[#0D9488] text-white font-bold text-xs rounded-xl shadow-xs"
-              >
-                <Copy className="w-3.5 h-3.5 ml-1.5" />
-                نسخ الرابط
-              </Button>
-              <a
-                href={`https://${slug}.yalla-clinic.com`}
-                target="_blank"
-                rel="noreferrer"
-                className="flex-1 sm:flex-none h-9 px-3.5 inline-flex items-center justify-center gap-1.5 border border-slate-200 hover:bg-white text-slate-700 font-bold text-xs rounded-xl transition-colors bg-white/70"
-              >
-                <ExternalLink className="w-3.5 h-3.5 ml-1" />
-                فتح الرابط
-              </a>
-            </div>
-          </div>
-
           <div className="grid lg:grid-cols-2 gap-6">
             {/* Form Side */}
             <div className="medical-card p-6 space-y-5">
@@ -905,19 +881,20 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
             <div className="flex-1 relative overflow-y-auto overflow-x-hidden no-scrollbar bg-white">
               <div className="absolute inset-0 origin-top" style={{ transform: 'scale(0.85)', width: '117%' }}>
                 <PremiumLanding 
+                  key={`${clinicName}-${doctorName}-${specialty}-${primaryColor}-${photoUrl}`}
                   clinic={{
-                    clinicName: clinicName || 'عيادة تجريبية',
-                    doctorName: doctorName || 'طبيب',
+                    clinicName: clinicName || 'عيادة الأمل التخصصية',
+                    doctorName: doctorName || 'أحمد عبد العزيز',
                     doctorTitle: doctorTitle || 'د.',
-                    specialty: specialty || 'تخصص',
-                    heroSubtitle: heroSubtitle || '',
+                    specialty: specialty || 'استشاري الطب الباطني والجهاز الهضمي',
+                    heroSubtitle: heroSubtitle || 'نقدم لك ولأسرتك رعاية طبية متكاملة بأحدث المعايير السريرية مع نظام إلكتروني ذكي لتنظيم الأدوار ومتابعة حالتك بدون انتظار طويل.',
                     certificationTitle: certificationTitle || 'طبيب معتمد رسمياً',
                     certificationEntity: certificationEntity || 'نقابة الأطباء المصرية',
                     heroImage: photoUrl || '',
                     primaryColor: primaryColor || '#15B8A6',
-                    clinicPhone: phones[0] || '01000000000',
+                    clinicPhone: phones[0] || '01012345678',
                     clinicPhones: phones.filter(p => p.trim() !== ''),
-                    clinicAddress: address || 'عنوان',
+                    clinicAddress: address || 'شارع التسعين الشمالي، التجمع الخامس، القاهرة',
                     mapsLink: mapsLink || '',
                     services: services || [],
                     aiEnabled: aiEnabled
