@@ -7,12 +7,23 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const parsed = new URL(url)
-    if (!['http:', 'https:'].includes(parsed.protocol)) {
-      return new NextResponse('Invalid protocol', { status: 400 })
+    let targetUrl: string
+    try {
+      const parsed = new URL(url)
+      if (!['http:', 'https:'].includes(parsed.protocol)) {
+        return new NextResponse('Invalid protocol', { status: 400 })
+      }
+      targetUrl = parsed.href
+    } catch {
+      // Relative URL: resolve against request origin
+      targetUrl = new URL(url, req.nextUrl.origin).href
     }
 
-    const res = await fetch(url)
+    const res = await fetch(targetUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ClinicOS/2.0'
+      }
+    })
     if (!res.ok) {
       return new NextResponse(`Failed to fetch image: ${res.statusText}`, { status: res.status })
     }
