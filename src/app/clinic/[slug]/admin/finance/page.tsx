@@ -31,15 +31,26 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
   const [branches, setBranches] = useState<any[]>([])
   const [selectedBranchId, setSelectedBranchId] = useState<string>('all')
 
+  const formatLocalYMD = (d: Date) => {
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  }
+
   const now = new Date()
-  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-  const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+  const firstDayOfMonth = formatLocalYMD(new Date(now.getFullYear(), now.getMonth(), 1))
+  const lastDayOfMonth = formatLocalYMD(new Date(now.getFullYear(), now.getMonth() + 1, 0))
 
   const [fromDate, setFromDate] = useState(firstDayOfMonth)
   const [toDate, setToDate] = useState(lastDayOfMonth)
   const [report, setReport] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [dailyData, setDailyData] = useState<any[]>([])
+  const [weeklyData, setWeeklyData] = useState<any[]>([])
+  const [timelineData, setTimelineData] = useState<any[]>([])
+  const [chartViewMode, setChartViewMode] = useState<'weekly' | 'timeline'>('weekly')
+  const [chartMetric, setChartMetric] = useState<'collected' | 'revenue'>('collected')
+  const [hoveredNode, setHoveredNode] = useState<any | null>(null)
   const [servicesData, setServicesData] = useState<any[]>([])
   const [paymentsData, setPaymentsData] = useState<any[]>([])
 
@@ -93,10 +104,13 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
     fetchClinicInfo()
   }, [slug])
 
-  // Generate Report
-  const generateReport = async () => {
+  // Generate Report with accurate weekly and daily timeline calculations
+  const generateReport = async (overrideFrom?: string, overrideTo?: string) => {
     setIsLoading(true)
     try {
+      const activeFrom = overrideFrom !== undefined ? overrideFrom : fromDate
+      const activeTo = overrideTo !== undefined ? overrideTo : toDate
+
       const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
       const cSnap = await getDocs(cQ)
       if (cSnap.empty) {
@@ -112,9 +126,11 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
       const snapshot = await getDocs(q)
       
       const allAppts = snapshot.docs.filter(d => {
-        const date = d.data().date
-        if (!date) return false
-        return date >= fromDate && date <= toDate
+        const itemDate = d.data().date || (d.data().createdAt ? d.data().createdAt.split('T')[0] : '')
+        if (!itemDate) return false
+        if (activeFrom && itemDate < activeFrom) return false
+        if (activeTo && itemDate > activeTo) return false
+        return true
       })
 
       // Filter by selected branch if not 'all'
@@ -133,45 +149,103 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
       let due = 0
       let totalDiscounts = 0
 
-      let servicesMap: any = {}
-      let daysMap: any = { 'Saturday': 0, 'Sunday': 0, 'Monday': 0, 'Tuesday': 0, 'Wednesday': 0, 'Thursday': 0, 'Friday': 0 }
-      
+      let servicesMap: Record<string, number> = {}
+
+      const weekDayKeys = ['Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+      const arDaysMap: Record<string, string> = {
+        'Saturday': 'السبت',
+        'Sunday': 'الأحد',
+        'Monday': 'الاثنين',
+        'Tuesday': 'الثلاثاء',
+        'Wednesday': 'الأربعاء',
+        'Thursday': 'الخميس',
+        'Friday': 'الجمعة'
+      }
+
+      const weeklyAgg: Record<string, { collected: number; revenue: number; count: number }> = {
+        'Saturday': { collected: 0, revenue: 0, count: 0 },
+        'Sunday': { collected: 0, revenue: 0, count: 0 },
+        'Monday': { collected: 0, revenue: 0, count: 0 },
+        'Tuesday': { collected: 0, revenue: 0, count: 0 },
+        'Wednesday': { collected: 0, revenue: 0, count: 0 },
+        'Thursday': { collected: 0, revenue: 0, count: 0 },
+        'Friday': { collected: 0, revenue: 0, count: 0 }
+      }
+
+      const timelineMap: Record<string, { date: string; day: string; weekday: string; collected: number; revenue: number; count: number }> = {}
+
       const appts = filteredByBranch.map(d => {
         const data = d.data()
-        const origPrice = Number(data.originalPrice || data.servicePrice) || 0
-        const price = Number(data.servicePrice) || origPrice
-        const disc = data.discount?.amount || (origPrice > price ? origPrice - price : 0)
+        const isCancelled = data.status === 'cancelled'
+        const origPrice = isCancelled ? 0 : (Number(data.originalPrice || data.servicePrice) || 0)
+        const price = isCancelled ? 0 : (Number(data.servicePrice) || origPrice)
+        const disc = isCancelled ? 0 : (data.discount?.amount || (origPrice > price ? origPrice - price : 0))
 
-        totalDiscounts += disc
-        rev += origPrice
+        if (!isCancelled) {
+          totalDiscounts += disc
+          rev += origPrice
+        }
 
-        if (data.serviceName) {
+        if (data.serviceName && !isCancelled) {
           servicesMap[data.serviceName] = (servicesMap[data.serviceName] || 0) + 1
         }
 
-        if (data.paymentStatus === 'paid' || data.status === 'completed') {
+        const isPaid = (data.paymentStatus === 'paid' || data.status === 'completed') && !isCancelled
+
+        if (isPaid) {
           coll += price
           if (data.paymentMethod === 'wallet') wllt += price
           else if (data.paymentMethod === 'instapay') inst += price
           else csh += price
-          
-          if (data.date) {
-            const dateObj = new Date(data.date)
-            const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' })
-            if (daysMap[dayName] !== undefined) {
-              daysMap[dayName] += price
-            }
-          }
-        } else {
+        } else if (!isCancelled) {
           due += price
         }
+
+        const itemDate = data.date || (data.createdAt ? data.createdAt.split('T')[0] : '')
+        if (itemDate && !isCancelled) {
+          const [yr, mo, da] = itemDate.split('-').map(Number)
+          let dayKey = 'Saturday'
+          let dateLabel = itemDate
+          if (yr && mo && da) {
+            const dObj = new Date(yr, mo - 1, da)
+            const dIdx = dObj.getDay() // 0=Sun, 1=Mon, ..., 6=Sat
+            const daysArr = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+            dayKey = daysArr[dIdx]
+            dateLabel = `${da}/${mo}`
+          }
+
+          if (weeklyAgg[dayKey]) {
+            weeklyAgg[dayKey].revenue += origPrice
+            weeklyAgg[dayKey].count += 1
+            if (isPaid) {
+              weeklyAgg[dayKey].collected += price
+            }
+          }
+
+          if (!timelineMap[itemDate]) {
+            timelineMap[itemDate] = {
+              date: itemDate,
+              day: dateLabel,
+              weekday: arDaysMap[dayKey] || dayKey,
+              collected: 0,
+              revenue: 0,
+              count: 0
+            }
+          }
+          timelineMap[itemDate].revenue += origPrice
+          timelineMap[itemDate].count += 1
+          if (isPaid) {
+            timelineMap[itemDate].collected += price
+          }
+        }
+
         return { id: d.id, ...data, netPrice: price, discountAmount: disc }
       })
 
       setReport(appts)
       setTotals({
         revenue: rev,
-        patients: appts.length,
+        patients: appts.filter((a: any) => a.status !== 'cancelled').length,
         collected: coll,
         due: due,
         discounts: totalDiscounts,
@@ -180,16 +254,31 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
         wallet: wllt
       })
 
-      // Prepare Daily Chart
-      const arDays: any = { 'Saturday': 'السبت', 'Sunday': 'الأحد', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس', 'Friday': 'الجمعة' }
-      let maxDay = 1
-      Object.values(daysMap).forEach((v: any) => { if (v > maxDay) maxDay = v })
-      const newDaily = Object.keys(daysMap).map(k => ({
-        day: arDays[k],
-        val: daysMap[k],
-        pct: (daysMap[k] / maxDay) * 100
+      // Prepare Weekly Breakdown
+      const newWeekly = weekDayKeys.map(k => ({
+        key: k,
+        day: arDaysMap[k],
+        enDay: k,
+        collected: weeklyAgg[k].collected,
+        revenue: weeklyAgg[k].revenue,
+        count: weeklyAgg[k].count
       }))
-      setDailyData(newDaily)
+      setWeeklyData(newWeekly)
+
+      // Prepare Chronological Timeline Breakdown
+      const sortedDates = Object.keys(timelineMap).sort()
+      const newTimeline = sortedDates.map(dateKey => {
+        const item = timelineMap[dateKey]
+        return {
+          key: dateKey,
+          date: dateKey,
+          day: `${item.weekday} ${item.day}`,
+          collected: item.collected,
+          revenue: item.revenue,
+          count: item.count
+        }
+      })
+      setTimelineData(newTimeline)
 
       // Prepare Services Chart
       let totalServices = 0
@@ -209,7 +298,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
         { name: 'InstaPay', pct: Math.round((inst / totalCollected) * 100), color: 'bg-purple-500', amount: inst },
         { name: 'محفظة إلكترونية', pct: Math.round((wllt / totalCollected) * 100), color: 'bg-blue-500', amount: wllt }
       ])
-      toast.success('تم تحديث التقرير المالي بنجاح')
+      toast.success('تم تحديث التقرير والتحليلات المالية بنجاح')
     } catch (err) {
       console.error(err)
       toast.error('حدث خطأ أثناء تحميل التقرير')
@@ -221,6 +310,75 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
   useEffect(() => {
     generateReport()
   }, [slug, selectedBranchId])
+
+  // Quick Preset Date Ranges
+  const handlePreset = (preset: 'today' | 'week' | 'month' | 'prevMonth' | 'all') => {
+    const d = new Date()
+    let newFrom = ''
+    let newTo = ''
+    if (preset === 'today') {
+      const today = formatLocalYMD(d)
+      newFrom = today
+      newTo = today
+    } else if (preset === 'week') {
+      const past = new Date()
+      past.setDate(past.getDate() - 6)
+      newFrom = formatLocalYMD(past)
+      newTo = formatLocalYMD(d)
+    } else if (preset === 'month') {
+      newFrom = formatLocalYMD(new Date(d.getFullYear(), d.getMonth(), 1))
+      newTo = formatLocalYMD(new Date(d.getFullYear(), d.getMonth() + 1, 0))
+    } else if (preset === 'prevMonth') {
+      newFrom = formatLocalYMD(new Date(d.getFullYear(), d.getMonth() - 1, 1))
+      newTo = formatLocalYMD(new Date(d.getFullYear(), d.getMonth(), 0))
+    } else if (preset === 'all') {
+      newFrom = ''
+      newTo = ''
+    }
+    setFromDate(newFrom)
+    setToDate(newTo)
+    generateReport(newFrom, newTo)
+  }
+
+  // Active Chart Data computed dynamically from metric & view mode
+  const activeChartData = useMemo(() => {
+    const rawList = chartViewMode === 'weekly' ? weeklyData : timelineData
+    if (!rawList || rawList.length === 0) {
+      if (chartViewMode === 'weekly') {
+        const arDays = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة']
+        return arDays.map((d, i) => ({
+          key: `empty-${i}`,
+          day: d,
+          collected: 0,
+          revenue: 0,
+          count: 0,
+          val: 0
+        }))
+      }
+      return []
+    }
+    return rawList.map(item => ({
+      ...item,
+      val: chartMetric === 'collected' ? (item.collected || 0) : (item.revenue || 0)
+    }))
+  }, [chartViewMode, chartMetric, weeklyData, timelineData])
+
+  // Chart Statistics (Peak Day, Average, Total)
+  const chartStats = useMemo(() => {
+    if (!activeChartData || activeChartData.length === 0) {
+      return { peakDay: null, average: 0, total: 0 }
+    }
+    let total = 0
+    let peak = activeChartData[0]
+    activeChartData.forEach(item => {
+      total += item.val || 0
+      if ((item.val || 0) > (peak.val || 0)) {
+        peak = item
+      }
+    })
+    const avg = Math.round(total / (activeChartData.length || 1))
+    return { peakDay: (peak?.val || 0) > 0 ? peak : null, average: avg, total }
+  }, [activeChartData])
 
   // Multi-branch Breakdown calculation
   const branchBreakdown = useMemo(() => {
@@ -361,7 +519,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
       </div>
 
       {/* 2. Date & Branch Filter Bar (iOS Frosted Glass) */}
-      <div className="ios-glass-card p-4 sm:p-5 border border-border/80 rounded-2xl shadow-xs">
+      <div className="ios-glass-card p-4 sm:p-5 border border-border/80 rounded-2xl shadow-xs space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
           <div className="space-y-1">
             <Label className="text-xs font-bold text-muted-foreground">{t('from_date', 'من تاريخ')}</Label>
@@ -398,12 +556,36 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
           </div>
 
           <Button
-            onClick={generateReport}
+            onClick={() => generateReport()}
             disabled={isLoading}
             className="w-full h-10 px-6 font-black yalla-gradient-btn rounded-xl text-xs shadow-md shadow-primary/25 cursor-pointer active:scale-95 transition-all"
           >
             {isLoading ? t('loading', 'جاري التحميل...') : t('update_report', 'تحديث التقرير')}
           </Button>
+        </div>
+
+        {/* Quick Date Presets Bar */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-border/60">
+          <span className="text-[11px] font-bold text-muted-foreground ml-1 flex items-center gap-1">
+            <Calendar className="w-3.5 h-3.5 text-primary" />
+            {language === 'en' ? 'Quick Range:' : 'فترات سريعة:'}
+          </span>
+          {[
+            { id: 'today', label: language === 'en' ? 'Today' : 'اليوم' },
+            { id: 'week', label: language === 'en' ? 'Last 7 Days' : 'آخر 7 أيام' },
+            { id: 'month', label: language === 'en' ? 'This Month' : 'هذا الشهر' },
+            { id: 'prevMonth', label: language === 'en' ? 'Last Month' : 'الشهر السابق' },
+            { id: 'all', label: language === 'en' ? 'All Periods' : 'كل الفترات' }
+          ].map(p => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => handlePreset(p.id as any)}
+              className="px-2.5 py-1 text-[11px] font-bold rounded-xl bg-secondary/80 hover:bg-primary/15 hover:text-primary border border-border/60 transition-all cursor-pointer active:scale-95"
+            >
+              {p.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -481,61 +663,166 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
       {/* 4. VISUAL CHARTS & BREAKDOWNS (Deep Space Navy Glassmorphic Theme) */}
       <div className="grid lg:grid-cols-12 gap-6 items-start">
         
-        {/* Daily Revenue Area Curve Chart (7 cols - Matches Bottom-Right Wireframe) */}
+        {/* Daily / Weekly Revenue Area Curve Chart (7 cols - Matches Bottom-Right Wireframe) */}
         <div className="lg:col-span-7 ios-glass-card p-6 space-y-4 border border-border/80 rounded-3xl shadow-sm">
-          <div className="flex items-center justify-between pb-3 border-b border-border/80">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/80">
             <div className="flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-primary" />
-              <h3 className="font-black text-sm text-foreground">{t('daily_breakdown', 'منحنى الإيرادات اليومية')}</h3>
+              <div className="w-8 h-8 rounded-xl bg-primary/15 text-primary flex items-center justify-center">
+                <BarChart3 className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-black text-sm text-foreground flex items-center gap-2">
+                  {t('daily_breakdown', 'منحنى الإيرادات والتحصيل')}
+                </h3>
+                <p className="text-[10px] text-muted-foreground">
+                  {chartViewMode === 'weekly' 
+                    ? (language === 'en' ? 'Weekly distribution (Sat - Fri)' : 'توزيع أيام الأسبوع (السبت - الجمعة)')
+                    : (language === 'en' ? 'Daily chronological trajectory' : 'المسار الزمني اليومي بالتاريخ')}
+                </p>
+              </div>
             </div>
-            <span className="text-xs font-bold px-2.5 py-1 rounded-xl bg-primary/10 text-primary border border-primary/20">
-              {language === 'en' ? 'Daily Avg:' : 'متوسط يومي:'} {Math.round(totals.collected / 7).toLocaleString()} {t('currency_egp', 'ج.م')}
-            </span>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Peak Day Badge */}
+              {chartStats.peakDay && (
+                <span className="text-[11px] font-bold px-2.5 py-1 rounded-xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20 flex items-center gap-1 shadow-xs">
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                  {language === 'en' ? 'Peak:' : 'أعلى يوم:'} {chartStats.peakDay.day} ({chartStats.peakDay.val.toLocaleString()} {t('currency_egp', 'ج.م')})
+                </span>
+              )}
+
+              {/* Average Badge */}
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-xs">
+                {language === 'en' ? 'Daily Avg:' : 'متوسط يومي:'} {chartStats.average.toLocaleString()} {t('currency_egp', 'ج.م')}
+              </span>
+
+              {/* View Mode Toggle */}
+              <div className="inline-flex rounded-xl p-0.5 bg-secondary/80 border border-border">
+                <button
+                  type="button"
+                  onClick={() => setChartViewMode('weekly')}
+                  className={`px-2 py-0.5 text-[10px] font-bold rounded-lg transition-all cursor-pointer ${
+                    chartViewMode === 'weekly'
+                      ? 'bg-primary text-primary-foreground shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {language === 'en' ? 'Weekly' : 'أسبوعي'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChartViewMode('timeline')}
+                  className={`px-2 py-0.5 text-[10px] font-bold rounded-lg transition-all cursor-pointer ${
+                    chartViewMode === 'timeline'
+                      ? 'bg-primary text-primary-foreground shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {language === 'en' ? 'Timeline' : 'زمني'}
+                </button>
+              </div>
+
+              {/* Metric Toggle */}
+              <div className="inline-flex rounded-xl p-0.5 bg-secondary/80 border border-border">
+                <button
+                  type="button"
+                  onClick={() => setChartMetric('collected')}
+                  className={`px-2 py-0.5 text-[10px] font-bold rounded-lg transition-all cursor-pointer ${
+                    chartMetric === 'collected'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {language === 'en' ? 'Collected' : 'المحصل'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChartMetric('revenue')}
+                  className={`px-2 py-0.5 text-[10px] font-bold rounded-lg transition-all cursor-pointer ${
+                    chartMetric === 'revenue'
+                      ? 'bg-cyan-600 text-white shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {language === 'en' ? 'Sales' : 'المبيعات'}
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Glowing SVG Area Curve */}
-          <div className="relative w-full h-56 pt-2">
+          <div className="relative w-full h-64 pt-2">
             {(() => {
-              const count = dailyData.length || 7
-              const maxVal = Math.max(...dailyData.map(d => d.val), 100)
-              const width = 640
-              const height = 180
-              const paddingX = 40
-              const paddingY = 25
-              const chartW = width - paddingX * 2
+              const count = activeChartData.length || 7
+              const maxVal = Math.max(...activeChartData.map(d => d.val || 0), 100)
+              const width = 700
+              const height = 190
+              const paddingY = 28
               const chartH = height - paddingY * 2
+              const colW = width / (count || 1)
 
-              const points = dailyData.map((d, i) => {
-                const x = paddingX + (i / (count - 1 || 1)) * chartW
-                const normalizedY = 1 - (d.val / maxVal)
+              const points = activeChartData.map((d, i) => {
+                // In RTL, column 0 (e.g. Saturday) is placed on the far right
+                const x = isRtl
+                  ? width - (i + 0.5) * colW
+                  : (i + 0.5) * colW
+                const normalizedY = maxVal > 0 ? (1 - (d.val || 0) / maxVal) : 1
                 const y = paddingY + normalizedY * chartH
-                return { x, y, ...d }
+                return { x, y, ...d, index: i }
               })
+
+              const sortedPoints = [...points].sort((a, b) => a.x - b.x)
 
               let pathD = ''
               let areaD = ''
 
-              if (points.length > 0) {
-                pathD = `M ${points[0].x} ${points[0].y}`
-                for (let i = 0; i < points.length - 1; i++) {
-                  const p0 = points[i]
-                  const p1 = points[i + 1]
+              if (sortedPoints.length > 0) {
+                pathD = `M ${sortedPoints[0].x} ${sortedPoints[0].y}`
+                for (let i = 0; i < sortedPoints.length - 1; i++) {
+                  const p0 = sortedPoints[i]
+                  const p1 = sortedPoints[i + 1]
                   const cp1x = p0.x + (p1.x - p0.x) / 2
                   const cp1y = p0.y
                   const cp2x = p0.x + (p1.x - p0.x) / 2
                   const cp2y = p1.y
                   pathD += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p1.x} ${p1.y}`
                 }
-                areaD = `${pathD} L ${points[points.length - 1].x} ${height} L ${points[0].x} ${height} Z`
+                areaD = `${pathD} L ${sortedPoints[sortedPoints.length - 1].x} ${height} L ${sortedPoints[0].x} ${height} Z`
               }
 
               return (
-                <div className="relative w-full h-full flex flex-col justify-between">
-                  <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-40 overflow-visible" preserveAspectRatio="none">
+                <div className="relative w-full h-full flex flex-col justify-between select-none">
+                  {/* Floating Tooltip when hovering a node */}
+                  {hoveredNode && (
+                    <div
+                      style={{
+                        left: `${(hoveredNode.x / width) * 100}%`,
+                        top: `${Math.max(4, (hoveredNode.y / height) * 100 - 32)}%`
+                      }}
+                      className="absolute -translate-x-1/2 -translate-y-full pointer-events-none z-30 transition-all duration-150"
+                    >
+                      <div className="bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-2xl border border-cyan-400/50 shadow-[0_12px_32px_rgba(0,240,255,0.3)] rounded-2xl px-3.5 py-2 text-white text-center min-w-[140px]">
+                        <div className="text-[11px] font-black text-cyan-400 flex items-center justify-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          {hoveredNode.day}
+                        </div>
+                        <div className="text-base font-black font-mono mt-0.5 text-white">
+                          {(hoveredNode.val || 0).toLocaleString()} <span className="text-[10px] font-bold text-slate-300">ج.م</span>
+                        </div>
+                        <div className="text-[10px] text-slate-300 mt-0.5 flex items-center justify-center gap-1.5 font-bold">
+                          <span>{hoveredNode.count || 0} كشف</span>
+                          <span>•</span>
+                          <span>محصل: {(hoveredNode.collected || 0).toLocaleString()} ج.م</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-44 overflow-visible" preserveAspectRatio="none">
                     <defs>
                       <linearGradient id="financeAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#00F0FF" stopOpacity="0.45" />
-                        <stop offset="60%" stopColor="#0066FF" stopOpacity="0.15" />
+                        <stop offset="0%" stopColor="#00F0FF" stopOpacity="0.4" />
+                        <stop offset="60%" stopColor="#0066FF" stopOpacity="0.12" />
                         <stop offset="100%" stopColor="#081226" stopOpacity="0.0" />
                       </linearGradient>
                       <linearGradient id="financeStrokeGradient" x1="0" y1="0" x2="1" y2="0">
@@ -543,31 +830,59 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
                         <stop offset="100%" stopColor="#0066FF" />
                       </linearGradient>
                       <filter id="financeGlow" x="-20%" y="-20%" width="140%" height="140%">
-                        <feGaussianBlur stdDeviation="4" result="glow" />
+                        <feGaussianBlur stdDeviation="3.5" result="glow" />
                         <feComposite in="SourceGraphic" in2="glow" operator="over" />
                       </filter>
                     </defs>
 
-                    {/* Horizontal Grid lines */}
-                    {[0.25, 0.5, 0.75].map((pct, idx) => (
-                      <line
-                        key={idx}
-                        x1={paddingX}
-                        y1={paddingY + chartH * pct}
-                        x2={width - paddingX}
-                        y2={paddingY + chartH * pct}
-                        stroke="currentColor"
-                        className="text-border/40"
-                        strokeDasharray="4 4"
-                      />
-                    ))}
+                    {/* Dotted Horizontal Currency Grid lines */}
+                    {[0.25, 0.5, 0.75].map((pct, idx) => {
+                      const gridY = paddingY + chartH * pct
+                      const gridVal = Math.round(maxVal * (1 - pct))
+                      return (
+                        <g key={idx}>
+                          <line
+                            x1={10}
+                            y1={gridY}
+                            x2={width - 10}
+                            y2={gridY}
+                            stroke="currentColor"
+                            className="text-border/30 dark:text-border/20"
+                            strokeDasharray="4 4"
+                            strokeWidth="1"
+                          />
+                          <text
+                            x={isRtl ? 15 : width - 15}
+                            y={gridY - 4}
+                            textAnchor={isRtl ? 'start' : 'end'}
+                            className="fill-muted-foreground/60 text-[9px] font-mono font-bold"
+                          >
+                            {gridVal.toLocaleString()} {t('currency_egp', 'ج.م')}
+                          </text>
+                        </g>
+                      )
+                    })}
 
-                    {/* Gradient Area Fill */}
+                    {/* Vertical Guide Line on Hover */}
+                    {hoveredNode && (
+                      <line
+                        x1={hoveredNode.x}
+                        y1={paddingY}
+                        x2={hoveredNode.x}
+                        y2={height}
+                        stroke="#00F0FF"
+                        strokeDasharray="3 3"
+                        strokeWidth="1.5"
+                        className="opacity-70 animate-pulse"
+                      />
+                    )}
+
+                    {/* Area Fill */}
                     {areaD && (
                       <path d={areaD} fill="url(#financeAreaGradient)" />
                     )}
 
-                    {/* Glowing Stroke Curve */}
+                    {/* Stroke Spline */}
                     {pathD && (
                       <path
                         d={pathD}
@@ -579,33 +894,75 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
                       />
                     )}
 
-                    {/* Interactive Point Dots */}
-                    {points.map((p, idx) => (
-                      <g key={idx} className="group cursor-pointer">
-                        <circle
-                          cx={p.x}
-                          cy={p.y}
-                          r="5"
-                          className="fill-background stroke-cyan-400 stroke-[3] group-hover:r-7 transition-all duration-200"
-                        />
-                        <circle
-                          cx={p.x}
-                          cy={p.y}
-                          r="12"
-                          className="fill-cyan-400/20 opacity-0 group-hover:opacity-100 transition-opacity"
-                        />
-                      </g>
-                    ))}
+                    {/* Point Nodes */}
+                    {points.map((p, idx) => {
+                      const isHovered = hoveredNode?.index === p.index
+                      return (
+                        <g
+                          key={idx}
+                          className="cursor-pointer"
+                          onMouseEnter={() => setHoveredNode(p)}
+                          onMouseLeave={() => setHoveredNode(null)}
+                        >
+                          {/* Transparent hit area */}
+                          <circle cx={p.x} cy={p.y} r="18" className="fill-transparent" />
+                          
+                          {/* Hover ring */}
+                          {isHovered && (
+                            <circle
+                              cx={p.x}
+                              cy={p.y}
+                              r="12"
+                              className="fill-cyan-400/25 animate-ping"
+                            />
+                          )}
+
+                          {/* Point core */}
+                          <circle
+                            cx={p.x}
+                            cy={p.y}
+                            r={isHovered ? 6.5 : 4.5}
+                            className={`transition-all duration-150 ${
+                              isHovered
+                                ? 'fill-cyan-400 stroke-background stroke-2 shadow-lg'
+                                : 'fill-background stroke-cyan-400 stroke-[2.5]'
+                            }`}
+                          />
+                        </g>
+                      )
+                    })}
                   </svg>
 
-                  {/* Days Labels Row */}
-                  <div className="flex items-center justify-between px-2 pt-2 border-t border-border/60">
-                    {dailyData.map((item, i) => (
-                      <div key={i} className="flex-1 text-center">
-                        <span className="text-[11px] font-bold text-muted-foreground block">{tDynamic(item.day)}</span>
-                        <span className="text-[10px] font-mono font-black text-foreground">{item.val ? item.val.toLocaleString() : '0'}</span>
-                      </div>
-                    ))}
+                  {/* Dynamic Day / Date Columns Row */}
+                  <div className="flex items-center justify-between px-1 pt-3 border-t border-border/60 gap-1.5 overflow-x-auto">
+                    {activeChartData.map((item, i) => {
+                      const isHovered = hoveredNode?.index === i
+                      return (
+                        <div
+                          key={i}
+                          onMouseEnter={() => {
+                            const pt = points.find(p => p.index === i)
+                            if (pt) setHoveredNode(pt)
+                          }}
+                          onMouseLeave={() => setHoveredNode(null)}
+                          className={`flex-1 min-w-[50px] text-center p-2 rounded-2xl transition-all cursor-pointer border ${
+                            isHovered
+                              ? 'bg-primary/15 border-primary/40 shadow-sm -translate-y-1'
+                              : 'bg-background/40 hover:bg-background/80 border-transparent'
+                          }`}
+                        >
+                          <span className="text-[11px] font-bold text-muted-foreground block truncate">
+                            {tDynamic(item.day)}
+                          </span>
+                          <span className="text-[11px] font-mono font-black text-foreground block mt-0.5">
+                            {item.val ? item.val.toLocaleString() : '0'}
+                          </span>
+                          <span className="text-[9px] font-bold text-muted-foreground/80 block mt-0.5">
+                            {item.count ? `${item.count} كشف` : '-'}
+                          </span>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )
