@@ -360,8 +360,8 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
         </div>
       </div>
 
-      {/* 2. Date & Branch Filter Bar */}
-      <div className="yalla-card p-4 border border-border">
+      {/* 2. Date & Branch Filter Bar (iOS Frosted Glass) */}
+      <div className="ios-glass-card p-4 sm:p-5 border border-border/80 rounded-2xl shadow-xs">
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
           <div className="space-y-1">
             <Label className="text-xs font-bold text-muted-foreground">{t('from_date', 'من تاريخ')}</Label>
@@ -369,7 +369,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
               type="date"
               value={fromDate}
               onChange={e => setFromDate(e.target.value)}
-              className="h-10 text-xs rounded-xl bg-background border-border text-foreground"
+              className="h-10 text-xs rounded-xl bg-background/80 border-border text-foreground"
             />
           </div>
 
@@ -379,7 +379,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
               type="date"
               value={toDate}
               onChange={e => setToDate(e.target.value)}
-              className="h-10 text-xs rounded-xl bg-background border-border text-foreground"
+              className="h-10 text-xs rounded-xl bg-background/80 border-border text-foreground"
             />
           </div>
 
@@ -388,7 +388,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
             <select
               value={selectedBranchId}
               onChange={e => setSelectedBranchId(e.target.value)}
-              className="w-full h-10 px-3 rounded-xl border border-border text-xs font-bold text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="w-full h-10 px-3 rounded-xl border border-border text-xs font-bold text-foreground bg-background/80 focus:outline-none focus:ring-2 focus:ring-primary/20"
             >
               <option value="all">{t('all_branches', 'جميع الفروع')}</option>
               {branches.map(b => (
@@ -400,97 +400,226 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
           <Button
             onClick={generateReport}
             disabled={isLoading}
-            className="w-full h-10 px-6 font-bold yalla-gradient-btn rounded-xl text-xs"
+            className="w-full h-10 px-6 font-black yalla-gradient-btn rounded-xl text-xs shadow-md shadow-primary/25 cursor-pointer active:scale-95 transition-all"
           >
             {isLoading ? t('loading', 'جاري التحميل...') : t('update_report', 'تحديث التقرير')}
           </Button>
         </div>
       </div>
 
-      {/* 3. KPI 5 Summary Cards */}
+      {/* 3. KPI 5 Summary Cards (Neon-Ringed Glass Cards) */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Card 1: Total Revenue */}
-        <div className="yalla-card p-5 border border-border">
-          <p className="text-xs font-bold text-muted-foreground mb-1">{t('total_sales', 'إجمالي المبيعات')}</p>
-          <h3 className="text-2xl font-black text-foreground">
-            {totals.revenue.toLocaleString()} <span className="text-sm font-bold text-muted-foreground">{t('currency_egp', 'ج.م')}</span>
+        <div className="ios-glass-card p-5 border border-primary/25 rounded-3xl shadow-sm hover:border-primary/50 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-muted-foreground">{t('total_sales', 'إجمالي المبيعات')}</p>
+            <div className="w-8 h-8 rounded-xl bg-primary/15 text-primary flex items-center justify-center">
+              <Banknote className="w-4 h-4" />
+            </div>
+          </div>
+          <h3 className="text-2xl font-black text-foreground mt-2 font-mono">
+            {totals.revenue.toLocaleString()} <span className="text-xs font-bold text-muted-foreground">{t('currency_egp', 'ج.م')}</span>
           </h3>
-          <span className="text-[11px] font-semibold text-primary mt-1 inline-block">{t('total_value', 'القيمة الإجمالية')}</span>
+          <span className="text-[11px] font-bold text-primary mt-1 inline-block">{t('total_value', 'القيمة الإجمالية')}</span>
         </div>
 
         {/* Card 2: Operations Count */}
-        <div className="yalla-card p-5 border border-border">
-          <p className="text-xs font-bold text-muted-foreground mb-1">{t('operations_count', 'عدد العمليات')}</p>
-          <h3 className="text-2xl font-black text-primary">{totals.patients}</h3>
-          <span className="text-[11px] font-semibold text-muted-foreground mt-1 inline-block">{t('registered_visit', 'زيارة مسجلة')}</span>
+        <div className="ios-glass-card p-5 border border-cyan-500/25 rounded-3xl shadow-sm hover:border-cyan-500/50 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-muted-foreground">{t('operations_count', 'عدد العمليات')}</p>
+            <div className="w-8 h-8 rounded-xl bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 flex items-center justify-center">
+              <Users className="w-4 h-4" />
+            </div>
+          </div>
+          <h3 className="text-2xl font-black text-cyan-600 dark:text-cyan-400 mt-2 font-mono">{totals.patients}</h3>
+          <span className="text-[11px] font-bold text-muted-foreground mt-1 inline-block">{t('registered_visit', 'زيارة مسجلة')}</span>
         </div>
 
         {/* Card 3: Collected */}
-        <div className="yalla-card p-5 border border-border">
-          <p className="text-xs font-bold text-muted-foreground mb-1">{t('collected', 'تم التحصيل')}</p>
-          <h3 className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
-            {totals.collected.toLocaleString()} <span className="text-sm font-bold text-muted-foreground">{t('currency_egp', 'ج.م')}</span>
+        <div className="ios-glass-card p-5 border border-emerald-500/25 rounded-3xl shadow-sm hover:border-emerald-500/50 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-muted-foreground">{t('collected', 'تم التحصيل')}</p>
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+              <Wallet className="w-4 h-4" />
+            </div>
+          </div>
+          <h3 className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-2 font-mono">
+            {totals.collected.toLocaleString()} <span className="text-xs font-bold text-muted-foreground">{t('currency_egp', 'ج.م')}</span>
           </h3>
-          <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 mt-1 inline-block">{t('received_amounts', 'مبالغ مستلمة')}</span>
+          <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 inline-block">{t('received_amounts', 'مبالغ مستلمة')}</span>
         </div>
 
         {/* Card 4: Due */}
-        <div className="yalla-card p-5 border border-border">
-          <p className="text-xs font-bold text-muted-foreground mb-1">{t('due_or_deferred', 'مستحق / آجل')}</p>
-          <h3 className="text-2xl font-black text-rose-600 dark:text-rose-400">
-            {totals.due.toLocaleString()} <span className="text-sm font-bold text-muted-foreground">{t('currency_egp', 'ج.م')}</span>
+        <div className="ios-glass-card p-5 border border-rose-500/25 rounded-3xl shadow-sm hover:border-rose-500/50 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-muted-foreground">{t('due_or_deferred', 'مستحق / آجل')}</p>
+            <div className="w-8 h-8 rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+              <CreditCard className="w-4 h-4" />
+            </div>
+          </div>
+          <h3 className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-2 font-mono">
+            {totals.due.toLocaleString()} <span className="text-xs font-bold text-muted-foreground">{t('currency_egp', 'ج.م')}</span>
           </h3>
-          <span className="text-[11px] font-semibold text-rose-500 mt-1 inline-block">{t('due_amounts', 'بانتظار التحصيل')}</span>
+          <span className="text-[11px] font-bold text-rose-500 mt-1 inline-block">{t('due_amounts', 'بانتظار التحصيل')}</span>
         </div>
 
         {/* Card 5: Discounts */}
-        <div className="yalla-card p-5 col-span-2 lg:col-span-1 border border-border">
-          <p className="text-xs font-bold text-muted-foreground mb-1">{t('total_discounts', 'إجمالي الخصومات')}</p>
-          <h3 className="text-2xl font-black text-amber-600 dark:text-amber-400">
-            {totals.discounts.toLocaleString()} <span className="text-sm font-bold text-muted-foreground">{t('currency_egp', 'ج.م')}</span>
+        <div className="ios-glass-card p-5 col-span-2 lg:col-span-1 border border-amber-500/25 rounded-3xl shadow-sm hover:border-amber-500/50 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-muted-foreground">{t('total_discounts', 'إجمالي الخصومات')}</p>
+            <div className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+              <Percent className="w-4 h-4" />
+            </div>
+          </div>
+          <h3 className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-2 font-mono">
+            {totals.discounts.toLocaleString()} <span className="text-xs font-bold text-muted-foreground">{t('currency_egp', 'ج.م')}</span>
           </h3>
-          <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 mt-1 inline-block">{language === 'en' ? 'Discounts Granted' : 'خصومات ممنوحة'}</span>
+          <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 mt-1 inline-block">{language === 'en' ? 'Discounts Granted' : 'خصومات ممنوحة'}</span>
         </div>
       </div>
 
-      {/* 4. VISUAL CHARTS & BREAKDOWNS */}
+      {/* 4. VISUAL CHARTS & BREAKDOWNS (Deep Space Navy Glassmorphic Theme) */}
       <div className="grid lg:grid-cols-12 gap-6 items-start">
         
-        {/* Daily Revenue Bar Chart (7 cols) */}
-        <div className="lg:col-span-7 yalla-card p-6 space-y-4 border border-border">
-          <div className="flex items-center justify-between pb-3 border-b border-border">
+        {/* Daily Revenue Area Curve Chart (7 cols - Matches Bottom-Right Wireframe) */}
+        <div className="lg:col-span-7 ios-glass-card p-6 space-y-4 border border-border/80 rounded-3xl shadow-sm">
+          <div className="flex items-center justify-between pb-3 border-b border-border/80">
             <div className="flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-primary" />
-              <h3 className="font-bold text-sm text-foreground">{t('daily_breakdown', 'الإيرادات اليومية حسب أيام الأسبوع')}</h3>
+              <h3 className="font-black text-sm text-foreground">{t('daily_breakdown', 'منحنى الإيرادات اليومية')}</h3>
             </div>
-            <span className="text-xs font-bold text-muted-foreground">
-              {language === 'en' ? 'Daily Average:' : 'متوسط يومي:'} {Math.round(totals.collected / 7).toLocaleString()} {t('currency_egp', 'ج.م')}
+            <span className="text-xs font-bold px-2.5 py-1 rounded-xl bg-primary/10 text-primary border border-primary/20">
+              {language === 'en' ? 'Daily Avg:' : 'متوسط يومي:'} {Math.round(totals.collected / 7).toLocaleString()} {t('currency_egp', 'ج.م')}
             </span>
           </div>
 
-          <div className="h-56 flex items-end justify-between gap-2 pt-6 pb-2 px-2">
-            {dailyData.map((item, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-2 group h-full justify-end">
-                <div className="text-[10px] font-black text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
-                  {item.val.toLocaleString()}
+          {/* Glowing SVG Area Curve */}
+          <div className="relative w-full h-56 pt-2">
+            {(() => {
+              const count = dailyData.length || 7
+              const maxVal = Math.max(...dailyData.map(d => d.val), 100)
+              const width = 640
+              const height = 180
+              const paddingX = 40
+              const paddingY = 25
+              const chartW = width - paddingX * 2
+              const chartH = height - paddingY * 2
+
+              const points = dailyData.map((d, i) => {
+                const x = paddingX + (i / (count - 1 || 1)) * chartW
+                const normalizedY = 1 - (d.val / maxVal)
+                const y = paddingY + normalizedY * chartH
+                return { x, y, ...d }
+              })
+
+              let pathD = ''
+              let areaD = ''
+
+              if (points.length > 0) {
+                pathD = `M ${points[0].x} ${points[0].y}`
+                for (let i = 0; i < points.length - 1; i++) {
+                  const p0 = points[i]
+                  const p1 = points[i + 1]
+                  const cp1x = p0.x + (p1.x - p0.x) / 2
+                  const cp1y = p0.y
+                  const cp2x = p0.x + (p1.x - p0.x) / 2
+                  const cp2y = p1.y
+                  pathD += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p1.x} ${p1.y}`
+                }
+                areaD = `${pathD} L ${points[points.length - 1].x} ${height} L ${points[0].x} ${height} Z`
+              }
+
+              return (
+                <div className="relative w-full h-full flex flex-col justify-between">
+                  <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-40 overflow-visible" preserveAspectRatio="none">
+                    <defs>
+                      <linearGradient id="financeAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#00F0FF" stopOpacity="0.45" />
+                        <stop offset="60%" stopColor="#0066FF" stopOpacity="0.15" />
+                        <stop offset="100%" stopColor="#081226" stopOpacity="0.0" />
+                      </linearGradient>
+                      <linearGradient id="financeStrokeGradient" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="#00F0FF" />
+                        <stop offset="100%" stopColor="#0066FF" />
+                      </linearGradient>
+                      <filter id="financeGlow" x="-20%" y="-20%" width="140%" height="140%">
+                        <feGaussianBlur stdDeviation="4" result="glow" />
+                        <feComposite in="SourceGraphic" in2="glow" operator="over" />
+                      </filter>
+                    </defs>
+
+                    {/* Horizontal Grid lines */}
+                    {[0.25, 0.5, 0.75].map((pct, idx) => (
+                      <line
+                        key={idx}
+                        x1={paddingX}
+                        y1={paddingY + chartH * pct}
+                        x2={width - paddingX}
+                        y2={paddingY + chartH * pct}
+                        stroke="currentColor"
+                        className="text-border/40"
+                        strokeDasharray="4 4"
+                      />
+                    ))}
+
+                    {/* Gradient Area Fill */}
+                    {areaD && (
+                      <path d={areaD} fill="url(#financeAreaGradient)" />
+                    )}
+
+                    {/* Glowing Stroke Curve */}
+                    {pathD && (
+                      <path
+                        d={pathD}
+                        fill="none"
+                        stroke="url(#financeStrokeGradient)"
+                        strokeWidth="3.5"
+                        strokeLinecap="round"
+                        filter="url(#financeGlow)"
+                      />
+                    )}
+
+                    {/* Interactive Point Dots */}
+                    {points.map((p, idx) => (
+                      <g key={idx} className="group cursor-pointer">
+                        <circle
+                          cx={p.x}
+                          cy={p.y}
+                          r="5"
+                          className="fill-background stroke-cyan-400 stroke-[3] group-hover:r-7 transition-all duration-200"
+                        />
+                        <circle
+                          cx={p.x}
+                          cy={p.y}
+                          r="12"
+                          className="fill-cyan-400/20 opacity-0 group-hover:opacity-100 transition-opacity"
+                        />
+                      </g>
+                    ))}
+                  </svg>
+
+                  {/* Days Labels Row */}
+                  <div className="flex items-center justify-between px-2 pt-2 border-t border-border/60">
+                    {dailyData.map((item, i) => (
+                      <div key={i} className="flex-1 text-center">
+                        <span className="text-[11px] font-bold text-muted-foreground block">{tDynamic(item.day)}</span>
+                        <span className="text-[10px] font-mono font-black text-foreground">{item.val ? item.val.toLocaleString() : '0'}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div
-                  style={{ height: `${Math.max(item.pct, 4)}%` }}
-                  className="w-full max-w-[36px] bg-primary hover:bg-primary/90 rounded-t-xl transition-all relative group-hover:shadow-md group-hover:shadow-primary/20"
-                ></div>
-                <span className="text-[11px] font-bold text-muted-foreground mt-1">{tDynamic(item.day)}</span>
-              </div>
-            ))}
+              )
+            })()}
           </div>
         </div>
 
         {/* Services & Payment Breakdowns (5 cols) */}
         <div className="lg:col-span-5 space-y-6">
           
-          {/* Card: Payment Methods Breakdown with Amounts */}
-          <div className="yalla-card p-5 space-y-3 border border-border">
-            <div className="flex items-center justify-between pb-2 border-b border-border">
-              <h3 className="font-bold text-xs text-foreground">{t('payment_methods_distribution', 'طرق الدفع والتحصيل')}</h3>
+          {/* Card: Payment Methods Breakdown */}
+          <div className="ios-glass-card p-5 space-y-3 border border-border/80 rounded-3xl shadow-sm">
+            <div className="flex items-center justify-between pb-2 border-b border-border/80">
+              <h3 className="font-black text-xs text-foreground">{t('payment_methods_distribution', 'طرق الدفع والتحصيل')}</h3>
               <span className="text-[10px] font-bold text-muted-foreground">{language === 'en' ? 'Amount & Percentage' : 'المبلغ والنسبة'}</span>
             </div>
 
@@ -501,12 +630,12 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
                 <div key={idx} className="space-y-1">
                   <div className="flex justify-between text-xs font-bold text-foreground">
                     <span>{tDynamic(p.name)}</span>
-                    <span className="text-muted-foreground">
+                    <span className="text-muted-foreground font-mono">
                       {p.amount?.toLocaleString()} {t('currency_egp', 'ج.م')} ({p.pct}%)
                     </span>
                   </div>
-                  <div className="w-full h-2 rounded-full bg-secondary overflow-hidden">
-                    <div style={{ width: `${p.pct}%` }} className={`h-full ${p.color} rounded-full`}></div>
+                  <div className="w-full h-2.5 rounded-full bg-secondary/80 overflow-hidden p-0.5">
+                    <div style={{ width: `${Math.max(p.pct, 4)}%` }} className={`h-full ${p.color || 'bg-primary'} rounded-full shadow-xs`}></div>
                   </div>
                 </div>
               ))}
@@ -514,9 +643,9 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
           </div>
 
           {/* Card: Most Requested Services */}
-          <div className="yalla-card p-5 space-y-3 border border-border">
-            <div className="flex items-center justify-between pb-2 border-b border-border">
-              <h3 className="font-bold text-xs text-foreground">{t('services_distribution', 'الخدمات الأكثر طلباً')}</h3>
+          <div className="ios-glass-card p-5 space-y-3 border border-border/80 rounded-3xl shadow-sm">
+            <div className="flex items-center justify-between pb-2 border-b border-border/80">
+              <h3 className="font-black text-xs text-foreground">{t('services_distribution', 'الخدمات الأكثر طلباً')}</h3>
               <span className="text-[10px] font-bold text-muted-foreground">{language === 'en' ? 'Percentage' : 'النسبة المئوية'}</span>
             </div>
 
@@ -527,10 +656,10 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
                 <div key={idx} className="space-y-1">
                   <div className="flex justify-between text-xs font-bold text-foreground">
                     <span>{tDynamic(s.name)}</span>
-                    <span className="text-primary font-bold">{s.pct}%</span>
+                    <span className="text-primary font-black font-mono">{s.pct}%</span>
                   </div>
-                  <div className="w-full h-2 rounded-full bg-secondary overflow-hidden">
-                    <div style={{ width: `${s.pct}%` }} className={`h-full ${s.color} rounded-full`}></div>
+                  <div className="w-full h-2.5 rounded-full bg-secondary/80 overflow-hidden p-0.5">
+                    <div style={{ width: `${Math.max(s.pct, 4)}%` }} className={`h-full ${s.color || 'bg-cyan-500'} rounded-full shadow-xs`}></div>
                   </div>
                 </div>
               ))}
@@ -543,12 +672,12 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
 
       {/* 5. BRANCHES COMPARISON TABLE (When multiple branches exist) */}
       {branchBreakdown.length > 0 && (
-        <div className="yalla-card overflow-hidden border border-border">
-          <div className="p-5 border-b border-border flex items-center justify-between bg-secondary/30">
+        <div className="ios-glass-card overflow-hidden border border-border/80 rounded-3xl shadow-sm">
+          <div className="p-5 border-b border-border/80 flex items-center justify-between bg-secondary/30 backdrop-blur-sm">
             <div className="flex items-center gap-2.5">
               <Building2 className="w-5 h-5 text-primary" />
               <div>
-                <h3 className="font-bold text-base text-foreground">{t('branches_performance', 'مقارنة أداء الفروع')}</h3>
+                <h3 className="font-black text-base text-foreground">{t('branches_performance', 'مقارنة أداء الفروع')}</h3>
                 <p className="text-xs text-muted-foreground">{language === 'en' ? 'Distribution of bookings, revenues, and collections across clinic branches' : 'توزيع الحجوزات والإيرادات والمتحصلات بين فروع العيادة'}</p>
               </div>
             </div>
@@ -556,7 +685,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
 
           <div className="overflow-x-auto">
             <table className={`w-full ${isRtl ? 'text-right' : 'text-left'} text-xs`}>
-              <thead className="bg-secondary/60 border-b border-border text-muted-foreground font-bold select-none">
+              <thead className="bg-secondary/40 border-b border-border/80 text-muted-foreground font-bold select-none">
                 <tr>
                   <th className="py-3 px-4">{t('branch_name', 'اسم الفرع')}</th>
                   <th className="py-3 px-4 text-center">{t('operations_count', 'عدد الحجوزات')}</th>
@@ -570,14 +699,14 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
                 {branchBreakdown.map((b, idx) => {
                   const pct = b.revenue > 0 ? Math.round((b.collected / b.revenue) * 100) : 0
                   return (
-                    <tr key={idx} className="hover:bg-secondary/40 transition-colors">
+                    <tr key={idx} className="hover:bg-secondary/30 transition-colors">
                       <td className="py-3.5 px-4 font-bold text-foreground">{tDynamic(b.name)}</td>
-                      <td className="py-3.5 px-4 text-center font-bold text-foreground">{b.bookingsCount}</td>
-                      <td className="py-3.5 px-4 font-black text-foreground">{b.revenue.toLocaleString()} {t('currency_egp', 'ج.م')}</td>
-                      <td className="py-3.5 px-4 font-bold text-emerald-600 dark:text-emerald-400">{b.collected.toLocaleString()} {t('currency_egp', 'ج.م')}</td>
-                      <td className="py-3.5 px-4 font-bold text-rose-600 dark:text-rose-400">{b.due.toLocaleString()} {t('currency_egp', 'ج.م')}</td>
+                      <td className="py-3.5 px-4 text-center font-bold text-foreground font-mono">{b.bookingsCount}</td>
+                      <td className="py-3.5 px-4 font-black text-foreground font-mono">{b.revenue.toLocaleString()} {t('currency_egp', 'ج.م')}</td>
+                      <td className="py-3.5 px-4 font-bold text-emerald-600 dark:text-emerald-400 font-mono">{b.collected.toLocaleString()} {t('currency_egp', 'ج.م')}</td>
+                      <td className="py-3.5 px-4 font-bold text-rose-600 dark:text-rose-400 font-mono">{b.due.toLocaleString()} {t('currency_egp', 'ج.م')}</td>
                       <td className="py-3.5 px-4 text-center">
-                        <span className="inline-block px-2.5 py-0.5 rounded-full bg-primary/10 text-primary font-black border border-primary/20">
+                        <span className="inline-block px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-mono font-black border border-emerald-500/30 shadow-[0_0_8px_rgba(16,185,129,0.2)]">
                           {pct}%
                         </span>
                       </td>

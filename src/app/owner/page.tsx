@@ -152,11 +152,24 @@ function getDoctorExpirationInfo(expirationDate?: string, isActive?: boolean) {
 }
 
 export default function OwnerDashboard() {
-  const { dir, t } = useLanguage()
+  const { dir, t, isRtl, language } = useLanguage()
   const [clinics, setClinics] = useState<any[]>([])
   const [activeTab, setActiveTab] = useState<'clinics' | 'doctors' | 'packages' | 'add' | 'settings'>('clinics')
   const [searchQuery, setSearchQuery] = useState('')
   const [filterMode, setFilterMode] = useState<'all' | 'active' | 'inactive' | 'ai-on' | 'ai-off'>('all')
+
+  // Synchronize tabs with the Super Admin sidebar in OwnerLayout
+  useEffect(() => {
+    const handleTabChange = (e: any) => {
+      if (e.detail?.tab) setActiveTab(e.detail.tab)
+    }
+    window.addEventListener('owner_tab_change', handleTabChange)
+    return () => window.removeEventListener('owner_tab_change', handleTabChange)
+  }, [])
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('owner_tab_changed', { detail: { tab: activeTab } }))
+  }, [activeTab])
 
   // Doctors Tab State
   const [doctorsSearchQuery, setDoctorsSearchQuery] = useState('')
@@ -1321,98 +1334,94 @@ export default function OwnerDashboard() {
         </div>
       </div>
 
-      {/* 2. KPI Metrics Cards */}
+      {/* 2. KPI Metrics Cards (Apple Vision / iOS Glassmorphism) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         
         {/* Card 1: Total Clinics */}
-        <div className="yalla-card p-5 border border-border/80 rounded-2xl flex items-center gap-4 shadow-xs relative overflow-hidden group hover:border-primary/40 hover:-translate-y-0.5 transition-all duration-300">
-          <div className="absolute -top-10 -left-10 w-24 h-24 bg-primary/10 rounded-full blur-2xl pointer-events-none group-hover:bg-primary/20 transition-colors" />
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 text-primary border border-primary/20 flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+        <div className="ios-glass-card p-5 border border-border/80 rounded-3xl flex items-center gap-4 relative overflow-hidden group hover:border-primary/50 hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
+          <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-primary/25 to-primary/10 text-primary border border-primary/30 flex items-center justify-center shrink-0 shadow-md shadow-primary/20 group-hover:scale-105 transition-transform">
             <Building className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-[11px] font-bold text-muted-foreground block">إجمالي العيادات</span>
-            <span className="text-2xl font-black text-foreground font-mono">{totalClinics}</span>
+            <span className="text-xs font-bold text-muted-foreground block">{isRtl ? 'إجمالي العيادات' : 'Total Clinics'}</span>
+            <span className="text-2xl sm:text-3xl font-black text-foreground font-mono">{totalClinics}</span>
           </div>
         </div>
 
         {/* Card 2: Active Clinics */}
-        <div className="yalla-card p-5 border border-border/80 rounded-2xl flex items-center gap-4 shadow-xs relative overflow-hidden group hover:border-emerald-500/40 hover:-translate-y-0.5 transition-all duration-300">
-          <div className="absolute -top-10 -left-10 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none group-hover:bg-emerald-500/20 transition-colors" />
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+        <div className="ios-glass-card p-5 border border-border/80 rounded-3xl flex items-center gap-4 relative overflow-hidden group hover:border-emerald-500/50 hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
+          <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-emerald-500/25 to-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0 shadow-md shadow-emerald-500/20 group-hover:scale-105 transition-transform">
             <CheckCircle2 className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-[11px] font-bold text-muted-foreground block">العيادات النشطة</span>
-            <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono">{activeClinicsCount}</span>
+            <span className="text-xs font-bold text-muted-foreground block">{isRtl ? 'العيادات النشطة' : 'Active Clinics'}</span>
+            <span className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 font-mono">{activeClinicsCount}</span>
           </div>
         </div>
 
         {/* Card 3: AI Chatbot Enabled */}
-        <div className="yalla-card p-5 border border-border/80 rounded-2xl flex items-center gap-4 shadow-xs relative overflow-hidden group hover:border-purple-500/40 hover:-translate-y-0.5 transition-all duration-300">
-          <div className="absolute -top-10 -left-10 w-24 h-24 bg-purple-500/10 rounded-full blur-2xl pointer-events-none group-hover:bg-purple-500/20 transition-colors" />
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500/20 to-purple-500/5 text-purple-600 dark:text-purple-400 border border-purple-500/20 flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+        <div className="ios-glass-card p-5 border border-border/80 rounded-3xl flex items-center gap-4 relative overflow-hidden group hover:border-purple-500/50 hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
+          <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-purple-500/25 to-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/30 flex items-center justify-center shrink-0 shadow-md shadow-purple-500/20 group-hover:scale-105 transition-transform">
             <Bot className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-[11px] font-bold text-muted-foreground block">مفعل بها AI Chatbot</span>
+            <span className="text-xs font-bold text-muted-foreground block">{isRtl ? 'مفعل بها AI Chatbot' : 'AI Chatbot On'}</span>
             <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-black text-purple-600 dark:text-purple-400 font-mono">{aiEnabledCount}</span>
-              <span className="text-[10px] text-muted-foreground font-bold">من {totalClinics}</span>
+              <span className="text-2xl sm:text-3xl font-black text-purple-600 dark:text-purple-400 font-mono">{aiEnabledCount}</span>
+              <span className="text-[11px] text-muted-foreground font-bold">{isRtl ? `من ${totalClinics}` : `of ${totalClinics}`}</span>
             </div>
           </div>
         </div>
 
         {/* Card 4: Custom Prescription Template */}
-        <div className="yalla-card p-5 border border-border/80 rounded-2xl flex items-center gap-4 shadow-xs relative overflow-hidden group hover:border-cyan-500/40 hover:-translate-y-0.5 transition-all duration-300">
-          <div className="absolute -top-10 -left-10 w-24 h-24 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none group-hover:bg-cyan-500/20 transition-colors" />
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-cyan-500/5 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20 flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+        <div className="ios-glass-card p-5 border border-border/80 rounded-3xl flex items-center gap-4 relative overflow-hidden group hover:border-cyan-500/50 hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
+          <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-cyan-500/25 to-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 flex items-center justify-center shrink-0 shadow-md shadow-cyan-500/20 group-hover:scale-105 transition-transform">
             <FileSignature className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-[11px] font-bold text-muted-foreground block">قوالب روشتات مخصصة</span>
-            <span className="text-2xl font-black text-cyan-600 dark:text-cyan-400 font-mono">{customTemplateCount}</span>
+            <span className="text-xs font-bold text-muted-foreground block">{isRtl ? 'روشتات مخصصة' : 'Custom Templates'}</span>
+            <span className="text-2xl sm:text-3xl font-black text-cyan-600 dark:text-cyan-400 font-mono">{customTemplateCount}</span>
           </div>
         </div>
 
       </div>
 
-      {/* 3. Navigation Tabs */}
-      <div className="p-1.5 rounded-2xl bg-card/80 backdrop-blur-md border border-border/80 shadow-xs flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+      {/* 3. Navigation Tabs (iOS Segmented Pill Bar) */}
+      <div className="p-1.5 rounded-2xl ios-glass-card border border-border/80 shadow-xs flex items-center gap-1.5 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setActiveTab('clinics')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'clinics'
-              ? 'yalla-gradient-btn text-white shadow-md'
+              ? 'bg-[#0066FF] text-white shadow-md shadow-blue-500/30'
               : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60'
           }`}
         >
           <Building className="w-4 h-4" />
-          <span>إدارة العيادات والنظام</span>
+          <span>{isRtl ? 'إدارة العيادات والنظام' : 'Clinics Management'}</span>
         </button>
 
         <button
           onClick={() => setActiveTab('doctors')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'doctors'
-              ? 'yalla-gradient-btn text-white shadow-md'
+              ? 'bg-[#0066FF] text-white shadow-md shadow-blue-500/30'
               : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60'
           }`}
         >
           <Users className="w-4 h-4" />
-          <span>حسابات الأطباء والمواعيد</span>
+          <span>{isRtl ? 'حسابات الأطباء والمواعيد' : 'Doctors & Bookings'}</span>
         </button>
 
         <button
           onClick={() => setActiveTab('packages')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'packages'
-              ? 'yalla-gradient-btn text-white shadow-md'
+              ? 'bg-[#0066FF] text-white shadow-md shadow-blue-500/30'
               : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60'
           }`}
         >
           <Package className="w-4 h-4" />
-          <span>التحكم في الباقات والاشتراكات</span>
+          <span>{isRtl ? 'التحكم في الباقات والاشتراكات' : 'Packages & Plans'}</span>
         </button>
 
         <button
@@ -1425,24 +1434,24 @@ export default function OwnerDashboard() {
           }}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'add'
-              ? 'yalla-gradient-btn text-white shadow-md'
+              ? 'bg-[#0066FF] text-white shadow-md shadow-blue-500/30'
               : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60'
           }`}
         >
           <Edit className="w-4 h-4" />
-          <span>تعديل بيانات العيادة</span>
+          <span>{isRtl ? 'تعديل بيانات العيادة' : 'Edit Clinic Details'}</span>
         </button>
 
         <button
           onClick={() => setActiveTab('settings')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'settings'
-              ? 'yalla-gradient-btn text-white shadow-md'
+              ? 'bg-[#0066FF] text-white shadow-md shadow-blue-500/30'
               : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60'
           }`}
         >
           <Bot className="w-4 h-4" />
-          <span>مفتاح AI المركزي</span>
+          <span>{isRtl ? 'مفتاح AI المركزي' : 'AI Global Key'}</span>
         </button>
 
         <button
@@ -1450,7 +1459,7 @@ export default function OwnerDashboard() {
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer bg-secondary/80 hover:bg-secondary text-foreground border border-border shadow-2xs mr-auto whitespace-nowrap"
         >
           <Download className="w-4 h-4" />
-          <span>نسخة احتياطية (JSON)</span>
+          <span>{isRtl ? 'نسخة احتياطية (JSON)' : 'Backup (JSON)'}</span>
         </button>
       </div>
 
@@ -1463,32 +1472,32 @@ export default function OwnerDashboard() {
           className="space-y-4"
         >
           {/* Search and Filters Strip */}
-          <div className="yalla-card p-4 border border-border rounded-2xl flex flex-col md:flex-row items-center justify-between gap-3 shadow-2xs">
+          <div className="ios-glass-card p-4 border border-border/80 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-3 shadow-xs">
             <div className="relative w-full md:w-96">
-              <Search className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Search className={`w-4 h-4 absolute ${isRtl ? 'right-3.5' : 'left-3.5'} top-1/2 -translate-y-1/2 text-muted-foreground`} />
               <Input
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="ابحث بالاسم، الطبيب، الهاتف، أو الرابط slug..."
-                className="pr-10 h-10 text-xs bg-background rounded-xl border-border text-foreground"
+                placeholder={isRtl ? "ابحث بالاسم، الطبيب، الهاتف، أو الرابط slug..." : "Search by name, doctor, phone, or slug..."}
+                className={`${isRtl ? 'pr-10' : 'pl-10'} h-10 text-xs bg-background/80 rounded-xl border-border/80 text-foreground`}
               />
             </div>
 
             <div className="flex flex-wrap items-center gap-1.5 w-full md:w-auto">
               {[
-                { id: 'all', label: 'الكل' },
-                { id: 'active', label: 'النشطة' },
-                { id: 'inactive', label: 'الموقوفة' },
-                { id: 'ai-on', label: 'AI يعمل' },
-                { id: 'ai-off', label: 'AI مغلق' },
+                { id: 'all', label: isRtl ? 'الكل' : 'All' },
+                { id: 'active', label: isRtl ? 'النشطة' : 'Active' },
+                { id: 'inactive', label: isRtl ? 'الموقوفة' : 'Inactive' },
+                { id: 'ai-on', label: isRtl ? 'AI يعمل' : 'AI On' },
+                { id: 'ai-off', label: isRtl ? 'AI مغلق' : 'AI Off' },
               ].map(f => (
                 <button
                   key={f.id}
                   onClick={() => setFilterMode(f.id as any)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                     filterMode === f.id
-                      ? 'yalla-gradient-btn text-white shadow-xs'
-                      : 'bg-secondary text-foreground hover:bg-secondary/80'
+                      ? 'bg-[#0066FF] text-white shadow-xs'
+                      : 'bg-secondary/70 text-foreground hover:bg-secondary'
                   }`}
                 >
                   {f.label}
@@ -1497,11 +1506,11 @@ export default function OwnerDashboard() {
             </div>
           </div>
 
-          {/* Clinics Data Table */}
-          <div className="yalla-card border border-border rounded-2xl overflow-hidden shadow-xs">
+          {/* Clinics Data Table (Glassmorphism Translucent Container) */}
+          <div className="ios-glass-card border border-border/80 rounded-3xl overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
-              <table className="w-full text-right text-xs">
-                <thead className="bg-secondary/60 text-muted-foreground font-bold border-b border-border">
+              <table className={`w-full ${isRtl ? 'text-right' : 'text-left'} text-xs`}>
+                <thead className="bg-secondary/40 text-muted-foreground font-bold border-b border-border/80 select-none">
                   <tr>
                     <th className="py-4 px-4">العيادة والطبيب</th>
                     <th className="py-4 px-4">روابط المنصة</th>
@@ -1599,25 +1608,30 @@ export default function OwnerDashboard() {
                             </div>
                           </td>
 
-                          {/* DEDICATED AI CHATBOT INSTANT TOGGLE BUTTON */}
+                          {/* DEDICATED AI CHATBOT INSTANT TOGGLE (Apple iOS 18 Switch) */}
                           <td className="py-4 px-4 text-center">
                             <div className="flex flex-col items-center justify-center gap-1.5">
                               <button
                                 type="button"
                                 onClick={() => toggleClinicAi(c.id, hasAi)}
-                                className={`px-3 py-1.5 rounded-xl font-black text-[11px] transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ease-in-out cursor-pointer ${
                                   hasAi
-                                    ? 'bg-purple-600 text-white hover:bg-purple-700 shadow-purple-500/25 shadow-xs'
-                                    : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
+                                    ? 'bg-gradient-to-r from-blue-600 to-cyan-500 shadow-md shadow-blue-500/30'
+                                    : 'bg-slate-300 dark:bg-slate-700'
                                 }`}
-                                title="اضغط لتبديل حالة الذكاء الاصطناعي لهذه العيادة فوراً"
+                                title={isRtl ? "اضغط لتبديل حالة الذكاء الاصطناعي لهذه العيادة فوراً" : "Toggle AI Chatbot"}
                               >
-                                <Power className={`w-3.5 h-3.5 ${hasAi ? 'text-white' : 'text-muted-foreground'}`} />
-                                <span>{hasAi ? 'AI شغال (اضغط للقفل)' : 'AI مغلق (اضغط للتشغيل)'}</span>
+                                <span
+                                  className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 ease-in-out ${
+                                    hasAi
+                                      ? (isRtl ? '-translate-x-5' : 'translate-x-5')
+                                      : (isRtl ? '-translate-x-0.5' : 'translate-x-0.5')
+                                  }`}
+                                />
                               </button>
                               
-                              <span className={`text-[10px] font-bold ${hasAi ? 'text-purple-600 dark:text-purple-400' : 'text-muted-foreground'}`}>
-                                {hasAi ? 'ظاهر بالعيادة والموقع ✓' : 'مخفي تماماً من العيادة ✗'}
+                              <span className={`text-[10px] font-bold ${hasAi ? 'text-cyan-600 dark:text-cyan-400' : 'text-muted-foreground'}`}>
+                                {hasAi ? (isRtl ? 'مفعل بالعيادة ✓' : 'Active ✓') : (isRtl ? 'معطل ✗' : 'Disabled ✗')}
                               </span>
                             </div>
                           </td>
@@ -1628,7 +1642,7 @@ export default function OwnerDashboard() {
                               <div className="flex flex-col items-center gap-1">
                                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 text-[10px] font-bold">
                                   <FileSignature className="w-3 h-3" />
-                                  <span>تصميم مخصص</span>
+                                  <span>{isRtl ? 'تصميم مخصص' : 'Custom'}</span>
                                 </span>
                                 <button
                                   type="button"
@@ -1636,11 +1650,11 @@ export default function OwnerDashboard() {
                                   className="text-[10px] font-bold text-primary hover:underline flex items-center gap-0.5 cursor-pointer"
                                 >
                                   <Eye className="w-3 h-3" />
-                                  <span>معاينة القالب</span>
+                                  <span>{isRtl ? 'معاينة القالب' : 'Preview'}</span>
                                 </button>
                               </div>
                             ) : (
-                              <span className="text-[11px] text-muted-foreground font-medium">قالب قياسي A4</span>
+                              <span className="text-[11px] text-muted-foreground font-medium">{isRtl ? 'قالب قياسي A4' : 'Standard A4'}</span>
                             )}
                           </td>
 
@@ -1652,31 +1666,33 @@ export default function OwnerDashboard() {
                                   ? 'bg-primary/10 text-primary border-primary/20'
                                   : 'bg-secondary text-muted-foreground border-border'
                               }`}>
-                                {c.branchesEnabled !== false ? `مفعلة (${c.maxBranches || 1} فروع)` : 'معطلة (فرع واحد)'}
+                                {c.branchesEnabled !== false ? (isRtl ? `مفعلة (${c.maxBranches || 1} فروع)` : `Active (${c.maxBranches || 1} branches)`) : (isRtl ? 'معطلة (فرع واحد)' : 'Single branch')}
                               </span>
                               {c.branchCreationAllowed === false && (
-                                <span className="text-[9px] text-amber-600 dark:text-amber-400 font-bold">إنشاء الفروع مقفل</span>
+                                <span className="text-[9px] text-amber-600 dark:text-amber-400 font-bold">{isRtl ? 'إنشاء الفروع مقفل' : 'Creation locked'}</span>
                               )}
                             </div>
                           </td>
 
-                          {/* Subscription & Active Status */}
+                          {/* Subscription & Active Status (Wireframe Glowing Status Pill) */}
                           <td className="py-4 px-4 text-center">
                             <div className="flex flex-col items-center gap-1">
                               <button
                                 type="button"
                                 onClick={() => toggleStatus(c.id, c.isActive !== false)}
-                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold cursor-pointer transition-colors ${
+                                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black cursor-pointer transition-all ${
                                   c.isActive !== false
-                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20'
-                                    : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 hover:bg-rose-500/20'
+                                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-[0_0_12px_rgba(16,185,129,0.25)] hover:bg-emerald-500/25'
+                                    : 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30 shadow-[0_0_12px_rgba(244,63,94,0.25)] hover:bg-rose-500/25'
                                 }`}
+                                title={isRtl ? "اضغط لتبديل حالة العيادة" : "Click to toggle clinic status"}
                               >
-                                {c.isActive !== false ? '● نشطة ومفعلة' : '○ موقوفة مؤقتاً'}
+                                <span className={`w-1.5 h-1.5 rounded-full ${c.isActive !== false ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                                <span>{c.isActive !== false ? (isRtl ? 'نشط' : 'Active') : (isRtl ? 'منتهي' : 'Expired')}</span>
                               </button>
                               {c.expirationDate && (
                                 <span className="text-[10px] text-muted-foreground font-mono">
-                                  ينتهي: {c.expirationDate}
+                                  {isRtl ? 'ينتهي:' : 'Exp:'} {c.expirationDate}
                                 </span>
                               )}
                             </div>

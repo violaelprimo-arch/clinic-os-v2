@@ -305,17 +305,17 @@ export default function AdminLayout({
       {/* =========================================================================
           1. DESKTOP SIDEBAR (Theme-Aware: Clean White in Light / Deep Navy in Dark)
          ========================================================================= */}
-      <aside className="w-68 bg-sidebar/95 backdrop-blur-md text-sidebar-foreground hidden lg:flex flex-col border-e border-sidebar-border relative z-30 shrink-0 select-none shadow-sm print:hidden transition-colors duration-200">
+      <aside className="w-68 bg-white/80 dark:bg-[#081226]/90 backdrop-blur-2xl text-sidebar-foreground hidden lg:flex flex-col border-e border-sidebar-border/80 dark:border-white/10 relative z-30 shrink-0 select-none shadow-xl print:hidden transition-colors duration-200">
         {/* Brand Header */}
-        <div className="p-4 border-b border-sidebar-border bg-sidebar/95 backdrop-blur-sm">
+        <div className="p-4 border-b border-sidebar-border/80 dark:border-white/10 bg-sidebar/50 backdrop-blur-sm">
           <Link href={`/clinic/${slug}/admin`} className="flex items-center gap-3">
             <ClinicLogo size="md" variant="auto" />
           </Link>
 
           {/* Doctor Profile Mini Card */}
-          <div className="mt-3 p-3 rounded-2xl bg-secondary/40 dark:bg-card-elevated border border-sidebar-border shadow-2xs transition-colors">
+          <div className="mt-3 p-3 rounded-2xl bg-secondary/50 dark:bg-[#0E2342]/70 border border-sidebar-border/80 dark:border-white/10 shadow-sm backdrop-blur-md transition-colors">
             <div className="flex items-center gap-3">
-              <Avatar className="w-10 h-10 rounded-2xl border-2 border-primary/25 shadow-2xs shrink-0">
+              <Avatar className="w-10 h-10 rounded-2xl border-2 border-primary/40 shadow-sm shrink-0">
                 <AvatarImage src={clinic?.heroImage} alt="Doctor" className="object-cover rounded-2xl" />
                 <AvatarFallback className="bg-primary/10 text-primary font-bold text-sm rounded-2xl">
                   <User className="w-5 h-5" />
@@ -338,7 +338,7 @@ export default function AdminLayout({
             <button
               type="button"
               onClick={() => setShowUpgradeModal(true)}
-              className="mt-2.5 w-full py-1.5 px-2.5 rounded-xl bg-gradient-to-r from-primary/15 via-primary/10 to-primary/5 hover:from-primary/20 hover:to-primary/10 border border-primary/25 text-primary flex items-center justify-between text-xs font-bold transition-all cursor-pointer shadow-2xs group"
+              className="mt-2.5 w-full py-1.5 px-2.5 rounded-xl bg-gradient-to-r from-primary/15 via-primary/10 to-primary/5 hover:from-primary/20 hover:to-primary/10 border border-primary/25 text-primary flex items-center justify-between text-xs font-bold transition-all cursor-pointer shadow-2xs group active:scale-95"
             >
               <span className="flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-primary group-hover:rotate-12 transition-transform" />
@@ -361,8 +361,8 @@ export default function AdminLayout({
                 <div
                   className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all duration-200 cursor-pointer ${
                     isActive
-                      ? 'yalla-gradient-btn font-bold shadow-md shadow-primary/25'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary/70 dark:hover:bg-card-elevated font-semibold'
+                      ? 'bg-[#0066FF] text-white font-bold shadow-[0_4px_20px_rgba(0,102,255,0.45)] border border-white/20 active:scale-95'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary/70 dark:hover:bg-white/5 font-semibold active:scale-98'
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -381,19 +381,19 @@ export default function AdminLayout({
         </nav>
 
         {/* Sidebar Footer */}
-        <div className="p-3 border-t border-sidebar-border bg-sidebar/95 space-y-2">
-          <div className="flex items-center justify-between px-2 py-1.5 rounded-xl bg-secondary/50 dark:bg-card-elevated border border-sidebar-border">
+        <div className="p-3 border-t border-sidebar-border/80 dark:border-white/10 bg-sidebar/50 space-y-2">
+          <div className="flex items-center justify-between px-2 py-1.5 rounded-xl bg-secondary/50 dark:bg-[#0E2342]/70 border border-sidebar-border/80 dark:border-white/10">
             <span className="text-[10px] font-bold text-muted-foreground">{language === 'ar' ? 'المظهر واللغة:' : 'Theme & Lang:'}</span>
             <div className="flex items-center gap-1.5">
               <LanguageToggle variant="icon" />
               <ThemeToggle />
             </div>
           </div>
-          <TechnicalSupportButton variant="block" className="bg-secondary/60 dark:bg-card-elevated text-foreground border-sidebar-border hover:bg-secondary hover:text-foreground" />
+          <TechnicalSupportButton variant="block" className="bg-secondary/60 dark:bg-[#0E2342]/70 text-foreground border-sidebar-border/80 dark:border-white/10 hover:bg-secondary hover:text-foreground rounded-xl" />
           <Link
             href={`/clinic/${slug}`}
             target="_blank"
-            className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-muted-foreground hover:text-primary hover:bg-secondary/70 dark:hover:bg-card-elevated transition-colors"
+            className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-muted-foreground hover:text-primary hover:bg-secondary/70 dark:hover:bg-white/5 transition-colors"
           >
             <span className="flex items-center gap-2">
               <ExternalLink className="w-3.5 h-3.5 text-primary" />
@@ -408,7 +408,7 @@ export default function AdminLayout({
             <LogOut className="w-3.5 h-3.5" />
             {t('logout', 'تسجيل الخروج')}
           </button>
-          <div className="pt-1.5 text-center text-[10px] text-muted-foreground/80 font-medium border-t border-sidebar-border">
+          <div className="pt-1.5 text-center text-[10px] text-muted-foreground/80 font-medium border-t border-sidebar-border/80 dark:border-white/10">
             {t('copyright_notice', 'جميع الحقوق محفوظة YallaCodeX 2026')}
           </div>
         </div>
@@ -508,7 +508,11 @@ export default function AdminLayout({
       {/* =========================================================================
           3. MAIN WORKSPACE AREA & TOPBAR
          ========================================================================= */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden print:h-auto print:overflow-visible print:block">
+      <div className="flex-1 flex flex-col h-screen overflow-hidden print:h-auto print:overflow-visible print:block relative">
+        {/* Subtle Ambient Background Orbs for Glassmorphism Depth */}
+        <div className="fixed top-10 right-60 w-96 h-96 bg-primary/10 dark:bg-primary/20 rounded-full blur-[120px] pointer-events-none z-0" />
+        <div className="fixed bottom-10 left-20 w-96 h-96 bg-cyan-500/10 dark:bg-cyan-500/15 rounded-full blur-[140px] pointer-events-none z-0" />
+
         {/* Sticky Topbar */}
         <header className="h-16 bg-card/80 backdrop-blur-md border-b border-border/80 px-4 md:px-8 flex items-center justify-between gap-4 z-20 shrink-0 print:hidden transition-colors duration-200">
           {/* Start side: Mobile Menu Button & Search */}

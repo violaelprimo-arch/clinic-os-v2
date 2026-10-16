@@ -496,20 +496,20 @@ export function BookingModal({
       onClick={handleClose}
     >
       <div
-        className="w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-2xl bg-card text-card-foreground sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-border animate-in zoom-in-95 duration-200"
+        className="w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-2xl ios-glass-card bg-card/95 backdrop-blur-2xl text-card-foreground sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-border/80 animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* MODAL HEADER */}
-        <div className="p-4 sm:p-6 bg-card text-foreground flex items-center justify-between shrink-0 border-b border-border">
+        <div className="p-4 sm:p-6 bg-card/80 backdrop-blur-md text-foreground flex items-center justify-between shrink-0 border-b border-border/80">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-bold">
+            <div className="w-10 h-10 rounded-2xl bg-primary/15 text-primary border border-primary/25 flex items-center justify-center font-bold shadow-xs">
               <Calendar className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-black text-foreground">
                 {successData ? t('booking_success', 'تم تسجيل الحجز بنجاح') : t('new_medical_appt', 'حجز موعد طبي جديد')}
               </h2>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-[11px] text-muted-foreground font-medium">
                 {clinic?.clinicName || clinic?.doctorName ? `${isRtl ? 'عيادة' : 'Clinic'} ${clinic.doctorName || clinic.clinicName}` : t('clinic', 'العيادة الطبية')}
               </p>
             </div>
@@ -517,16 +517,16 @@ export function BookingModal({
 
           <button
             onClick={handleClose}
-            className="w-9 h-9 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground flex items-center justify-center transition-colors cursor-pointer border border-border"
+            className="w-9 h-9 rounded-2xl bg-secondary/80 hover:bg-secondary text-foreground flex items-center justify-center transition-colors cursor-pointer border border-border/80"
             title={t('close', 'إغلاق')}
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* STEP PROGRESS BAR */}
+        {/* STEP PROGRESS BAR (Apple iOS Style) */}
         {!successData && (
-          <div className="px-4 sm:px-6 pt-4 pb-2 bg-secondary/40 border-b border-border shrink-0">
+          <div className="px-4 sm:px-6 pt-3.5 pb-2.5 bg-secondary/30 backdrop-blur-sm border-b border-border/60 shrink-0">
             <div className="flex items-center justify-between text-xs font-bold text-muted-foreground mb-2">
               <span className={step >= 1 ? 'text-primary font-black' : ''}>1. {t('branch_and_day', 'الفرع واليوم')}</span>
               <span className={step >= 2 ? 'text-primary font-black' : ''}>2. {t('patient_data', 'البيانات')}</span>
@@ -534,9 +534,9 @@ export function BookingModal({
               <span className={step >= 4 ? 'text-primary font-black' : ''}>4. {t('payment', 'الدفع')}</span>
               <span className={step >= 5 ? 'text-primary font-black' : ''}>5. {t('confirmation', 'التأكيد')}</span>
             </div>
-            <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
+            <div className="w-full h-2 bg-secondary/80 rounded-full overflow-hidden p-0.5">
               <div
-                className="h-full bg-primary transition-all duration-300 rounded-full"
+                className="h-full bg-gradient-to-r from-blue-600 to-cyan-500 shadow-sm shadow-blue-500/30 transition-all duration-300 rounded-full"
                 style={{ width: `${(step / 5) * 100}%` }}
               />
             </div>

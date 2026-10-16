@@ -342,6 +342,16 @@ export function PremiumLanding({
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0B1F33]/85 via-transparent to-transparent"></div>
                   
+                  {/* Floating Experience Glass Badge (Wireframe Top-Left) */}
+                  <motion.div
+                    animate={{ y: [0, -6, 0] }}
+                    transition={{ repeat: Infinity, duration: 3.5, ease: "easeInOut" }}
+                    className="absolute top-4 start-4 px-3 py-1.5 rounded-2xl bg-white/20 dark:bg-black/40 backdrop-blur-xl border border-white/30 text-white flex items-center gap-2 shadow-lg"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                    <span className="text-xs font-black">{isRtl ? '+10 سنوات خبرة' : '+10 Yrs Experience'}</span>
+                  </motion.div>
+
                   {/* Floating Verified Badge */}
                   <motion.div
                     animate={{ y: [0, -4, 0] }}
@@ -362,25 +372,25 @@ export function PremiumLanding({
             </div>
           </motion.div>
 
-          {/* 3. Feature Highlights Pills Row */}
+          {/* 3. Feature Highlights Glass Cards (Wireframe 4 Features) */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-6">
             {[
-              { icon: Activity, title: t('continuous_care', 'متابعة مستمرة'), desc: t('continuous_care_desc', 'تواصل دائم لحالتك') },
-              { icon: Award, title: t('modern_devices', 'أحدث الأجهزة'), desc: t('modern_devices_desc', 'دقة تشخيصية عالية') },
-              { icon: HeartPulse, title: t('integrated_care', 'رعاية متكاملة'), desc: t('integrated_care_desc', 'خدمات طبية شاملة') },
-              { icon: ShieldCheck, title: t('clinical_excellence', 'خبرة طبية عالية'), desc: t('clinical_excellence_desc', 'أعلى المعايير السريرية') },
+              { icon: ShieldCheck, title: isRtl ? 'بياناتك آمنة' : 'Secure Data', desc: isRtl ? 'خصوصية وسرية تامة' : 'Total confidentiality' },
+              { icon: Sparkles, title: isRtl ? 'خدمة سريعة' : 'Fast Service', desc: isRtl ? 'تنظيم دقيق للأدوار' : 'Smart queue flow' },
+              { icon: MapPin, title: isRtl ? 'عدة فروع' : 'Multiple Branches', desc: isRtl ? 'سهولة الوصول لأقرب عيادة' : 'Closest clinic access' },
+              { icon: Calendar, title: isRtl ? 'مواعيد مرنة' : 'Flexible Hours', desc: isRtl ? 'حجز فوري ومتابعة ذكية' : 'Instant booking' },
             ].map((feature, idx) => {
               const Icon = feature.icon
               return (
                 <div
                   key={idx}
-                  className="yalla-card p-4 sm:p-5 flex items-center gap-3.5 bg-card border-border hover:border-primary/50 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 rounded-2xl group relative overflow-hidden shadow-xs"
+                  className="ios-glass-card p-4 sm:p-5 flex items-center gap-3.5 border border-border/80 hover:border-primary/50 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 rounded-3xl group relative overflow-hidden shadow-xs"
                 >
-                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-primary/15 to-primary/5 border border-primary/20 text-primary flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300 shadow-2xs">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/25 text-primary flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300 shadow-xs">
                     <Icon className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="font-extrabold text-xs text-foreground">{feature.title}</h4>
+                    <h4 className="font-black text-xs text-foreground">{feature.title}</h4>
                     <p className="text-[10px] text-muted-foreground font-medium mt-0.5">{feature.desc}</p>
                   </div>
                 </div>

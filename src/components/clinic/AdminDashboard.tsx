@@ -11,7 +11,7 @@ import {
   UserX, SkipForward, FileSignature, Phone, Filter,
   Sparkles, AlertCircle, ChevronDown, ChevronUp, RefreshCw, ArrowUpDown, X,
   Printer, Download, Tag, Check, Eye, Building2, Percent, FileSpreadsheet,
-  ExternalLink, Copy
+  ExternalLink, Copy, Search
 } from 'lucide-react'
 import Link from 'next/link'
 import { db } from '@/lib/firebase'
@@ -193,16 +193,33 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     return bookings.reduce((sum, b) => sum + (Number(b.servicePrice) || 0), 0)
   }, [bookings])
 
+  // Table status filter tabs
+  const [statusTabFilter, setStatusTabFilter] = useState<'all' | 'waiting' | 'completed' | 'cancelled'>('all')
+
   // Filtered queue for table
   const filteredBookings = useMemo(() => {
     return bookings.filter(b => {
       const matchesService = serviceFilter === 'ALL' || b.serviceId === serviceFilter || b.serviceName === serviceFilter
+      const qNumStr = String(b.queue_number || '')
       const matchesSearch = !searchQuery ||
         (b.patientName && b.patientName.includes(searchQuery)) ||
-        (b.phone && b.phone.includes(searchQuery))
-      return matchesService && matchesSearch
+        (b.phone && b.phone.includes(searchQuery)) ||
+        qNumStr.includes(searchQuery)
+
+      const matchesStatus =
+        statusTabFilter === 'all'
+          ? true
+          : statusTabFilter === 'waiting'
+          ? (b.status === 'waiting' || !b.status)
+          : statusTabFilter === 'completed'
+          ? b.status === 'completed'
+          : statusTabFilter === 'cancelled'
+          ? (b.status === 'cancelled' || b.status === 'skipped' || b.status === 'no_show')
+          : true
+
+      return matchesService && matchesSearch && matchesStatus
     })
-  }, [bookings, serviceFilter, searchQuery])
+  }, [bookings, serviceFilter, searchQuery, statusTabFilter])
 
   // Actions
   const handleOpenEditTurn = (patient: any) => {
@@ -901,61 +918,416 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
         </div>
       )}
 
-      {/* MAIN WORKSPACE (Queue Table & Live Patient Control Panels) */}
-      <div className="grid lg:grid-cols-12 gap-6 items-start">
+      {/* =========================================================================
+          2. MIDDLE BENTO GRID (Current Patient, Next in Queue, Quick Stats Donut)
+         ========================================================================= */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         
-        {/* RIGHT COLUMN: Today Queue Table (8 cols on lg) */}
-        <div className="lg:col-span-8 space-y-4">
-          <div className="yalla-card overflow-hidden">
-            {/* Header with Title and Filter Dropdown */}
-            <div className="p-5 border-b border-border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-secondary/30">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                  <Users className="w-5 h-5" />
+        {/* BENTO CARD 1: Current Patient (المريض الحالي) */}
+        <div className={`ios-glass-card p-5 sm:p-6 space-y-4 relative overflow-hidden border-2 ${
+          currentPatient
+            ? 'border-primary/60 pulse-breathing-patient shadow-xl shadow-primary/10'
+            : 'border-border/80'
+        } flex flex-col justify-between`}>
+          <div className="flex items-center justify-between pb-3 border-b border-border/80">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
+              </span>
+              <h3 className="font-black text-sm text-foreground">{t('current_patient', 'المريض الحالي')}</h3>
+            </div>
+            <Badge className="bg-primary/15 text-primary border-primary/25 font-bold text-xs px-2.5 py-0.5">
+              {currentPatient ? t('inside_now', 'بالداخل الآن') : t('available_room', 'شاغرة')}
+            </Badge>
+          </div>
+
+          {currentPatient ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3.5">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/25 to-primary/5 border-2 border-primary/40 text-primary flex items-center justify-center text-2xl font-black font-mono shadow-md shadow-primary/20 shrink-0">
+                  #{currentPatient.queue_number}
                 </div>
-                <div>
-                  <h2 className="text-lg font-bold text-foreground">{t('today_queue', 'دور اليوم')}</h2>
-                  <p className="text-xs text-muted-foreground">{t('queue_desc', 'قائمة المرضى والمواعيد المسجلة لتاريخ اليوم')}</p>
+                <div className="min-w-0 flex-1 text-start">
+                  <h4 className="text-lg font-black text-foreground truncate">{currentPatient.patientName}</h4>
+                  <p className="text-xs text-muted-foreground font-mono font-bold">{currentPatient.phone}</p>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-secondary text-foreground border border-border">
+                      {tDynamic(currentPatient.serviceName)}
+                    </span>
+                    {currentPatient.age && (
+                      <span className="text-[11px] text-muted-foreground font-semibold">
+                        {currentPatient.age} {t('years_old', 'سنة')}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* Toolbar: Service Filter + Excel Export Button */}
-              <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+              {currentPatient.startedAt && (
+                <div className="text-[11px] font-bold text-primary bg-primary/10 py-1.5 px-3 rounded-xl border border-primary/20 flex items-center justify-between">
+                  <span>{t('exam_started_at', 'بدأ الكشف:')}</span>
+                  <span className="font-mono">
+                    {new Date(currentPatient.startedAt).toLocaleTimeString(language === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+              )}
+
+              {/* Actions Grid */}
+              <div className="space-y-2 pt-1">
                 <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleExportExcel}
-                  className="h-9 px-3 text-xs font-bold border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-xl flex items-center gap-1.5"
+                  className="yalla-gradient-btn w-full h-10 text-white font-black rounded-xl shadow-lg shadow-primary/30 text-xs active:scale-95 cursor-pointer"
+                  onClick={() => handleCompleteExam(currentPatient.id, currentPatient.patientName)}
+                  disabled={isProcessing}
                 >
-                  <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                  {t('export_excel', 'تصدير Excel')}
+                  <CheckCircle2 className={`w-4 h-4 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
+                  {t('end_exam', 'إنهاء الكشف')}
                 </Button>
 
-                <div className="relative">
-                  <select
-                    value={serviceFilter}
-                    onChange={(e) => setServiceFilter(e.target.value)}
-                    className={`h-9 ${isRtl ? 'pr-8 pl-3' : 'pl-8 pr-3'} rounded-xl bg-card border border-border text-xs font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary cursor-pointer appearance-none`}
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8.5 text-xs font-bold text-foreground border-border hover:bg-secondary rounded-xl transition-all"
+                    onClick={() => handleSkipPatient(currentPatient.id)}
+                    disabled={isProcessing}
                   >
-                    <option value="ALL">{t('all_services', 'كل الخدمات')}</option>
-                    {clinic?.services?.map((s: any) => (
-                      <option key={s.id} value={s.id}>{tDynamic(s.name)}</option>
-                    ))}
-                    {!clinic?.services?.length && (
-                      <>
-                        <option value="كشف عادي">{t('regular_exam', 'كشف عادي')}</option>
-                        <option value="استشارة">{t('consultation', 'استشارة')}</option>
-                        <option value="كشف مستعجل">{t('urgent_exam', 'كشف مستعجل')}</option>
-                      </>
-                    )}
-                  </select>
-                  <Filter className={`w-3.5 h-3.5 absolute ${isRtl ? 'right-2.5' : 'left-2.5'} top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none`} />
+                    <SkipForward className={`w-3.5 h-3.5 ${isRtl ? 'ml-1' : 'mr-1'}`} />
+                    {t('skip', 'تخطي')}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8.5 text-xs font-bold text-rose-600 dark:text-rose-400 border-rose-500/30 hover:bg-rose-500/10 rounded-xl transition-all"
+                    onClick={() => handleNoShow(currentPatient.id)}
+                    disabled={isProcessing}
+                  >
+                    <UserX className={`w-3.5 h-3.5 ${isRtl ? 'ml-1' : 'mr-1'}`} />
+                    {t('no_show', 'لم يحضر')}
+                  </Button>
                 </div>
+
+                {isPrescriptionsEnabled && (
+                  <Link href={`/clinic/${clinic.slug}/admin/prescriptions?appointmentId=${currentPatient.id}&patientName=${encodeURIComponent(currentPatient.patientName)}&patientPhone=${encodeURIComponent(currentPatient.phone)}&age=${encodeURIComponent(currentPatient.age || currentPatient.dob || '')}`}>
+                    <Button
+                      variant="outline"
+                      className="w-full h-8.5 text-xs font-bold text-primary border-primary/25 hover:bg-primary/10 rounded-xl transition-all"
+                    >
+                      <FileSignature className={`w-4 h-4 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
+                      {t('issue_rx_now', 'إصدار روشتة للمريض الآن')}
+                    </Button>
+                  </Link>
+                )}
               </div>
             </div>
+          ) : (
+            <div className="py-6 text-center space-y-3">
+              <div className="w-14 h-14 rounded-2xl bg-secondary/80 border border-border flex items-center justify-center mx-auto text-muted-foreground shadow-2xs">
+                <UserCheck className="w-7 h-7 text-muted-foreground/60" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-foreground">{t('no_patient_inside', 'لا يوجد مريض داخل غرفة الكشف حالياً')}</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">{t('ready_to_admit', 'الغرفة شاغرة وجاهزة لاستقبال الحالة التالية')}</p>
+              </div>
+              {nextPatient && (
+                <Button
+                  size="sm"
+                  className="yalla-gradient-btn text-white font-black rounded-xl h-9 px-5 shadow-sm text-xs cursor-pointer active:scale-95"
+                  onClick={() => handleStartExam(nextPatient)}
+                  disabled={isProcessing}
+                >
+                  {t('admit_next_patient', 'إدخال المريض التالي')} #{nextPatient.queue_number}
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
 
-            {/* Patients List Table */}
-            <div className="p-0">
+        {/* BENTO CARD 2: Next in Queue (التالي في الدور) */}
+        <div className="ios-glass-card p-5 sm:p-6 space-y-4 relative overflow-hidden border border-border/80 rounded-3xl flex flex-col justify-between">
+          <div className="flex items-center justify-between pb-3 border-b border-border/80">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-amber-500" />
+              <h3 className="font-black text-sm text-foreground">{t('next_patient', 'التالي في الدور')}</h3>
+            </div>
+            <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25 font-bold text-xs px-2.5 py-0.5">
+              {t('waiting', 'في الانتظار')}
+            </Badge>
+          </div>
+
+          {nextPatient ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3.5">
+                <div className="w-16 h-16 rounded-2xl bg-amber-500/15 border-2 border-amber-500/30 text-amber-600 dark:text-amber-400 flex items-center justify-center text-2xl font-black font-mono shrink-0 shadow-xs">
+                  #{nextPatient.queue_number}
+                </div>
+                <div className="min-w-0 flex-1 text-start">
+                  <h4 className="font-black text-base text-foreground truncate">{nextPatient.patientName}</h4>
+                  <p className="text-xs text-muted-foreground font-mono font-bold">{nextPatient.phone}</p>
+                  <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 inline-block mt-1">
+                    {tDynamic(nextPatient.serviceName)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <Button
+                  className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl shadow-md shadow-emerald-600/25 text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                  onClick={() => handleStartExam(nextPatient)}
+                  disabled={isProcessing}
+                >
+                  <Play className={`w-3.5 h-3.5 ${isRtl ? 'ml-1' : 'mr-1'}`} />
+                  {t('patient_entry', 'دخول المريض للكشف')}
+                </Button>
+
+                {isPatientAlertsEnabled && nextPatient.phone && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleManualWhatsApp(nextPatient)}
+                    className="w-full h-8.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 rounded-xl"
+                  >
+                    <MessageCircle className={`w-3.5 h-3.5 ${isRtl ? 'ml-1' : 'mr-1'} text-emerald-500`} />
+                    {t('whatsapp_call_notice', 'استدعاء عبر واتساب')}
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="py-8 text-center space-y-2">
+              <div className="w-12 h-12 rounded-2xl bg-secondary/80 border border-border flex items-center justify-center mx-auto text-muted-foreground">
+                <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+              </div>
+              <p className="text-xs font-bold text-foreground">{t('queue_empty', 'قائمة الانتظار فارغة')}</p>
+              <p className="text-[11px] text-muted-foreground">{t('queue_cleared', 'تم الانتهاء من جميع الحالات المجدولة حالياً')}</p>
+            </div>
+          )}
+        </div>
+
+        {/* BENTO CARD 3: Quick Stats with SVG Donut Chart (إحصائيات سريعة) */}
+        <div className="ios-glass-card p-5 sm:p-6 space-y-4 relative overflow-hidden border border-border/80 rounded-3xl flex flex-col justify-between">
+          <div className="flex items-center justify-between pb-3 border-b border-border/80">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-primary" />
+              <h3 className="font-black text-sm text-foreground">{t('quick_stats', 'إحصائيات سريعة')}</h3>
+            </div>
+            <Badge className="bg-primary/10 text-primary border-primary/20 font-bold text-xs px-2.5 py-0.5">
+              {t('live', 'مباشر')}
+            </Badge>
+          </div>
+
+          {/* SVG Donut Component */}
+          {(() => {
+            const total = bookings.length || 1
+            const completed = completedPatients.length
+            const waiting = waitingPatients.length
+            const inProgress = currentPatient ? 1 : 0
+            const other = Math.max(0, bookings.length - completed - waiting - inProgress)
+            const c = 238.76
+
+            const completedDash = (completed / total) * c
+            const waitingDash = (waiting / total) * c
+            const inProgressDash = (inProgress / total) * c
+            const otherDash = (other / total) * c
+
+            const completedOffset = 0
+            const waitingOffset = -completedDash
+            const inProgressOffset = -(completedDash + waitingDash)
+            const otherOffset = -(completedDash + waitingDash + inProgressDash)
+
+            return (
+              <div className="flex items-center justify-between gap-4">
+                <div className="relative w-28 h-28 shrink-0 flex items-center justify-center">
+                  <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90 transform">
+                    <circle cx="50" cy="50" r="38" className="stroke-secondary" strokeWidth="11" fill="none" />
+                    {completed > 0 && (
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="38"
+                        stroke="#10B981"
+                        strokeWidth="11"
+                        fill="none"
+                        strokeDasharray={`${completedDash} ${c}`}
+                        strokeDashoffset={completedOffset}
+                        strokeLinecap="round"
+                        className="transition-all duration-700"
+                      />
+                    )}
+                    {waiting > 0 && (
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="38"
+                        stroke="#F59E0B"
+                        strokeWidth="11"
+                        fill="none"
+                        strokeDasharray={`${waitingDash} ${c}`}
+                        strokeDashoffset={waitingOffset}
+                        strokeLinecap="round"
+                        className="transition-all duration-700"
+                      />
+                    )}
+                    {inProgress > 0 && (
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="38"
+                        stroke="#087CF4"
+                        strokeWidth="11"
+                        fill="none"
+                        strokeDasharray={`${inProgressDash} ${c}`}
+                        strokeDashoffset={inProgressOffset}
+                        strokeLinecap="round"
+                        className="transition-all duration-700"
+                      />
+                    )}
+                    {other > 0 && (
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="38"
+                        stroke="#EF4444"
+                        strokeWidth="11"
+                        fill="none"
+                        strokeDasharray={`${otherDash} ${c}`}
+                        strokeDashoffset={otherOffset}
+                        strokeLinecap="round"
+                        className="transition-all duration-700"
+                      />
+                    )}
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                    <span className="text-2xl font-black font-mono text-foreground leading-none">{bookings.length}</span>
+                    <span className="text-[10px] font-bold text-muted-foreground mt-0.5">{t('total_bookings', 'إجمالي')}</span>
+                  </div>
+                </div>
+
+                <div className="flex-1 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 font-bold text-foreground">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                      {t('completed_patients', 'تم الكشف')}
+                    </span>
+                    <span className="font-mono font-black text-emerald-600 dark:text-emerald-400">{completed}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 font-bold text-foreground">
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
+                      {t('waiting_patients', 'في الانتظار')}
+                    </span>
+                    <span className="font-mono font-black text-amber-500">{waiting}</span>
+                  </div>
+                  {inProgress > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 font-bold text-foreground">
+                        <span className="w-2.5 h-2.5 rounded-full bg-primary shrink-0" />
+                        {t('inside_now', 'بالداخل')}
+                      </span>
+                      <span className="font-mono font-black text-primary">{inProgress}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 font-bold text-foreground">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
+                      {t('cancelled_skipped', 'ملغي / متخطي')}
+                    </span>
+                    <span className="font-mono font-black text-rose-500">{other}</span>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+        </div>
+
+      </div>
+
+      {/* =========================================================================
+          3. BOTTOM DATA TABLE: Full Width Glass Container with Pill Filter Tabs
+         ========================================================================= */}
+      <div className="ios-glass-card overflow-hidden border border-border/80 rounded-3xl shadow-sm space-y-0">
+        
+        {/* Table Top Header Strip with Search & Pill Tabs */}
+        <div className="p-4 sm:p-5 border-b border-border/80 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 bg-secondary/25 backdrop-blur-sm">
+          
+          {/* Search Box on start */}
+          <div className="relative w-full lg:w-72">
+            <Search className={`w-4 h-4 absolute ${isRtl ? 'right-3' : 'left-3'} top-1/2 -translate-y-1/2 text-muted-foreground`} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={t('search_in_queue', 'بحث برقم الدور، الاسم أو الهاتف...')}
+              className={`w-full h-10 ${isRtl ? 'pr-9 pl-3' : 'pl-9 pr-3'} rounded-2xl bg-background/80 border border-border/80 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all`}
+            />
+          </div>
+
+          {/* Pill-shaped Filter Tabs in middle */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar p-1 rounded-2xl bg-background/60 border border-border/60">
+            {[
+              { id: 'all', label: t('all_cases', 'جميع الحالات'), count: bookings.length },
+              { id: 'waiting', label: t('waiting_tab', 'في الانتظار'), count: waitingPatients.length },
+              { id: 'completed', label: t('completed_tab', 'تم الكشف'), count: completedPatients.length },
+              { id: 'cancelled', label: t('cancelled_tab', 'ملغي / متخطي'), count: Math.max(0, bookings.length - completedPatients.length - waitingPatients.length - (currentPatient ? 1 : 0)) },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setStatusTabFilter(tab.id as any)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
+                  statusTabFilter === tab.id
+                    ? 'bg-[#0066FF] text-white shadow-sm shadow-blue-500/30'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60'
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                  statusTabFilter === tab.id ? 'bg-white/20 text-white' : 'bg-secondary text-muted-foreground'
+                }`}>
+                  {tab.count}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Toolbar on end: Service Filter + Excel Export */}
+          <div className="flex items-center gap-2 self-end lg:self-auto flex-wrap">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleExportExcel}
+              className="h-10 px-3 text-xs font-bold border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-2xl flex items-center gap-1.5"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span>{t('export_excel', 'تصدير Excel')}</span>
+            </Button>
+
+            <div className="relative">
+              <select
+                value={serviceFilter}
+                onChange={(e) => setServiceFilter(e.target.value)}
+                className={`h-10 ${isRtl ? 'pr-8 pl-3' : 'pl-8 pr-3'} rounded-2xl bg-background/80 border border-border/80 text-xs font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary cursor-pointer appearance-none`}
+              >
+                <option value="ALL">{t('all_services', 'كل الخدمات')}</option>
+                {clinic?.services?.map((s: any) => (
+                  <option key={s.id} value={s.id}>{tDynamic(s.name)}</option>
+                ))}
+                {!clinic?.services?.length && (
+                  <>
+                    <option value="كشف عادي">{t('regular_exam', 'كشف عادي')}</option>
+                    <option value="استشارة">{t('consultation', 'استشارة')}</option>
+                    <option value="كشف مستعجل">{t('urgent_exam', 'كشف مستعجل')}</option>
+                  </>
+                )}
+              </select>
+              <Filter className={`w-3.5 h-3.5 absolute ${isRtl ? 'right-2.5' : 'left-2.5'} top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none`} />
+            </div>
+          </div>
+
+        </div>
+
+        {/* Patients List Table */}
+        <div className="p-0">
               {isLoading ? (
                 <div className="py-16 text-center text-muted-foreground">
                   <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
@@ -1342,168 +1714,6 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
               )}
             </div>
           </div>
-        </div>
-
-        {/* LEFT COLUMN: Live Turn Control Panels (4 cols on lg) */}
-        <div className="lg:col-span-4 space-y-4">
-          
-          {/* Panel 1: Current Patient (المريض الحالي) */}
-          <div className="yalla-card p-5 sm:p-6 space-y-5 relative overflow-hidden border-t-4 border-t-primary shadow-md">
-            <div className="flex items-center justify-between pb-3.5 border-b border-border">
-              <div className="flex items-center gap-2.5">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
-                </span>
-                <h3 className="font-black text-sm text-foreground">{t('current_patient', 'المريض الحالي')}</h3>
-              </div>
-              <Badge className="bg-primary/10 text-primary border-primary/25 font-bold text-xs px-2.5 py-0.5">{t('inside_now', 'بالداخل الآن')}</Badge>
-            </div>
-
-            {currentPatient ? (
-              <div className="space-y-4 text-center">
-                <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-primary/25 to-primary/5 border-2 border-primary/35 text-primary flex items-center justify-center mx-auto text-3xl font-black shadow-md shadow-primary/20">
-                  #{currentPatient.queue_number}
-                </div>
-
-                <div>
-                  <h4 className="text-xl font-black text-foreground tracking-tight">{currentPatient.patientName}</h4>
-                  <p className="text-xs text-muted-foreground font-mono mt-0.5 font-bold">{currentPatient.phone}</p>
-                  <div className="inline-flex items-center gap-1.5 mt-2.5 px-3.5 py-1 rounded-full bg-secondary/80 border border-border text-xs font-bold text-foreground shadow-2xs">
-                    <span>{tDynamic(currentPatient.serviceName)}</span>
-                    <span>•</span>
-                    <span className="text-primary font-black">{currentPatient.servicePrice} {t('egp', 'ج.م')}</span>
-                  </div>
-                </div>
-
-                {currentPatient.startedAt && (
-                  <p className="text-xs font-bold text-primary bg-primary/10 py-1.5 px-3 rounded-xl border border-primary/20">
-                    {t('exam_started_at', 'بدأ الكشف:')} {new Date(currentPatient.startedAt).toLocaleTimeString(language === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                )}
-
-                {/* Actions Grid */}
-                <div className="grid grid-cols-1 gap-2.5 pt-2">
-                  <Button
-                    className="yalla-gradient-btn w-full h-11 text-white font-black rounded-xl shadow-lg transition-all text-sm active:scale-95 cursor-pointer"
-                    onClick={() => handleCompleteExam(currentPatient.id, currentPatient.patientName)}
-                    disabled={isProcessing}
-                  >
-                    <CheckCircle2 className={`w-4 h-4 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
-                    {t('end_exam', 'إنهاء الكشف')}
-                  </Button>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-9.5 text-xs font-bold text-foreground border-border hover:bg-secondary rounded-xl transition-all"
-                      onClick={() => handleSkipPatient(currentPatient.id)}
-                      disabled={isProcessing}
-                    >
-                      <SkipForward className={`w-3.5 h-3.5 ${isRtl ? 'ml-1' : 'mr-1'}`} />
-                      {t('skip', 'تخطي')}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-9.5 text-xs font-bold text-rose-600 dark:text-rose-400 border-rose-500/30 hover:bg-rose-500/10 rounded-xl transition-all"
-                      onClick={() => handleNoShow(currentPatient.id)}
-                      disabled={isProcessing}
-                    >
-                      <UserX className={`w-3.5 h-3.5 ${isRtl ? 'ml-1' : 'mr-1'}`} />
-                      {t('no_show', 'لم يحضر')}
-                    </Button>
-                  </div>
-
-                  {isPrescriptionsEnabled && (
-                    <Link href={`/clinic/${clinic.slug}/admin/prescriptions?appointmentId=${currentPatient.id}&patientName=${encodeURIComponent(currentPatient.patientName)}&patientPhone=${encodeURIComponent(currentPatient.phone)}&age=${encodeURIComponent(currentPatient.age || currentPatient.dob || '')}`}>
-                      <Button
-                        variant="outline"
-                        className="w-full h-9.5 text-xs font-bold text-primary border-primary/25 hover:bg-primary/10 rounded-xl mt-1 transition-all"
-                      >
-                        <FileSignature className={`w-4 h-4 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
-                        {t('issue_rx_now', 'إصدار روشتة للمريض الآن')}
-                      </Button>
-                    </Link>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="py-8 text-center space-y-3.5">
-                <div className="w-14 h-14 rounded-3xl bg-secondary/80 border border-border flex items-center justify-center mx-auto text-muted-foreground shadow-2xs">
-                  <UserCheck className="w-7 h-7 text-muted-foreground/60" />
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-foreground">{t('no_patient_inside', 'لا يوجد مريض داخل غرفة الكشف حالياً')}</p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">{t('ready_to_admit', 'الغرفة شاغرة وجاهزة لاستقبال الحالة التالية')}</p>
-                </div>
-                {nextPatient && (
-                  <Button
-                    size="sm"
-                    className="yalla-gradient-btn text-white font-black rounded-xl h-10 px-5 shadow-sm text-xs cursor-pointer active:scale-95"
-                    onClick={() => handleStartExam(nextPatient)}
-                    disabled={isProcessing}
-                  >
-                    {t('admit_next_patient', 'إدخال المريض التالي')} #{nextPatient.queue_number}
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Panel 2: Next Patient (المريض التالي) */}
-          <div className="yalla-card p-5 sm:p-6 space-y-4 border-t-4 border-t-amber-500 shadow-md">
-            <div className="flex items-center justify-between pb-3.5 border-b border-border">
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-amber-500" />
-                <h3 className="font-black text-sm text-foreground">{t('next_patient', 'المريض التالي في الدور')}</h3>
-              </div>
-              <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25 font-bold text-xs px-2.5 py-0.5">{t('waiting', 'في الانتظار')}</Badge>
-            </div>
-
-            {nextPatient ? (
-              <div className="space-y-4 text-center">
-                <div className="flex items-center justify-center gap-3.5 p-3 rounded-2xl bg-secondary/50 border border-border">
-                  <div className="w-13 h-13 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 flex items-center justify-center text-xl font-black shrink-0 shadow-2xs">
-                    #{nextPatient.queue_number}
-                  </div>
-                  <div className={isRtl ? 'text-right' : 'text-left'}>
-                    <h4 className="font-black text-base text-foreground">{nextPatient.patientName}</h4>
-                    <p className="text-xs text-muted-foreground font-mono font-bold">{nextPatient.phone}</p>
-                    <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 inline-block mt-0.5">{tDynamic(nextPatient.serviceName)}</span>
-                  </div>
-                </div>
-
-                <Button
-                  className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl shadow-md shadow-emerald-600/25 text-sm transition-all active:scale-95 cursor-pointer"
-                  onClick={() => handleStartExam(nextPatient)}
-                  disabled={isProcessing}
-                >
-                  {t('patient_entry', 'دخول المريض')}
-                  {isRtl ? <ArrowLeft className="w-4 h-4 mr-2" /> : <ArrowRight className="w-4 h-4 ml-2" />}
-                </Button>
-
-                {isPatientAlertsEnabled && nextPatient.phone && (
-                  <button
-                    onClick={() => handleManualWhatsApp(nextPatient)}
-                    className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:opacity-80 flex items-center justify-center gap-1.5 mx-auto transition-opacity cursor-pointer pt-1"
-                  >
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    {t('whatsapp_call_notice', 'إرسال إشعار استدعاء عبر واتساب')}
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="py-6 text-center text-muted-foreground text-xs space-y-1">
-                <p className="font-bold">{t('no_more_waiting', 'لا يوجد مرضى آخرين في الانتظار.')}</p>
-                <p className="text-[11px] text-muted-foreground/80">{t('queue_cleared', 'تم الانتهاء من جميع الحالات المجدولة حالياً')}</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-      </div>
 
       {/* Edit Turn Modal */}
       {editingPatient && (
