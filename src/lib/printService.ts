@@ -1276,17 +1276,6 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
     .corner-bottom-right { bottom: 6mm; right: 6mm; }
     .corner-bottom-left { bottom: 6mm; left: 6mm; }
 
-    /* Central Luxury Medical Watermark */
-    .watermark-container {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      pointer-events: none;
-      z-index: 0;
-      opacity: 0.04;
-    }
-
     .main-body {
       position: relative;
       z-index: 10;
@@ -1325,17 +1314,6 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
       font-weight: 600;
       margin-top: 2px;
     }
-    .caduceus-badge {
-      width: 42px;
-      height: 42px;
-      border-radius: 12px;
-      background: ${sColor}15;
-      border: 1px solid ${sColor}30;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 auto;
-    }
     .clinic-brand {
       text-align: left;
       direction: ltr;
@@ -1344,10 +1322,11 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
       align-items: flex-end;
     }
     .clinic-logo {
-      max-height: ${isA5 ? '38px' : '48px'};
-      max-width: 140px;
+      height: ${isA5 ? '32px' : '42px'};
+      max-width: 170px;
       object-fit: contain;
       margin-bottom: 2px;
+      display: block;
     }
     .clinic-name {
       font-size: ${isA5 ? '9pt' : '11pt'};
@@ -1661,20 +1640,6 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
     </svg>
     ` : ''}
 
-    <!-- Central Luxury Medical Watermark Emblem -->
-    <div class="watermark-container">
-      <svg class="${isA5 ? 'w-64 h-64' : 'w-96 h-96'}" viewBox="0 0 400 400" fill="none" style="color: ${sColor}; width: 320px; height: 320px;">
-        <circle cx="200" cy="200" r="185" stroke="currentColor" stroke-width="2" stroke-dasharray="8 6" />
-        <circle cx="200" cy="200" r="160" stroke="currentColor" stroke-width="1.5" />
-        <circle cx="200" cy="200" r="135" stroke="currentColor" stroke-width="1" stroke-dasharray="4 4" />
-        <path d="M200 65v270M65 200h270" stroke="currentColor" stroke-width="10" stroke-linecap="round" />
-        <path d="M165 140c12-30 58-30 70 0s-70 45-70 75 58 45 70 75" stroke="currentColor" stroke-width="4" stroke-linecap="round" />
-        <path d="M235 140c-12-30-58-30-70 0s70 45 70 75-58 45-70 75" stroke="currentColor" stroke-width="4" stroke-linecap="round" />
-        <path d="M110 200h50l14-26 18 52 18-52 14 26h56" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
-        <circle cx="200" cy="60" r="10" fill="currentColor" />
-      </svg>
-    </div>
-
     <!-- Main Prescription Body -->
     <div class="main-body">
       
@@ -1687,15 +1652,8 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
             <div class="doctor-deg">${degree} • ${syndicate}</div>
           </div>
 
-          <div class="caduceus-badge">
-            <svg style="width: 24px; height: 24px; color: ${sColor};" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2v20M2 12h20" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
-              <path d="M7 8c2-3 8-3 10 0s-10 5-10 8 8 3 10 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" opacity="0.85" />
-            </svg>
-          </div>
-
           <div class="clinic-brand">
-            ${data.logoUrl ? `<img src="${data.logoUrl}" class="clinic-logo" alt="Logo" />` : ''}
+            <img src="${data.logoUrl || '/brand/yalla-clinic/logo-light-bg.png'}" class="clinic-logo" alt="Logo" />
             <div class="clinic-name">${data.clinicName || 'Yalla Clinic'}</div>
             ${data.branchName ? `<div class="branch-pill">فرع: ${data.branchName}</div>` : ''}
           </div>
@@ -1786,22 +1744,11 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
     <div class="rx-footer">
       <div class="footer-row">
         
-        <!-- Doctor Signature and Circular Stamp -->
+        <!-- Doctor Signature -->
         <div class="stamp-signature-area">
-          <svg style="width: 72px; height: 72px; color: ${sColor}; transform: rotate(-5deg); shrink: 0;" viewBox="0 0 160 160">
-            <circle cx="80" cy="80" r="74" fill="none" stroke="currentColor" stroke-width="2.5" stroke-dasharray="5 3" opacity="0.8" />
-            <circle cx="80" cy="80" r="66" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.85" />
-            <circle cx="80" cy="80" r="14" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4" />
-            <path d="M74 80l4 4 8-10" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" />
-            <text x="80" y="34" text-anchor="middle" font-size="8.5" font-weight="900" fill="currentColor" letter-spacing="0.5">عيادة طبية معتمدة</text>
-            <text x="80" y="60" text-anchor="middle" font-size="9.5" font-weight="900" fill="currentColor">${doctorTitle} ${doctorName}</text>
-            <text x="80" y="106" text-anchor="middle" font-size="7.5" font-weight="bold" fill="currentColor">${specialty}</text>
-            <text x="80" y="136" text-anchor="middle" font-size="7.5" font-weight="900" fill="currentColor" letter-spacing="1">OFFICIAL MEDICAL SEAL</text>
-          </svg>
-
           <div class="signature-box">
             <div class="signature-line">${doctorTitle} ${doctorName}</div>
-            <div class="signature-label">توقيع وختم الطبيب</div>
+            <div class="signature-label">توقيع الطبيب</div>
           </div>
         </div>
 

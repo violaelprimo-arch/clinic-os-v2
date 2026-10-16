@@ -166,50 +166,11 @@ export function A4Prescription({
           </>
         )}
 
-        {/* Central Luxury Medical Watermark (Banknote-Grade Authentic Security Emblem) */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none z-0 overflow-hidden">
-          <svg
-            className={`${isA5 ? 'w-64 h-64' : 'w-96 h-96'} opacity-[0.038]`}
-            viewBox="0 0 400 400"
-            fill="none"
-            style={{ color: sColor }}
-          >
-            {/* Concentric Guilloche Rings */}
-            <circle cx="200" cy="200" r="185" stroke="currentColor" strokeWidth="2" strokeDasharray="8 6" />
-            <circle cx="200" cy="200" r="160" stroke="currentColor" strokeWidth="1.5" />
-            <circle cx="200" cy="200" r="135" stroke="currentColor" strokeWidth="1" strokeDasharray="4 4" />
-            {/* Medical Cross */}
-            <path d="M200 65v270M65 200h270" stroke="currentColor" strokeWidth="10" strokeLinecap="round" />
-            {/* Caduceus Serpents & Wings */}
-            <path
-              d="M165 140c12-30 58-30 70 0s-70 45-70 75 58 45 70 75"
-              stroke="currentColor"
-              strokeWidth="4"
-              strokeLinecap="round"
-            />
-            <path
-              d="M235 140c-12-30-58-30-70 0s70 45 70 75-58 45-70 75"
-              stroke="currentColor"
-              strokeWidth="4"
-              strokeLinecap="round"
-            />
-            {/* Heartbeat Pulse */}
-            <path
-              d="M110 200h50l14-26 18 52 18-52 14 26h56"
-              stroke="currentColor"
-              strokeWidth="5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <circle cx="200" cy="60" r="10" fill="currentColor" />
-          </svg>
-        </div>
-
-        {/* Main Content Container (z-10 above watermark) */}
+        {/* Main Content Container */}
         <div className="flex-1 flex flex-col relative z-10">
           
           {/* =========================================================================
-              1. HEADER (Vector Medical Luxury Letterhead)
+              1. HEADER (Clean Medical Luxury Letterhead)
              ========================================================================= */}
           {showHeaderFooter && (templateMode === 'standard' || !clinic?.prescriptionTemplateUrl || !printBackground) && (
             <div className="rx-header mb-3">
@@ -237,34 +198,14 @@ export function A4Prescription({
                   </div>
                 </div>
 
-                {/* Central Medical Emblem Vector */}
-                <div className="hidden sm:flex flex-col items-center justify-center shrink-0 pt-1">
-                  <div
-                    className="w-11 h-11 rounded-2xl flex items-center justify-center border shadow-xs"
-                    style={{
-                      backgroundColor: `${sColor}12`,
-                      borderColor: `${sColor}30`
-                    }}
-                  >
-                    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" style={{ color: sColor }}>
-                      <path d="M12 2v20M2 12h20" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-                      <path d="M7 8c2-3 8-3 10 0s-10 5-10 8 8 3 10 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" opacity="0.85" />
-                    </svg>
-                  </div>
-                </div>
-
                 {/* Clinic Logo & Brand Identity */}
                 <div className="text-left flex flex-col items-end shrink-0" dir="ltr">
-                  {clinic?.logoUrl ? (
-                    <img
-                      src={clinic.logoUrl}
-                      alt="Clinic Logo"
-                      crossOrigin="anonymous"
-                      className={`${isA5 ? 'max-h-10' : 'max-h-13'} max-w-[150px] object-contain mb-1`}
-                    />
-                  ) : (
-                    <ClinicLogo size={isA5 ? 'sm' : 'md'} variant="light" showSubtitle={false} />
-                  )}
+                  <img
+                    src={clinic?.logoUrl || '/brand/yalla-clinic/logo-light-bg.png'}
+                    alt={clinic?.clinicName || 'Yalla Clinic'}
+                    crossOrigin="anonymous"
+                    className={`${isA5 ? 'h-8 sm:h-9' : 'h-10 sm:h-11'} w-auto max-w-[170px] object-contain mb-1`}
+                  />
                   <span className={`${isA5 ? 'text-[10px]' : 'text-xs'} font-black text-slate-800 mt-0.5`} dir="rtl">
                     {clinic?.clinicName || 'Yalla Clinic'}
                   </span>
@@ -480,42 +421,16 @@ export function A4Prescription({
           <div className="rx-footer mt-4 pt-3 border-t-2 relative z-10" style={{ borderColor: sColor }}>
             <div className="flex items-end justify-between gap-4">
               
-              {/* Doctor Signature & Stamp */}
+              {/* Doctor Signature */}
               <div className="flex items-center gap-3">
-                {/* Official Circular Stamp Vector */}
-                <div className="relative shrink-0">
-                  <svg
-                    className={`${isA5 ? 'w-16 h-16' : 'w-20 h-20'} select-none`}
-                    viewBox="0 0 160 160"
-                    style={{ transform: 'rotate(-5deg)', color: sColor }}
-                  >
-                    <circle cx="80" cy="80" r="74" fill="none" stroke="currentColor" strokeWidth="2.5" strokeDasharray="5 3" opacity="0.8" />
-                    <circle cx="80" cy="80" r="66" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.85" />
-                    <circle cx="80" cy="80" r="14" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.4" />
-                    <path d="M74 80l4 4 8-10" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" />
-                    <text x="80" y="34" textAnchor="middle" fontSize="8.5" fontWeight="900" fill="currentColor" letterSpacing="0.5">
-                      عيادة طبية معتمدة
-                    </text>
-                    <text x="80" y="60" textAnchor="middle" fontSize="9.5" fontWeight="900" fill="currentColor">
-                      {doctorTitle} {doctorName}
-                    </text>
-                    <text x="80" y="106" textAnchor="middle" fontSize="7.5" fontWeight="bold" fill="currentColor">
-                      {specialty}
-                    </text>
-                    <text x="80" y="136" textAnchor="middle" fontSize="7.5" fontWeight="900" fill="currentColor" letterSpacing="1">
-                      OFFICIAL MEDICAL SEAL
-                    </text>
-                  </svg>
-                </div>
-
                 <div className="text-center">
                   <div
-                    className={`${isA5 ? 'w-24' : 'w-32'} border-b-2 border-slate-400 pb-1 italic font-serif text-slate-800 ${isA5 ? 'text-xs' : 'text-sm'} font-bold`}
+                    className={`${isA5 ? 'w-28' : 'w-36'} border-b-2 border-slate-400 pb-1 italic font-serif text-slate-800 ${isA5 ? 'text-xs' : 'text-sm'} font-bold`}
                   >
                     {doctorTitle} {doctorName}
                   </div>
                   <span className="text-[9px] text-slate-400 font-bold block mt-1">
-                    {language === 'en' ? "Doctor's Signature & Stamp" : 'توقيع وختم الطبيب'}
+                    {language === 'en' ? "Doctor's Signature" : 'توقيع الطبيب'}
                   </span>
                 </div>
               </div>
