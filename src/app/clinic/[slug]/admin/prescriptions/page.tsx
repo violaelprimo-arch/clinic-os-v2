@@ -22,7 +22,7 @@ import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
 import { printHtmlViaIframe, generateA4PrescriptionHtml } from '@/lib/printService'
 import { renderElementToPdfBlob, downloadElementAsPdf, renderElementToImageBlob, downloadElementAsImage } from '@/lib/pdfGenerator'
-import { shareDocumentOrImage, sharePdfDocument } from '@/lib/whatsappShare'
+import { shareDocumentOrImage, sharePdfDocument, generateCleanRxFileName, formatEgyptianPhoneForWhatsApp } from '@/lib/whatsappShare'
 import { getClinicUrl } from '@/lib/clinic-url'
 import { useLanguage } from '@/context/LanguageContext'
 
@@ -220,7 +220,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       toast.info('جاري تجهيز صورة الروشتة ومشاركتها...')
       const { blob } = await renderElementToImageBlob(sheetRef.current, { scale: 2.5 })
 
-      const fileName = `روشتة_${patientName || 'المريض'}_${dateStr}.png`
+      const fileName = generateCleanRxFileName(patientName, dateStr, 'png')
       const apptId = searchParams?.get('appointmentId') || appointmentId
       const directRxUrl = apptId
         ? getClinicUrl(slug, `/prescription/${apptId}`)
@@ -244,17 +244,18 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     }
   }
 
-  // TASK 6: Staff-initiated Manual WhatsApp sharing with REAL PDF Document
+  // Staff-initiated Manual WhatsApp sharing with REAL PDF Document & Clipboard copy
   const handleShareWhatsAppPdf = async () => {
     if (!patientPhone) return toast.error('يرجى إدخال رقم هاتف المريض')
     if (!sheetRef.current) return toast.error('تعذر الوصول لنموذج الروشتة')
 
     setIsSharingPdf(true)
     try {
-      toast.info('جاري إنشاء ملف PDF ومشاركته...')
-      const { blob } = await renderElementToPdfBlob(sheetRef.current, { format: pageSize, orientation: 'portrait' })
+      toast.info('جاري إنشاء ملف PDF وتجهيز محادثة واتساب...')
+      const { blob: pdfBlob } = await renderElementToPdfBlob(sheetRef.current, { format: pageSize, orientation: 'portrait' })
+      const { blob: imgBlob } = await renderElementToImageBlob(sheetRef.current, { scale: 2.5 })
 
-      const fileName = `روشتة_${patientName || 'المريض'}_${dateStr}.pdf`
+      const fileName = generateCleanRxFileName(patientName, dateStr, 'pdf')
       const apptId = searchParams?.get('appointmentId') || appointmentId
       const directRxUrl = apptId
         ? getClinicUrl(slug, `/prescription/${apptId}`)
@@ -263,9 +264,10 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       const message = `الروشتة الطبية الإلكترونية الرسمية 📄\nعيادة: ${clinic?.clinicName || 'العيادة الطبية'}\nالطبيب: د. ${clinic?.doctorName || ''}\nالمريض: ${patientName || 'المريض'}\nالتاريخ: ${dateStr}\n\n🔗 يمكنك استعراض وتحميل الروشتة الرسمية بتصميم العيادة عبر الرابط المباشر:\n${directRxUrl}\n\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`
 
       await shareDocumentOrImage({
-        blob,
+        blob: pdfBlob,
         fileName,
         fileType: 'pdf',
+        imageBlobForClipboard: imgBlob,
         recipientPhone: patientPhone,
         messageText: message,
         documentTitle: 'الروشتة الطبية الإلكترونية'
@@ -283,12 +285,13 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     if (!sheetRef.current) return
     setIsDownloadingImage(true)
     try {
+      const fileName = generateCleanRxFileName(patientName, dateStr, 'png')
       await downloadElementAsImage(
         sheetRef.current,
-        `روشتة_${patientName || 'المريض'}_${dateStr}.png`,
+        fileName,
         { scale: 2.5 }
       )
-      toast.success('تم تنزيل الروشتة كصورة PNG بنجاح')
+      toast.success(`تم تنزيل صورة الروشتة (${fileName}) بنجاح`)
     } catch (e) {
       console.error(e)
       toast.error('تعذر تنزيل صورة الروشتة')
@@ -302,12 +305,13 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     if (!sheetRef.current) return
     setIsDownloadingPdf(true)
     try {
+      const fileName = generateCleanRxFileName(patientName, dateStr, 'pdf')
       await downloadElementAsPdf(
         sheetRef.current,
-        `روشتة_${patientName || 'المريض'}_${dateStr}.pdf`,
+        fileName,
         { format: pageSize, orientation: 'portrait' }
       )
-      toast.success('تم تنزيل الروشتة بصيغة PDF بنجاح')
+      toast.success(`تم تنزيل ملف الروشتة PDF (${fileName}) بنجاح`)
     } catch (e) {
       console.error(e)
       toast.error('تعذر تنزيل ملف الروشتة')
@@ -372,6 +376,26 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Primary WhatsApp Share Button (PDF + Auto Clipboard Image) */}
+          <Button
+            onClick={handleShareWhatsAppPdf}
+            disabled={isSharingPdf}
+            className="h-10 text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-md shadow-emerald-600/25 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
+            title="إرسال واتساب برقم المريض وتنزيل الروشتة"
+          >
+            <MessageCircle className="w-4 h-4 ml-1" />
+            {isSharingPdf ? t('saving', 'جاري التجهيز...') : (
+              <>
+                <span>{t('send_whatsapp_pdf', 'إرسال واتساب للمريض')}</span>
+                {patientPhone && (
+                  <span className="text-[10px] bg-emerald-700/60 px-1.5 py-0.5 rounded-md font-mono font-normal">
+                    {formatEgyptianPhoneForWhatsApp(patientPhone).slice(-8)}
+                  </span>
+                )}
+              </>
+            )}
+          </Button>
+
           {/* WhatsApp Share as Image */}
           <Button
             onClick={handleShareWhatsAppImage}
@@ -380,32 +404,8 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             className="h-10 text-xs font-bold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 rounded-xl"
             title="WhatsApp Image"
           >
-            <MessageCircle className="w-4 h-4 ml-1.5" />
-            {isSharingPdf ? t('saving', 'جاري المشاركة...') : t('send_whatsapp_img', 'إرسال صورة واتساب')}
-          </Button>
-
-          {/* Manual WhatsApp Share with Real PDF */}
-          <Button
-            onClick={handleShareWhatsAppPdf}
-            disabled={isSharingPdf}
-            variant="outline"
-            className="h-10 text-xs font-bold text-emerald-700 dark:text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/10 rounded-xl"
-            title="WhatsApp PDF"
-          >
-            <FileText className="w-4 h-4 ml-1.5" />
-            {isSharingPdf ? t('saving', 'جاري المشاركة...') : t('send_whatsapp_pdf', 'إرسال PDF واتساب')}
-          </Button>
-
-          {/* Real Image Download */}
-          <Button
-            onClick={handleDownloadImage}
-            disabled={isDownloadingImage}
-            variant="outline"
-            className="h-10 text-xs font-bold border-border text-foreground hover:bg-secondary rounded-xl"
-            title="Download PNG"
-          >
             <ImageIcon className="w-4 h-4 ml-1.5" />
-            {isDownloadingImage ? t('loading', 'جاري التحميل...') : t('download_img', 'تحميل صورة')}
+            {isSharingPdf ? t('saving', 'جاري المشاركة...') : t('send_whatsapp_img', 'إرسال صورة واتساب')}
           </Button>
 
           {/* Real PDF Download */}
@@ -418,6 +418,18 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           >
             <Download className="w-4 h-4 ml-1.5" />
             {isDownloadingPdf ? t('loading', 'جاري التحميل...') : t('download_pdf', 'تحميل PDF')}
+          </Button>
+
+          {/* Real Image Download */}
+          <Button
+            onClick={handleDownloadImage}
+            disabled={isDownloadingImage}
+            variant="outline"
+            className="h-10 text-xs font-bold border-border text-foreground hover:bg-secondary rounded-xl"
+            title="Download PNG"
+          >
+            <ImageIcon className="w-4 h-4 ml-1.5" />
+            {isDownloadingImage ? t('loading', 'جاري التحميل...') : t('download_img', 'تحميل صورة')}
           </Button>
 
           {/* Clean Isolated Print */}

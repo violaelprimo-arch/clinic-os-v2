@@ -5,7 +5,7 @@ import { toast } from 'sonner'
  * e.g., '01012345678' -> '201012345678'
  */
 export function formatEgyptianPhoneForWhatsApp(phone: string): string {
-  let cleaned = phone.replace(/[^0-9]/g, '')
+  let cleaned = String(phone || '').replace(/[^0-9]/g, '')
   if (cleaned.startsWith('002')) {
     cleaned = cleaned.substring(2)
   }
@@ -22,8 +22,48 @@ export function formatEgyptianPhoneForWhatsApp(phone: string): string {
 }
 
 /**
- * Opens WhatsApp Click-to-Chat with prefilled message text.
- * Requires user to press send in their WhatsApp application.
+ * Generates an internationally safe, professional prescription filename
+ * using the universal medical symbol 'Rx' and phonetic transliteration.
+ * Completely eliminates WhatsApp's ISO-8859-1 (Latin-1) mojibake bug (Ø±Ù\x88Ø´ØªØ©...)
+ * Example: 'Rx_Test_2026-10-16.pdf' or 'Rx_Ahmed_Mohamed_2026-10-16.pdf'
+ */
+export function generateCleanRxFileName(
+  patientName: string,
+  dateStr?: string,
+  extension: 'pdf' | 'png' = 'pdf'
+): string {
+  const cleanDate = (dateStr || new Date().toISOString().split('T')[0]).replace(/[^0-9-]/g, '')
+  const raw = (patientName || 'Patient').trim()
+
+  const hasArabic = /[\u0600-\u06FF]/.test(raw)
+  let cleanName = raw
+
+  if (hasArabic) {
+    const arMap: Record<string, string> = {
+      'أ': 'A', 'إ': 'E', 'آ': 'A', 'ا': 'A', 'ب': 'B', 'ت': 'T', 'ث': 'Th',
+      'ج': 'G', 'ح': 'H', 'خ': 'Kh', 'د': 'D', 'ذ': 'Z', 'ر': 'R', 'ز': 'Z',
+      'س': 'S', 'ش': 'Sh', 'ص': 'S', 'ض': 'D', 'ط': 'T', 'ظ': 'Z', 'ع': 'A',
+      'غ': 'Gh', 'ف': 'F', 'ق': 'Q', 'ك': 'K', 'ل': 'L', 'م': 'M', 'ن': 'N',
+      'ه': 'H', 'و': 'O', 'ي': 'Y', 'ى': 'A', 'ة': 'a', 'ء': '', 'ئ': 'Y', 'ؤ': 'W'
+    }
+    cleanName = raw.split('').map(ch => arMap[ch] !== undefined ? arMap[ch] : ch).join('')
+  }
+
+  // Clean characters for universal filesystem & WhatsApp compatibility
+  cleanName = cleanName
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '')
+
+  if (!cleanName) cleanName = 'Patient'
+
+  return `Rx_${cleanName}_${cleanDate}.${extension}`
+}
+
+/**
+ * Opens WhatsApp Click-to-Chat directly targeting the recipient's phone number.
+ * - On desktop: Opens web.whatsapp.com directly (skipping the intermediate landing page).
+ * - On mobile: Opens the native WhatsApp app via api.whatsapp.com/send.
  */
 export function openManualWhatsAppChat({
   phone,
@@ -38,14 +78,20 @@ export function openManualWhatsAppChat({
   }
   const formattedPhone = formatEgyptianPhoneForWhatsApp(phone)
   const encodedText = encodeURIComponent(message)
-  const url = `https://wa.me/${formattedPhone}?text=${encodedText}`
+  
+  const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+  const url = isMobile
+    ? `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`
+    : `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`
+  
   window.open(url, '_blank')
 }
 
 /**
  * Handles professional sharing of documents and images (Prescriptions, Invoices, Reports).
- * - On supported platforms (mobile & modern browsers): Uses Web Share API with files directly into WhatsApp.
- * - On desktop: Copies image to clipboard (for instant Ctrl+V in WhatsApp Web), downloads file, and opens chat.
+ * - Directly targets recipient WhatsApp chat with their phone number.
+ * - Copies high-res image to clipboard for instant (Ctrl + V) pasting in WhatsApp chat.
+ * - Automatically downloads the file with the clean 'Rx_...' filename.
  */
 export async function shareDocumentOrImage({
   blob,
@@ -53,7 +99,8 @@ export async function shareDocumentOrImage({
   fileType = 'pdf',
   recipientPhone,
   messageText,
-  documentTitle = 'المستند'
+  documentTitle = 'المستند',
+  imageBlobForClipboard
 }: {
   blob: Blob
   fileName: string
@@ -61,72 +108,55 @@ export async function shareDocumentOrImage({
   recipientPhone: string
   messageText: string
   documentTitle?: string
+  imageBlobForClipboard?: Blob
 }): Promise<void> {
   const mimeType = fileType === 'image' ? 'image/png' : 'application/pdf'
   const file = new File([blob], fileName, { type: mimeType })
 
-  // 1. Try Native Web Share API if supported (Mobile phones / modern Web Share)
-  if (
-    typeof navigator !== 'undefined' &&
-    navigator.canShare &&
-    navigator.canShare({ files: [file] })
-  ) {
-    try {
-      await navigator.share({
-        title: documentTitle,
-        text: messageText,
-        files: [file]
-      })
-      toast.info('تم فتح خيارات المشاركة، يرجى اختيار جهة الاتصال في واتساب')
-      return
-    } catch (err: any) {
-      if (err.name === 'AbortError') {
-        return
-      }
-      console.warn('Web Share API failed, falling back to desktop flow:', err)
-    }
-  }
-
-  // 2. Desktop WhatsApp Web helper:
-  // If it is an image, copy it to the clipboard so the user can simply Ctrl + V in WhatsApp Web!
+  // 1. Desktop WhatsApp Web clipboard auto-copy:
+  // If an image blob is provided or the file is an image, write to system clipboard!
   let copiedToClipboard = false
-  if (fileType === 'image' && typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
+  const clipBlob = imageBlobForClipboard || (fileType === 'image' ? blob : null)
+  
+  if (clipBlob && typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
     try {
       await navigator.clipboard.write([
-        new ClipboardItem({ 'image/png': blob })
+        new ClipboardItem({ 'image/png': clipBlob })
       ])
       copiedToClipboard = true
     } catch (err) {
-      console.warn('Clipboard copy failed:', err)
+      console.warn('Clipboard write fallback/failed:', err)
     }
   }
 
-  // 3. Download file to user device
+  // 2. Download file directly with clean non-mojibake filename
   const downloadUrl = window.URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = downloadUrl
   a.download = fileName
   document.body.appendChild(a)
   a.click()
+  document.body.removeChild(a)
   setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 30000)
 
-  // 4. Open WhatsApp Click-to-Chat with message
+  // 3. Open WhatsApp directly targeting the patient's phone number
   const extraNote = copiedToClipboard
-    ? '\n\n(ملاحظة: تم نسخ الصورة إلى الحافظة! الصقها مباشرة في المحادثة بـ Ctrl+V)'
-    : '\n\n(مرفق المستند تم تنزيله على جهازكم)'
+    ? '\n\n(📋 تم نسخ صورة الروشتة للحافظة! الصقها مباشرة في المحادثة بـ Ctrl+V)'
+    : '\n\n(📄 مرفق ملف الروشتة الرسمية تم تنزيله على جهازكم)'
 
   openManualWhatsAppChat({
     phone: recipientPhone,
     message: `${messageText}${extraNote}`
   })
 
+  // 4. Show friendly guidance toast
   if (copiedToClipboard) {
-    toast.success('تم نسخ صورة المستند للحافظة وتنزيلها! الصقها مباشرة في محادثة الواتساب (Ctrl + V)', {
-      duration: 6000
+    toast.success('تم فتح محادثة المريض وتنزيل الملف! اضغط (Ctrl + V) في الشات لإرسال صورة الروشتة فوراً 🚀', {
+      duration: 8000
     })
   } else {
-    toast.info(`تم تنزيل ${documentTitle} وفتح محادثة واتساب. يمكنك إرفاق الملف بالمحادثة.`, {
-      duration: 6000
+    toast.success(`تم فتح محادثة المريض (${recipientPhone}) وتنزيل ${fileName}! يمكنك سحب الملف للشات لإرساله.`, {
+      duration: 8000
     })
   }
 }

@@ -14,7 +14,7 @@ import { toast } from 'sonner'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
 import { downloadElementAsPdf, renderElementToPdfBlob } from '@/lib/pdfGenerator'
 import { printHtmlViaIframe, generateA4PrescriptionHtml } from '@/lib/printService'
-import { sharePdfDocument } from '@/lib/whatsappShare'
+import { sharePdfDocument, generateCleanRxFileName } from '@/lib/whatsappShare'
 import { getClinicUrl } from '@/lib/clinic-url'
 import { useLanguage } from '@/context/LanguageContext'
 
@@ -58,12 +58,13 @@ export default function PatientProfilePage({
     setDownloadingApptId(appt.id)
     try {
       const pName = patientData?.name || appt?.patientName || 'المريض'
+      const fileName = generateCleanRxFileName(pName, appt.date, 'pdf')
       await downloadElementAsPdf(
         rxElement,
-        `روشتة_${pName}_${appt.date}.pdf`,
+        fileName,
         { format: 'a4', orientation: 'portrait' }
       )
-      toast.success('تم تحميل ملف الروشتة PDF بنجاح')
+      toast.success(`تم تحميل ملف الروشتة PDF (${fileName}) بنجاح`)
     } catch (e) {
       toast.error('حدث خطأ أثناء تحميل الروشتة')
     } finally {
@@ -117,7 +118,7 @@ export default function PatientProfilePage({
       }
 
       const pName = patientData?.name || appt?.patientName || 'المريض'
-      const fileName = `روشتة_${pName}_${appt.date}.pdf`
+      const fileName = generateCleanRxFileName(pName, appt.date, 'pdf')
       const directRxUrl = getClinicUrl(slug, `/prescription/${appt.id}`)
 
       const message = `الروشتة الطبية الإلكترونية الرسمية 📄\nعيادة: ${clinic?.clinicName || 'العيادة الطبية'}\nالطبيب: د. ${clinic?.doctorName || ''}\nالمريض: ${pName}\nالتاريخ: ${appt.date}\n\n🔗 يمكنك استعراض وتحميل الروشتة الرسمية بتصميم العيادة عبر الرابط المباشر:\n${directRxUrl}\n\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`

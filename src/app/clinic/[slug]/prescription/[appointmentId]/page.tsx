@@ -13,7 +13,7 @@ import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
 import { downloadElementAsPdf, renderElementToPdfBlob, downloadElementAsImage, renderElementToImageBlob } from '@/lib/pdfGenerator'
 import { printHtmlViaIframe, generateA4PrescriptionHtml } from '@/lib/printService'
-import { shareDocumentOrImage, sharePdfDocument } from '@/lib/whatsappShare'
+import { shareDocumentOrImage, sharePdfDocument, generateCleanRxFileName } from '@/lib/whatsappShare'
 import { getClinicUrl } from '@/lib/clinic-url'
 import { LanguageToggle } from '@/components/common/LanguageToggle'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
@@ -121,12 +121,13 @@ export default function PublicPrescriptionPage({
     if (!printSheetRef.current) return
     setIsDownloading(true)
     try {
+      const fileName = generateCleanRxFileName(patientName, rxDate, 'pdf')
       await downloadElementAsPdf(
         printSheetRef.current,
-        `Rx_${patientName}_${rxDate}.pdf`,
+        fileName,
         { format: 'a4', orientation: 'portrait' }
       )
-      toast.success(isRtl ? 'تم تحميل ملف الروشتة PDF بنجاح' : 'Prescription downloaded as PDF')
+      toast.success(isRtl ? `تم تحميل ملف الروشتة PDF (${fileName}) بنجاح` : `Prescription downloaded as PDF (${fileName})`)
     } catch (e) {
       console.error(e)
       toast.error(isRtl ? 'حدث خطأ أثناء تحميل الروشتة' : 'Error downloading prescription PDF')
@@ -140,12 +141,13 @@ export default function PublicPrescriptionPage({
     if (!printSheetRef.current) return
     setIsDownloadingImage(true)
     try {
+      const fileName = generateCleanRxFileName(patientName, rxDate, 'png')
       await downloadElementAsImage(
         printSheetRef.current,
-        `Rx_${patientName}_${rxDate}.png`,
+        fileName,
         { scale: 2.5 }
       )
-      toast.success(isRtl ? 'تم تنزيل الروشتة كصورة PNG بنجاح' : 'Prescription downloaded as PNG')
+      toast.success(isRtl ? `تم تنزيل الروشتة كصورة PNG (${fileName}) بنجاح` : `Prescription downloaded as PNG (${fileName})`)
     } catch (e) {
       console.error(e)
       toast.error(isRtl ? 'حدث خطأ أثناء تحميل صورة الروشتة' : 'Error downloading prescription image')
@@ -162,7 +164,7 @@ export default function PublicPrescriptionPage({
       toast.info(isRtl ? 'جاري إعداد صورة الروشتة...' : 'Preparing prescription image...')
       const { blob } = await renderElementToImageBlob(printSheetRef.current, { scale: 2.5 })
 
-      const fileName = `Rx_${patientName}_${rxDate}.png`
+      const fileName = generateCleanRxFileName(patientName, rxDate, 'png')
       const currentUrl = getClinicUrl(slug, `/prescription/${appointmentId}`)
       const message = isRtl
         ? `الروشتة الطبية الإلكترونية 📄\nعيادة: ${clinic?.clinicName || 'العيادة الطبية'}\nالطبيب: د. ${clinic?.doctorName || ''}\nالمريض: ${patientName}\nالتاريخ: ${rxDate}\n\n🔗 يمكنك استعراض وتحميل الروشتة الرسمية بتصميم العيادة عبر الرابط المباشر:\n${currentUrl}\n\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`
