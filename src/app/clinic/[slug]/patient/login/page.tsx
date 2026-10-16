@@ -125,10 +125,19 @@ export default function PatientLoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#0066dc] to-[#00a8e8] text-white font-extrabold text-sm shadow-lg"
+            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#0066dc] to-[#00a8e8] text-white font-extrabold text-sm shadow-lg hover:shadow-xl transition-all cursor-pointer"
           >
             {loading ? 'جاري التحقق...' : mode === 'login' ? 'تسجيل الدخول للملف الطبي' : 'إنشاء حساب والدخول'}
           </button>
+
+          <div className="pt-2 text-center">
+            <Link
+              href={`/clinic/${slug}`}
+              className="text-xs font-bold text-slate-500 hover:text-sky-600 transition-colors inline-flex items-center gap-1"
+            >
+              <span>← العودة لصفحة العيادة الرئيسية</span>
+            </Link>
+          </div>
         </form>
       </div>
     </div>

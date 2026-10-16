@@ -67,35 +67,38 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
       {/* Header / Navbar */}
       <header className="sticky top-0 z-40 bg-white/90 dark:bg-[#081526]/90 backdrop-blur-xl border-b border-sky-100 dark:border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={() => handleOpenBooking()}
-              className="bg-gradient-to-r from-[#0066dc] to-[#00a8e8] hover:shadow-lg hover:-translate-y-0.5 text-white font-bold px-5 py-2.5 rounded-xl text-sm flex items-center gap-2 transition-all"
+              className="bg-gradient-to-r from-[#0066dc] to-[#00a8e8] hover:shadow-lg hover:-translate-y-0.5 text-white font-bold px-4 sm:px-5 py-2.5 rounded-xl text-xs sm:text-sm flex items-center gap-2 transition-all shrink-0 cursor-pointer"
             >
               <CalendarCheck className="w-4 h-4" />
               <span>{isRtl ? 'حجز موعد الآن' : 'Book Now'}</span>
             </button>
 
-            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl border border-slate-200/70 dark:border-slate-700">
-              <Link
-                href={`/clinic/${clinic?.slug || 'zizo'}/patient`}
-                title={isRtl ? 'بوابة المريض' : 'Patient Portal'}
-                className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 hover:text-sky-600 transition-all"
-              >
-                <User className="w-4 h-4" />
-              </Link>
+            {/* Patient Login & Register Button */}
+            <Link
+              href={`/clinic/${clinic?.slug || 'zizo'}/patient/login`}
+              className="bg-white/90 dark:bg-slate-800 text-slate-800 dark:text-slate-100 hover:text-sky-600 dark:hover:text-sky-400 border border-slate-200 dark:border-slate-700 hover:border-sky-400 font-bold px-3.5 py-2.5 rounded-xl text-xs sm:text-sm flex items-center gap-1.5 shadow-xs transition-all shrink-0 cursor-pointer"
+              title={isRtl ? 'تسجيل دخول المريض أو إنشاء حساب جديد' : 'Patient Login or Register'}
+            >
+              <User className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0" />
+              <span>{isRtl ? 'دخول / حساب جديد' : 'Login / Register'}</span>
+            </Link>
+
+            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200/70 dark:border-slate-700 shrink-0">
               <button
                 onClick={handleToggleDark}
-                className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-700 dark:text-amber-300 hover:bg-white dark:hover:bg-slate-700 transition-all"
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-700 dark:text-amber-300 hover:bg-white dark:hover:bg-slate-700 transition-all cursor-pointer"
               >
                 {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
               <button
                 onClick={toggleLanguage}
-                className="px-2.5 h-9 rounded-lg bg-sky-500 text-white font-bold text-xs flex items-center gap-1 hover:bg-sky-600 transition-all"
+                className="px-2 h-8 rounded-lg bg-sky-500 text-white font-bold text-xs flex items-center gap-1 hover:bg-sky-600 transition-all cursor-pointer"
               >
                 <span>{isRtl ? 'EN' : 'عربي'}</span>
-                <Globe className="w-3.5 h-3.5" />
+                <Globe className="w-3 h-3" />
               </button>
             </div>
           </div>
@@ -213,11 +216,11 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
                 </p>
               </div>
 
-              <div className="pt-2 flex flex-wrap items-center justify-center lg:justify-start gap-3.5">
+              <div className="pt-2 flex flex-wrap items-center justify-center lg:justify-start gap-3 sm:gap-3.5">
                 <button
                   onClick={() => handleOpenBooking()}
                   style={clinic?.primaryColor ? { background: `linear-gradient(135deg, ${clinic.primaryColor}, #00a8e8)` } : undefined}
-                  className="bg-gradient-to-r from-[#0066dc] to-[#00a8e8] hover:shadow-xl hover:-translate-y-0.5 text-white font-extrabold px-8 py-4 rounded-full text-base flex items-center gap-2.5 shadow-lg transition-all"
+                  className="bg-gradient-to-r from-[#0066dc] to-[#00a8e8] hover:shadow-xl hover:-translate-y-0.5 text-white font-extrabold px-7 sm:px-8 py-3.5 sm:py-4 rounded-full text-sm sm:text-base flex items-center gap-2.5 shadow-lg transition-all cursor-pointer"
                 >
                   <span>{isRtl ? 'حجز موعد الآن' : 'Book Appointment'}</span>
                   {isRtl ? <ArrowLeft className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
@@ -225,11 +228,19 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
 
                 <button
                   onClick={() => setLiveTurnOpen(true)}
-                  className="bg-white/95 dark:bg-slate-800/90 hover:bg-sky-50 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-extrabold px-7 py-4 rounded-full text-base border border-slate-200 dark:border-slate-700 shadow-sm transition-all flex items-center gap-2.5"
+                  className="bg-white/95 dark:bg-slate-800/90 hover:bg-sky-50 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-extrabold px-6 sm:px-7 py-3.5 sm:py-4 rounded-full text-sm sm:text-base border border-slate-200 dark:border-slate-700 shadow-sm transition-all flex items-center gap-2.5 cursor-pointer"
                 >
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
                   <span>{isRtl ? 'تابع دورك' : 'Track Queue'}</span>
                 </button>
+
+                <Link
+                  href={`/clinic/${clinic?.slug || 'zizo'}/patient/login`}
+                  className="bg-white/90 dark:bg-slate-800/90 hover:bg-sky-50 dark:hover:bg-slate-700 text-slate-800 dark:text-white hover:text-sky-600 font-extrabold px-6 py-3.5 sm:py-4 rounded-full text-sm sm:text-base border border-slate-200 dark:border-slate-700 shadow-sm transition-all flex items-center gap-2"
+                >
+                  <User className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                  <span>{isRtl ? 'بوابة المريض / تسجيل الدخول' : 'Patient Portal / Login'}</span>
+                </Link>
               </div>
             </div>
           </div>
@@ -379,7 +390,17 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
       {/* Footer */}
       <footer className="bg-[#081526] text-white py-8 px-4 sm:px-6 lg:px-8 border-t border-slate-800 mt-auto">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div className="text-xs text-slate-400">© 2026 {clinic?.clinicName || 'YallaClinic'}</div>
+          <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-5 text-xs text-slate-400 text-center sm:text-right">
+            <span>© 2026 {clinic?.clinicName || 'YallaClinic'}</span>
+            <span className="hidden sm:inline opacity-40">•</span>
+            <Link
+              href={`/clinic/${clinic?.slug || 'zizo'}/patient/login`}
+              className="text-sky-400 hover:text-sky-300 hover:underline font-bold transition-colors inline-flex items-center gap-1.5"
+            >
+              <User className="w-3.5 h-3.5" />
+              <span>{isRtl ? 'بوابة المريض (تسجيل الدخول / إنشاء حساب)' : 'Patient Portal (Login / Register)'}</span>
+            </Link>
+          </div>
           <div className="text-2xl font-extrabold tracking-tight" dir="ltr">
             <span className="text-sky-400">yalla</span>
             <span className="text-slate-300 font-semibold">clinic</span>
