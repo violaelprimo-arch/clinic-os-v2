@@ -97,18 +97,35 @@ export function openManualWhatsAppChat({
     url = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`
   } else if (target === 'app') {
     url = `whatsapp://send?phone=${formattedPhone}&text=${encodedText}`
-  } else if (target === 'web') {
-    url = `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`
   } else {
-    // Universal on desktop: triggers Desktop app if installed, with 1-click fallback to Web
-    url = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`
+    // Desktop Web directly opens the patient's chat without intermediate landing page
+    url = `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`
   }
   
   try {
     const win = window.open(url, '_blank')
+    if (!win || win.closed || typeof win.closed === 'undefined') {
+      const a = document.createElement('a')
+      a.href = url
+      if (target === 'app') {
+        a.target = '_self'
+      } else {
+        a.target = '_blank'
+        a.rel = 'noopener noreferrer'
+      }
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    }
     return win
   } catch (err) {
-    window.location.href = url
+    const a = document.createElement('a')
+    a.href = url
+    a.target = target === 'app' ? '_self' : '_blank'
+    a.rel = 'noopener noreferrer'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
     return null
   }
 }

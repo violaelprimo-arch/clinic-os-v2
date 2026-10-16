@@ -7,7 +7,7 @@ import { Printer, Download, Receipt, CheckCircle2, Clock, MapPin, Phone, Buildin
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { printHtmlViaIframe, generateThermalReceiptHtml } from '@/lib/printService'
 import { downloadElementAsPdf, downloadElementAsImage, renderElementToImageBlob, renderElementToPdfBlob } from '@/lib/pdfGenerator'
-import { shareDocumentOrImage, sharePdfDocument } from '@/lib/whatsappShare'
+import { shareDocumentOrImage, sharePdfDocument, openManualWhatsAppChat } from '@/lib/whatsappShare'
 import { useLanguage } from '@/context/LanguageContext'
 import { toast } from 'sonner'
 
@@ -114,48 +114,64 @@ export function InvoiceView({
     }
   }
 
-  // WhatsApp Share with real PDF (Mobile WebShare attaches PDF; Desktop opens patient chat & downloads PDF + Ctrl+V image)
+  // WhatsApp Share with real PDF: Opens chat instantly in 0ms (no popup blocker), generates & auto-downloads PDF
   const handleShareWhatsApp = async () => {
     if (!invoice.patientPhone) return toast.error(isRtl ? 'رقم هاتف المريض غير مسجل في الفاتورة' : 'Patient phone number not found in invoice')
+
+    const msg = isRtl
+      ? `مرحباً ${invoice.patientName}،\nفاتورتك الطبية الرسمية من عيادة ${invoice.clinicName} ${invoice.branchName ? `(فرع ${invoice.branchName})` : ''}:\n- رقم الفاتورة: #${invoice.invoiceNumber}\n- الخدمة: ${invoice.serviceName}\n- المبلغ الصافي: ${invoice.netTotal} ج.م\n- حالة الدفع: ${invoice.paymentStatus === 'paid' ? 'مدفوع ومؤكد' : 'في انتظار التأكيد'}\n📄 مرفق ملف الفاتورة الرسمي PDF.\nنتمنى لكم دوام الصحة والعافية.`
+      : `Hello ${invoice.patientName},\nYour official medical invoice from ${invoice.clinicName} ${invoice.branchName ? `(Branch ${invoice.branchName})` : ''}:\n- Invoice No: #${invoice.invoiceNumber}\n- Service: ${invoice.serviceName}\n- Net Total: ${invoice.netTotal} EGP\n- Payment: ${invoice.paymentStatus === 'paid' ? 'Paid & Confirmed' : 'Pending Confirmation'}\n📄 Attached official PDF invoice.\nWishing you good health.`
+
+    // 1. OPEN WHATSAPP CHAT SYNCHRONOUSLY IN 0ms (Never blocked by popup blocker!)
+    openManualWhatsAppChat({
+      phone: invoice.patientPhone,
+      message: msg,
+      target: 'auto'
+    })
+
+    toast.success(isRtl ? `تم فتح محادثة المريض (${invoice.patientPhone}) في واتساب! جاري تجهيز الـ PDF... 🚀` : `Opened WhatsApp chat! Preparing PDF... 🚀`, {
+      duration: 4000
+    })
+
     if (!printableRef.current) return
     setIsGeneratingPdf(true)
-    const toastId = toast.loading(isRtl ? 'جاري تجهيز ملف الفاتورة PDF للمريض...' : 'Preparing invoice PDF for sharing...')
     try {
       const cleanFileName = `Invoice_${invoice.invoiceNumber || 'receipt'}.pdf`
 
-      // 1. Generate real high-res PDF blob
+      // 2. Generate real high-res PDF blob
       const { blob: pdfBlob } = await renderElementToPdfBlob(printableRef.current, {
         fileName: cleanFileName,
         format: 'a4',
         orientation: 'portrait',
-        scale: 2.5
+        scale: 2.2
       })
 
-      // 2. Generate image blob for clipboard (instant Ctrl+V on desktop)
-      let imgBlob: Blob | undefined
-      try {
-        const imgRes = await renderElementToImageBlob(printableRef.current, { scale: 2.5 })
-        imgBlob = imgRes.blob
-      } catch {}
+      // Download clean PDF file immediately
+      const downloadUrl = window.URL.createObjectURL(pdfBlob)
+      const a = document.createElement('a')
+      a.href = downloadUrl
+      a.download = cleanFileName
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 30000)
 
-      const msg = isRtl
-        ? `مرحباً ${invoice.patientName}،\nفاتورتك الطبية الرسمية من عيادة ${invoice.clinicName} ${invoice.branchName ? `(فرع ${invoice.branchName})` : ''}:\n- رقم الفاتورة: #${invoice.invoiceNumber}\n- الخدمة: ${invoice.serviceName}\n- المبلغ الصافي: ${invoice.netTotal} ج.م\n- حالة الدفع: ${invoice.paymentStatus === 'paid' ? 'مدفوع ومؤكد' : 'في انتظار التأكيد'}\n📄 مرفق ملف الفاتورة الرسمي PDF.\nنتمنى لكم دوام الصحة والعافية.`
-        : `Hello ${invoice.patientName},\nYour official medical invoice from ${invoice.clinicName} ${invoice.branchName ? `(Branch ${invoice.branchName})` : ''}:\n- Invoice No: #${invoice.invoiceNumber}\n- Service: ${invoice.serviceName}\n- Net Total: ${invoice.netTotal} EGP\n- Payment: ${invoice.paymentStatus === 'paid' ? 'Paid & Confirmed' : 'Pending Confirmation'}\n📄 Attached official PDF invoice.\nWishing you good health.`
+      // Copy image to clipboard for Ctrl+V
+      if (typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
+        renderElementToImageBlob(printableRef.current, { scale: 2.5 }).then(async ({ blob: imgBlob }) => {
+          try {
+            await navigator.clipboard.write([
+              new ClipboardItem({ 'image/png': imgBlob })
+            ])
+          } catch {}
+        }).catch(() => {})
+      }
 
-      toast.dismiss(toastId)
-
-      await sharePdfDocument({
-        pdfBlob,
-        fileName: cleanFileName,
-        recipientPhone: invoice.patientPhone,
-        messageText: msg,
-        documentTitle: isRtl ? 'فاتورة الكشف' : 'Medical Invoice',
-        imageBlobForClipboard: imgBlob
+      toast.success(isRtl ? `✅ جاهز! اسحب ملف الفاتورة PDF للشات المفتوح أو اضغط (Ctrl + V) لإرسال صورة الفاتورة فوراً 🚀` : `Ready! Drag PDF to chat or press Ctrl+V to paste invoice image!`, {
+        duration: 9000
       })
     } catch (e) {
-      toast.dismiss(toastId)
-      console.error(e)
-      toast.error(isRtl ? 'تعذر مشاركة الفاتورة عبر واتساب' : 'Failed to share invoice via WhatsApp')
+      console.warn('Background invoice PDF generation error:', e)
     } finally {
       setIsGeneratingPdf(false)
     }

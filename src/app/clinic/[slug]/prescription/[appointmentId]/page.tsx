@@ -156,7 +156,7 @@ export default function PublicPrescriptionPage({
     }
   }
 
-  // WhatsApp Share with real PDF (no links)
+  // WhatsApp Share with real PDF: Opens chat instantly in 0ms (no popup blocker), generates & auto-downloads PDF
   const handleShareWhatsApp = async () => {
     const message = formatPrescriptionWhatsAppMessage({
       clinicName: clinic?.clinicName || (isRtl ? 'العيادة الطبية' : 'Medical Clinic'),
@@ -173,49 +173,53 @@ export default function PublicPrescriptionPage({
 
     const cleanFileName = generateCleanRxFileName(patientName, rxDate, 'pdf')
 
-    if (!printSheetRef.current) {
-      openManualWhatsAppChat({
-        phone: patientPhone,
-        message
-      })
-      toast.success(isRtl ? 'تم فتح محادثة المريض مع تفاصيل الروشتة والأدوية! 🚀' : 'Opened WhatsApp chat with prescription details! 🚀')
-      return
-    }
+    // 1. OPEN WHATSAPP CHAT SYNCHRONOUSLY IN 0ms (Never blocked by popup blocker!)
+    openManualWhatsAppChat({
+      phone: patientPhone,
+      message
+    })
+
+    toast.success(isRtl ? 'تم فتح محادثة المريض في واتساب! جاري تجهيز الـ PDF... 🚀' : 'Opened WhatsApp chat! Preparing PDF... 🚀', {
+      duration: 4000
+    })
+
+    if (!printSheetRef.current) return
 
     setIsSharing(true)
-    const toastId = toast.loading(isRtl ? 'جاري تجهيز ملف الروشتة PDF...' : 'Preparing Rx PDF document...')
     try {
       const { blob: pdfBlob } = await renderElementToPdfBlob(printSheetRef.current, {
         fileName: cleanFileName,
         format: 'a4',
         orientation: 'portrait',
-        scale: 2.5
+        scale: 2.2
       })
 
-      let imgBlob: Blob | undefined
-      try {
-        const imgRes = await renderElementToImageBlob(printSheetRef.current, { scale: 2.5 })
-        imgBlob = imgRes.blob
-      } catch {}
+      // Download PDF immediately
+      const downloadUrl = window.URL.createObjectURL(pdfBlob)
+      const a = document.createElement('a')
+      a.href = downloadUrl
+      a.download = cleanFileName
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 30000)
 
-      toast.dismiss(toastId)
+      // Copy image to clipboard for Ctrl+V
+      if (typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
+        renderElementToImageBlob(printSheetRef.current, { scale: 2.5 }).then(async ({ blob: imgBlob }) => {
+          try {
+            await navigator.clipboard.write([
+              new ClipboardItem({ 'image/png': imgBlob })
+            ])
+          } catch {}
+        }).catch(() => {})
+      }
 
-      await sharePdfDocument({
-        pdfBlob,
-        fileName: cleanFileName,
-        recipientPhone: patientPhone,
-        messageText: message,
-        documentTitle: `روشتة ${patientName}`,
-        imageBlobForClipboard: imgBlob
+      toast.success(isRtl ? '✅ تم تجهيز الـ PDF! اسحب الملف للشات المفتوح أو اضغط (Ctrl + V) لإرسال صورة الروشتة فوراً 🚀' : 'Ready! Drag PDF to chat or press Ctrl+V to paste Rx image!', {
+        duration: 9000
       })
     } catch (e) {
-      toast.dismiss(toastId)
-      console.error(e)
-      openManualWhatsAppChat({
-        phone: patientPhone,
-        message
-      })
-      toast.success(isRtl ? 'تم فتح محادثة المريض مع تفاصيل الروشتة! 🚀' : 'Opened WhatsApp chat with prescription!')
+      console.warn('Background PDF generation error:', e)
     } finally {
       setIsSharing(false)
     }

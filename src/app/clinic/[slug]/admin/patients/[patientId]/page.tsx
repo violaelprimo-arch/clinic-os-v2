@@ -93,35 +93,47 @@ export default function PatientProfilePage({
         // Strictly NO links
       })
 
+      // 1. OPEN WHATSAPP CHAT SYNCHRONOUSLY IN 0ms (Never blocked by popup blocker!)
+      openManualWhatsAppChat({
+        phone,
+        message
+      })
+
+      toast.success('تم فتح محادثة المريض في واتساب! جاري تجهيز الـ PDF... 🚀', { duration: 4000 })
+
       const rxElement = document.getElementById(`rx-sheet-${appt.id}`)
       if (rxElement) {
         const { blob: pdfBlob } = await renderElementToPdfBlob(rxElement, {
           fileName: cleanFileName,
           format: 'a4',
           orientation: 'portrait',
-          scale: 2.5
+          scale: 2.2
         })
 
-        let imgBlob: Blob | undefined
-        try {
-          const imgRes = await renderElementToImageBlob(rxElement, { scale: 2.5 })
-          imgBlob = imgRes.blob
-        } catch {}
+        // Download PDF immediately
+        const downloadUrl = window.URL.createObjectURL(pdfBlob)
+        const a = document.createElement('a')
+        a.href = downloadUrl
+        a.download = cleanFileName
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 30000)
 
-        await sharePdfDocument({
-          pdfBlob,
-          fileName: cleanFileName,
-          recipientPhone: phone,
-          messageText: message,
-          documentTitle: `روشتة ${pName}`,
-          imageBlobForClipboard: imgBlob
+        // Copy image to clipboard for Ctrl+V
+        if (typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
+          renderElementToImageBlob(rxElement, { scale: 2.5 }).then(async ({ blob: imgBlob }) => {
+            try {
+              await navigator.clipboard.write([
+                new ClipboardItem({ 'image/png': imgBlob })
+              ])
+            } catch {}
+          }).catch(() => {})
+        }
+
+        toast.success(`✅ تم تجهيز الـ PDF! اسحب الملف للشات المفتوح أو اضغط (Ctrl + V) لإرسال صورة الروشتة فوراً 🚀`, {
+          duration: 9000
         })
-      } else {
-        openManualWhatsAppChat({
-          phone,
-          message
-        })
-        toast.success('تم فتح محادثة المريض مع تفاصيل الروشتة والأدوية! 🚀', { duration: 5000 })
       }
     } catch (err) {
       console.error(err)

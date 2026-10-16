@@ -10,7 +10,7 @@ import {
   printHtmlViaIframe,
   generateThermalReceiptHtml
 } from '@/lib/printService'
-import { shareDocumentOrImage, sharePdfDocument } from '@/lib/whatsappShare'
+import { shareDocumentOrImage, sharePdfDocument, openManualWhatsAppChat } from '@/lib/whatsappShare'
 import { downloadElementAsPdf, downloadElementAsImage, renderElementToImageBlob, renderElementToPdfBlob } from '@/lib/pdfGenerator'
 import { useLanguage } from '@/context/LanguageContext'
 import { toast } from 'sonner'
@@ -77,46 +77,61 @@ export function ThermalReceiptModal({
       toast.error(isRtl ? 'رقم هاتف المريض غير مسجل في الفاتورة' : 'Patient phone number is not available in receipt')
       return
     }
-    if (!receiptRef.current) return
 
+    const msg = isRtl
+      ? `مرحباً ${data.patientName}،\nفاتورتك من عيادة ${data.clinicName} ${data.branchName ? `(فرع ${data.branchName})` : ''}:\n- رقم الفاتورة: #${data.invoiceNumber}\n- الخدمة: ${data.serviceName}\n- المبلغ المطلوب: ${data.netPrice} ج.م\n- حالة الدفع: ${data.paymentStatus === 'paid' ? 'مدفوع ومؤكد' : 'في انتظار التأكيد'}\n📄 مرفق ملف الفاتورة PDF.\nنتمنى لكم دوام الصحة والعافية.`
+      : `Hello ${data.patientName},\nYour invoice from ${data.clinicName} ${data.branchName ? `(Branch ${data.branchName})` : ''}:\n- Invoice No: #${data.invoiceNumber}\n- Service: ${data.serviceName}\n- Amount: ${data.netPrice} EGP\n- Payment: ${data.paymentStatus === 'paid' ? 'Paid & Confirmed' : 'Pending Confirmation'}\n📄 Attached PDF receipt.\nWishing you good health.`
+
+    // 1. OPEN WHATSAPP CHAT SYNCHRONOUSLY IN 0ms (Never blocked by popup blocker!)
+    openManualWhatsAppChat({
+      phone: data.patientPhone,
+      message: msg,
+      target: 'auto'
+    })
+
+    toast.success(isRtl ? `تم فتح محادثة المريض (${data.patientPhone}) في واتساب! جاري تجهيز الـ PDF... 🚀` : `Opened WhatsApp chat! Preparing PDF... 🚀`, {
+      duration: 4000
+    })
+
+    if (!receiptRef.current) return
     setIsProcessing(true)
-    const toastId = toast.loading(isRtl ? 'جاري تجهيز ملف الفاتورة PDF للمريض...' : 'Preparing invoice PDF for sharing...')
     try {
       const cleanFileName = `Receipt_${data.invoiceNumber || 'receipt'}.pdf`
 
-      // 1. Generate real thermal PDF blob
+      // 2. Generate real thermal PDF blob
       const { blob: pdfBlob } = await renderElementToPdfBlob(receiptRef.current, {
         fileName: cleanFileName,
         format: 'thermal',
         orientation: 'portrait',
-        scale: 2.5
+        scale: 2.2
       })
 
-      // 2. Generate image blob for clipboard (instant Ctrl+V on desktop)
-      let imgBlob: Blob | undefined
-      try {
-        const imgRes = await renderElementToImageBlob(receiptRef.current, { scale: 2.5 })
-        imgBlob = imgRes.blob
-      } catch {}
+      // Download clean PDF file immediately
+      const downloadUrl = window.URL.createObjectURL(pdfBlob)
+      const a = document.createElement('a')
+      a.href = downloadUrl
+      a.download = cleanFileName
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 30000)
 
-      const msg = isRtl
-        ? `مرحباً ${data.patientName}،\nفاتورتك من عيادة ${data.clinicName} ${data.branchName ? `(فرع ${data.branchName})` : ''}:\n- رقم الفاتورة: #${data.invoiceNumber}\n- الخدمة: ${data.serviceName}\n- المبلغ المطلوب: ${data.netPrice} ج.م\n- حالة الدفع: ${data.paymentStatus === 'paid' ? 'مدفوع ومؤكد' : 'في انتظار التأكيد'}\n📄 مرفق ملف الفاتورة PDF.\nنتمنى لكم دوام الصحة والعافية.`
-        : `Hello ${data.patientName},\nYour invoice from ${data.clinicName} ${data.branchName ? `(Branch ${data.branchName})` : ''}:\n- Invoice No: #${data.invoiceNumber}\n- Service: ${data.serviceName}\n- Amount: ${data.netPrice} EGP\n- Payment: ${data.paymentStatus === 'paid' ? 'Paid & Confirmed' : 'Pending Confirmation'}\n📄 Attached PDF receipt.\nWishing you good health.`
+      // Copy image to clipboard for Ctrl+V
+      if (typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
+        renderElementToImageBlob(receiptRef.current, { scale: 2.5 }).then(async ({ blob: imgBlob }) => {
+          try {
+            await navigator.clipboard.write([
+              new ClipboardItem({ 'image/png': imgBlob })
+            ])
+          } catch {}
+        }).catch(() => {})
+      }
 
-      toast.dismiss(toastId)
-
-      await sharePdfDocument({
-        pdfBlob,
-        fileName: cleanFileName,
-        recipientPhone: data.patientPhone,
-        messageText: msg,
-        documentTitle: isRtl ? 'فاتورة الكشف' : 'Medical Invoice',
-        imageBlobForClipboard: imgBlob
+      toast.success(isRtl ? `✅ جاهز! اسحب ملف الفاتورة PDF للشات المفتوح أو اضغط (Ctrl + V) لإرسال صورة الفاتورة فوراً 🚀` : `Ready! Drag PDF to chat or press Ctrl+V to paste invoice image!`, {
+        duration: 9000
       })
     } catch (err) {
-      toast.dismiss(toastId)
-      console.error(err)
-      toast.error(isRtl ? 'تعذر إرسال الفاتورة عبر واتساب' : 'Failed to share invoice via WhatsApp')
+      console.warn('Background receipt PDF generation error:', err)
     } finally {
       setIsProcessing(false)
     }

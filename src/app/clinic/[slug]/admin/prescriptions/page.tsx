@@ -233,7 +233,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     }
   }
 
-  // Real PDF WhatsApp sharing: Generates PDF, NO web links, native WebShare on mobile, auto-download + Ctrl+V image on desktop
+  // Real PDF WhatsApp sharing: Opens chat instantly (0ms synchronous click), generates & auto-downloads PDF, copies Ctrl+V image
   const handleShareWhatsAppRx = async (modeOverride?: 'auto' | 'app' | 'web') => {
     if (!patientPhone) return toast.error('يرجى إدخال رقم هاتف المريض أولاً')
 
@@ -254,54 +254,57 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     const targetMode = modeOverride || whatsappTarget || 'auto'
     const cleanFileName = generateCleanRxFileName(patientName, dateStr, 'pdf')
 
-    if (!sheetRef.current) {
-      openManualWhatsAppChat({
-        phone: patientPhone,
-        message,
-        target: targetMode
-      })
-      toast.success(`تم فتح محادثة المريض (${patientPhone}) ببيانات الروشتة والأدوية! 🚀`)
-      return
-    }
+    // 1. OPEN WHATSAPP CHAT SYNCHRONOUSLY IN 0ms (Guarantees zero popup blocker!)
+    openManualWhatsAppChat({
+      phone: patientPhone,
+      message,
+      target: targetMode
+    })
 
-    const toastId = toast.loading('جاري إنشاء ملف الروشتة PDF وتجهيز الإرسال...')
-    try {
-      // 1. Generate real high-res PDF blob
-      const { blob: pdfBlob } = await renderElementToPdfBlob(sheetRef.current, {
-        fileName: cleanFileName,
-        format: pageSize === 'a5' ? 'a5' : 'a4',
-        orientation: 'portrait',
-        scale: 2.5
-      })
+    toast.success(`تم فتح محادثة المريض (${patientPhone}) في واتساب! جاري تجهيز الـ PDF... 🚀`, {
+      duration: 4000
+    })
 
-      // 2. Generate image blob for instant clipboard paste
-      let imgBlob: Blob | undefined
+    // 2. Generate PDF and clipboard image in background, then auto-download
+    if (sheetRef.current) {
+      setIsSharingPdf(true)
       try {
-        const imgRes = await renderElementToImageBlob(sheetRef.current, { scale: 2.5 })
-        imgBlob = imgRes.blob
-      } catch {}
+        const { blob: pdfBlob } = await renderElementToPdfBlob(sheetRef.current, {
+          fileName: cleanFileName,
+          format: pageSize === 'a5' ? 'a5' : 'a4',
+          orientation: 'portrait',
+          scale: 2.2
+        })
 
-      toast.dismiss(toastId)
+        // Download clean PDF file immediately
+        const downloadUrl = window.URL.createObjectURL(pdfBlob)
+        const a = document.createElement('a')
+        a.href = downloadUrl
+        a.download = cleanFileName
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 30000)
 
-      // 3. Share PDF (handles native mobile WebShare or desktop download + clipboard)
-      await sharePdfDocument({
-        pdfBlob,
-        fileName: cleanFileName,
-        recipientPhone: patientPhone,
-        messageText: message,
-        documentTitle: `روشتة ${patientName || 'المريض'}`,
-        imageBlobForClipboard: imgBlob,
-        target: targetMode
-      })
-    } catch (err) {
-      toast.dismiss(toastId)
-      console.error('Error generating PDF for WhatsApp:', err)
-      openManualWhatsAppChat({
-        phone: patientPhone,
-        message,
-        target: targetMode
-      })
-      toast.success(`تم فتح محادثة المريض (${patientPhone}) ببيانات الروشتة كاملة!`)
+        // Copy high-res image to clipboard for instant Ctrl+V pasting
+        if (typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
+          renderElementToImageBlob(sheetRef.current, { scale: 2.5 }).then(async ({ blob: imgBlob }) => {
+            try {
+              await navigator.clipboard.write([
+                new ClipboardItem({ 'image/png': imgBlob })
+              ])
+            } catch {}
+          }).catch(() => {})
+        }
+
+        toast.success(`✅ تم تجهيز الـ PDF! اسحب الملف للشات المفتوح أو اضغط (Ctrl + V) لإرسال صورة الروشتة فوراً 🚀`, {
+          duration: 9000
+        })
+      } catch (err) {
+        console.warn('Background PDF generation warning:', err)
+      } finally {
+        setIsSharingPdf(false)
+      }
     }
   }
 
