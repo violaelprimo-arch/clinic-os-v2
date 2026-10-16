@@ -17,6 +17,7 @@ import {
   UserCheck, ShieldCheck, FileText
 } from 'lucide-react'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
+import { ClinicLoading } from '@/components/clinic/ClinicLoading'
 import { formatCairo12Hour } from '@/lib/queue-calculator'
 import { InvoiceView } from '@/components/clinic/InvoiceView'
 import { NotificationCenter } from '@/components/clinic/NotificationCenter'
@@ -138,12 +139,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
   }, [appointment, liveQueue.aheadCount, liveQueue.status, liveQueue.isCurrentTurn, liveQueue.currentPatientExamining?.queueNumber, appointmentId])
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 text-foreground" dir={dir}>
-        <ClinicLogo size="md" variant="auto" />
-        <p className="text-xs text-muted-foreground font-bold mt-3">{t('syncing_queue', 'جاري مزامنة الدور المباشر...')}</p>
-      </div>
-    )
+    return <ClinicLoading fullScreen size="lg" label={t('syncing_queue', 'جاري مزامنة الدور المباشر...')} />
   }
 
   if (!appointment) {

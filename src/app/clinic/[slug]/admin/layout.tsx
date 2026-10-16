@@ -12,6 +12,7 @@ import { db, auth } from '@/lib/firebase'
 import { collection, query, where, onSnapshot } from 'firebase/firestore'
 import { signOut } from 'firebase/auth'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
+import { ClinicLoading } from '@/components/clinic/ClinicLoading'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { BranchSelector } from '@/components/clinic/BranchSelector'
 import { NotificationCenter } from '@/components/clinic/NotificationCenter'
@@ -286,15 +287,7 @@ export default function AdminLayout({
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 transition-colors" dir={dir}>
-        <ClinicLogo size="lg" variant="auto" />
-        <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
-          <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-          {t('loading', 'جاري تحميل نظام العيادة...')}
-        </div>
-      </div>
-    )
+    return <ClinicLoading fullScreen size="lg" label={t('loading', 'جاري تحميل نظام العيادة...')} />
   }
 
   return (

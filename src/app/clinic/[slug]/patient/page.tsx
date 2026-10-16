@@ -16,6 +16,7 @@ import { BookingForm } from '@/components/clinic/BookingForm'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { motion } from 'framer-motion'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
+import { ClinicLoading } from '@/components/clinic/ClinicLoading'
 import { InvoiceView, InvoiceData } from '@/components/clinic/InvoiceView'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
 import { downloadElementAsPdf, renderElementToPdfBlob, downloadElementAsImage, renderElementToImageBlob } from '@/lib/pdfGenerator'
@@ -199,15 +200,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
   }
 
   if (loading || !patientData) {
-    return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4" dir={dir}>
-        <ClinicLogo size="lg" variant="auto" />
-        <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-          <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-          {t('loading_medical_profile', 'جاري تحميل ملفك الطبي...')}
-        </div>
-      </div>
-    )
+    return <ClinicLoading fullScreen size="lg" label={t('loading_medical_profile', 'جاري تحميل ملفك الطبي...')} />
   }
 
   return (

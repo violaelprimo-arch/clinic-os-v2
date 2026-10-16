@@ -31,12 +31,16 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/brand/yalla-clinic/app-icon.png" },
-      { url: "/yalla-clinic-icon.png" },
-      { url: "/favicon.png" }
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/brand/yalla-clinic/app-icon.png", type: "image/png", sizes: "512x512" },
+      { url: "/favicon.png", type: "image/png", sizes: "192x192" },
+      { url: "/favicon-32x32.png", type: "image/png", sizes: "32x32" }
     ],
-    shortcut: "/brand/yalla-clinic/app-icon.png",
-    apple: "/brand/yalla-clinic/app-icon.png"
+    shortcut: "/favicon.ico",
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+      { url: "/brand/yalla-clinic/app-icon.png" }
+    ]
   }
 }
 
@@ -56,9 +60,11 @@ export default function RootLayout({
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <head>
-        <link rel="icon" href="/yalla-clinic-icon.png" type="image/png" />
-        <link rel="shortcut icon" href="/yalla-clinic-icon.png" type="image/png" />
-        <link rel="apple-touch-icon" href="/yalla-clinic-icon.png" />
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+        <link rel="icon" type="image/png" sizes="192x192" href="/favicon.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+        <link rel="shortcut icon" href="/favicon.ico" />
         <link rel="manifest" href="/manifest.json" />
         <script
           dangerouslySetInnerHTML={{
