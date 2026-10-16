@@ -12,9 +12,9 @@ import { Clock, Phone, ArrowRight, User, Calendar, Pill, DollarSign, Printer, Ac
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
-import { downloadElementAsPdf, renderElementToPdfBlob } from '@/lib/pdfGenerator'
+import { downloadElementAsPdf, renderElementToPdfBlob, renderElementToImageBlob } from '@/lib/pdfGenerator'
 import { printHtmlViaIframe, generateA4PrescriptionHtml } from '@/lib/printService'
-import { sharePdfDocument, generateCleanRxFileName } from '@/lib/whatsappShare'
+import { sharePdfDocument, generateCleanRxFileName, formatPrescriptionWhatsAppMessage, openManualWhatsAppChat } from '@/lib/whatsappShare'
 import { getClinicUrl } from '@/lib/clinic-url'
 import { useLanguage } from '@/context/LanguageContext'
 
@@ -77,59 +77,42 @@ export default function PatientProfilePage({
     setSharingApptId(appt.id)
 
     try {
-      toast.info('جاري إعداد ملف الروشتة PDF ومشاركته...')
-      const rxElement = document.getElementById(`rx-sheet-${appt.id}`)
-
-      let blob: Blob
-      if (rxElement) {
-        const res = await renderElementToPdfBlob(rxElement, { format: 'a4', orientation: 'portrait' })
-        blob = res.blob
-      } else {
-        const pName = patientData?.name || appt?.patientName || 'المريض'
-        const pAge = patientData?.age || appt?.age || patientData?.dob || appt?.dob || ''
-        const html = generateA4PrescriptionHtml({
-          clinicName: clinic?.clinicName || 'العيادة الطبية',
-          doctorName: clinic?.doctorName,
-          specialty: clinic?.specialty,
-          certificationTitle: clinic?.certificationTitle,
-          clinicPhone: clinic?.clinicPhone,
-          clinicAddress: clinic?.clinicAddress,
-          primaryColor: clinic?.primaryColor || '#087CF4',
-          logoUrl: clinic?.logoUrl,
-          patientName: pName,
-          patientAge: pAge,
-          date: appt.date,
-          diagnosis: appt.diagnosis,
-          drugs: appt.drugs || [],
-          prescriptionTemplateUrl: clinic?.prescriptionTemplateUrl,
-          templateMode: clinic?.prescriptionTemplateUrl ? 'custom' : 'standard',
-          showHeaderFooter: true,
-          printBackground: true
-        })
-        const tempDiv = document.createElement('div')
-        tempDiv.style.position = 'fixed'
-        tempDiv.style.left = '-9999px'
-        tempDiv.style.width = '210mm'
-        tempDiv.innerHTML = html
-        document.body.appendChild(tempDiv)
-        const res = await renderElementToPdfBlob(tempDiv, { format: 'a4', orientation: 'portrait' })
-        document.body.removeChild(tempDiv)
-        blob = res.blob
-      }
-
       const pName = patientData?.name || appt?.patientName || 'المريض'
-      const fileName = generateCleanRxFileName(pName, appt.date, 'pdf')
+      const pAge = patientData?.age || appt?.age || patientData?.dob || appt?.dob || ''
       const directRxUrl = getClinicUrl(slug, `/prescription/${appt.id}`)
 
-      const message = `الروشتة الطبية الإلكترونية الرسمية 📄\nعيادة: ${clinic?.clinicName || 'العيادة الطبية'}\nالطبيب: د. ${clinic?.doctorName || ''}\nالمريض: ${pName}\nالتاريخ: ${appt.date}\n\n🔗 يمكنك استعراض وتحميل الروشتة الرسمية بتصميم العيادة عبر الرابط المباشر:\n${directRxUrl}\n\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`
-
-      await sharePdfDocument({
-        pdfBlob: blob,
-        fileName,
-        recipientPhone: phone,
-        messageText: message,
-        documentTitle: 'الروشتة الطبية الإلكترونية'
+      const message = formatPrescriptionWhatsAppMessage({
+        clinicName: clinic?.clinicName || 'العيادة الطبية',
+        doctorName: clinic?.doctorName,
+        specialty: clinic?.specialty,
+        patientName: pName,
+        patientAge: pAge,
+        date: appt.date,
+        diagnosis: appt.diagnosis,
+        drugs: appt.drugs || [],
+        directRxUrl
       })
+
+      // 1. Open WhatsApp instantly & synchronously (No popup blocker!)
+      openManualWhatsAppChat({
+        phone,
+        message
+      })
+
+      toast.success('تم فتح محادثة المريض مع تفاصيل الروشتة والأدوية! 🚀', { duration: 5000 })
+
+      // 2. In background: copy high-res image to clipboard for Ctrl+V pasting
+      const rxElement = document.getElementById(`rx-sheet-${appt.id}`)
+      if (rxElement && typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
+        renderElementToImageBlob(rxElement, { scale: 2.5 }).then(async ({ blob }) => {
+          try {
+            await navigator.clipboard.write([
+              new ClipboardItem({ 'image/png': blob })
+            ])
+            toast.info('تم نسخ صورة الروشتة للحافظة! يمكنك ضغط (Ctrl + V) داخل الشات للصق الصورة أيضاً 📋')
+          } catch (e) {}
+        }).catch(() => {})
+      }
     } catch (err) {
       console.error(err)
       toast.error('تعذر مشاركة الروشتة عبر واتساب')
@@ -586,7 +569,7 @@ export default function PatientProfilePage({
                                   className="h-9 px-3.5 text-xs font-bold bg-[#25D366] hover:bg-[#128C7E] text-white rounded-xl shadow-xs"
                                 >
                                   <MessageCircle className="w-4 h-4 ml-1.5" />
-                                  {sharingApptId === appt.id ? 'جاري التجهيز...' : 'إرسال واتساب (PDF بالتصميم)'}
+                                  {sharingApptId === appt.id ? 'جاري الفتح...' : 'إرسال واتساب للمريض'}
                                 </Button>
                                 <Link href={`/clinic/${slug}/admin/prescriptions?appointmentId=${appt.id}&phone=${phone}&patientName=${patientData.name}&age=${patientData.age || patientData.dob}`}>
                                   <Button variant="outline" className="h-9 px-3.5 text-xs font-bold rounded-xl border-border">

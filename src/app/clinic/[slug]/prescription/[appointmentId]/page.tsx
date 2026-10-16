@@ -13,7 +13,7 @@ import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
 import { downloadElementAsPdf, renderElementToPdfBlob, downloadElementAsImage, renderElementToImageBlob } from '@/lib/pdfGenerator'
 import { printHtmlViaIframe, generateA4PrescriptionHtml } from '@/lib/printService'
-import { shareDocumentOrImage, sharePdfDocument, generateCleanRxFileName } from '@/lib/whatsappShare'
+import { shareDocumentOrImage, sharePdfDocument, generateCleanRxFileName, formatPrescriptionWhatsAppMessage, openManualWhatsAppChat } from '@/lib/whatsappShare'
 import { getClinicUrl } from '@/lib/clinic-url'
 import { LanguageToggle } from '@/components/common/LanguageToggle'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
@@ -156,33 +156,40 @@ export default function PublicPrescriptionPage({
     }
   }
 
-  // WhatsApp Share with Image (and clipboard copy / download for desktop)
+  // WhatsApp Share with Image (and clipboard copy / no download)
   const handleShareWhatsApp = async () => {
-    if (!printSheetRef.current) return
-    setIsSharing(true)
-    try {
-      toast.info(isRtl ? 'جاري إعداد صورة الروشتة...' : 'Preparing prescription image...')
-      const { blob } = await renderElementToImageBlob(printSheetRef.current, { scale: 2.5 })
+    const currentUrl = getClinicUrl(slug, `/prescription/${appointmentId}`)
+    const message = formatPrescriptionWhatsAppMessage({
+      clinicName: clinic?.clinicName || (isRtl ? 'العيادة الطبية' : 'Medical Clinic'),
+      doctorName: clinic?.doctorName,
+      specialty: clinic?.specialty,
+      patientName,
+      patientAge,
+      date: rxDate,
+      diagnosis: rxDiagnosis,
+      instructions: prescription?.instructions,
+      drugs: rxDrugs,
+      directRxUrl: currentUrl
+    })
 
-      const fileName = generateCleanRxFileName(patientName, rxDate, 'png')
-      const currentUrl = getClinicUrl(slug, `/prescription/${appointmentId}`)
-      const message = isRtl
-        ? `الروشتة الطبية الإلكترونية 📄\nعيادة: ${clinic?.clinicName || 'العيادة الطبية'}\nالطبيب: د. ${clinic?.doctorName || ''}\nالمريض: ${patientName}\nالتاريخ: ${rxDate}\n\n🔗 يمكنك استعراض وتحميل الروشتة الرسمية بتصميم العيادة عبر الرابط المباشر:\n${currentUrl}\n\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`
-        : `Official E-Prescription 📄\nClinic: ${clinic?.clinicName || 'Clinic'}\nDoctor: Dr. ${clinic?.doctorName || ''}\nPatient: ${patientName}\nDate: ${rxDate}\n\n🔗 Access and download your official Rx via:\n${currentUrl}\n\nWishing you good health and a speedy recovery! 🌿`
+    // 1. Open WhatsApp synchronously in 0ms (no popup blocker, NO download!)
+    openManualWhatsAppChat({
+      phone: patientPhone,
+      message
+    })
 
-      await shareDocumentOrImage({
-        blob,
-        fileName,
-        fileType: 'image',
-        recipientPhone: patientPhone,
-        messageText: message,
-        documentTitle: isRtl ? 'الروشتة الطبية' : 'Medical Prescription'
-      })
-    } catch (e) {
-      console.error(e)
-      toast.error(isRtl ? 'تعذر مشاركة الروشتة' : 'Failed to share prescription')
-    } finally {
-      setIsSharing(false)
+    toast.success(isRtl ? 'تم فتح محادثة المريض مع تفاصيل الروشتة والأدوية! 🚀' : 'Opened WhatsApp chat with full prescription details! 🚀')
+
+    // 2. Background clipboard copy for Ctrl+V pasting
+    if (printSheetRef.current && typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
+      renderElementToImageBlob(printSheetRef.current, { scale: 2.5 }).then(async ({ blob }) => {
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': blob })
+          ])
+          toast.info(isRtl ? 'تم نسخ صورة الروشتة للحافظة! يمكنك ضغط (Ctrl + V) داخل الشات للصق الصورة أيضاً 📋' : 'Copied Rx image to clipboard! Press Ctrl+V to paste in chat.')
+        } catch (e) {}
+      }).catch(() => {})
     }
   }
 

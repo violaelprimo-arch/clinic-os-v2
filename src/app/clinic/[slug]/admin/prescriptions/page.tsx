@@ -22,7 +22,14 @@ import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
 import { printHtmlViaIframe, generateA4PrescriptionHtml } from '@/lib/printService'
 import { renderElementToPdfBlob, downloadElementAsPdf, renderElementToImageBlob, downloadElementAsImage } from '@/lib/pdfGenerator'
-import { shareDocumentOrImage, sharePdfDocument, generateCleanRxFileName, formatEgyptianPhoneForWhatsApp } from '@/lib/whatsappShare'
+import {
+  shareDocumentOrImage,
+  sharePdfDocument,
+  generateCleanRxFileName,
+  formatEgyptianPhoneForWhatsApp,
+  openManualWhatsAppChat,
+  formatPrescriptionWhatsAppMessage
+} from '@/lib/whatsappShare'
 import { getClinicUrl } from '@/lib/clinic-url'
 import { useLanguage } from '@/context/LanguageContext'
 
@@ -40,6 +47,22 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const [instructions, setInstructions] = useState('')
   const [selectedBranchId, setSelectedBranchId] = useState('')
   const [selectedBranchName, setSelectedBranchName] = useState('')
+  const [whatsappTarget, setWhatsappTarget] = useState<'auto' | 'app' | 'web'>('auto')
+  const [showWhatsappMenu, setShowWhatsappMenu] = useState(false)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('yalla_rx_whatsapp_mode') as 'auto' | 'app' | 'web'
+      if (saved) setWhatsappTarget(saved)
+    }
+  }, [])
+
+  const setAndSaveWhatsappTarget = (mode: 'auto' | 'app' | 'web') => {
+    setWhatsappTarget(mode)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('yalla_rx_whatsapp_mode', mode)
+    }
+  }
 
   const { drugs: apiDrugs, loading: apiDrugsLoading } = useEgyptianDrugs()
   const [drugs, setDrugs] = useState<any[]>([
@@ -210,73 +233,58 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     }
   }
 
-  // Staff-initiated Manual WhatsApp sharing as Image (with Clipboard copy & download for desktop WhatsApp)
-  const handleShareWhatsAppImage = async () => {
-    if (!patientPhone) return toast.error('يرجى إدخال رقم هاتف المريض')
-    if (!sheetRef.current) return toast.error('تعذر الوصول لنموذج الروشتة')
+  // Instant WhatsApp sharing: Direct chat opening (no popup blocker) + full Rx details + background image clipboard copy + ZERO DOWNLOAD!
+  const handleShareWhatsAppRx = (modeOverride?: 'auto' | 'app' | 'web') => {
+    if (!patientPhone) return toast.error('يرجى إدخال رقم هاتف المريض أولاً')
 
-    setIsSharingPdf(true)
-    try {
-      toast.info('جاري تجهيز صورة الروشتة ومشاركتها...')
-      const { blob } = await renderElementToImageBlob(sheetRef.current, { scale: 2.5 })
+    const apptId = searchParams?.get('appointmentId') || appointmentId
+    const directRxUrl = apptId
+      ? getClinicUrl(slug, `/prescription/${apptId}`)
+      : getClinicUrl(slug, '/patient')
 
-      const fileName = generateCleanRxFileName(patientName, dateStr, 'png')
-      const apptId = searchParams?.get('appointmentId') || appointmentId
-      const directRxUrl = apptId
-        ? getClinicUrl(slug, `/prescription/${apptId}`)
-        : getClinicUrl(slug, '/patient')
+    const message = formatPrescriptionWhatsAppMessage({
+      clinicName: clinic?.clinicName || 'العيادة الطبية',
+      doctorName: clinic?.doctorName,
+      specialty: clinic?.specialty,
+      patientName: patientName || 'المريض',
+      patientAge: age,
+      date: dateStr,
+      rxNumber: 1042,
+      diagnosis,
+      instructions,
+      drugs: drugs.filter(d => d.name && d.name.trim() !== ''),
+      directRxUrl
+    })
 
-      const message = `الروشتة الطبية الإلكترونية 📄\nعيادة: ${clinic?.clinicName || 'العيادة الطبية'}\nالطبيب: د. ${clinic?.doctorName || ''}\nالمريض: ${patientName || 'المريض'}\nالتاريخ: ${dateStr}\n\n🔗 يمكنك استعراض وتحميل الروشتة الرسمية بتصميم العيادة عبر الرابط المباشر:\n${directRxUrl}\n\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`
+    const targetMode = modeOverride || whatsappTarget || 'auto'
 
-      await shareDocumentOrImage({
-        blob,
-        fileName,
-        fileType: 'image',
-        recipientPhone: patientPhone,
-        messageText: message,
-        documentTitle: 'الروشتة الطبية'
+    // 1. Open WhatsApp synchronously in 0ms! (Bypasses popup blocker completely)
+    openManualWhatsAppChat({
+      phone: patientPhone,
+      message,
+      target: targetMode
+    })
+
+    toast.success(`تم فتح محادثة المريض (${patientPhone}) بتفاصيل الروشتة والأدوية! 🚀`, {
+      duration: 5000
+    })
+
+    // 2. In background: Render image and copy to clipboard for optional Ctrl+V pasting (NO FILE DOWNLOAD!)
+    if (sheetRef.current && typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
+      renderElementToImageBlob(sheetRef.current, { scale: 2.5 }).then(async ({ blob }) => {
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': blob })
+          ])
+          toast.info('تم نسخ صورة الروشتة للحافظة! يمكنك ضغط (Ctrl + V) داخل الشات للصق الصورة أيضاً 📋', {
+            duration: 7000
+          })
+        } catch (err) {
+          console.warn('Clipboard write fallback error:', err)
+        }
+      }).catch(err => {
+        console.warn('Render error:', err)
       })
-    } catch (e) {
-      console.error(e)
-      toast.error('تعذر مشاركة صورة الروشتة')
-    } finally {
-      setIsSharingPdf(false)
-    }
-  }
-
-  // Staff-initiated Manual WhatsApp sharing with REAL PDF Document & Clipboard copy
-  const handleShareWhatsAppPdf = async () => {
-    if (!patientPhone) return toast.error('يرجى إدخال رقم هاتف المريض')
-    if (!sheetRef.current) return toast.error('تعذر الوصول لنموذج الروشتة')
-
-    setIsSharingPdf(true)
-    try {
-      toast.info('جاري إنشاء ملف PDF وتجهيز محادثة واتساب...')
-      const { blob: pdfBlob } = await renderElementToPdfBlob(sheetRef.current, { format: pageSize, orientation: 'portrait' })
-      const { blob: imgBlob } = await renderElementToImageBlob(sheetRef.current, { scale: 2.5 })
-
-      const fileName = generateCleanRxFileName(patientName, dateStr, 'pdf')
-      const apptId = searchParams?.get('appointmentId') || appointmentId
-      const directRxUrl = apptId
-        ? getClinicUrl(slug, `/prescription/${apptId}`)
-        : getClinicUrl(slug, '/patient')
-
-      const message = `الروشتة الطبية الإلكترونية الرسمية 📄\nعيادة: ${clinic?.clinicName || 'العيادة الطبية'}\nالطبيب: د. ${clinic?.doctorName || ''}\nالمريض: ${patientName || 'المريض'}\nالتاريخ: ${dateStr}\n\n🔗 يمكنك استعراض وتحميل الروشتة الرسمية بتصميم العيادة عبر الرابط المباشر:\n${directRxUrl}\n\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`
-
-      await shareDocumentOrImage({
-        blob: pdfBlob,
-        fileName,
-        fileType: 'pdf',
-        imageBlobForClipboard: imgBlob,
-        recipientPhone: patientPhone,
-        messageText: message,
-        documentTitle: 'الروشتة الطبية الإلكترونية'
-      })
-    } catch (e) {
-      console.error(e)
-      toast.error('تعذر مشاركة ملف الروشتة')
-    } finally {
-      setIsSharingPdf(false)
     }
   }
 
@@ -376,37 +384,62 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Primary WhatsApp Share Button (PDF + Auto Clipboard Image) */}
-          <Button
-            onClick={handleShareWhatsAppPdf}
-            disabled={isSharingPdf}
-            className="h-10 text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-md shadow-emerald-600/25 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
-            title="إرسال واتساب برقم المريض وتنزيل الروشتة"
-          >
-            <MessageCircle className="w-4 h-4 ml-1" />
-            {isSharingPdf ? t('saving', 'جاري التجهيز...') : (
-              <>
-                <span>{t('send_whatsapp_pdf', 'إرسال واتساب للمريض')}</span>
-                {patientPhone && (
-                  <span className="text-[10px] bg-emerald-700/60 px-1.5 py-0.5 rounded-md font-mono font-normal">
-                    {formatEgyptianPhoneForWhatsApp(patientPhone).slice(-8)}
-                  </span>
-                )}
-              </>
-            )}
-          </Button>
+          {/* Unified Instant WhatsApp Share Button (No download, 0ms popup-free launch, full Rx in chat, Ctrl+V image) */}
+          <div className="relative inline-flex items-center">
+            <Button
+              onClick={() => handleShareWhatsAppRx()}
+              className="h-10 text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-s-xl rounded-e-none shadow-md shadow-emerald-600/25 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
+              title="إرسال الروشتة مباشرة إلى محادثة المريض في واتساب"
+            >
+              <MessageCircle className="w-4 h-4 ml-1" />
+              <span>{t('send_whatsapp_pdf', 'إرسال واتساب للمريض')}</span>
+              {patientPhone && (
+                <span className="text-[10px] bg-emerald-700/60 px-1.5 py-0.5 rounded-md font-mono font-normal" dir="ltr">
+                  {formatEgyptianPhoneForWhatsApp(patientPhone).slice(-8)}
+                </span>
+              )}
+            </Button>
+            <button
+              type="button"
+              onClick={() => setShowWhatsappMenu(!showWhatsappMenu)}
+              className="h-10 px-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-e-xl rounded-s-none border-s border-emerald-600 transition-all flex items-center justify-center cursor-pointer"
+              title="خيارات فتح واتساب (الكمبيوتر أو الويب)"
+            >
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showWhatsappMenu ? 'rotate-180' : ''}`} />
+            </button>
 
-          {/* WhatsApp Share as Image */}
-          <Button
-            onClick={handleShareWhatsAppImage}
-            disabled={isSharingPdf}
-            variant="outline"
-            className="h-10 text-xs font-bold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 rounded-xl"
-            title="WhatsApp Image"
-          >
-            <ImageIcon className="w-4 h-4 ml-1.5" />
-            {isSharingPdf ? t('saving', 'جاري المشاركة...') : t('send_whatsapp_img', 'إرسال صورة واتساب')}
-          </Button>
+            {showWhatsappMenu && (
+              <div className="absolute top-full end-0 mt-1.5 w-64 bg-card border border-border rounded-2xl shadow-2xl p-2 z-50 space-y-1">
+                <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground border-b border-border pb-1">
+                  طريقة فتح محادثة واتساب:
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setAndSaveWhatsappTarget('auto'); handleShareWhatsAppRx('auto'); setShowWhatsappMenu(false); }}
+                  className="w-full text-right px-2.5 py-1.5 text-xs rounded-xl hover:bg-secondary flex items-center justify-between cursor-pointer"
+                >
+                  <span className="font-bold">📱 تلقائي (المثبت أو الويب)</span>
+                  {whatsappTarget === 'auto' && <Check className="w-3.5 h-3.5 text-emerald-500" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAndSaveWhatsappTarget('app'); handleShareWhatsAppRx('app'); setShowWhatsappMenu(false); }}
+                  className="w-full text-right px-2.5 py-1.5 text-xs rounded-xl hover:bg-secondary flex items-center justify-between cursor-pointer"
+                >
+                  <span className="font-bold">💻 تطبيق الكمبيوتر (Desktop App)</span>
+                  {whatsappTarget === 'app' && <Check className="w-3.5 h-3.5 text-emerald-500" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAndSaveWhatsappTarget('web'); handleShareWhatsAppRx('web'); setShowWhatsappMenu(false); }}
+                  className="w-full text-right px-2.5 py-1.5 text-xs rounded-xl hover:bg-secondary flex items-center justify-between cursor-pointer"
+                >
+                  <span className="font-bold">🌐 واتساب ويب (WhatsApp Web)</span>
+                  {whatsappTarget === 'web' && <Check className="w-3.5 h-3.5 text-emerald-500" />}
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* Real PDF Download */}
           <Button

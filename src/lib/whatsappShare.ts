@@ -62,36 +62,128 @@ export function generateCleanRxFileName(
 
 /**
  * Opens WhatsApp Click-to-Chat directly targeting the recipient's phone number.
- * - On desktop: Opens web.whatsapp.com directly (skipping the intermediate landing page).
- * - On mobile: Opens the native WhatsApp app via api.whatsapp.com/send.
+ * Supports:
+ * - 'auto': Universal handler (api.whatsapp.com/send) which triggers WhatsApp Desktop if installed, or WhatsApp Web fallback, and native app on mobile.
+ * - 'app': Direct protocol handler (whatsapp://send) for installed WhatsApp Desktop.
+ * - 'web': Direct browser WhatsApp Web (web.whatsapp.com/send).
  */
 export function openManualWhatsAppChat({
   phone,
-  message
+  message,
+  target = 'auto'
 }: {
   phone: string
   message: string
-}): void {
+  target?: 'auto' | 'app' | 'web'
+}): Window | null {
   if (!phone) {
     toast.error('رقم هاتف المريض غير متوفر')
-    return
+    return null
   }
   const formattedPhone = formatEgyptianPhoneForWhatsApp(phone)
   const encodedText = encodeURIComponent(message)
   
   const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-  const url = isMobile
-    ? `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`
-    : `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`
   
-  window.open(url, '_blank')
+  let url = ''
+  if (isMobile) {
+    url = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`
+  } else if (target === 'app') {
+    url = `whatsapp://send?phone=${formattedPhone}&text=${encodedText}`
+  } else if (target === 'web') {
+    url = `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`
+  } else {
+    // Universal on desktop: triggers Desktop app if installed, with 1-click fallback to Web
+    url = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`
+  }
+  
+  try {
+    const win = window.open(url, '_blank')
+    return win
+  } catch (err) {
+    window.location.href = url
+    return null
+  }
+}
+
+/**
+ * Formats a rich, professional e-prescription WhatsApp message.
+ * Directly puts the entire prescription content (diagnosis, all medications with dosages,
+ * duration, instructions, and certified official online link) right into the WhatsApp chat.
+ */
+export function formatPrescriptionWhatsAppMessage({
+  clinicName,
+  doctorName,
+  specialty,
+  patientName,
+  patientAge,
+  date,
+  rxNumber,
+  diagnosis,
+  instructions,
+  drugs,
+  directRxUrl
+}: {
+  clinicName?: string
+  doctorName?: string
+  specialty?: string
+  patientName: string
+  patientAge?: string | number
+  date?: string
+  rxNumber?: string | number
+  diagnosis?: string
+  instructions?: string
+  drugs?: Array<{ name: string; dose?: string; duration?: string; notes?: string }>
+  directRxUrl?: string
+}): string {
+  const parts: string[] = []
+
+  parts.push(`🌿 *الروشتة الطبية الإلكترونية الرسمية*`)
+  if (clinicName) parts.push(`🏥 *العيادة:* ${clinicName}`)
+  if (doctorName) parts.push(`👨‍⚕️ *الطبيب:* د. ${doctorName}${specialty ? ` (${specialty})` : ''}`)
+  
+  const ageStr = patientAge ? ` (${patientAge} سنة)` : ''
+  parts.push(`👤 *المريض:* ${patientName || 'المريض'}${ageStr}`)
+  if (date) parts.push(`📅 *التاريخ:* ${date}`)
+  if (rxNumber) parts.push(`🔢 *رقم الروشتة:* #${rxNumber}`)
+
+  if (diagnosis && diagnosis.trim()) {
+    parts.push(`\n🩺 *التشخيص الطبي:*\n${diagnosis.trim()}`)
+  }
+
+  const validDrugs = (drugs || []).filter(d => d && d.name && d.name.trim() !== '')
+  if (validDrugs.length > 0) {
+    const drugLines = validDrugs.map((d, i) => {
+      const details: string[] = []
+      if (d.dose && d.dose.trim()) details.push(`الجرعة: ${d.dose.trim()}`)
+      if (d.duration && d.duration.trim()) details.push(`المدة: ${d.duration.trim()}`)
+      if (d.notes && d.notes.trim()) details.push(d.notes.trim())
+      
+      const sub = details.length > 0 ? `\n   ↳ ${details.join(' | ')}` : ''
+      return `${i + 1}. *${d.name.trim()}*${sub}`
+    })
+    parts.push(`\n💊 *العلاج والأدوية المطلوبة (Rx):*\n${drugLines.join('\n')}`)
+  }
+
+  if (instructions && instructions.trim()) {
+    parts.push(`\n📝 *تعليمات وإرشادات الطبيب:*\n${instructions.trim()}`)
+  }
+
+  if (directRxUrl) {
+    parts.push(`\n🔗 *رابط استعراض وتحميل الروشتة الأصلية المعتمدة:*\n${directRxUrl}`)
+  }
+
+  parts.push(`\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`)
+
+  return parts.join('\n')
 }
 
 /**
  * Handles professional sharing of documents and images (Prescriptions, Invoices, Reports).
- * - Directly targets recipient WhatsApp chat with their phone number.
+ * - Opens WhatsApp chat directly targeting the recipient's phone number.
+ * - Places full details inside the chat text.
  * - Copies high-res image to clipboard for instant (Ctrl + V) pasting in WhatsApp chat.
- * - Automatically downloads the file with the clean 'Rx_...' filename.
+ * - Does NOT trigger browser file download unless downloadFile is explicitly set to true.
  */
 export async function shareDocumentOrImage({
   blob,
@@ -100,64 +192,59 @@ export async function shareDocumentOrImage({
   recipientPhone,
   messageText,
   documentTitle = 'المستند',
-  imageBlobForClipboard
+  imageBlobForClipboard,
+  downloadFile = false,
+  target = 'auto'
 }: {
-  blob: Blob
-  fileName: string
+  blob?: Blob
+  fileName?: string
   fileType?: 'pdf' | 'image'
   recipientPhone: string
   messageText: string
   documentTitle?: string
   imageBlobForClipboard?: Blob
+  downloadFile?: boolean
+  target?: 'auto' | 'app' | 'web'
 }): Promise<void> {
-  const mimeType = fileType === 'image' ? 'image/png' : 'application/pdf'
-  const file = new File([blob], fileName, { type: mimeType })
+  // 1. Open WhatsApp directly targeting the patient's phone number (SYNCHRONOUS CALL)
+  openManualWhatsAppChat({
+    phone: recipientPhone,
+    message: messageText,
+    target
+  })
 
-  // 1. Desktop WhatsApp Web clipboard auto-copy:
-  // If an image blob is provided or the file is an image, write to system clipboard!
-  let copiedToClipboard = false
+  // 2. Desktop WhatsApp Web/App clipboard auto-copy:
   const clipBlob = imageBlobForClipboard || (fileType === 'image' ? blob : null)
-  
   if (clipBlob && typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
     try {
       await navigator.clipboard.write([
         new ClipboardItem({ 'image/png': clipBlob })
       ])
-      copiedToClipboard = true
+      toast.success('تم فتح المحادثة ونسخ صورة الروشتة! اضغط (Ctrl + V) في الشات لإرسال الصورة أيضاً 🚀', {
+        duration: 8000
+      })
     } catch (err) {
       console.warn('Clipboard write fallback/failed:', err)
+      toast.success(`تم فتح محادثة المريض (${recipientPhone}) ببيانات الروشتة كاملة!`, {
+        duration: 6000
+      })
     }
+  } else {
+    toast.success(`تم فتح محادثة المريض (${recipientPhone}) ببيانات الروشتة كاملة!`, {
+      duration: 6000
+    })
   }
 
-  // 2. Download file directly with clean non-mojibake filename
-  const downloadUrl = window.URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = downloadUrl
-  a.download = fileName
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 30000)
-
-  // 3. Open WhatsApp directly targeting the patient's phone number
-  const extraNote = copiedToClipboard
-    ? '\n\n(📋 تم نسخ صورة الروشتة للحافظة! الصقها مباشرة في المحادثة بـ Ctrl+V)'
-    : '\n\n(📄 مرفق ملف الروشتة الرسمية تم تنزيله على جهازكم)'
-
-  openManualWhatsAppChat({
-    phone: recipientPhone,
-    message: `${messageText}${extraNote}`
-  })
-
-  // 4. Show friendly guidance toast
-  if (copiedToClipboard) {
-    toast.success('تم فتح محادثة المريض وتنزيل الملف! اضغط (Ctrl + V) في الشات لإرسال صورة الروشتة فوراً 🚀', {
-      duration: 8000
-    })
-  } else {
-    toast.success(`تم فتح محادثة المريض (${recipientPhone}) وتنزيل ${fileName}! يمكنك سحب الملف للشات لإرساله.`, {
-      duration: 8000
-    })
+  // 3. ONLY download file if explicitly requested
+  if (downloadFile && blob && fileName) {
+    const downloadUrl = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = downloadUrl
+    a.download = fileName
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 30000)
   }
 }
 
