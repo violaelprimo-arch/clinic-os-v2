@@ -187,7 +187,9 @@ export default function OwnerDashboard() {
 
   // Packages Management State
   const [packages, setPackages] = useState<any[]>([])
-  const [packageCategoryFilter, setPackageCategoryFilter] = useState<'all' | 'monthly' | 'annual'>('all')
+  const [showPackagesInClinics, setShowPackagesInClinics] = useState<boolean>(true)
+  const [isTogglingPackagesVisibility, setIsTogglingPackagesVisibility] = useState<boolean>(false)
+  const [packageCategoryFilter, setPackageCategoryFilter] = useState<'all' | 'monthly' | '3_months' | '6_months' | 'annual'>('all')
   const [isPackageModalOpen, setIsPackageModalOpen] = useState(false)
   const [editingPackageId, setEditingPackageId] = useState<string | null>(null)
   const [pkgName, setPkgName] = useState('')
@@ -198,7 +200,7 @@ export default function OwnerDashboard() {
   const [pkgPrice, setPkgPrice] = useState<number | string>(450)
   const [pkgOriginalPrice, setPkgOriginalPrice] = useState<number | string>('')
   const [pkgDiscountBadge, setPkgDiscountBadge] = useState('')
-  const [pkgCategory, setPkgCategory] = useState<'monthly' | 'annual'>('monthly')
+  const [pkgCategory, setPkgCategory] = useState<'monthly' | '3_months' | '6_months' | 'annual'>('monthly')
   const [pkgPeriod, setPkgPeriod] = useState('شهري')
   const [pkgAiLimit, setPkgAiLimit] = useState<number | string>(100)
   const [pkgMaxBranches, setPkgMaxBranches] = useState<number | string>(1)
@@ -314,7 +316,11 @@ export default function OwnerDashboard() {
         
         const pSnap = await getDocs(collection(db, 'platformSettings'))
         if (!pSnap.empty) {
-          setSupportNumbers(pSnap.docs[0].data().supportNumbers || [])
+          const pData = pSnap.docs[0].data()
+          setSupportNumbers(pData.supportNumbers || [])
+          if (typeof pData.showPackagesInClinics === 'boolean') {
+            setShowPackagesInClinics(pData.showPackagesInClinics)
+          }
         }
       } catch (err) {}
     }
@@ -473,9 +479,19 @@ export default function OwnerDashboard() {
       }
     )
 
+    const unsubSettings = onSnapshot(doc(db, 'platformSettings', 'main'), (docSnap) => {
+      if (docSnap.exists()) {
+        const pData = docSnap.data()
+        if (typeof pData.showPackagesInClinics === 'boolean') {
+          setShowPackagesInClinics(pData.showPackagesInClinics)
+        }
+      }
+    })
+
     return () => {
       unsubClinics()
       unsubPackages()
+      unsubSettings()
     }
   }, [])
 
@@ -702,6 +718,33 @@ export default function OwnerDashboard() {
     setPkgFeatures(currentList.join('\n'))
   }
 
+  const getPackageCycle = (p: any): 'monthly' | '3_months' | '6_months' | 'annual' => {
+    const cat = (p?.category || '').toLowerCase()
+    const period = (p?.period || '').toLowerCase()
+    const name = (p?.name || '').toLowerCase()
+    if (cat === 'annual' || cat === 'yearly' || period.includes('سنو') || name.includes('سنو') || period.includes('year')) return 'annual'
+    if (cat === '6_months' || period.includes('6') || name.includes('6 شهور') || cat === 'semi_annual') return '6_months'
+    if (cat === '3_months' || period.includes('3') || name.includes('3 شهور') || cat === 'quarterly') return '3_months'
+    return 'monthly'
+  }
+
+  const handleToggleShowPackagesInClinics = async (checked: boolean) => {
+    setIsTogglingPackagesVisibility(true)
+    try {
+      await setDoc(doc(db, 'platformSettings', 'main'), { showPackagesInClinics: checked }, { merge: true })
+      setShowPackagesInClinics(checked)
+      if (checked) {
+        toast.success('تم تفعيل عرض الباقات والترقيات في لوحات العيادات بنجاح!')
+      } else {
+        toast.warning('تم إخفاء الباقات والترقيات من جميع العيادات بنجاح! لن تظهر للأطباء.')
+      }
+    } catch (err: any) {
+      toast.error('حدث خطأ أثناء حفظ حالة عرض الباقات: ' + err.message)
+    } finally {
+      setIsTogglingPackagesVisibility(false)
+    }
+  }
+
   const handleOpenNewPackage = () => {
     setEditingPackageId(null)
     setPkgName('')
@@ -747,9 +790,9 @@ export default function OwnerDashboard() {
     setPkgPrice(pkg.price || 0)
     setPkgOriginalPrice(pkg.originalPrice || '')
     setPkgDiscountBadge(pkg.discountBadge || '')
-    const isAnn = pkg.category === 'annual' || pkg.period?.includes('سنو') || pkg.name?.includes('سنو')
-    setPkgCategory(isAnn ? 'annual' : 'monthly')
-    setPkgPeriod(pkg.period || (isAnn ? 'سنوي' : 'شهري'))
+    const detected = getPackageCycle(pkg)
+    setPkgCategory(detected)
+    setPkgPeriod(pkg.period || (detected === 'annual' ? 'سنوي' : detected === '6_months' ? '6 شهور' : detected === '3_months' ? '3 شهور' : 'شهري'))
     setPkgAiLimit(pkg.aiResponsesLimit || 100)
     setPkgMaxBranches(pkg.maxBranches || 1)
     setPkgBadge(pkg.badge || '')
@@ -777,7 +820,24 @@ export default function OwnerDashboard() {
       .map(f => f.trim())
       .filter(f => f.length > 0)
 
-    const isAnnual = pkgCategory === 'annual' || pkgPeriod?.includes('سنو')
+    let finalCategory = pkgCategory
+    if (pkgCategory === '3_months' || pkgPeriod?.includes('3') || pkgName.includes('3 شهور')) {
+      finalCategory = '3_months'
+    } else if (pkgCategory === '6_months' || pkgPeriod?.includes('6') || pkgName.includes('6 شهور')) {
+      finalCategory = '6_months'
+    } else if (pkgCategory === 'annual' || pkgPeriod?.includes('سنو') || pkgName.includes('سنو')) {
+      finalCategory = 'annual'
+    } else {
+      finalCategory = 'monthly'
+    }
+
+    const defaultPeriod = finalCategory === 'annual'
+      ? 'سنوي'
+      : finalCategory === '6_months'
+      ? '6 شهور'
+      : finalCategory === '3_months'
+      ? '3 شهور'
+      : 'شهري'
 
     const pkgData = {
       name: pkgName.trim(),
@@ -788,8 +848,8 @@ export default function OwnerDashboard() {
       price: Number(pkgPrice) || 0,
       originalPrice: pkgOriginalPrice ? Number(pkgOriginalPrice) : 0,
       discountBadge: pkgDiscountBadge.trim(),
-      category: isAnnual ? 'annual' : 'monthly',
-      period: pkgPeriod || (isAnnual ? 'سنوي' : 'شهري'),
+      category: finalCategory,
+      period: pkgPeriod || defaultPeriod,
       aiResponsesLimit: Number(pkgAiLimit) || 100,
       maxBranches: Number(pkgMaxBranches) || 1,
       badge: pkgBadge.trim(),
@@ -2471,7 +2531,45 @@ export default function OwnerDashboard() {
             </Button>
           </div>
 
-          {/* Category Filter Switcher (جميع الباقات / باقات شهرية / باقات سنوية) */}
+          {/* Master Switch: Toggle Package Visibility in Clinics */}
+          <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-[#0A1128] text-white border border-indigo-500/30 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 backdrop-blur-xl">
+            <div className="flex items-center gap-3.5">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border transition-all ${
+                showPackagesInClinics
+                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400 shadow-lg shadow-emerald-500/10'
+                  : 'bg-rose-500/20 border-rose-500/40 text-rose-400 shadow-lg shadow-rose-500/10'
+              }`}>
+                {showPackagesInClinics ? <Crown className="w-6 h-6 animate-pulse" /> : <EyeOff className="w-6 h-6" />}
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-sm font-black text-white">عرض باقات الاشتراك والترقية في لوحات العيادات</h3>
+                  <Badge className={showPackagesInClinics ? 'bg-emerald-500 text-white font-black text-[10px] px-2.5 py-0.5' : 'bg-rose-500 text-white font-black text-[10px] px-2.5 py-0.5'}>
+                    {showPackagesInClinics ? 'ظاهرة للأطباء ومفعلة ✓' : 'مخفية تماماً عن العيادات ✕'}
+                  </Badge>
+                </div>
+                <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                  {showPackagesInClinics
+                    ? 'الباقات معروضة حالياً للأطباء في الشريط الجانبي وتحت اسم الدكتور داخل لوحة العيادة للترقية الفورية.'
+                    : 'تم إخفاء خانة الباقات وزر الترقية تماماً من جميع العيادات (لن تظهر أي باقة أو إمكانية ترقية للطبيب).'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 shrink-0 self-end sm:self-center bg-white/5 border border-white/10 px-4 py-2.5 rounded-2xl">
+              <span className="text-xs font-bold text-slate-200">
+                {showPackagesInClinics ? 'إخفاء من العيادات' : 'إظهار للعيادات'}
+              </span>
+              <Switch
+                checked={showPackagesInClinics}
+                onCheckedChange={handleToggleShowPackagesInClinics}
+                disabled={isTogglingPackagesVisibility}
+                className="data-[state=checked]:bg-emerald-500"
+              />
+            </div>
+          </div>
+
+          {/* Category Filter Switcher (جميع الباقات / شهرية / 3 شهور / 6 شهور / سنوية) */}
           <div className="flex flex-wrap items-center justify-between gap-3 p-2 bg-slate-100/80 rounded-2xl border border-slate-200">
             <div className="flex items-center gap-1.5 flex-wrap">
               <button
@@ -2496,7 +2594,35 @@ export default function OwnerDashboard() {
               >
                 <span>باقات شهرية</span>
                 <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-teal-50 text-teal-700 font-mono font-bold">
-                  {packages.filter(p => !(p.category === 'annual' || p.period?.includes('سنو') || p.name?.includes('سنو'))).length}
+                  {packages.filter(p => getPackageCycle(p) === 'monthly').length}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPackageCategoryFilter('3_months')}
+                className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                  packageCategoryFilter === '3_months'
+                    ? 'bg-white text-cyan-700 shadow-xs border border-cyan-200'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                }`}
+              >
+                <span>باقات 3 شهور</span>
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-cyan-50 text-cyan-700 font-mono font-bold">
+                  {packages.filter(p => getPackageCycle(p) === '3_months').length}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPackageCategoryFilter('6_months')}
+                className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                  packageCategoryFilter === '6_months'
+                    ? 'bg-white text-purple-700 shadow-xs border border-purple-200'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                }`}
+              >
+                <span>باقات 6 شهور</span>
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-purple-50 text-purple-700 font-mono font-bold">
+                  {packages.filter(p => getPackageCycle(p) === '6_months').length}
                 </span>
               </button>
               <button
@@ -2510,7 +2636,7 @@ export default function OwnerDashboard() {
               >
                 <span>باقات سنوية</span>
                 <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-100 text-amber-800 font-mono font-bold">
-                  {packages.filter(p => (p.category === 'annual' || p.period?.includes('سنو') || p.name?.includes('سنو'))).length}
+                  {packages.filter(p => getPackageCycle(p) === 'annual').length}
                 </span>
                 <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded-full">
                   وفر شهرين 🎁
@@ -2521,10 +2647,8 @@ export default function OwnerDashboard() {
             <span className="text-[11px] text-slate-400 font-medium px-2">
               عرض {
                 packages.filter(pkg => {
-                  const isAnn = pkg.category === 'annual' || pkg.period?.includes('سنو') || pkg.name?.includes('سنو')
-                  if (packageCategoryFilter === 'monthly') return !isAnn
-                  if (packageCategoryFilter === 'annual') return isAnn
-                  return true
+                  if (packageCategoryFilter === 'all') return true
+                  return getPackageCycle(pkg) === packageCategoryFilter
                 }).length
               } باقة
             </span>
@@ -2534,10 +2658,8 @@ export default function OwnerDashboard() {
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {packages
               .filter(pkg => {
-                const isAnn = pkg.category === 'annual' || pkg.period?.includes('سنو') || pkg.name?.includes('سنو')
-                if (packageCategoryFilter === 'monthly') return !isAnn
-                if (packageCategoryFilter === 'annual') return isAnn
-                return true
+                if (packageCategoryFilter === 'all') return true
+                return getPackageCycle(pkg) === packageCategoryFilter
               })
               .map(pkg => {
                 const isPop = pkg.isPopular || pkg.isRecommended
@@ -2873,12 +2995,12 @@ export default function OwnerDashboard() {
                         <span>تصنيف الباقة والأسعار والعروض (عرض كذا بدل كذا)</span>
                       </h4>
                       <p className="text-[11px] text-slate-500 mt-0.5">
-                        حدد ما إذا كانت الباقة شهرية أو سنوية، وضع سعراً قبل الخصم ليظهر مشطوباً كعرض خاص
+                        حدد دورة الفوترة (شهرية، 3 شهور، 6 شهور، سنوية) وضع سعراً قبل الخصم ليظهر مشطوباً كعرض خاص
                       </p>
                     </div>
 
-                    {/* Category Switcher Buttons */}
-                    <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shrink-0">
+                    {/* Category Switcher Buttons (شهري / 3 شهور / 6 شهور / سنوي) */}
+                    <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shrink-0 flex-wrap">
                       <button
                         type="button"
                         onClick={() => {
@@ -2896,6 +3018,38 @@ export default function OwnerDashboard() {
                       <button
                         type="button"
                         onClick={() => {
+                          setPkgCategory('3_months')
+                          setPkgPeriod('3 شهور')
+                          if (!pkgDiscountBadge) setPkgDiscountBadge('وفر 15%')
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                          pkgCategory === '3_months'
+                            ? 'bg-cyan-600 text-white shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        <span>3 شهور</span>
+                        <span className="text-[10px] bg-cyan-100 text-cyan-800 px-1 rounded font-bold">ربع سنوي</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPkgCategory('6_months')
+                          setPkgPeriod('6 شهور')
+                          if (!pkgDiscountBadge) setPkgDiscountBadge('وفر 25%')
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                          pkgCategory === '6_months'
+                            ? 'bg-purple-600 text-white shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        <span>6 شهور</span>
+                        <span className="text-[10px] bg-purple-100 text-purple-800 px-1 rounded font-bold">نصف سنوي</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
                           setPkgCategory('annual')
                           setPkgPeriod('سنوي')
                           if (!pkgDiscountBadge) setPkgDiscountBadge('وفر شهرين مجاناً 🎁')
@@ -2906,7 +3060,7 @@ export default function OwnerDashboard() {
                             : 'text-slate-600 hover:text-slate-900'
                         }`}
                       >
-                        <span>باقة سنوية</span>
+                        <span>سنوية</span>
                         <span className="text-[10px] bg-amber-400 text-slate-900 px-1 rounded font-bold">توفير</span>
                       </button>
                     </div>

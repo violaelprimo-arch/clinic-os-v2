@@ -6,10 +6,10 @@ import { usePathname } from 'next/navigation'
 import {
   FileText, Users, DollarSign, Calendar, Settings, Bot,
   LogOut, Receipt, Pill, Bell, Search, ExternalLink, Menu,
-  X, CheckCircle, ChevronLeft, User, Building2, Sparkles, Clock
+  X, CheckCircle, ChevronLeft, User, Building2, Sparkles, Clock, Crown
 } from 'lucide-react'
 import { db, auth } from '@/lib/firebase'
-import { collection, query, where, onSnapshot } from 'firebase/firestore'
+import { collection, query, where, onSnapshot, doc } from 'firebase/firestore'
 import { signOut } from 'firebase/auth'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { ClinicLoading } from '@/components/clinic/ClinicLoading'
@@ -42,6 +42,7 @@ export default function AdminLayout({
   const [selectedBranchId, setSelectedBranchId] = useState<string>('all')
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const [packages, setPackages] = useState<any[]>([])
+  const [showPackagesInClinics, setShowPackagesInClinics] = useState<boolean>(true)
 
   useEffect(() => {
     const saved = localStorage.getItem('clinic_selected_branch') || 'all'
@@ -51,14 +52,32 @@ export default function AdminLayout({
       setPackages(snap.docs.map(d => ({ id: d.id, ...d.data() })))
     })
 
-    return () => unsubPackages()
+    const unsubSettings = onSnapshot(doc(db, 'platformSettings', 'main'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data()
+        if (typeof data.showPackagesInClinics === 'boolean') {
+          setShowPackagesInClinics(data.showPackagesInClinics)
+        }
+      }
+    }, (err) => {
+      console.warn('Could not subscribe to platformSettings:', err)
+    })
+
+    return () => {
+      unsubPackages()
+      unsubSettings()
+    }
   }, [])
 
   useEffect(() => {
-    const handleOpenModal = () => setShowUpgradeModal(true)
+    const handleOpenModal = () => {
+      if (showPackagesInClinics !== false) {
+        setShowUpgradeModal(true)
+      }
+    }
     window.addEventListener('open_upgrade_modal', handleOpenModal)
     return () => window.removeEventListener('open_upgrade_modal', handleOpenModal)
-  }, [])
+  }, [showPackagesInClinics])
 
   const handleSelectBranch = (bId: string) => {
     setSelectedBranchId(bId)
@@ -210,6 +229,14 @@ export default function AdminLayout({
       href: `/clinic/${slug}/admin/branches`,
       icon: Building2
     },
+    ...(showPackagesInClinics !== false ? [{
+      id: 'packages',
+      name: t('nav_packages', 'الباقات والاشتراك'),
+      href: '#packages',
+      icon: Crown,
+      isAction: true,
+      onClick: () => setShowUpgradeModal(true)
+    }] : []),
     {
       id: 'settings',
       name: t('nav_settings', 'الإعدادات'),
@@ -259,9 +286,13 @@ export default function AdminLayout({
     if (item.id === 'prescriptions' && !isPrescriptionsEnabled) return false
     if (item.id === 'ai-training' && !isAiEnabled) return false
     if (item.id === 'branches' && !isBranchesEnabled) return false
+    if (item.id === 'packages' && showPackagesInClinics === false) return false
 
     if (role === 'doctor') return true
-    if (role === 'assistant') return assistantPermissions.includes(item.id)
+    if (role === 'assistant') {
+      if (item.id === 'packages') return false
+      return assistantPermissions.includes(item.id)
+    }
     return false
   })
 
@@ -328,19 +359,21 @@ export default function AdminLayout({
             </div>
 
             {/* Upgrade Account Button right under the doctor's name */}
-            <button
-              type="button"
-              onClick={() => setShowUpgradeModal(true)}
-              className="mt-2.5 w-full py-1.5 px-2.5 rounded-xl bg-gradient-to-r from-primary/15 via-primary/10 to-primary/5 hover:from-primary/20 hover:to-primary/10 border border-primary/25 text-primary flex items-center justify-between text-xs font-bold transition-all cursor-pointer shadow-2xs group active:scale-95"
-            >
-              <span className="flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-primary group-hover:rotate-12 transition-transform" />
-                {t('upgrade_account', 'ترقية الحساب / الباقات')}
-              </span>
-              <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded font-mono font-bold">
-                {clinic?.packageName || 'الأساسية'}
-              </span>
-            </button>
+            {showPackagesInClinics !== false && (
+              <button
+                type="button"
+                onClick={() => setShowUpgradeModal(true)}
+                className="mt-2.5 w-full py-1.5 px-2.5 rounded-xl bg-gradient-to-r from-primary/15 via-primary/10 to-primary/5 hover:from-primary/20 hover:to-primary/10 border border-primary/25 text-primary flex items-center justify-between text-xs font-bold transition-all cursor-pointer shadow-2xs group active:scale-95"
+              >
+                <span className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-primary group-hover:rotate-12 transition-transform" />
+                  {t('upgrade_account', 'ترقية الحساب / الباقات')}
+                </span>
+                <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded font-mono font-bold">
+                  {clinic?.packageName || 'الأساسية'}
+                </span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -348,7 +381,27 @@ export default function AdminLayout({
         <nav className="flex-1 overflow-y-auto p-3 space-y-1.5 py-3">
           {filteredNav.map((item) => {
             const Icon = item.icon
-            const isActive = pathname === item.href
+            const isActive = item.href ? pathname === item.href : false
+
+            if ((item as any).isAction) {
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={(item as any).onClick}
+                  className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all duration-200 cursor-pointer text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 font-bold active:scale-98 border border-amber-500/25 shadow-xs group"
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon className="w-4.5 h-4.5 text-amber-500 group-hover:scale-110 transition-transform" />
+                    <span className="text-xs tracking-wide">{item.name}</span>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                    {clinic?.packageName || t('upgrade', 'ترقية')}
+                  </span>
+                </button>
+              )
+            }
+
             return (
               <Link key={item.href} href={item.href}>
                 <div
@@ -456,7 +509,30 @@ export default function AdminLayout({
             <nav className="flex-1 overflow-y-auto py-3 space-y-1">
               {filteredNav.map((item) => {
                 const Icon = item.icon
-                const isActive = pathname === item.href
+                const isActive = item.href ? pathname === item.href : false
+
+                if ((item as any).isAction) {
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        setMobileDrawerOpen(false)
+                        if ((item as any).onClick) (item as any).onClick()
+                      }}
+                      className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/25 font-bold cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon className="w-4.5 h-4.5 text-amber-500" />
+                        <span className="text-xs font-bold">{item.name}</span>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20">
+                        {clinic?.packageName || t('upgrade', 'ترقية')}
+                      </span>
+                    </button>
+                  )
+                }
+
                 return (
                   <Link key={item.href} href={item.href}>
                     <div
@@ -658,12 +734,14 @@ export default function AdminLayout({
       </div>
 
       {/* Subscription Upgrade Modal */}
-      <SubscriptionUpgradeModal
-        isOpen={showUpgradeModal}
-        onClose={() => setShowUpgradeModal(false)}
-        clinic={clinic}
-        packages={packages}
-      />
+      {showPackagesInClinics !== false && (
+        <SubscriptionUpgradeModal
+          isOpen={showUpgradeModal}
+          onClose={() => setShowUpgradeModal(false)}
+          clinic={clinic}
+          packages={packages}
+        />
+      )}
     </div>
   )
 }

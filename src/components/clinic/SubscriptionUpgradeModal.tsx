@@ -27,12 +27,11 @@ import {
   Stethoscope,
   Building2,
   Star,
-  Award
+  Award,
+  Check
 } from 'lucide-react'
+import { motion } from 'framer-motion'
 import { openManualWhatsAppChat } from '@/lib/whatsappShare'
-import { toast } from 'sonner'
-import { db } from '@/lib/firebase'
-import { updateDoc, doc } from 'firebase/firestore'
 import { useLanguage } from '@/context/LanguageContext'
 
 export interface PackageItem {
@@ -40,7 +39,7 @@ export interface PackageItem {
   name: string
   subtitle?: string
   code?: string
-  category?: 'monthly' | 'annual' | string
+  category?: 'monthly' | '3_months' | '6_months' | 'annual' | 'yearly' | string
   price: number | string
   originalPrice?: number | string
   discountBadge?: string
@@ -67,7 +66,7 @@ interface SubscriptionUpgradeModalProps {
 function renderPackageLogo(pkg: PackageItem) {
   if (pkg.logoUrl) {
     return (
-      <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200/80 p-1.5 flex items-center justify-center mx-auto mb-2.5 shadow-xs">
+      <div className="w-12 h-12 rounded-2xl bg-white/80 dark:bg-white/10 border border-slate-200/80 dark:border-white/10 p-1.5 flex items-center justify-center mx-auto mb-2.5 shadow-sm">
         <img src={pkg.logoUrl} alt={pkg.name} className="w-full h-full object-contain" />
       </div>
     )
@@ -118,6 +117,53 @@ const DEFAULT_PACKAGES: PackageItem[] = [
       'بوابة الحجز الذاتي للمرضى وتتبع الدور',
       '100 رد شهري للمساعد الذكي AI',
       'إدارة فرع واحد وسكرتارية العيادة'
+    ]
+  },
+  {
+    name: 'باقة الـ 3 شهور (Quarterly)',
+    subtitle: 'الاشتراك الفصلي المثالي مع وفر 15%',
+    code: 'quarterly',
+    category: '3_months',
+    icon: 'zap',
+    color: '#06B6D4',
+    price: 1200,
+    originalPrice: 1350,
+    discountBadge: 'وفر 150 ج.م 🔥',
+    period: '3 شهور',
+    aiResponsesLimit: 350,
+    maxBranches: 2,
+    isPopular: false,
+    badge: 'خطة 3 شهور',
+    features: [
+      'جميع مميزات الباقة الأساسية',
+      'صلاحية 3 شهور متواصلة للعيادة',
+      '350 رد فصلي للمساعد الذكي AI',
+      'حتى فرعين طبيين متكاملين',
+      'تقارير دورية شاملة للإيرادات'
+    ]
+  },
+  {
+    name: 'باقة الـ 6 شهور (Semi-Annual)',
+    subtitle: 'الخيار نصف السنوي الأكثر توفيراً واستقراراً',
+    code: 'semi_annual',
+    category: '6_months',
+    icon: 'gem',
+    color: '#8B5CF6',
+    price: 2400,
+    originalPrice: 2700,
+    discountBadge: 'وفر 300 ج.م 🔥',
+    period: '6 شهور',
+    aiResponsesLimit: 800,
+    maxBranches: 3,
+    isPopular: false,
+    badge: 'خطة 6 شهور 💎',
+    features: [
+      'جميع مميزات الباقة الاحترافية لنصف عام',
+      '800 رد للمساعد الذكي AI',
+      'حتى 3 فروع طبية متكاملة',
+      'قالب روشتة مخصص بهوية العيادة',
+      'تنبيهات تلقائية عبر واتساب',
+      'أولوية في الدعم الفني والتحديثات'
     ]
   },
   {
@@ -205,7 +251,7 @@ export function SubscriptionUpgradeModal({
   supportPhone = '01551007018'
 }: SubscriptionUpgradeModalProps) {
   const { t, isRtl, dir } = useLanguage()
-  const [selectedCategory, setSelectedCategory] = useState<'all' | 'monthly' | 'yearly'>('all')
+  const [selectedCategory, setSelectedCategory] = useState<'all' | 'monthly' | '3_months' | '6_months' | 'yearly'>('all')
   const activePackages = packages && packages.length > 0 ? packages : DEFAULT_PACKAGES
 
   // Expiration Days Calculation
@@ -223,18 +269,41 @@ export function SubscriptionUpgradeModal({
   const aiCount = Number(clinic?.aiResponsesCount ?? 0)
   const aiPercent = Math.min(100, Math.round((aiCount / Math.max(1, aiLimit)) * 100))
 
-  // Filter packages by selected category (monthly / yearly)
+  // Helper to normalize clinic package name
+  const currentClinicPkgName = (clinic?.packageName || '').trim().toLowerCase()
+
+  // Filter packages by selected category
   const filteredPackages = activePackages.filter(p => {
     if (selectedCategory === 'all') return true
     const period = (p.period || '').toLowerCase()
     const cat = (p.category || '').toLowerCase()
     const name = (p.name || '').toLowerCase()
+
     if (selectedCategory === 'monthly') {
-      return period.includes('شهر') || cat.includes('شهر') || period.includes('month') || (!period.includes('سنو') && !cat.includes('سنو') && !period.includes('year'))
+      return (
+        (cat === 'monthly' || period.includes('شهر') || period.includes('month')) &&
+        !cat.includes('3') && !period.includes('3') &&
+        !cat.includes('6') && !period.includes('6') &&
+        !cat.includes('annual') && !period.includes('سنو') && !name.includes('سنو')
+      )
     }
+
+    if (selectedCategory === '3_months') {
+      return cat === '3_months' || period.includes('3') || cat.includes('3') || name.includes('3') || cat === 'quarterly'
+    }
+
+    if (selectedCategory === '6_months') {
+      return cat === '6_months' || period.includes('6') || cat.includes('6') || name.includes('6') || cat === 'semi_annual'
+    }
+
     if (selectedCategory === 'yearly') {
-      return period.includes('سنو') || cat.includes('سنو') || name.includes('سنو') || period.includes('year') || cat.includes('annual')
+      return (
+        cat === 'annual' || cat === 'yearly' ||
+        period.includes('سنو') || cat.includes('سنو') || name.includes('سنو') ||
+        period.includes('year') || cat.includes('annual')
+      )
     }
+
     return true
   })
 
@@ -251,7 +320,7 @@ export function SubscriptionUpgradeModal({
 - السعر: ${pkg.price} ج.م / ${pkg.period || 'شهري'}
 - كود العيادة (Slug): ${clinic?.slug || ''}
 
-يرجى تزويدي بطرق الدفع الإلكتروني المتاحة (انستا باي / فودافون كاش / بنك) لتأكيد التفعيل فورا. شكرا!`
+يرجى تزويدي بطرق الدفع الإلكتروني المتاحة (انستا باي / فودافون كاش / بنك) لتأكيد التفعيل فوراً. شكراً!`
       : `Hello, I would like to upgrade / renew my clinic subscription on Yalla Clinic:
 - Clinic: ${clinic?.clinicName || 'Clinic'}
 - Doctor: Dr. ${clinic?.doctorName || ''}
@@ -269,19 +338,23 @@ Please provide available payment methods to confirm activation. Thank you!`
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="w-[96vw] max-w-5xl max-h-[92vh] overflow-y-auto p-5 sm:p-7 bg-card text-card-foreground rounded-3xl border border-border" dir={dir}>
-        <DialogHeader className={`${isRtl ? 'text-right' : 'text-left'} space-y-1.5 pb-3 border-b border-border`}>
+      {/* Expanded Dialog Width with sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl to guarantee wide, spacious rendering */}
+      <DialogContent
+        className="w-[96vw] sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl max-h-[92vh] overflow-y-auto p-5 sm:p-8 bg-card/95 backdrop-blur-2xl text-card-foreground rounded-3xl border border-border shadow-2xl"
+        dir={dir}
+      >
+        <DialogHeader className={`${isRtl ? 'text-right' : 'text-left'} space-y-1.5 pb-4 border-b border-border`}>
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-teal-500 text-white flex items-center justify-center shadow-md shadow-amber-500/20">
-                <Sparkles className="w-5 h-5" />
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 via-primary to-cyan-400 text-white flex items-center justify-center shadow-lg shadow-primary/25">
+                <Crown className="w-6 h-6" />
               </div>
               <div>
-                <DialogTitle className="text-xl font-black text-foreground">
-                  {isRtl ? 'ترقية الحساب وباقات اشتراك Yalla Clinic' : 'Account Upgrade & Subscription Packages'}
+                <DialogTitle className="text-xl sm:text-2xl font-black text-foreground tracking-tight">
+                  {isRtl ? 'باقات الاشتراك وترقية العيادة' : 'Clinic Subscription & Upgrade Packages'}
                 </DialogTitle>
-                <DialogDescription className="text-xs text-muted-foreground">
-                  {isRtl ? 'اختر الباقة المناسبة لتوسيع إمكانيات عيادتك وزيادة رصيد الذكاء الاصطناعي والفروع' : 'Choose the best plan to expand your clinic capabilities, branches, and AI quota'}
+                <DialogDescription className="text-xs sm:text-sm text-muted-foreground font-medium">
+                  {isRtl ? 'اختر الخطة والمدة المناسبة لتطوير عيادتك وزيادة رصيد الذكاء الاصطناعي والفروع' : 'Select the best plan & cycle to empower your clinic, AI quota, and branches'}
                 </DialogDescription>
               </div>
             </div>
@@ -289,21 +362,22 @@ Please provide available payment methods to confirm activation. Thank you!`
         </DialogHeader>
 
         {/* Current Subscription Status Bar */}
-        <div className="my-3 p-4 rounded-2xl bg-gradient-to-r from-slate-900 to-[#0B1F33] text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+        <div className="my-3 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-[#0A1B33] to-[#081226] text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl border border-white/10">
           <div className="space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs text-slate-300 font-bold">
                 {isRtl ? 'الباقة الحالية:' : 'Current Plan:'}
               </span>
-              <Badge className="bg-primary text-white font-black text-xs px-2.5 py-0.5">
-                {clinic?.packageName || (isRtl ? 'الباقة الأساسية' : 'Standard Plan')}
+              <Badge className="bg-emerald-500 text-white font-black text-xs px-3 py-1 shadow-sm flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>{clinic?.packageName || (isRtl ? 'الباقة الأساسية' : 'Standard Plan')}</span>
               </Badge>
               {isExpired ? (
-                <Badge variant="destructive" className="font-bold text-xs">
+                <Badge variant="destructive" className="font-bold text-xs px-2.5 py-0.5">
                   {isRtl ? 'منتهي الصلاحية' : 'Expired'}
                 </Badge>
               ) : (
-                <Badge className="bg-amber-400 text-slate-900 font-black text-xs">
+                <Badge className="bg-amber-400 text-slate-900 font-black text-xs px-2.5 py-0.5 shadow-sm">
                   {isRtl ? `متبقي ${daysLeft} يوم` : `${daysLeft} days remaining`}
                 </Badge>
               )}
@@ -315,13 +389,13 @@ Please provide available payment methods to confirm activation. Thank you!`
           </div>
 
           {/* AI Quota Meter */}
-          <div className="w-full md:w-64 bg-[#0F243A] p-3 rounded-xl border border-white/10 space-y-1.5">
+          <div className="w-full md:w-72 bg-[#0E2342]/90 p-3.5 rounded-xl border border-white/10 space-y-1.5">
             <div className="flex items-center justify-between text-xs">
               <span className="text-slate-300 font-bold flex items-center gap-1.5">
-                <Bot className="w-3.5 h-3.5 text-purple-400" />
+                <Bot className="w-3.5 h-3.5 text-cyan-400" />
                 {isRtl ? 'استهلاك الذكاء الاصطناعي:' : 'AI Usage:'}
               </span>
-              <span className="font-mono font-bold text-teal-300 text-[11px]" dir="ltr">
+              <span className="font-mono font-bold text-cyan-300 text-[11px]" dir="ltr">
                 {aiCount} / {aiLimit}
               </span>
             </div>
@@ -345,15 +419,15 @@ Please provide available payment methods to confirm activation. Thank you!`
           </div>
         </div>
 
-        {/* Category Filter Pills (باقات شهرية - باقات سنوية) */}
-        <div className="flex items-center justify-center my-3">
-          <div className="p-1 rounded-2xl bg-muted border border-border flex items-center gap-1">
+        {/* Billing Cycle Filter Pills (الكل - شهرية - 3 شهور - 6 شهور - سنوية) */}
+        <div className="flex items-center justify-center my-4 overflow-x-auto pb-1">
+          <div className="p-1 rounded-2xl bg-secondary/80 dark:bg-card-elevated border border-border flex items-center gap-1 shadow-inner">
             <button
               type="button"
               onClick={() => setSelectedCategory('all')}
-              className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
                 selectedCategory === 'all'
-                  ? 'bg-card text-foreground shadow-sm'
+                  ? 'bg-primary text-white shadow-md'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
@@ -362,48 +436,91 @@ Please provide available payment methods to confirm activation. Thank you!`
             <button
               type="button"
               onClick={() => setSelectedCategory('monthly')}
-              className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
                 selectedCategory === 'monthly'
-                  ? 'bg-card text-foreground shadow-sm'
+                  ? 'bg-primary text-white shadow-md'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              {isRtl ? 'باقات شهرية' : 'Monthly Plans'}
+              {isRtl ? 'باقات شهرية' : 'Monthly'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedCategory('3_months')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                selectedCategory === '3_months'
+                  ? 'bg-primary text-white shadow-md'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <span>{isRtl ? 'باقات 3 شهور' : '3 Months'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedCategory('6_months')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                selectedCategory === '6_months'
+                  ? 'bg-primary text-white shadow-md'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <span>{isRtl ? 'باقات 6 شهور' : '6 Months'}</span>
             </button>
             <button
               type="button"
               onClick={() => setSelectedCategory('yearly')}
-              className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                 selectedCategory === 'yearly'
-                  ? 'bg-primary text-white shadow-sm'
+                  ? 'bg-primary text-white shadow-md'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <span>{isRtl ? 'باقات سنوية' : 'Annual Plans'}</span>
+              <span>{isRtl ? 'باقات سنوية' : 'Annual'}</span>
               <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-amber-400 text-slate-900">
-                {isRtl ? 'وفر شهرين 🎁' : 'Save 2 Months 🎁'}
+                {isRtl ? 'وفر شهرين 🎁' : 'Save 2 Mo'}
               </span>
             </button>
           </div>
         </div>
 
-        {/* Available Packages Grid */}
+        {/* Available Packages Grid (Apple Glassmorphism Layout with Motion) */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
           {filteredPackages.map((pkg, idx) => {
             const isPop = pkg.isPopular || pkg.isRecommended
             const hasDiscount = pkg.originalPrice && Number(pkg.originalPrice) > Number(pkg.price)
 
+            // Exact Active Package Detection: check name, code, or stripped prefix
+            const pkgNameNormalized = (pkg.name || '').trim().toLowerCase()
+            const cleanStr = (s: string) => s.replace(/^(الباقة|باقة)\s+/, '').trim().toLowerCase()
+            const isCurrentPlan = currentClinicPkgName !== '' && (
+              pkgNameNormalized === currentClinicPkgName ||
+              cleanStr(pkgNameNormalized) === cleanStr(currentClinicPkgName) ||
+              (pkg.code && clinic?.packageCode && pkg.code.toLowerCase() === String(clinic.packageCode).toLowerCase())
+            )
+
             return (
-              <div
-                key={idx}
-                className={`rounded-3xl p-5 sm:p-6 flex flex-col justify-between transition-all duration-300 relative border group ${
-                  isPop
-                    ? 'bg-card border-primary shadow-xl shadow-primary/15 ring-2 ring-primary/30'
-                    : 'bg-card border-border hover:border-border/80'
+              <motion.div
+                key={pkg.id || idx}
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: idx * 0.05 }}
+                className={`rounded-3xl p-6 flex flex-col justify-between transition-all duration-300 relative border group ${
+                  isCurrentPlan
+                    ? 'bg-gradient-to-b from-emerald-500/10 via-card to-card border-emerald-500/80 shadow-xl shadow-emerald-500/15 ring-2 ring-emerald-500/40'
+                    : isPop
+                    ? 'bg-gradient-to-b from-primary/10 via-card to-card border-primary shadow-xl shadow-primary/20 ring-2 ring-primary/40'
+                    : 'bg-card border-border hover:border-primary/40 hover:shadow-lg'
                 }`}
               >
-                {/* Popular / Recommended Tag */}
-                {(pkg.badge || isPop) && (
+                {/* Active Plan or Popular Badge on Top */}
+                {isCurrentPlan ? (
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-10 whitespace-nowrap">
+                    <span className="px-3.5 py-1 rounded-full text-xs font-black shadow-md flex items-center gap-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white ring-2 ring-background">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>{isRtl ? 'باقتك الحالية (نشطة)' : 'Current Active Plan'}</span>
+                    </span>
+                  </div>
+                ) : (pkg.badge || isPop) ? (
                   <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-10 whitespace-nowrap">
                     <span className={`px-3.5 py-1 rounded-full text-[11px] font-black shadow-md flex items-center gap-1.5 ${
                       isPop
@@ -414,9 +531,10 @@ Please provide available payment methods to confirm activation. Thank you!`
                       <span>{pkg.badge || (isRtl ? '⭐ موصى بها للعيادات' : '⭐ Recommended')}</span>
                     </span>
                   </div>
-                )}
+                ) : null}
 
                 <div>
+                  {/* Header: Logo, Name, Subtitle */}
                   <div className="pt-2 text-center border-b border-border pb-4">
                     {renderPackageLogo(pkg)}
                     <h4 className="text-lg font-black text-foreground">{pkg.name}</h4>
@@ -426,7 +544,7 @@ Please provide available payment methods to confirm activation. Thank you!`
                       </p>
                     )}
 
-                    {/* Pricing with Discount Support */}
+                    {/* Pricing */}
                     <div className="mt-3 flex flex-col items-center justify-center">
                       {hasDiscount ? (
                         <div className="space-y-1 text-center">
@@ -452,7 +570,7 @@ Please provide available payment methods to confirm activation. Thank you!`
                     </div>
                   </div>
 
-                  {/* Highlights Specs */}
+                  {/* Highlights Specs: AI + Branches */}
                   <div className="py-3 space-y-2 border-b border-border text-xs">
                     <div className="flex items-center justify-between text-muted-foreground font-bold">
                       <span className="flex items-center gap-1.5">
@@ -486,33 +604,43 @@ Please provide available payment methods to confirm activation. Thank you!`
                   </ul>
                 </div>
 
-                {/* Upgrade Button */}
+                {/* Action Button: Current Plan vs Upgrade CTA */}
                 <div className="pt-3">
-                  <Button
-                    onClick={() => handleRequestUpgrade(pkg)}
-                    className={`w-full h-11 rounded-xl text-xs font-black shadow-md cursor-pointer transition-all ${
-                      isPop
-                        ? 'yalla-gradient-btn text-white'
-                        : 'bg-primary/90 hover:bg-primary text-white'
-                    }`}
-                  >
-                    <MessageSquare className={`w-4 h-4 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
-                    {isRtl ? 'طلب الترقية الآن (واتساب)' : 'Upgrade via WhatsApp'}
-                  </Button>
+                  {isCurrentPlan ? (
+                    <Button
+                      disabled
+                      className="w-full h-11 rounded-xl text-xs font-black bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 cursor-default flex items-center justify-center gap-2"
+                    >
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                      <span>{isRtl ? 'أنت مشترك في هذه الباقة حالياً' : 'Your Current Active Plan'}</span>
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => handleRequestUpgrade(pkg)}
+                      className={`w-full h-11 rounded-xl text-xs font-black shadow-md cursor-pointer transition-all active:scale-95 ${
+                        isPop
+                          ? 'yalla-gradient-btn text-white'
+                          : 'bg-primary/90 hover:bg-primary text-white'
+                      }`}
+                    >
+                      <MessageSquare className={`w-4 h-4 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
+                      <span>{isRtl ? 'طلب الترقية الآن (واتساب)' : 'Upgrade via WhatsApp'}</span>
+                    </Button>
+                  )}
                 </div>
-              </div>
+              </motion.div>
             )
           })}
         </div>
 
         {/* Support Help Footer */}
-        <div className="mt-4 pt-3 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
+        <div className="mt-5 pt-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-primary" />
-            <span>{isRtl ? 'تفعيل فوري بعد التحويل وإرسال إيصال الدفع' : 'Instant activation upon transfer and receipt'}</span>
+            <ShieldCheck className="w-4 h-4 text-emerald-500" />
+            <span>{isRtl ? 'تفعيل وترقية فورية بعد التحويل وإرسال إيصال الدفع' : 'Instant activation upon transfer and receipt'}</span>
           </div>
           <div className="flex items-center gap-1 font-bold text-foreground">
-            <span>{isRtl ? 'للاستفسارات والاشتراكات السنوية:' : 'Inquiries & Annual Billing:'}</span>
+            <span>{isRtl ? 'للاستفسارات والاشتراكات المخصصة:' : 'Inquiries & Custom Billing:'}</span>
             <span className="font-mono text-primary font-black" dir="ltr">{supportPhone}</span>
           </div>
         </div>
