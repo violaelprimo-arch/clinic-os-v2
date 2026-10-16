@@ -1,163 +1,216 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { db } from '@/lib/firebase'
-import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore'
-import { Activity, Clock, CheckCircle, AlertCircle } from 'lucide-react'
-import { calculatePatientLivePosition, PatientQueueStatusResult } from '@/lib/queueCalculations'
-import { useLanguage } from '@/context/LanguageContext'
+import React, { useState, useEffect } from 'react'
+import { Bell, RotateCw, Check, X } from 'lucide-react'
 
-export function PatientLiveTurn({ clinicId, patientPhone }: { clinicId: string; patientPhone: string }) {
-  const { t, isRtl, dir } = useLanguage()
-  const [liveResult, setLiveResult] = useState<PatientQueueStatusResult | null>(null)
-  const [myAppt, setMyAppt] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+export function PatientLiveTurn({
+  clinic,
+  patientName = 'محمد علي',
+  initialQueueNumber = 6,
+  onClose
+}: {
+  clinic?: any
+  patientName?: string
+  initialQueueNumber?: number
+  onClose?: () => void
+}) {
+  const [queueNumber, setQueueNumber] = useState<number>(initialQueueNumber)
+  const [aheadCount, setAheadCount] = useState<number>(Math.max(0, initialQueueNumber - 1))
+  const [waitMinutes, setWaitMinutes] = useState<number>(Math.max(0, (initialQueueNumber - 1) * 5))
+  const [autoRefresh, setAutoRefresh] = useState<boolean>(true)
+  const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(false)
+
+  const fetchLiveQueue = async () => {
+    if (!clinic?.slug) return
+    try {
+      const res = await fetch(`/api/clinic/${clinic.slug}/queue`)
+      if (res.ok) {
+        const data = await res.json()
+        if (typeof data?.currentTurn === 'number') {
+          setQueueNumber(data.currentTurn)
+          setAheadCount(Math.max(0, data.aheadCount ?? data.currentTurn - 1))
+          setWaitMinutes(Math.max(0, (data.aheadCount ?? data.currentTurn - 1) * 5))
+        }
+      }
+    } catch {
+      // Keep current display values on offline/fallback
+    }
+  }
 
   useEffect(() => {
-    if (!clinicId || !patientPhone) return
+    if (!autoRefresh) return
+    const timer = setInterval(fetchLiveQueue, 15000)
+    return () => clearInterval(timer)
+  }, [autoRefresh, clinic?.slug])
 
-    const today = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0]
-
-    let clinicData: any = null
-
-    // 1. Fetch clinic data for queue ratios
-    getDocs(query(collection(db, 'clinics'))).then(clinicSnap => {
-      const clinicDoc = clinicSnap.docs.find(d => d.id === clinicId || d.data().slug === clinicId)
-      if (clinicDoc) {
-        clinicData = clinicDoc.data()
-      }
-    }).catch(console.error)
-
-    // 2. Listen to today's appointments for this clinic
-    const q = query(
-      collection(db, 'appointments'),
-      where('clinic_id', '==', clinicId),
-      where('date', '==', today)
-    )
-
-    const unsubscribeAppts = onSnapshot(q, (snap) => {
-      const allAppts = snap.docs.map(d => ({ id: d.id, ...d.data() } as any))
-      const targetAppt = allAppts.find(a => a.phone === patientPhone)
-
-      if (!targetAppt) {
-        setMyAppt(null)
-        setLiveResult(null)
-        setLoading(false)
-        return
-      }
-
-      setMyAppt(targetAppt)
-      const res = calculatePatientLivePosition({
-        targetAppointmentId: targetAppt.id,
-        targetAppointment: targetAppt,
-        allTodayAppointments: allAppts,
-        clinic: clinicData
-      })
-      setLiveResult(res)
-      setLoading(false)
-    }, (err) => {
-      console.error('Error fetching live turn:', err)
-      setLoading(false)
-    })
-
-    return () => unsubscribeAppts()
-  }, [clinicId, patientPhone])
-
-  if (loading || !myAppt || !liveResult) return null
+  const maxTurn = 8
+  const progress = Math.max(0.1, (maxTurn - aheadCount) / maxTurn)
+  const dashOffset = (301.59 * (1 - progress)).toFixed(1)
 
   return (
-    <div dir={dir} className={`yalla-card mb-8 overflow-hidden relative border-t-4 ${
-      liveResult.status === 'completed'
-        ? 'border-t-emerald-500'
-        : liveResult.isCurrentTurn
-        ? 'border-t-primary'
-        : 'border-t-[#02CFF3]'
-    }`}>
-      <div className={`absolute top-0 ${isRtl ? 'right-0 translate-x-1/3' : 'left-0 -translate-x-1/3'} w-32 h-32 bg-primary/5 rounded-full blur-2xl -translate-y-1/2 pointer-events-none`}></div>
-      
-      <div className="p-6 relative z-10">
-        {liveResult.status === 'completed' ? (
-          <div className="text-center space-y-2 py-2">
-            <div className="mx-auto w-14 h-14 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center mb-3">
-              <CheckCircle className="w-7 h-7" />
-            </div>
-            <h3 className="text-xl font-black text-emerald-700 dark:text-emerald-400">
-              {t('exam_completed_today', isRtl ? 'تم الكشف الطبي اليوم بنجاح!' : 'Medical exam completed today successfully!')}
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              {t('wishing_good_health_rx_hint', isRtl ? 'نتمنى لك دوام الصحة والعافية، يمكنك مراجعة الروشتة والأدوية بالأسفل.' : 'Wishing you good health. You can review your prescription and medications below.')}
-            </p>
+    <div dir="rtl" className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+      <div className="w-full max-w-[395px] rounded-[40px] bg-gradient-to-b from-[#071529] via-[#091b34] to-[#051020] text-white p-6 shadow-2xl border border-sky-400/20 space-y-5 my-auto">
+        {/* Top Bar */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => setNotificationsEnabled(!notificationsEnabled)}
+            className="relative w-9 h-9 rounded-full bg-white/10 hover:bg-white/15 flex items-center justify-center text-sky-300 transition-colors"
+          >
+            <Bell className="w-4 h-4" />
+            <span className="absolute top-1.5 right-2 w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+            <span className="absolute top-1.5 right-2 w-2 h-2 rounded-full bg-rose-500" />
+          </button>
+
+          <div className="text-xl font-extrabold tracking-tight" dir="ltr">
+            <span className="text-sky-400">yalla</span>
+            <span className="text-slate-300 font-semibold">clinic</span>
           </div>
-        ) : (
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className={`flex-1 text-center ${isRtl ? 'md:text-right' : 'md:text-left'}`}>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary font-bold text-xs mb-2">
-                <Activity className="w-3.5 h-3.5 animate-pulse" />
-                <span>{t('live_turn_tag', isRtl ? 'التتبع اللحظي للدور (تلقائي ومباشر)' : 'Live Turn Tracking (Real-time)')}</span>
-              </div>
-              <h3 className="text-xl font-black text-foreground">
-                {t('your_current_turn_clinic', isRtl ? 'دورك الحالي في العيادة' : 'Your Current Clinic Turn')}
-              </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {myAppt.branchName ? `${t('branch', isRtl ? 'فرع:' : 'Branch:')} ${myAppt.branchName} • ` : ''}
-                {t('live_turn_realtime_hint', isRtl ? 'يتم تحديث الأرقام لحظة بلحظة مع دخول كل مريض' : 'Numbers update automatically as each patient enters')}
-              </p>
+
+          {onClose ? (
+            <button
+              onClick={onClose}
+              className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/15 flex items-center justify-center text-slate-300"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          ) : (
+            <div className="w-9" />
+          )}
+        </div>
+
+        {/* Welcome Header */}
+        <div className="flex items-center justify-center gap-3 py-1">
+          <div className="text-right">
+            <div className="text-xs text-sky-300/90 font-medium">أهلاً بك</div>
+            <div className="text-base font-black text-white">{patientName}</div>
+          </div>
+          <div className="w-12 h-12 rounded-full bg-sky-500/20 border-2 border-sky-400 flex items-center justify-center font-black text-sky-300 text-lg">
+            {patientName.charAt(0)}
+          </div>
+        </div>
+
+        {/* Main Queue Card */}
+        <div className="bg-[#0c213d]/90 backdrop-blur-xl rounded-[28px] p-5 border border-sky-400/20 shadow-2xl space-y-5">
+          <div className="flex items-center justify-between text-xs text-slate-300">
+            <button onClick={fetchLiveQueue} title="تحديث الدور" className="text-slate-400 hover:text-white">
+              <RotateCw className="w-4 h-4" />
+            </button>
+            <span className="font-bold text-sm text-sky-100">رقم دورك الحالي</span>
+            <span className="w-4" />
+          </div>
+
+          {/* Circular Neon Ring Gauge */}
+          <div className="relative w-40 h-40 mx-auto flex items-center justify-center">
+            <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 120 120">
+              <circle cx="60" cy="60" r="48" stroke="rgba(56, 189, 248, 0.14)" strokeWidth="10" fill="transparent" />
+              <circle
+                cx="60"
+                cy="60"
+                r="48"
+                stroke="#00d4ff"
+                strokeWidth="10"
+                strokeDasharray="301.59"
+                strokeDashoffset={dashOffset}
+                strokeLinecap="round"
+                fill="transparent"
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+              <span className="text-5xl font-black text-white drop-shadow-[0_0_14px_rgba(56,189,248,0.65)]">
+                {queueNumber}
+              </span>
             </div>
-            
-            <div className="flex gap-3 w-full md:w-auto">
-              <div className="flex-1 md:w-32 bg-muted/40 border border-border rounded-2xl p-4 text-center">
-                <p className="text-xs font-bold text-muted-foreground mb-1">
-                  {t('current_patient', isRtl ? 'المريض الحالي' : 'Current Patient')}
-                </p>
-                <p className="text-2xl font-black text-foreground font-mono">
-                  {liveResult.currentPatientExamining?.queueNumber ? `#${liveResult.currentPatientExamining.queueNumber}` : '—'}
-                </p>
+          </div>
+
+          <div className="text-center -mt-2">
+            <span className="text-xs font-bold text-sky-300 bg-sky-500/15 px-3.5 py-1 rounded-full border border-sky-400/25">
+              {queueNumber === 1 ? 'حان دورك الآن • تفضل بالدخول' : 'في الانتظار'}
+            </span>
+          </div>
+
+          {/* 2 Metric Boxes */}
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <div className="bg-[#08172c] rounded-2xl p-3 text-center border border-white/5">
+              <div className="text-base font-black text-white">
+                <span className="text-lg text-sky-400">{waitMinutes}</span> دقيقة
               </div>
-              <div className="flex-1 md:w-32 yalla-gradient-btn text-white rounded-2xl p-4 text-center shadow-xs">
-                <p className="text-xs font-bold text-white/90 mb-1">
-                  {t('your_turn_num', isRtl ? 'رقم دورك' : 'Your Turn')}
-                </p>
-                <p className="text-2xl font-black font-mono">#{myAppt.queue_number}</p>
+              <div className="text-[11px] text-slate-400 mt-0.5">الوقت المتوقع</div>
+            </div>
+            <div className="bg-[#08172c] rounded-2xl p-3 text-center border border-white/5">
+              <div className="text-lg font-black text-sky-400">{aheadCount}</div>
+              <div className="text-[11px] text-slate-400 mt-0.5">عدد المنتظرين قبلك</div>
+            </div>
+          </div>
+
+          {/* 4 Timeline Steps */}
+          <div className="space-y-3.5 pt-2 pr-2">
+            <div className="flex items-start gap-3">
+              <div className="flex flex-col items-center">
+                <div className="w-4 h-4 rounded-full bg-sky-400 flex items-center justify-center text-[9px] text-slate-950 font-bold">
+                  <Check className="w-2.5 h-2.5" />
+                </div>
+                <div className="w-0.5 h-7 bg-sky-400/60 mt-1" />
+              </div>
+              <div className="flex-1 flex items-center justify-between -mt-0.5">
+                <span className="text-xs font-bold text-white">تم تأكيد الحجز</span>
+                <span className="text-[11px] text-slate-400">10:30 ص</span>
               </div>
             </div>
 
-            <div className={`w-full md:w-auto text-center ${isRtl ? 'md:text-right' : 'md:text-left'}`}>
-              {liveResult.isCurrentTurn ? (
-                <div className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 px-5 py-3.5 rounded-2xl font-black text-sm animate-pulse border border-emerald-500/20">
-                  {t('please_enter_turn_now', isRtl ? 'تفضل بالدخول، دورك الآن!' : 'Please enter, it is your turn now!')}
-                </div>
-              ) : liveResult.isNextInLine ? (
-                <div className="bg-amber-500/10 text-amber-700 dark:text-amber-400 px-5 py-3 rounded-2xl border border-amber-500/20 text-center animate-bounce">
-                  <span className="block text-xs font-black text-amber-800 dark:text-amber-300">
-                    {t('you_are_next', isRtl ? 'أنت المريض التالي للدخول' : 'You are the next patient in line')}
-                  </span>
-                  <span className="text-[11px] font-bold">
-                    {t('please_prepare_door', isRtl ? 'يرجى الاستعداد أمام غرفة الطبيب' : 'Please prepare near the consultation room')}
-                  </span>
-                </div>
-              ) : (
-                <div className="bg-amber-500/10 text-amber-700 dark:text-amber-400 px-5 py-3 rounded-2xl border border-amber-500/20 text-center">
-                  <span className="block text-xs font-bold text-amber-800 dark:text-amber-300 mb-0.5">
-                    {t('remaining_ahead', isRtl ? 'المتبقي أمامك' : 'Ahead of You')}
-                  </span>
-                  <div className="flex items-baseline justify-center gap-1">
-                    <span className="text-2xl font-black font-mono">{liveResult.aheadCount}</span>
-                    <span className="text-xs font-bold">
-                      {liveResult.aheadCount === 1 ? (isRtl ? 'مريض' : 'patient') : (isRtl ? 'مرضى' : 'patients')}
-                    </span>
-                  </div>
-                  {liveResult.aheadCount > 0 && (
-                    <span className="text-[10px] text-muted-foreground block mt-1">
-                      {isRtl
-                        ? `(الوقت التقديري: حوالي ${(liveResult.aheadCount || 0) * 15} دقيقة)`
-                        : `(Estimated: approx. ${(liveResult.aheadCount || 0) * 15} mins)`}
-                    </span>
-                  )}
-                </div>
-              )}
+            <div className="flex items-start gap-3">
+              <div className="flex flex-col items-center">
+                <div className="w-4 h-4 rounded-full bg-sky-400 ring-4 ring-sky-400/25 animate-pulse" />
+                <div className="w-0.5 h-7 bg-slate-700 mt-1" />
+              </div>
+              <div className="flex-1 flex items-center justify-between -mt-0.5">
+                <span className="text-xs font-bold text-sky-300">أنت في قائمة الانتظار</span>
+                <span className="text-[11px] text-sky-400 font-bold">الآن</span>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="flex flex-col items-center">
+                <div className={`w-4 h-4 rounded-full ${queueNumber <= 2 ? 'bg-amber-400 ring-4 ring-amber-400/25' : 'bg-slate-700 border border-slate-500'}`} />
+                <div className="w-0.5 h-7 bg-slate-700 mt-1" />
+              </div>
+              <div className="flex-1 flex items-center justify-between -mt-0.5">
+                <span className="text-xs font-bold text-slate-400">الدور قريب</span>
+                <span className="text-[11px] text-slate-500">قريباً</span>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="flex flex-col items-center">
+                <div className={`w-4 h-4 rounded-full ${queueNumber === 1 ? 'bg-emerald-400 ring-4 ring-emerald-400/30' : 'bg-slate-700 border border-slate-500'}`} />
+              </div>
+              <div className="flex-1 flex items-center justify-between -mt-0.5">
+                <span className="text-xs font-bold text-slate-400">دخل للكشف</span>
+                <span className="text-[11px] text-slate-500">عيادة 1</span>
+              </div>
             </div>
           </div>
-        )}
+        </div>
+
+        {/* Bottom Actions */}
+        <div className="space-y-2.5 pt-1">
+          <button
+            type="button"
+            onClick={() => setAutoRefresh(!autoRefresh)}
+            className="w-full py-3.5 rounded-full bg-gradient-to-r from-sky-500 to-cyan-400 text-slate-950 font-black text-sm shadow-lg transition-all flex items-center justify-center gap-2"
+          >
+            <RotateCw className={`w-4 h-4 ${autoRefresh ? 'animate-spin' : ''}`} />
+            <span>تحديث تلقائي</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setNotificationsEnabled(!notificationsEnabled)}
+            className="w-full py-3 rounded-full bg-white/10 hover:bg-white/15 border border-white/15 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all"
+          >
+            <Bell className="w-4 h-4 text-sky-400" />
+            <span>{notificationsEnabled ? 'الإشعارات الفورية مفعلة ✓' : 'إشعارات فورية'}</span>
+          </button>
+        </div>
       </div>
     </div>
   )
