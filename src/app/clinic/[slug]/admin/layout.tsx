@@ -391,6 +391,17 @@ export default function AdminLayout({
           </div>
           <TechnicalSupportButton variant="block" className="bg-[#0E2342] text-slate-300 border-[#254565] hover:bg-[#142D50] hover:text-white" />
           <Link
+            href="/preview"
+            target="_blank"
+            className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-amber-400 hover:text-amber-300 hover:bg-[#0E2342] transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              {t('canvas_preview', 'معاينة تصميم Canvas')}
+            </span>
+            <ChevronLeft className="w-3.5 h-3.5 rtl:rotate-0 ltr:rotate-180" />
+          </Link>
+          <Link
             href={`/clinic/${slug}`}
             target="_blank"
             className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-[#02CFF3] hover:bg-[#0E2342] transition-colors"
@@ -549,6 +560,16 @@ export default function AdminLayout({
 
             {/* Theme Toggle (Dark / Light) */}
             <ThemeToggle />
+
+            {/* Link to Canvas Preview */}
+            <Link
+              href="/preview"
+              target="_blank"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-amber-500 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500 hover:text-white transition-all shadow-2xs"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>معاينة Canvas</span>
+            </Link>
 
             {/* Link to Patient Page */}
             <Link

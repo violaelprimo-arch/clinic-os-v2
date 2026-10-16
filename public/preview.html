@@ -1,0 +1,1660 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Yalla Clinic OS — يلا كلينيك | نظام إدارة العيادات والمراكز الطبية</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root,
+    [data-theme="light"] {
+      --yc-bg-base: #F1F5F9;
+      --yc-bg-surface: #FFFFFF;
+      --yc-bg-elevated: #F8FAFC;
+      --yc-bg-glass: rgba(255, 255, 255, 0.88);
+      --yc-text-primary: #0F172A;
+      --yc-text-secondary: #334155;
+      --yc-text-muted: #64748B;
+      --yc-border: #E2E8F0;
+      --yc-border-strong: #CBD5E1;
+      --yc-brand: #0D9488;
+      --yc-brand-hover: #0F766E;
+      --yc-brand-soft: rgba(13, 148, 136, 0.12);
+      --yc-accent: #0284C7;
+      --yc-accent-soft: rgba(2, 132, 199, 0.12);
+      --yc-success: #10B981;
+      --yc-warning: #F59E0B;
+      --yc-danger: #EF4444;
+      --yc-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.08);
+      --yc-radius: 16px;
+    }
+
+    [data-theme="dark"] {
+      --yc-bg-base: #070D19;
+      --yc-bg-surface: #0F172A;
+      --yc-bg-elevated: #1E293B;
+      --yc-bg-glass: rgba(15, 23, 42, 0.85);
+      --yc-text-primary: #F8FAFC;
+      --yc-text-secondary: #CBD5E1;
+      --yc-text-muted: #94A3B8;
+      --yc-border: #1E293B;
+      --yc-border-strong: #334155;
+      --yc-brand: #14B8A6;
+      --yc-brand-hover: #0D9488;
+      --yc-brand-soft: rgba(20, 184, 166, 0.15);
+      --yc-accent: #38BDF8;
+      --yc-accent-soft: rgba(56, 189, 248, 0.15);
+      --yc-success: #34D399;
+      --yc-warning: #FBBF24;
+      --yc-danger: #F87171;
+      --yc-shadow: 0 14px 34px -10px rgba(0, 0, 0, 0.55);
+      --yc-radius: 16px;
+    }
+
+    * {
+      box-sizing: border-box;
+      transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
+    }
+
+    html[dir="rtl"] body {
+      font-family: 'Cairo', 'Inter', sans-serif;
+    }
+
+    html[dir="ltr"] body {
+      font-family: 'Inter', 'Cairo', sans-serif;
+    }
+
+    body {
+      background-color: var(--yc-bg-base);
+      color: var(--yc-text-primary);
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+    }
+
+    .yc-surface {
+      background-color: var(--yc-bg-surface);
+      border: 1px solid var(--yc-border);
+      border-radius: var(--yc-radius);
+      box-shadow: var(--yc-shadow);
+    }
+
+    .yc-elevated {
+      background-color: var(--yc-bg-elevated);
+      border: 1px solid var(--yc-border-strong);
+      border-radius: calc(var(--yc-radius) - 4px);
+    }
+
+    .yc-glass {
+      background-color: var(--yc-bg-glass);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--yc-border);
+    }
+
+    .yc-btn-primary {
+      background: linear-gradient(135deg, var(--yc-brand), var(--yc-accent));
+      color: #FFFFFF;
+      border-radius: 12px;
+      font-weight: 600;
+      box-shadow: 0 4px 14px rgba(13, 148, 136, 0.3);
+    }
+
+    .yc-btn-primary:hover {
+      opacity: 0.94;
+      transform: translateY(-1px);
+    }
+
+    .yc-btn-ghost {
+      background-color: var(--yc-bg-elevated);
+      color: var(--yc-text-primary);
+      border: 1px solid var(--yc-border-strong);
+      border-radius: 12px;
+    }
+
+    .yc-btn-ghost:hover {
+      border-color: var(--yc-brand);
+      color: var(--yc-brand);
+    }
+
+    .yc-nav-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border-radius: 12px;
+      color: var(--yc-text-secondary);
+      font-weight: 600;
+      text-align: start;
+    }
+
+    .yc-nav-item:hover {
+      background-color: var(--yc-bg-elevated);
+      color: var(--yc-text-primary);
+    }
+
+    .yc-nav-item.active {
+      background: linear-gradient(135deg, var(--yc-brand-soft), var(--yc-accent-soft));
+      color: var(--yc-brand);
+      border: 1px solid var(--yc-brand);
+    }
+
+    .yc-input {
+      background-color: var(--yc-bg-elevated);
+      color: var(--yc-text-primary);
+      border: 1px solid var(--yc-border-strong);
+      border-radius: 12px;
+      padding: 0.6rem 0.9rem;
+      outline: none;
+    }
+
+    .yc-input:focus {
+      border-color: var(--yc-brand);
+      box-shadow: 0 0 0 3px var(--yc-brand-soft);
+    }
+
+    .yc-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.25rem 0.65rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    /* Flip directional icons automatically in RTL vs LTR */
+    html[dir="rtl"] .rtl-flip {
+      transform: scaleX(-1);
+    }
+
+    /* Custom subtle scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--yc-border-strong);
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Top Sticky Header -->
+  <header class="yc-glass sticky top-0 z-30 px-4 lg:px-6 py-3">
+    <div class="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-3">
+      
+      <!-- Brand Identity & Mobile Menu Toggle -->
+      <div class="flex items-center gap-3">
+        <button id="mobileMenuBtn" type="button" class="lg:hidden yc-btn-ghost p-2.5" aria-label="Toggle Menu">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+          </svg>
+        </button>
+
+        <div class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-2xl flex items-center justify-center shadow-lg" style="background: linear-gradient(135deg, var(--yc-brand), var(--yc-accent));">
+            <!-- Yalla Clinic Medical Pulse + Cross Emblem -->
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 4v16m8-8H4"/>
+              <circle cx="12" cy="12" r="9" stroke-width="1.6" stroke-dasharray="3 2"/>
+            </svg>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span id="brandNameText" class="text-lg font-extrabold tracking-tight">يلا كلينيك</span>
+              <span class="yc-badge" style="background: var(--yc-brand-soft); color: var(--yc-brand);">Clinic OS v2.4</span>
+            </div>
+            <p id="brandSubText" class="text-xs" style="color: var(--yc-text-muted);">نظام الإدارة الطبية الذكي المتكامل</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Global Search & Live Status -->
+      <div class="hidden md:flex items-center flex-1 max-w-md mx-4">
+        <div class="relative w-full">
+          <input id="globalSearchInput" type="text" class="yc-input w-full pe-10 ps-4 text-sm" placeholder="ابحث عن مريض، رقم ملف، طبيب، أو فاتورة..." />
+          <svg class="w-4 h-4 absolute top-1/2 -translate-y-1/2 end-3.5 pointer-events-none" style="color: var(--yc-text-muted);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Quick Controls: Live Queue Pill, Language (AR/EN), Theme (Dark/Light), New Booking -->
+      <div class="flex items-center gap-2 sm:gap-2.5">
+        <!-- Live Queue Indicator -->
+        <button id="liveQueueHeaderBtn" type="button" class="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold yc-elevated">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span id="liveQueueLabel">الانتظار المباشر:</span>
+          <span id="liveQueueCount" class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">6</span>
+        </button>
+
+        <!-- Language Switcher (Fixes RTL / LTR seamlessly) -->
+        <button id="langToggleBtn" type="button" class="yc-btn-ghost px-3 py-2 text-xs font-bold flex items-center gap-1.5" title="Switch Language / تغيير اللغة">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/>
+          </svg>
+          <span id="langToggleText">English (LTR)</span>
+        </button>
+
+        <!-- Dark / Light Mode Toggle -->
+        <button id="themeToggleBtn" type="button" class="yc-btn-ghost p-2.5 flex items-center gap-1.5 text-xs font-bold" title="Toggle Dark/Light Mode">
+          <svg id="themeIconSun" class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+          </svg>
+          <svg id="themeIconMoon" class="w-4 h-4 text-sky-500 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+          </svg>
+          <span id="themeToggleText" class="hidden xl:inline">الوضع النهاري</span>
+        </button>
+
+        <!-- Primary Action: New Appointment -->
+        <button id="openNewBookingBtn" type="button" class="yc-btn-primary px-3.5 py-2 text-xs sm:text-sm flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 4v16m8-8H4"/>
+          </svg>
+          <span id="newBookingBtnText">حجز جديد</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Main Workspace Container -->
+  <div class="max-w-[1600px] w-full mx-auto flex-1 flex gap-6 p-4 lg:p-6 relative">
+
+    <!-- Sidebar Navigation (Adapts automatically to RTL & LTR) -->
+    <aside id="sidebarNav" class="yc-surface w-64 shrink-0 p-4 hidden lg:flex flex-col justify-between">
+      <div class="space-y-1.5">
+        <div class="px-3 py-2 text-xs font-bold uppercase tracking-wider" style="color: var(--yc-text-muted);" id="navSectionMain">القائمة الرئيسية</div>
+        
+        <button type="button" data-tab="overview" class="yc-nav-item active">
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+          </svg>
+          <span class="nav-label" data-key="nav_overview">لوحة التحكم الشاملة</span>
+        </button>
+
+        <button type="button" data-tab="appointments" class="yc-nav-item">
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+          </svg>
+          <span class="nav-label flex-1" data-key="nav_appointments">المواعيد والطابور</span>
+          <span class="px-2 py-0.5 text-xs rounded-full font-bold" style="background: var(--yc-brand-soft); color: var(--yc-brand);" id="navApptCount">8</span>
+        </button>
+
+        <button type="button" data-tab="patients" class="yc-nav-item">
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+          <span class="nav-label" data-key="nav_patients">سجلات المرضى (EMR)</span>
+        </button>
+
+        <button type="button" data-tab="doctors" class="yc-nav-item">
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span class="nav-label" data-key="nav_doctors">الأطباء والعيادات</span>
+        </button>
+
+        <button type="button" data-tab="billing" class="yc-nav-item">
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"/>
+          </svg>
+          <span class="nav-label" data-key="nav_billing">الفواتير والتأمين</span>
+        </button>
+
+        <div class="pt-4 px-3 py-2 text-xs font-bold uppercase tracking-wider" style="color: var(--yc-text-muted);" id="navSectionSystem">الهوية والمقارنة</div>
+
+        <button type="button" data-tab="identity" class="yc-nav-item">
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/>
+          </svg>
+          <span class="nav-label" data-key="nav_identity">هوية يلا كلينيك & المقارنة</span>
+        </button>
+      </div>
+
+      <!-- Clinic Branch / Supabase Status Card -->
+      <div class="yc-elevated p-3.5 space-y-2.5 mt-6">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold" id="branchCardTitle">فرع حدائق أكتوبر</span>
+          <span class="yc-badge bg-emerald-500/15 text-emerald-400">Online</span>
+        </div>
+        <p class="text-xs leading-relaxed" style="color: var(--yc-text-muted);" id="branchCardDesc">
+          متصل بقاعدة بيانات Clinic OS ومزامنة المواعيد الفورية مفعلة.
+        </p>
+        <div class="w-full bg-slate-700/30 h-1.5 rounded-full overflow-hidden">
+          <div class="h-full rounded-full" style="width: 82%; background: linear-gradient(90deg, var(--yc-brand), var(--yc-accent));"></div>
+        </div>
+        <div class="flex justify-between text-[11px]" style="color: var(--yc-text-muted);">
+          <span id="capacityLabel">إشغال العيادات اليوم</span>
+          <span class="font-bold" style="color: var(--yc-brand);">82%</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 min-w-0 space-y-6">
+
+      <!-- Hero Banner with Quick Diagnostic / Identity Status -->
+      <section class="yc-surface p-5 lg:p-6 relative overflow-hidden">
+        <div class="absolute -top-24 -end-24 w-72 h-72 rounded-full pointer-events-none opacity-20 blur-3xl" style="background: linear-gradient(135deg, var(--yc-brand), var(--yc-accent));"></div>
+        <div class="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div class="space-y-1.5">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="yc-badge" style="background: var(--yc-brand-soft); color: var(--yc-brand);" id="heroBadge">الجيل الجديد — Yalla Clinic Design System</span>
+              <span class="yc-badge" style="background: var(--yc-accent-soft); color: var(--yc-accent);" id="heroRtlBadge">دعم كامل RTL / LTR + Dark / Light</span>
+            </div>
+            <h1 class="text-xl sm:text-2xl font-extrabold" id="heroTitle">مرحباً د. فيولا — لوحة إدارة يلا كلينيك المركزية</h1>
+            <p class="text-sm max-w-2xl" style="color: var(--yc-text-secondary);" id="heroSubtitle">
+              تصميم طبي احترافي يتفوق على معايير لوحات الـ CRM العالمية مع معالجة جذرية لمشاكل التباين الليلي/النهاري ومحاذاة العربية والإنجليزية.
+            </p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2.5">
+            <button id="quickPatientBtn" type="button" class="yc-btn-ghost px-3.5 py-2.5 text-xs sm:text-sm font-bold flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
+              </svg>
+              <span id="addPatientBtnText">إضافة مريض</span>
+            </button>
+            <button id="exportThemeBtn" type="button" class="yc-btn-ghost px-3.5 py-2.5 text-xs sm:text-sm font-bold flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+              </svg>
+              <span id="exportThemeBtnText">نسخ كود الهوية (CSS/Tailwind)</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 1: OVERVIEW DASHBOARD -->
+      <div id="tab-overview" class="tab-panel space-y-6">
+        
+        <!-- 4 KPI Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <!-- KPI 1 -->
+          <div class="yc-surface p-5 space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold" style="color: var(--yc-text-muted);" id="kpi1Title">إجمالي المرضى المسجلين</span>
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: var(--yc-brand-soft); color: var(--yc-brand);">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+              </div>
+            </div>
+            <div class="flex items-baseline justify-between">
+              <span class="text-2xl font-extrabold" id="kpi1Value">3,482</span>
+              <span class="yc-badge bg-emerald-500/15 text-emerald-400">+14.8%</span>
+            </div>
+            <p class="text-xs" style="color: var(--yc-text-muted);" id="kpi1Sub">+64 مريض جديد خلال هذا الأسبوع</p>
+          </div>
+
+          <!-- KPI 2 -->
+          <div class="yc-surface p-5 space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold" style="color: var(--yc-text-muted);" id="kpi2Title">مواعيد اليوم النشطة</span>
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: var(--yc-accent-soft); color: var(--yc-accent);">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                </svg>
+              </div>
+            </div>
+            <div class="flex items-baseline justify-between">
+              <span class="text-2xl font-extrabold" id="kpi2Value">42</span>
+              <span class="yc-badge bg-sky-500/15 text-sky-400" id="kpi2Badge">6 بالانتظار</span>
+            </div>
+            <p class="text-xs" style="color: var(--yc-text-muted);" id="kpi2Sub">28 مكتمل • 8 قيد الكشف والانتظار</p>
+          </div>
+
+          <!-- KPI 3 -->
+          <div class="yc-surface p-5 space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold" style="color: var(--yc-text-muted);" id="kpi3Title">الأطباء والعيادات المتاحة</span>
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center bg-purple-500/15 text-purple-400">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                </svg>
+              </div>
+            </div>
+            <div class="flex items-baseline justify-between">
+              <span class="text-2xl font-extrabold" id="kpi3Value">14 / 16</span>
+              <span class="yc-badge bg-purple-500/15 text-purple-400">87.5%</span>
+            </div>
+            <p class="text-xs" style="color: var(--yc-text-muted);" id="kpi3Sub">7 تخصصات طبية تعمل الآن</p>
+          </div>
+
+          <!-- KPI 4 -->
+          <div class="yc-surface p-5 space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold" style="color: var(--yc-text-muted);" id="kpi4Title">إيرادات الشهر (ج.م)</span>
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center bg-amber-500/15 text-amber-400">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+              </div>
+            </div>
+            <div class="flex items-baseline justify-between">
+              <span class="text-2xl font-extrabold" id="kpi4Value">284,500</span>
+              <span class="yc-badge bg-emerald-500/15 text-emerald-400">+21.4%</span>
+            </div>
+            <p class="text-xs" style="color: var(--yc-text-muted);" id="kpi4Sub">نقدي ومحافظ: 68% • تأمين طبي: 32%</p>
+          </div>
+        </div>
+
+        <!-- Charts & Department Occupancy Row -->
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <!-- Main Analytics Chart -->
+          <div class="yc-surface p-5 xl:col-span-2 space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 class="text-base font-bold" id="chartAnalyticsTitle">تحليل التدفق العلاجي والزيارات الأسبوعية</h2>
+                <p class="text-xs" style="color: var(--yc-text-muted);" id="chartAnalyticsSub">مقارنة الكشوفات الجديدة مع الاستشارات والمتابعات</p>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <button type="button" data-chart-range="week" class="chart-range-btn yc-btn-primary px-3 py-1.5 text-xs">أسبوعي</button>
+                <button type="button" data-chart-range="month" class="chart-range-btn yc-btn-ghost px-3 py-1.5 text-xs">شهري</button>
+              </div>
+            </div>
+            <div class="relative h-72 w-full">
+              <canvas id="visitsChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Specialty Occupancy & Waiting Room Breakdown -->
+          <div class="yc-surface p-5 flex flex-col justify-between space-y-4">
+            <div>
+              <h2 class="text-base font-bold" id="deptTitle">إشغال العيادات والتخصصات</h2>
+              <p class="text-xs" style="color: var(--yc-text-muted);" id="deptSub">توزيع الحالات النشطة حسب القسم الطبي</p>
+            </div>
+            <div class="relative h-48 w-full">
+              <canvas id="specialtyChart"></canvas>
+            </div>
+            <div id="deptProgressList" class="space-y-2.5 pt-2"></div>
+          </div>
+        </div>
+
+        <!-- Live Appointments Table & Active Doctors Shift -->
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          
+          <!-- Today's Queue & Appointments (2 cols) -->
+          <div class="yc-surface p-5 xl:col-span-2 space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 class="text-base font-bold" id="tableApptTitle">جدول مواعيد اليوم والطابور الذكي</h2>
+                <p class="text-xs" style="color: var(--yc-text-muted);" id="tableApptSub">تحديث فوري لحالة دخول المرضى وتنبيهات الواتساب</p>
+              </div>
+              <div class="flex flex-wrap items-center gap-1.5" id="overviewStatusFilters">
+                <button type="button" data-status="all" class="status-filter-btn yc-btn-primary px-3 py-1.5 text-xs">الكل</button>
+                <button type="button" data-status="waiting" class="status-filter-btn yc-btn-ghost px-3 py-1.5 text-xs">بالانتظار</button>
+                <button type="button" data-status="in_progress" class="status-filter-btn yc-btn-ghost px-3 py-1.5 text-xs">داخل العيادة</button>
+                <button type="button" data-status="completed" class="status-filter-btn yc-btn-ghost px-3 py-1.5 text-xs">مكتمل</button>
+              </div>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm text-start border-collapse">
+                <thead>
+                  <tr class="border-b text-xs uppercase" style="border-color: var(--yc-border); color: var(--yc-text-muted);">
+                    <th class="py-3 px-3 text-start" id="thQueue"># الدور</th>
+                    <th class="py-3 px-3 text-start" id="thPatient">المريض</th>
+                    <th class="py-3 px-3 text-start" id="thDoctor">الطبيب / العيادة</th>
+                    <th class="py-3 px-3 text-start" id="thTime">الموعد</th>
+                    <th class="py-3 px-3 text-start" id="thStatus">الحالة</th>
+                    <th class="py-3 px-3 text-end" id="thAction">إجراء سريع</th>
+                  </tr>
+                </thead>
+                <tbody id="overviewApptBody" class="divide-y" style="border-color: var(--yc-border);"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Active Doctors on Shift -->
+          <div class="yc-surface p-5 space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <h2 class="text-base font-bold" id="shiftDoctorsTitle">الأطباء المناوبون الآن</h2>
+                <p class="text-xs" style="color: var(--yc-text-muted);" id="shiftDoctorsSub">حالة الغرف الطبية بشكل لحظي</p>
+              </div>
+              <button type="button" id="viewAllDoctorsBtn" class="text-xs font-bold" style="color: var(--yc-brand);">عرض الكل</button>
+            </div>
+            <div id="overviewDoctorsList" class="space-y-3"></div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- TAB 2: APPOINTMENTS & QUEUE FULL VIEW -->
+      <div id="tab-appointments" class="tab-panel hidden space-y-6">
+        <div class="yc-surface p-5 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 class="text-lg font-extrabold" id="apptPageTitle">إدارة المواعيد والطابور الذكي (Smart Queue)</h2>
+              <p class="text-xs" style="color: var(--yc-text-muted);" id="apptPageSub">تحكم كامل في حجوزات العيادة، تغيير حالة الكشف، وإرسال تذكيرات المرضى</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <select id="apptSpecialtyFilter" class="yc-input text-xs font-semibold">
+                <option value="all">جميع التخصصات</option>
+                <option value="الأسنان">طب الأسنان</option>
+                <option value="الباطنة والقلب">الباطنة والقلب</option>
+                <option value="الجلدية والليزر">الجلدية والليزر</option>
+                <option value="الأطفال">طب الأطفال</option>
+                <option value="العيون">طب العيون</option>
+              </select>
+              <button type="button" id="apptNewBtn2" class="yc-btn-primary px-4 py-2 text-xs">+ إضافة موعد</button>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm text-start border-collapse">
+              <thead>
+                <tr class="border-b text-xs uppercase" style="border-color: var(--yc-border); color: var(--yc-text-muted);">
+                  <th class="py-3 px-3 text-start">رقم الدور</th>
+                  <th class="py-3 px-3 text-start">المريض</th>
+                  <th class="py-3 px-3 text-start">الطبيب والتخصص</th>
+                  <th class="py-3 px-3 text-start">نوع الزيارة</th>
+                  <th class="py-3 px-3 text-start">الوقت</th>
+                  <th class="py-3 px-3 text-start">الحالة</th>
+                  <th class="py-3 px-3 text-end">التحكم</th>
+                </tr>
+              </thead>
+              <tbody id="fullApptBody" class="divide-y" style="border-color: var(--yc-border);"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: PATIENTS EMR CRM -->
+      <div id="tab-patients" class="tab-panel hidden space-y-6">
+        <div class="yc-surface p-5 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 class="text-lg font-extrabold" id="patientsPageTitle">السجل الطبي الإلكتروني للمرضى (EMR & CRM)</h2>
+              <p class="text-xs" style="color: var(--yc-text-muted);" id="patientsPageSub">ملفات المرضى، العلامات الحيوية، التاريخ المرضي، والروشتات الإلكترونية</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <input id="patientFilterInput" type="text" class="yc-input text-xs w-56" placeholder="فلترة بالاسم أو رقم الهاتف..." />
+              <button type="button" id="addPatientBtn2" class="yc-btn-primary px-4 py-2 text-xs">+ مريض جديد</button>
+            </div>
+          </div>
+          <div id="patientsGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+        </div>
+      </div>
+
+      <!-- TAB 4: DOCTORS & CLINICS -->
+      <div id="tab-doctors" class="tab-panel hidden space-y-6">
+        <div class="yc-surface p-5 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 class="text-lg font-extrabold" id="doctorsPageTitle">الأطباء والعيادات التخصصية</h2>
+              <p class="text-xs" style="color: var(--yc-text-muted);" id="doctorsPageSub">إدارة جداول الأطباء، غرف الكشف، وحالة التواجد اللحظي</p>
+            </div>
+          </div>
+          <div id="doctorsFullGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+        </div>
+      </div>
+
+      <!-- TAB 5: BILLING & INVOICES -->
+      <div id="tab-billing" class="tab-panel hidden space-y-6">
+        <div class="yc-surface p-5 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 class="text-lg font-extrabold" id="billingPageTitle">الفواتير والحسابات والتأمين الطبي</h2>
+              <p class="text-xs" style="color: var(--yc-text-muted);" id="billingPageSub">متابعة المدفوعات النقدية، المحافظ الإلكترونية، ومطالبات شركات التأمين</p>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm text-start border-collapse">
+              <thead>
+                <tr class="border-b text-xs uppercase" style="border-color: var(--yc-border); color: var(--yc-text-muted);">
+                  <th class="py-3 px-3 text-start">رقم الفاتورة</th>
+                  <th class="py-3 px-3 text-start">المريض</th>
+                  <th class="py-3 px-3 text-start">الخدمة الطبية</th>
+                  <th class="py-3 px-3 text-start">المبلغ</th>
+                  <th class="py-3 px-3 text-start">طريقة الدفع</th>
+                  <th class="py-3 px-3 text-start">الحالة</th>
+                  <th class="py-3 px-3 text-end">إجراء</th>
+                </tr>
+              </thead>
+              <tbody id="billingTableBody" class="divide-y" style="border-color: var(--yc-border);"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 6: BRAND IDENTITY CUSTOMIZER & BEHANCE COMPARISON -->
+      <div id="tab-identity" class="tab-panel hidden space-y-6">
+        
+        <!-- Live Brand Identity Customizer -->
+        <div class="yc-surface p-6 space-y-5">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <span class="yc-badge" style="background: var(--yc-brand-soft); color: var(--yc-brand);">Yalla Clinic Brand System</span>
+              <h2 class="text-lg font-extrabold mt-1" id="identityPageTitle">تخصيص هوية يلا كلينيك ومعالجة الـ Dark/Light & RTL/LTR</h2>
+              <p class="text-xs" style="color: var(--yc-text-muted);" id="identityPageSub">
+                جرب تغيير درجات ألوان الهوية الطبية أو الحواف وانسخ الكود الجاهز لمشروعك على GitHub و Antigravity
+              </p>
+            </div>
+            <button type="button" id="copyTokensBtn2" class="yc-btn-primary px-4 py-2 text-xs">نسخ متغيرات الهوية (CSS Variables)</button>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="yc-elevated p-4 space-y-3">
+              <label class="text-xs font-bold block">ثيم ألوان يلا كلينيك (Preset Palette)</label>
+              <div class="grid grid-cols-1 gap-2">
+                <button type="button" data-palette="teal" class="palette-btn yc-btn-ghost p-2.5 text-xs font-bold flex items-center justify-between">
+                  <span>Yalla Medical Teal (الافتراضي)</span>
+                  <span class="flex gap-1"><span class="w-4 h-4 rounded-full bg-teal-500"></span><span class="w-4 h-4 rounded-full bg-sky-500"></span></span>
+                </button>
+                <button type="button" data-palette="royal" class="palette-btn yc-btn-ghost p-2.5 text-xs font-bold flex items-center justify-between">
+                  <span>Royal Clinical Blue (أزرق طبي ملكي)</span>
+                  <span class="flex gap-1"><span class="w-4 h-4 rounded-full bg-blue-600"></span><span class="w-4 h-4 rounded-full bg-indigo-500"></span></span>
+                </button>
+                <button type="button" data-palette="emerald" class="palette-btn yc-btn-ghost p-2.5 text-xs font-bold flex items-center justify-between">
+                  <span>Emerald Care (أخضر زمردي علاجي)</span>
+                  <span class="flex gap-1"><span class="w-4 h-4 rounded-full bg-emerald-500"></span><span class="w-4 h-4 rounded-full bg-teal-600"></span></span>
+                </button>
+              </div>
+            </div>
+
+            <div class="yc-elevated p-4 space-y-3">
+              <label class="text-xs font-bold block">استدارة البطاقات والعناصر (Border Radius)</label>
+              <input id="radiusSlider" type="range" min="8" max="24" value="16" class="w-full accent-teal-500" />
+              <div class="flex justify-between text-xs" style="color: var(--yc-text-muted);">
+                <span>حاد (8px)</span>
+                <span id="radiusValueText" class="font-bold" style="color: var(--yc-brand);">16px</span>
+                <span>منحني (24px)</span>
+              </div>
+              <p class="text-xs leading-relaxed" style="color: var(--yc-text-muted);">
+                تم توحيد جميع البطاقات والـ Modals والمدخلات عبر متغير <code>--yc-radius</code> لضمان تناسق بصري كامل.
+              </p>
+            </div>
+
+            <div class="yc-elevated p-4 space-y-2.5">
+              <label class="text-xs font-bold block">ما الذي تم إصلاحه جذرياً في هذا البناء؟</label>
+              <ul class="text-xs space-y-2" style="color: var(--yc-text-secondary);">
+                <li>✅ <strong>الدارك واللايت مود:</strong> فصل كامل لطبقات الخلفية <code>base / surface / elevated</code> لمنع اختفاء النصوص أو بهتان البطاقات.</li>
+                <li>✅ <strong>العربي والإنجليزي (RTL/LTR):</strong> استخدام الخصائص المنطقية <code>ps/pe/ms/me/start/end</code> وتبديل الخط تلقائياً بين <code>Cairo</code> و <code>Inter</code>.</li>
+                <li>✅ <strong>الرسوم البيانية:</strong> تحديث ألوان الشبكة والنصوص في Chart.js لحظياً عند تبديل الوضع أو اللغة.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Detailed Comparison Table: Behance Reference vs Yalla Clinic Current vs New Yalla Clinic OS -->
+        <div class="yc-surface p-6 space-y-4">
+          <h3 class="text-base font-extrabold">مقارنة تفصيلية: مشروع Behance المرجعي مقابل يلا كلينيك (النسخة السابقة والنسخة المطورة)</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm text-start border-collapse">
+              <thead>
+                <tr class="border-b text-xs uppercase" style="border-color: var(--yc-border); color: var(--yc-text-muted);">
+                  <th class="py-3 px-3 text-start">معيار المقارنة</th>
+                  <th class="py-3 px-3 text-start">مشروع Behance (Hospital CRM)</th>
+                  <th class="py-3 px-3 text-start">يلا كلينيك (النسخة السابقة)</th>
+                  <th class="py-3 px-3 text-start">يلا كلينيك (التصميم الجديد هنا)</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y text-xs sm:text-sm" style="border-color: var(--yc-border);">
+                <tr>
+                  <td class="py-3 px-3 font-bold">الهوية البصرية (Brand Identity)</td>
+                  <td class="py-3 px-3">نظيفة وعصرية لكنها عامة (Generic Medical UI) بدون روح محلية</td>
+                  <td class="py-3 px-3">هوية يلا كلينيك موجودة لكن تناسق الألوان والتباين غير مستقر</td>
+                  <td class="py-3 px-3 font-semibold" style="color: var(--yc-brand);">هوية يلا كلينيك الأصيلة بتدرج Teal/Cyan فاخر وتباين قياسي</td>
+                </tr>
+                <tr>
+                  <td class="py-3 px-3 font-bold">الوضع الليلي والنهاري (Dark / Light)</td>
+                  <td class="py-3 px-3">مصمم غالباً كواجهة فاتحة ثابتة (Static Light UI) في العرض</td>
+                  <td class="py-3 px-3">تداخل ألوان وخلفيات بيضاء ثابتة تكسر الوضع الليلي</td>
+                  <td class="py-3 px-3 font-semibold" style="color: var(--yc-brand);">نظام Design Tokens ديناميكي يدعم Dark & Light بنسبة 100%</td>
+                </tr>
+                <tr>
+                  <td class="py-3 px-3 font-bold">دعم العربي والإنجليزي (RTL / LTR)</td>
+                  <td class="py-3 px-3">إنجليزي فقط (LTR)؛ ينكسر عند تعريبه بسبب الهوامش الثابتة</td>
+                  <td class="py-3 px-3">انكسار في المحاذاة واتجاه القوائم والجداول عند التبديل</td>
+                  <td class="py-3 px-3 font-semibold" style="color: var(--yc-brand);">محرك ثنائي اللغة فوري يقلب الاتجاه والخطوط والرسوم بدون أي خطأ</td>
+                </tr>
+                <tr>
+                  <td class="py-3 px-3 font-bold">العمق الوظيفي للعيادات (Clinic OS)</td>
+                  <td class="py-3 px-3">يركز على الإحصائيات العامة للمستشفيات الكبرى</td>
+                  <td class="py-3 px-3">يضم خصائص العيادة الفعلية لكن واجهة الاستخدام مزدحمة</td>
+                  <td class="py-3 px-3 font-semibold" style="color: var(--yc-brand);">يجمع جماليات Behance مع طابور الانتظار اللحظي والـ EMR والفواتير</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+  </div>
+
+  <!-- MODAL 1: NEW APPOINTMENT -->
+  <div id="bookingModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div class="yc-surface w-full max-w-lg p-6 space-y-4">
+      <div class="flex items-center justify-between border-b pb-3" style="border-color: var(--yc-border);">
+        <h3 class="text-base font-extrabold" id="modalBookingTitle">حجز موعد جديد — يلا كلينيك</h3>
+        <button type="button" id="closeBookingModalBtn" class="yc-btn-ghost px-2.5 py-1 text-xs">✕</button>
+      </div>
+      <form id="newBookingForm" class="space-y-3.5">
+        <div>
+          <label class="text-xs font-bold block mb-1" id="lblPatientName">اسم المريض</label>
+          <input id="bookingPatientInput" type="text" required class="yc-input w-full text-sm" placeholder="مثال: سارة محمود عبد الرحمن" />
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-bold block mb-1" id="lblDoctorSelect">الطبيب والعيادة</label>
+            <select id="bookingDoctorSelect" class="yc-input w-full text-sm">
+              <option value="د. أحمد الماهر — طب الأسنان">د. أحمد الماهر — طب الأسنان</option>
+              <option value="د. مريم الشافعي — الجلدية والليزر">د. مريم الشافعي — الجلدية والليزر</option>
+              <option value="د. كريم عبد العزيز — الباطنة والقلب">د. كريم عبد العزيز — الباطنة والقلب</option>
+              <option value="د. نهى الجوهري — طب الأطفال">د. نهى الجوهري — طب الأطفال</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-bold block mb-1" id="lblVisitType">نوع الزيارة</label>
+            <select id="bookingTypeSelect" class="yc-input w-full text-sm">
+              <option value="كشف جديد">كشف جديد</option>
+              <option value="استشارة ومتابعة">استشارة ومتابعة</option>
+              <option value="إجراء علاجي">إجراء علاجي</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-bold block mb-1" id="lblVisitTime">الوقت</label>
+            <input id="bookingTimeInput" type="time" value="14:30" required class="yc-input w-full text-sm" />
+          </div>
+          <div>
+            <label class="text-xs font-bold block mb-1" id="lblVisitStatus">الحالة المبدئية</label>
+            <select id="bookingStatusSelect" class="yc-input w-full text-sm">
+              <option value="waiting">بالانتظار (Waiting)</option>
+              <option value="in_progress">داخل العيادة (In Consultation)</option>
+              <option value="completed">مكتمل (Completed)</option>
+            </select>
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 pt-3 border-t" style="border-color: var(--yc-border);">
+          <button type="button" id="cancelBookingModalBtn" class="yc-btn-ghost px-4 py-2 text-xs font-bold">إلغاء</button>
+          <button type="submit" class="yc-btn-primary px-5 py-2 text-xs font-bold">تأكيد الحجز وإضافة للطابور</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 2: PATIENT EMR DETAILS / ADD PATIENT -->
+  <div id="patientModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div class="yc-surface w-full max-w-lg p-6 space-y-4">
+      <div class="flex items-center justify-between border-b pb-3" style="border-color: var(--yc-border);">
+        <h3 class="text-base font-extrabold" id="patientModalTitle">إضافة ملف مريض جديد (EMR)</h3>
+        <button type="button" id="closePatientModalBtn" class="yc-btn-ghost px-2.5 py-1 text-xs">✕</button>
+      </div>
+      <form id="newPatientForm" class="space-y-3.5">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-bold block mb-1">الاسم الكامل</label>
+            <input id="newPatientName" type="text" required class="yc-input w-full text-sm" placeholder="مثال: عمر خالد فؤاد" />
+          </div>
+          <div>
+            <label class="text-xs font-bold block mb-1">رقم الموبايل</label>
+            <input id="newPatientPhone" type="text" required class="yc-input w-full text-sm" placeholder="01012345678" />
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label class="text-xs font-bold block mb-1">السن</label>
+            <input id="newPatientAge" type="number" min="1" max="110" value="32" required class="yc-input w-full text-sm" />
+          </div>
+          <div>
+            <label class="text-xs font-bold block mb-1">فصيلة الدم</label>
+            <select id="newPatientBlood" class="yc-input w-full text-sm">
+              <option value="O+">O+</option>
+              <option value="A+">A+</option>
+              <option value="B+">B+</option>
+              <option value="AB+">AB+</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-bold block mb-1">القسم</label>
+            <select id="newPatientDept" class="yc-input w-full text-sm">
+              <option value="طب الأسنان">طب الأسنان</option>
+              <option value="الباطنة والقلب">الباطنة والقلب</option>
+              <option value="الجلدية والليزر">الجلدية والليزر</option>
+              <option value="طب الأطفال">طب الأطفال</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="text-xs font-bold block mb-1">ملاحظات طبية / تشخيص مبدئي</label>
+          <input id="newPatientNotes" type="text" class="yc-input w-full text-sm" placeholder="مثال: متابعة دورية — لا توجد حساسية دوائية" />
+        </div>
+        <div class="flex justify-end gap-2 pt-3 border-t" style="border-color: var(--yc-border);">
+          <button type="button" id="cancelPatientModalBtn" class="yc-btn-ghost px-4 py-2 text-xs font-bold">إلغاء</button>
+          <button type="submit" class="yc-btn-primary px-5 py-2 text-xs font-bold">حفظ الملف الطبي</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toastBox" class="fixed bottom-5 end-5 z-50 hidden yc-surface px-4 py-3 text-xs font-bold flex items-center gap-2.5 border-2" style="border-color: var(--yc-brand);">
+    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+    <span id="toastText">تم تحديث البيانات بنجاح</span>
+  </div>
+
+  <script>
+    // --- STATE & DATA ---
+    const state = {
+      lang: 'ar',
+      theme: 'dark',
+      activeTab: 'overview',
+      statusFilter: 'all',
+      specialtyFilter: 'all',
+      searchQuery: '',
+      chartRange: 'week',
+      palette: 'teal',
+      appointments: [
+        { id: 101, queue: 'Q-01', patientAr: 'يوسف عبد ربه', patientEn: 'Youssef Abd Rabbo', doctorAr: 'د. أحمد الماهر', doctorEn: 'Dr. Ahmed El-Maher', deptAr: 'الأسنان', deptEn: 'Dental', typeAr: 'كشف جديد', typeEn: 'New Checkup', time: '10:30 AM', status: 'in_progress' },
+        { id: 102, queue: 'Q-02', patientAr: 'سلمى محمد أحمد', patientEn: 'Salma Mohamed', doctorAr: 'د. مريم الشافعي', doctorEn: 'Dr. Mariam El-Shafei', deptAr: 'الجلدية والليزر', deptEn: 'Dermatology', typeAr: 'جلسة ليزر', typeEn: 'Laser Session', time: '11:00 AM', status: 'waiting' },
+        { id: 103, queue: 'Q-03', patientAr: 'كريم أحمد أنور', patientEn: 'Kareem Ahmed', doctorAr: 'د. كريم عبد العزيز', doctorEn: 'Dr. Kareem Abdelaziz', deptAr: 'الباطنة والقلب', deptEn: 'Cardiology', typeAr: 'رسم قلب ومتابعة', typeEn: 'ECG Follow-up', time: '11:30 AM', status: 'waiting' },
+        { id: 104, queue: 'Q-04', patientAr: 'حبيبة عاطف محمود', patientEn: 'Habiba Atef', doctorAr: 'د. نهى الجوهري', doctorEn: 'Dr. Noha El-Gohary', deptAr: 'الأطفال', deptEn: 'Pediatrics', typeAr: 'كشف عام', typeEn: 'General Check', time: '12:00 PM', status: 'completed' },
+        { id: 105, queue: 'Q-05', patientAr: 'مروان محمود حسن', patientEn: 'Marwan Mahmoud', doctorAr: 'د. أحمد الماهر', doctorEn: 'Dr. Ahmed El-Maher', deptAr: 'الأسنان', deptEn: 'Dental', typeAr: 'حشو عصب', typeEn: 'Root Canal', time: '12:45 PM', status: 'waiting' },
+        { id: 106, queue: 'Q-06', patientAr: 'يارا محمد فاروق', patientEn: 'Yara Farouk', doctorAr: 'د. طارق المنياوي', doctorEn: 'Dr. Tarek El-Miniawy', deptAr: 'العيون', deptEn: 'Ophthalmology', typeAr: 'فحص قاع عين', typeEn: 'Fundus Exam', time: '01:15 PM', status: 'completed' }
+      ],
+      patients: [
+        { code: 'YC-2041', nameAr: 'يوسف عبد ربه عبد الكريم', nameEn: 'Youssef Abd Rabbo', age: 29, blood: 'O+', phone: '01092837465', deptAr: 'طب الأسنان', deptEn: 'Dental Care', lastVisit: '2026-10-16', notesAr: 'خطة تقويم وزراعة ضرس خلفي — المرحلة الثانية', notesEn: 'Orthodontic & molar implant plan — Stage 2', bp: '120/80' },
+        { code: 'YC-2042', nameAr: 'سلمى محمد أحمد عباس', nameEn: 'Salma Mohamed Abbas', age: 24, blood: 'A+', phone: '01123456789', deptAr: 'الجلدية والليزر', deptEn: 'Dermatology', lastVisit: '2026-10-16', notesAr: 'جلسة نضارة وعلاج تصبغات — الجلسة 3 من 4', notesEn: 'Skin glow & pigmentation session 3 of 4', bp: '115/75' },
+        { code: 'YC-2043', nameAr: 'كريم أحمد أنور جاد', nameEn: 'Kareem Ahmed Anwar', age: 45, blood: 'B+', phone: '01287654321', deptAr: 'الباطنة والقلب', deptEn: 'Cardiology', lastVisit: '2026-10-15', notesAr: 'متابعة ضغط الدم والكوليسترول — استجابة ممتازة للعلاج', notesEn: 'BP & lipid profile follow-up — Great response', bp: '128/82' },
+        { code: 'YC-2044', nameAr: 'يارا محمد فاروق', nameEn: 'Yara Mohamed Farouk', age: 31, blood: 'AB+', phone: '01554321987', deptAr: 'طب العيون', deptEn: 'Ophthalmology', lastVisit: '2026-10-14', notesAr: 'قياس نظر وتحديث عدسات طبية', notesEn: 'Refraction test & lens prescription update', bp: '118/78' }
+      ],
+      doctors: [
+        { id: 1, nameAr: 'د. أحمد الماهر', nameEn: 'Dr. Ahmed El-Maher', specAr: 'استشاري طب وجراحة الأسنان', specEn: 'Consultant Dental Surgeon', roomAr: 'عيادة 101', roomEn: 'Room 101', active: true, patientsToday: 14, rating: '4.9' },
+        { id: 2, nameAr: 'د. مريم الشافعي', nameEn: 'Dr. Mariam El-Shafei', specAr: 'أخصائي الجلدية والتجميل والليزر', specEn: 'Dermatology & Laser Specialist', roomAr: 'عيادة 104', roomEn: 'Room 104', active: true, patientsToday: 11, rating: '4.8' },
+        { id: 3, nameAr: 'د. كريم عبد العزيز', nameEn: 'Dr. Kareem Abdelaziz', specAr: 'استشاري الباطنة والقلب', specEn: 'Cardiology & Internal Medicine', roomAr: 'عيادة 202', roomEn: 'Room 202', active: true, patientsToday: 9, rating: '4.9' },
+        { id: 4, nameAr: 'د. نهى الجوهري', nameEn: 'Dr. Noha El-Gohary', specAr: 'استشاري طب الأطفال وحديثي الولادة', specEn: 'Pediatrics Consultant', roomAr: 'عيادة 108', roomEn: 'Room 108', active: false, patientsToday: 8, rating: '4.7' }
+      ],
+      invoices: [
+        { inv: 'INV-8821', patientAr: 'يوسف عبد ربه', patientEn: 'Youssef Abd Rabbo', serviceAr: 'كشف أسنان + أشعة بانوراما', serviceEn: 'Dental Consult + Panorama X-Ray', amount: '950 EGP', methodAr: 'بطاقة بنكية (InstaPay)', methodEn: 'InstaPay / Card', paid: true },
+        { inv: 'INV-8822', patientAr: 'سلمى محمد أحمد', patientEn: 'Salma Mohamed', serviceAr: 'جلسة ليزر علاجي', serviceEn: 'Therapeutic Laser Session', amount: '1,400 EGP', methodAr: 'نقدي (Cash)', methodEn: 'Cash', paid: true },
+        { inv: 'INV-8823', patientAr: 'كريم أحمد أنور', patientEn: 'Kareem Ahmed', serviceAr: 'كشف قلب + إيكو', serviceEn: 'Cardio Consult + Echo', amount: '1,850 EGP', methodAr: 'تأمين طبي (AXA)', methodEn: 'AXA Insurance', paid: false },
+        { inv: 'INV-8824', patientAr: 'حبيبة عاطف محمود', patientEn: 'Habiba Atef', serviceAr: 'كشف أطفال ومتابعة نمو', serviceEn: 'Pediatric Checkup', amount: '450 EGP', methodAr: 'نقدي (Cash)', methodEn: 'Cash', paid: true }
+      ]
+    };
+
+    const i18n = {
+      ar: {
+        brandName: 'يلا كلينيك',
+        brandSub: 'نظام الإدارة الطبية الذكي المتكامل',
+        searchPlaceholder: 'ابحث عن مريض، رقم ملف، طبيب، أو فاتورة...',
+        liveQueueLabel: 'الانتظار المباشر:',
+        langBtn: 'English (LTR)',
+        themeLight: 'الوضع النهاري',
+        themeDark: 'الوضع الليلي',
+        newBooking: 'حجز جديد',
+        navMain: 'القائمة الرئيسية',
+        navSystem: 'الهوية والمقارنة',
+        nav_overview: 'لوحة التحكم الشاملة',
+        nav_appointments: 'المواعيد والطابور',
+        nav_patients: 'سجلات المرضى (EMR)',
+        nav_doctors: 'الأطباء والعيادات',
+        nav_billing: 'الفواتير والتأمين',
+        nav_identity: 'هوية يلا كلينيك & المقارنة',
+        branchTitle: 'فرع حدائق أكتوبر',
+        branchDesc: 'متصل بقاعدة بيانات Clinic OS ومزامنة المواعيد الفورية مفعلة.',
+        capacityLabel: 'إشغال العيادات اليوم',
+        heroBadge: 'الجيل الجديد — Yalla Clinic Design System',
+        heroRtlBadge: 'دعم كامل RTL / LTR + Dark / Light',
+        heroTitle: 'مرحباً د. فيولا — لوحة إدارة يلا كلينيك المركزية',
+        heroSubtitle: 'تصميم طبي احترافي يتفوق على معايير لوحات الـ CRM العالمية مع معالجة جذرية لمشاكل التباين الليلي/النهاري ومحاذاة العربية والإنجليزية.',
+        addPatientBtn: 'إضافة مريض',
+        exportThemeBtn: 'نسخ كود الهوية (CSS/Tailwind)',
+        kpi1Title: 'إجمالي المرضى المسجلين',
+        kpi1Sub: '+64 مريض جديد خلال هذا الأسبوع',
+        kpi2Title: 'مواعيد اليوم النشطة',
+        kpi2Sub: '28 مكتمل • 8 قيد الكشف والانتظار',
+        kpi3Title: 'الأطباء والعيادات المتاحة',
+        kpi3Sub: '7 تخصصات طبية تعمل الآن',
+        kpi4Title: 'إيرادات الشهر (ج.م)',
+        kpi4Sub: 'نقدي ومحافظ: 68% • تأمين طبي: 32%',
+        chartAnalyticsTitle: 'تحليل التدفق العلاجي والزيارات الأسبوعية',
+        chartAnalyticsSub: 'مقارنة الكشوفات الجديدة مع الاستشارات والمتابعات',
+        deptTitle: 'إشغال العيادات والتخصصات',
+        deptSub: 'توزيع الحالات النشطة حسب القسم الطبي',
+        tableApptTitle: 'جدول مواعيد اليوم والطابور الذكي',
+        tableApptSub: 'تحديث فوري لحالة دخول المرضى وتنبيهات الواتساب',
+        thQueue: '# الدور',
+        thPatient: 'المريض',
+        thDoctor: 'الطبيب / العيادة',
+        thTime: 'الموعد',
+        thStatus: 'الحالة',
+        thAction: 'إجراء سريع',
+        shiftDoctorsTitle: 'الأطباء المناوبون الآن',
+        shiftDoctorsSub: 'حالة الغرف الطبية بشكل لحظي',
+        statusWaiting: 'بالانتظار',
+        statusInProgress: 'داخل العيادة',
+        statusCompleted: 'مكتمل',
+        advanceBtn: 'تحديث الحالة'
+      },
+      en: {
+        brandName: 'Yalla Clinic',
+        brandSub: 'Smart Integrated Clinic OS & CRM',
+        searchPlaceholder: 'Search patients, EMR ID, doctor, or invoice...',
+        liveQueueLabel: 'Live Queue:',
+        langBtn: 'العربية (RTL)',
+        themeLight: 'Light Mode',
+        themeDark: 'Dark Mode',
+        newBooking: 'New Booking',
+        navMain: 'Main Navigation',
+        navSystem: 'Brand & Benchmark',
+        nav_overview: 'Executive Overview',
+        nav_appointments: 'Appointments & Queue',
+        nav_patients: 'Patients EMR / CRM',
+        nav_doctors: 'Doctors & Clinics',
+        nav_billing: 'Billing & Insurance',
+        nav_identity: 'Brand Identity & Compare',
+        branchTitle: 'October Gardens Branch',
+        branchDesc: 'Connected to Clinic OS Supabase cluster with real-time queue sync.',
+        capacityLabel: 'Today Clinic Occupancy',
+        heroBadge: 'Next-Gen — Yalla Clinic Design System',
+        heroRtlBadge: '100% Fixed RTL / LTR + Dark / Light',
+        heroTitle: 'Welcome Dr. Viola — Yalla Clinic Central Command',
+        heroSubtitle: 'High-contrast medical CRM engineered specifically for Yalla Clinic, resolving all Dark/Light contrast issues and bilingual RTL/LTR layout shifts.',
+        addPatientBtn: 'Add Patient',
+        exportThemeBtn: 'Copy Brand Tokens (CSS)',
+        kpi1Title: 'Total Registered Patients',
+        kpi1Sub: '+64 new patients onboarded this week',
+        kpi2Title: 'Active Appointments Today',
+        kpi2Sub: '28 completed • 8 in consultation & waiting',
+        kpi3Title: 'Active Doctors & Rooms',
+        kpi3Sub: '7 medical specialties currently active',
+        kpi4Title: 'Monthly Revenue (EGP)',
+        kpi4Sub: 'Cash & InstaPay: 68% • Insurance: 32%',
+        chartAnalyticsTitle: 'Clinical Flow & Weekly Patient Visits',
+        chartAnalyticsSub: 'New consultations vs. follow-up visits across clinics',
+        deptTitle: 'Specialty & Department Load',
+        deptSub: 'Active cases breakdown by medical department',
+        tableApptTitle: 'Today Smart Queue & Appointments',
+        tableApptSub: 'One-click status progression and patient room routing',
+        thQueue: '# Queue',
+        thPatient: 'Patient',
+        thDoctor: 'Doctor / Dept',
+        thTime: 'Time',
+        thStatus: 'Status',
+        thAction: 'Quick Action',
+        shiftDoctorsTitle: 'Doctors On Shift Now',
+        shiftDoctorsSub: 'Live consultation room availability',
+        statusWaiting: 'Waiting',
+        statusInProgress: 'In Consultation',
+        statusCompleted: 'Completed',
+        advanceBtn: 'Next Stage'
+      }
+    };
+
+    let visitsChartInstance = null;
+    let specialtyChartInstance = null;
+
+    function showToast(msg) {
+      const box = document.getElementById('toastBox');
+      const txt = document.getElementById('toastText');
+      txt.textContent = msg;
+      box.classList.remove('hidden');
+      setTimeout(() => {
+        box.classList.add('hidden');
+      }, 2800);
+    }
+
+    function statusBadgeHTML(status) {
+      const t = i18n[state.lang];
+      if (status === 'waiting') {
+        return `<span class="yc-badge bg-amber-500/15 text-amber-400">⏳ ${t.statusWaiting}</span>`;
+      }
+      if (status === 'in_progress') {
+        return `<span class="yc-badge bg-sky-500/15 text-sky-400">🩺 ${t.statusInProgress}</span>`;
+      }
+      return `<span class="yc-badge bg-emerald-500/15 text-emerald-400">✓ ${t.statusCompleted}</span>`;
+    }
+
+    function renderAppointments() {
+      const t = i18n[state.lang];
+      const q = state.searchQuery.trim().toLowerCase();
+
+      const filtered = state.appointments.filter(item => {
+        const matchStatus = state.statusFilter === 'all' || item.status === state.statusFilter;
+        const matchSpec = state.specialtyFilter === 'all' || item.deptAr === state.specialtyFilter;
+        const name = (state.lang === 'ar' ? item.patientAr : item.patientEn).toLowerCase();
+        const doc = (state.lang === 'ar' ? item.doctorAr : item.doctorEn).toLowerCase();
+        const matchQuery = !q || name.includes(q) || doc.includes(q) || item.queue.toLowerCase().includes(q);
+        return matchStatus && matchSpec && matchQuery;
+      });
+
+      const waitingCount = state.appointments.filter(a => a.status !== 'completed').length;
+      document.getElementById('liveQueueCount').textContent = waitingCount;
+      document.getElementById('navApptCount').textContent = state.appointments.length;
+      document.getElementById('kpi2Badge').textContent = state.lang === 'ar' ? `${waitingCount} بالانتظار` : `${waitingCount} Active`;
+
+      const overviewBody = document.getElementById('overviewApptBody');
+      overviewBody.innerHTML = filtered.map(item => {
+        const pName = state.lang === 'ar' ? item.patientAr : item.patientEn;
+        const dName = state.lang === 'ar' ? item.doctorAr : item.doctorEn;
+        const dept = state.lang === 'ar' ? item.deptAr : item.deptEn;
+        return `
+          <tr class="hover:bg-slate-500/5">
+            <td class="py-3 px-3 font-extrabold" style="color: var(--yc-brand);">${item.queue}</td>
+            <td class="py-3 px-3 font-bold">${pName}</td>
+            <td class="py-3 px-3">
+              <div class="font-semibold">${dName}</div>
+              <div class="text-xs" style="color: var(--yc-text-muted);">${dept}</div>
+            </td>
+            <td class="py-3 px-3 text-xs font-semibold">${item.time}</td>
+            <td class="py-3 px-3">${statusBadgeHTML(item.status)}</td>
+            <td class="py-3 px-3 text-end">
+              <button type="button" data-advance-id="${item.id}" class="advance-status-btn yc-btn-ghost px-3 py-1.5 text-xs font-bold">
+                ${t.advanceBtn}
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      const fullBody = document.getElementById('fullApptBody');
+      fullBody.innerHTML = filtered.map(item => {
+        const pName = state.lang === 'ar' ? item.patientAr : item.patientEn;
+        const dName = state.lang === 'ar' ? item.doctorAr : item.doctorEn;
+        const dept = state.lang === 'ar' ? item.deptAr : item.deptEn;
+        const vType = state.lang === 'ar' ? item.typeAr : item.typeEn;
+        return `
+          <tr class="hover:bg-slate-500/5">
+            <td class="py-3 px-3 font-extrabold" style="color: var(--yc-brand);">${item.queue}</td>
+            <td class="py-3 px-3 font-bold">${pName}</td>
+            <td class="py-3 px-3">${dName} <span class="text-xs" style="color: var(--yc-text-muted);">(${dept})</span></td>
+            <td class="py-3 px-3 text-xs font-semibold">${vType}</td>
+            <td class="py-3 px-3 text-xs font-semibold">${item.time}</td>
+            <td class="py-3 px-3">${statusBadgeHTML(item.status)}</td>
+            <td class="py-3 px-3 text-end">
+              <button type="button" data-advance-id="${item.id}" class="advance-status-btn yc-btn-ghost px-3 py-1.5 text-xs font-bold">
+                ${t.advanceBtn}
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderDoctors() {
+      const overviewList = document.getElementById('overviewDoctorsList');
+      overviewList.innerHTML = state.doctors.map(doc => {
+        const name = state.lang === 'ar' ? doc.nameAr : doc.nameEn;
+        const spec = state.lang === 'ar' ? doc.specAr : doc.specEn;
+        const room = state.lang === 'ar' ? doc.roomAr : doc.roomEn;
+        const badgeText = doc.active
+          ? (state.lang === 'ar' ? 'متاح الآن' : 'Available')
+          : (state.lang === 'ar' ? 'استراحة' : 'On Break');
+        const badgeClass = doc.active ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400';
+
+        return `
+          <div class="yc-elevated p-3.5 flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center font-extrabold text-sm text-white" style="background: linear-gradient(135deg, var(--yc-brand), var(--yc-accent));">
+                ${name.slice(0, 2)}
+              </div>
+              <div>
+                <div class="font-bold text-sm">${name}</div>
+                <div class="text-xs" style="color: var(--yc-text-muted);">${spec} • ${room}</div>
+              </div>
+            </div>
+            <button type="button" data-toggle-doc="${doc.id}" class="yc-badge ${badgeClass} cursor-pointer">
+              ${badgeText}
+            </button>
+          </div>
+        `;
+      }).join('');
+
+      const fullGrid = document.getElementById('doctorsFullGrid');
+      fullGrid.innerHTML = state.doctors.map(doc => {
+        const name = state.lang === 'ar' ? doc.nameAr : doc.nameEn;
+        const spec = state.lang === 'ar' ? doc.specAr : doc.specEn;
+        const room = state.lang === 'ar' ? doc.roomAr : doc.roomEn;
+        return `
+          <div class="yc-elevated p-5 space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="yc-badge" style="background: var(--yc-brand-soft); color: var(--yc-brand);">${room}</span>
+              <span class="text-xs font-bold text-amber-400">★ ${doc.rating}</span>
+            </div>
+            <h3 class="text-base font-extrabold">${name}</h3>
+            <p class="text-xs" style="color: var(--yc-text-muted);">${spec}</p>
+            <div class="pt-2 flex items-center justify-between border-t text-xs" style="border-color: var(--yc-border);">
+              <span>${state.lang === 'ar' ? 'حالات اليوم:' : 'Today Cases:'} <strong>${doc.patientsToday}</strong></span>
+              <button type="button" data-toggle-doc="${doc.id}" class="yc-btn-ghost px-3 py-1 text-xs font-bold">
+                ${doc.active ? (state.lang === 'ar' ? 'متاح بالكشف' : 'Active') : (state.lang === 'ar' ? 'غير متاح' : 'Away')}
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderPatients() {
+      const q = (document.getElementById('patientFilterInput').value || state.searchQuery).trim().toLowerCase();
+      const grid = document.getElementById('patientsGrid');
+      const filtered = state.patients.filter(p => {
+        const n = (state.lang === 'ar' ? p.nameAr : p.nameEn).toLowerCase();
+        return !q || n.includes(q) || p.phone.includes(q) || p.code.toLowerCase().includes(q);
+      });
+
+      grid.innerHTML = filtered.map(p => {
+        const name = state.lang === 'ar' ? p.nameAr : p.nameEn;
+        const dept = state.lang === 'ar' ? p.deptAr : p.deptEn;
+        const notes = state.lang === 'ar' ? p.notesAr : p.notesEn;
+        return `
+          <div class="yc-elevated p-5 space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="yc-badge" style="background: var(--yc-brand-soft); color: var(--yc-brand);">${p.code}</span>
+              <span class="yc-badge bg-rose-500/15 text-rose-400">Blood: ${p.blood}</span>
+            </div>
+            <div>
+              <h3 class="text-base font-extrabold">${name}</h3>
+              <p class="text-xs" style="color: var(--yc-text-muted);">${dept} • ${p.phone}</p>
+            </div>
+            <p class="text-xs leading-relaxed p-2.5 rounded-lg" style="background: var(--yc-bg-surface); color: var(--yc-text-secondary);">
+              ${notes}
+            </p>
+            <div class="flex items-center justify-between text-xs pt-1" style="color: var(--yc-text-muted);">
+              <span>BP: <strong>${p.bp}</strong></span>
+              <span>${p.lastVisit}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderBilling() {
+      const tbody = document.getElementById('billingTableBody');
+      tbody.innerHTML = state.invoices.map((inv, idx) => {
+        const pName = state.lang === 'ar' ? inv.patientAr : inv.patientEn;
+        const srv = state.lang === 'ar' ? inv.serviceAr : inv.serviceEn;
+        const method = state.lang === 'ar' ? inv.methodAr : inv.methodEn;
+        const statusBadge = inv.paid
+          ? `<span class="yc-badge bg-emerald-500/15 text-emerald-400">${state.lang === 'ar' ? 'مدفوع' : 'Paid'}</span>`
+          : `<span class="yc-badge bg-amber-500/15 text-amber-400">${state.lang === 'ar' ? 'قيد التحصيل' : 'Pending'}</span>`;
+        return `
+          <tr class="hover:bg-slate-500/5">
+            <td class="py-3 px-3 font-extrabold" style="color: var(--yc-brand);">${inv.inv}</td>
+            <td class="py-3 px-3 font-bold">${pName}</td>
+            <td class="py-3 px-3">${srv}</td>
+            <td class="py-3 px-3 font-extrabold">${inv.amount}</td>
+            <td class="py-3 px-3 text-xs">${method}</td>
+            <td class="py-3 px-3">${statusBadge}</td>
+            <td class="py-3 px-3 text-end">
+              <button type="button" data-toggle-inv="${idx}" class="yc-btn-ghost px-3 py-1 text-xs font-bold">
+                ${inv.paid ? (state.lang === 'ar' ? 'إيصال' : 'Receipt') : (state.lang === 'ar' ? 'تأكيد الدفع' : 'Mark Paid')}
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderDepartmentProgress() {
+      const depts = [
+        { ar: 'طب وجراحة الأسنان', en: 'Dental Care', pct: 88, color: '#14B8A6' },
+        { ar: 'الجلدية والتجميل والليزر', en: 'Dermatology & Laser', pct: 76, color: '#38BDF8' },
+        { ar: 'الباطنة والقلب', en: 'Cardiology', pct: 64, color: '#818CF8' }
+      ];
+      const container = document.getElementById('deptProgressList');
+      container.innerHTML = depts.map(d => `
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs font-semibold">
+            <span>${state.lang === 'ar' ? d.ar : d.en}</span>
+            <span>${d.pct}%</span>
+          </div>
+          <div class="w-full h-1.5 rounded-full bg-slate-500/20 overflow-hidden">
+            <div class="h-full rounded-full" style="width: ${d.pct}%; background-color: ${d.color};"></div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderCharts() {
+      const isDark = state.theme === 'dark';
+      const textColor = isDark ? '#CBD5E1' : '#334155';
+      const gridColor = isDark ? 'rgba(148, 163, 184, 0.12)' : 'rgba(15, 23, 42, 0.08)';
+
+      const labelsAr = state.chartRange === 'week'
+        ? ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة']
+        : ['الأسبوع 1', 'الأسبوع 2', 'الأسبوع 3', 'الأسبوع 4'];
+      const labelsEn = state.chartRange === 'week'
+        ? ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri']
+        : ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+
+      const dataNew = state.chartRange === 'week' ? [28, 35, 42, 38, 49, 54, 31] : [140, 165, 182, 210];
+      const dataFollow = state.chartRange === 'week' ? [18, 22, 27, 29, 34, 38, 21] : [95, 112, 124, 145];
+
+      const ctxVisits = document.getElementById('visitsChart').getContext('2d');
+      if (visitsChartInstance) visitsChartInstance.destroy();
+      visitsChartInstance = new Chart(ctxVisits, {
+        type: 'bar',
+        data: {
+          labels: state.lang === 'ar' ? labelsAr : labelsEn,
+          datasets: [
+            {
+              label: state.lang === 'ar' ? 'كشوفات جديدة' : 'New Consultations',
+              data: dataNew,
+              backgroundColor: '#14B8A6',
+              borderRadius: 8
+            },
+            {
+              label: state.lang === 'ar' ? 'استشارات ومتابعة' : 'Follow-up Visits',
+              data: dataFollow,
+              backgroundColor: '#38BDF8',
+              borderRadius: 8
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              labels: { color: textColor, font: { family: state.lang === 'ar' ? 'Cairo' : 'Inter', weight: '600' } }
+            }
+          },
+          scales: {
+            x: { ticks: { color: textColor }, grid: { display: false } },
+            y: { ticks: { color: textColor }, grid: { color: gridColor } }
+          }
+        }
+      });
+
+      const ctxSpec = document.getElementById('specialtyChart').getContext('2d');
+      if (specialtyChartInstance) specialtyChartInstance.destroy();
+      specialtyChartInstance = new Chart(ctxSpec, {
+        type: 'doughnut',
+        data: {
+          labels: state.lang === 'ar'
+            ? ['الأسنان', 'الجلدية والليزر', 'الباطنة والقلب', 'الأطفال']
+            : ['Dental', 'Dermatology', 'Cardiology', 'Pediatrics'],
+          datasets: [{
+            data: [38, 28, 20, 14],
+            backgroundColor: ['#14B8A6', '#38BDF8', '#818CF8', '#F59E0B'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '70%',
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: { color: textColor, boxWidth: 10, font: { family: state.lang === 'ar' ? 'Cairo' : 'Inter', size: 11 } }
+            }
+          }
+        }
+      });
+    }
+
+    function applyLanguage() {
+      const htmlEl = document.documentElement;
+      htmlEl.setAttribute('lang', state.lang);
+      htmlEl.setAttribute('dir', state.lang === 'ar' ? 'rtl' : 'ltr');
+
+      const t = i18n[state.lang];
+      document.getElementById('brandNameText').textContent = t.brandName;
+      document.getElementById('brandSubText').textContent = t.brandSub;
+      document.getElementById('globalSearchInput').placeholder = t.searchPlaceholder;
+      document.getElementById('liveQueueLabel').textContent = t.liveQueueLabel;
+      document.getElementById('langToggleText').textContent = t.langBtn;
+      document.getElementById('themeToggleText').textContent = state.theme === 'dark' ? t.themeLight : t.themeDark;
+      document.getElementById('newBookingBtnText').textContent = t.newBooking;
+      document.getElementById('navSectionMain').textContent = t.navMain;
+      document.getElementById('navSectionSystem').textContent = t.navSystem;
+
+      document.querySelectorAll('.nav-label').forEach(el => {
+        const key = el.getAttribute('data-key');
+        if (t[key]) el.textContent = t[key];
+      });
+
+      document.getElementById('branchCardTitle').textContent = t.branchTitle;
+      document.getElementById('branchCardDesc').textContent = t.branchDesc;
+      document.getElementById('capacityLabel').textContent = t.capacityLabel;
+      document.getElementById('heroBadge').textContent = t.heroBadge;
+      document.getElementById('heroRtlBadge').textContent = t.heroRtlBadge;
+      document.getElementById('heroTitle').textContent = t.heroTitle;
+      document.getElementById('heroSubtitle').textContent = t.heroSubtitle;
+      document.getElementById('addPatientBtnText').textContent = t.addPatientBtn;
+      document.getElementById('exportThemeBtnText').textContent = t.exportThemeBtn;
+
+      document.getElementById('kpi1Title').textContent = t.kpi1Title;
+      document.getElementById('kpi1Sub').textContent = t.kpi1Sub;
+      document.getElementById('kpi2Title').textContent = t.kpi2Title;
+      document.getElementById('kpi2Sub').textContent = t.kpi2Sub;
+      document.getElementById('kpi3Title').textContent = t.kpi3Title;
+      document.getElementById('kpi3Sub').textContent = t.kpi3Sub;
+      document.getElementById('kpi4Title').textContent = t.kpi4Title;
+      document.getElementById('kpi4Sub').textContent = t.kpi4Sub;
+
+      document.getElementById('chartAnalyticsTitle').textContent = t.chartAnalyticsTitle;
+      document.getElementById('chartAnalyticsSub').textContent = t.chartAnalyticsSub;
+      document.getElementById('deptTitle').textContent = t.deptTitle;
+      document.getElementById('deptSub').textContent = t.deptSub;
+      document.getElementById('tableApptTitle').textContent = t.tableApptTitle;
+      document.getElementById('tableApptSub').textContent = t.tableApptSub;
+      document.getElementById('thQueue').textContent = t.thQueue;
+      document.getElementById('thPatient').textContent = t.thPatient;
+      document.getElementById('thDoctor').textContent = t.thDoctor;
+      document.getElementById('thTime').textContent = t.thTime;
+      document.getElementById('thStatus').textContent = t.thStatus;
+      document.getElementById('thAction').textContent = t.thAction;
+      document.getElementById('shiftDoctorsTitle').textContent = t.shiftDoctorsTitle;
+      document.getElementById('shiftDoctorsSub').textContent = t.shiftDoctorsSub;
+
+      renderAppointments();
+      renderDoctors();
+      renderPatients();
+      renderBilling();
+      renderDepartmentProgress();
+      renderCharts();
+    }
+
+    function applyTheme() {
+      const htmlEl = document.documentElement;
+      htmlEl.setAttribute('data-theme', state.theme);
+      const isDark = state.theme === 'dark';
+      document.getElementById('themeIconSun').classList.toggle('hidden', !isDark);
+      document.getElementById('themeIconMoon').classList.toggle('hidden', isDark);
+      const t = i18n[state.lang];
+      document.getElementById('themeToggleText').textContent = isDark ? t.themeLight : t.themeDark;
+      renderCharts();
+    }
+
+    function switchTab(tabId) {
+      state.activeTab = tabId;
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+      const target = document.getElementById(`tab-${tabId}`);
+      if (target) target.classList.remove('hidden');
+
+      document.querySelectorAll('#sidebarNav [data-tab]').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-tab') === tabId);
+      });
+    }
+
+    function copyBrandTokens() {
+      const cssTokens = `/* Yalla Clinic OS — Unified Design Tokens (Dark/Light + RTL/LTR Fixed) */
+:root, [data-theme="light"] {
+  --yc-bg-base: #F1F5F9;
+  --yc-bg-surface: #FFFFFF;
+  --yc-bg-elevated: #F8FAFC;
+  --yc-text-primary: #0F172A;
+  --yc-text-secondary: #334155;
+  --yc-border: #E2E8F0;
+  --yc-brand: #0D9488;
+  --yc-accent: #0284C7;
+}
+[data-theme="dark"] {
+  --yc-bg-base: #070D19;
+  --yc-bg-surface: #0F172A;
+  --yc-bg-elevated: #1E293B;
+  --yc-text-primary: #F8FAFC;
+  --yc-text-secondary: #CBD5E1;
+  --yc-border: #1E293B;
+  --yc-brand: #14B8A6;
+  --yc-accent: #38BDF8;
+}`;
+      const ta = document.createElement('textarea');
+      ta.value = cssTokens;
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand('copy');
+      } catch (e) {}
+      document.body.removeChild(ta);
+      showToast(state.lang === 'ar' ? 'تم نسخ كود ألوان وهوية يلا كلينيك للحافظة!' : 'Yalla Clinic CSS Design Tokens copied!');
+    }
+
+    // --- EVENT LISTENERS ---
+    window.addEventListener('DOMContentLoaded', () => {
+      applyLanguage();
+      applyTheme();
+
+      // Sidebar Tabs
+      document.querySelectorAll('#sidebarNav [data-tab]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          switchTab(btn.getAttribute('data-tab'));
+        });
+      });
+
+      // Mobile menu toggle
+      document.getElementById('mobileMenuBtn').addEventListener('click', () => {
+        const sb = document.getElementById('sidebarNav');
+        sb.classList.toggle('hidden');
+        sb.classList.toggle('flex');
+      });
+
+      // Language Toggle (AR RTL <-> EN LTR)
+      document.getElementById('langToggleBtn').addEventListener('click', () => {
+        state.lang = state.lang === 'ar' ? 'en' : 'ar';
+        applyLanguage();
+        showToast(state.lang === 'ar' ? 'تم التبديل إلى اللغة العربية (RTL)' : 'Switched to English (LTR)');
+      });
+
+      // Theme Toggle (Dark <-> Light)
+      document.getElementById('themeToggleBtn').addEventListener('click', () => {
+        state.theme = state.theme === 'dark' ? 'light' : 'dark';
+        applyTheme();
+        showToast(state.theme === 'dark'
+          ? (state.lang === 'ar' ? 'تم تفعيل الوضع الليلي الطبي' : 'Dark Mode Activated')
+          : (state.lang === 'ar' ? 'تم تفعيل الوضع النهاري عالي التباين' : 'Light Mode Activated'));
+      });
+
+      // Global Search
+      document.getElementById('globalSearchInput').addEventListener('input', (e) => {
+        state.searchQuery = e.target.value;
+        renderAppointments();
+        renderPatients();
+      });
+
+      document.getElementById('patientFilterInput').addEventListener('input', () => {
+        renderPatients();
+      });
+
+      // Status filter pills
+      document.querySelectorAll('.status-filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          state.statusFilter = btn.getAttribute('data-status');
+          document.querySelectorAll('.status-filter-btn').forEach(b => {
+            b.className = 'status-filter-btn yc-btn-ghost px-3 py-1.5 text-xs';
+          });
+          btn.className = 'status-filter-btn yc-btn-primary px-3 py-1.5 text-xs';
+          renderAppointments();
+        });
+      });
+
+      // Specialty filter
+      document.getElementById('apptSpecialtyFilter').addEventListener('change', (e) => {
+        state.specialtyFilter = e.target.value;
+        renderAppointments();
+      });
+
+      // Chart range buttons
+      document.querySelectorAll('.chart-range-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          state.chartRange = btn.getAttribute('data-chart-range');
+          document.querySelectorAll('.chart-range-btn').forEach(b => {
+            b.className = 'chart-range-btn yc-btn-ghost px-3 py-1.5 text-xs';
+          });
+          btn.className = 'chart-range-btn yc-btn-primary px-3 py-1.5 text-xs';
+          renderCharts();
+        });
+      });
+
+      // Delegated clicks for dynamic rows/cards
+      document.body.addEventListener('click', (e) => {
+        const advBtn = e.target.closest('.advance-status-btn');
+        if (advBtn) {
+          const id = Number(advBtn.getAttribute('data-advance-id'));
+          const appt = state.appointments.find(a => a.id === id);
+          if (appt) {
+            const order = ['waiting', 'in_progress', 'completed'];
+            const nextIdx = (order.indexOf(appt.status) + 1) % order.length;
+            appt.status = order[nextIdx];
+            renderAppointments();
+            showToast(state.lang === 'ar' ? `تم تحديث حالة الموعد (${appt.queue})` : `Updated queue status (${appt.queue})`);
+          }
+        }
+
+        const docBtn = e.target.closest('[data-toggle-doc]');
+        if (docBtn) {
+          const id = Number(docBtn.getAttribute('data-toggle-doc'));
+          const doc = state.doctors.find(d => d.id === id);
+          if (doc) {
+            doc.active = !doc.active;
+            renderDoctors();
+            showToast(state.lang === 'ar' ? 'تم تحديث حالة تواجد الطبيب' : 'Doctor availability updated');
+          }
+        }
+
+        const invBtn = e.target.closest('[data-toggle-inv]');
+        if (invBtn) {
+          const idx = Number(invBtn.getAttribute('data-toggle-inv'));
+          if (state.invoices[idx]) {
+            state.invoices[idx].paid = !state.invoices[idx].paid;
+            renderBilling();
+            showToast(state.lang === 'ar' ? 'تم تحديث حالة الفاتورة' : 'Invoice status updated');
+          }
+        }
+      });
+
+      // Quick navigation buttons
+      document.getElementById('liveQueueHeaderBtn').addEventListener('click', () => switchTab('appointments'));
+      document.getElementById('viewAllDoctorsBtn').addEventListener('click', () => switchTab('doctors'));
+
+      // Booking Modal
+      const bookingModal = document.getElementById('bookingModal');
+      const openBooking = () => {
+        bookingModal.classList.remove('hidden');
+        bookingModal.classList.add('flex');
+      };
+      const closeBooking = () => {
+        bookingModal.classList.add('hidden');
+        bookingModal.classList.remove('flex');
+      };
+      document.getElementById('openNewBookingBtn').addEventListener('click', openBooking);
+      document.getElementById('apptNewBtn2').addEventListener('click', openBooking);
+      document.getElementById('closeBookingModalBtn').addEventListener('click', closeBooking);
+      document.getElementById('cancelBookingModalBtn').addEventListener('click', closeBooking);
+
+      document.getElementById('newBookingForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const name = document.getElementById('bookingPatientInput').value.trim();
+        const docFull = document.getElementById('bookingDoctorSelect').value;
+        const visitType = document.getElementById('bookingTypeSelect').value;
+        const timeVal = document.getElementById('bookingTimeInput').value;
+        const statusVal = document.getElementById('bookingStatusSelect').value;
+        if (!name) return;
+
+        const nextNum = state.appointments.length + 1;
+        state.appointments.unshift({
+          id: Date.now(),
+          queue: `Q-0${nextNum}`,
+          patientAr: name,
+          patientEn: name,
+          doctorAr: docFull.split('—')[0].trim(),
+          doctorEn: docFull.split('—')[0].trim(),
+          deptAr: (docFull.split('—')[1] || 'الأسنان').trim(),
+          deptEn: (docFull.split('—')[1] || 'Dental').trim(),
+          typeAr: visitType,
+          typeEn: visitType,
+          time: timeVal,
+          status: statusVal
+        });
+        document.getElementById('bookingPatientInput').value = '';
+        closeBooking();
+        renderAppointments();
+        showToast(state.lang === 'ar' ? 'تمت إضافة الحجز الجديد لطابور العيادة!' : 'New booking added to live queue!');
+      });
+
+      // Patient Modal
+      const patientModal = document.getElementById('patientModal');
+      const openPatientModal = () => {
+        patientModal.classList.remove('hidden');
+        patientModal.classList.add('flex');
+      };
+      const closePatientModal = () => {
+        patientModal.classList.add('hidden');
+        patientModal.classList.remove('flex');
+      };
+      document.getElementById('quickPatientBtn').addEventListener('click', openPatientModal);
+      document.getElementById('addPatientBtn2').addEventListener('click', openPatientModal);
+      document.getElementById('closePatientModalBtn').addEventListener('click', closePatientModal);
+      document.getElementById('cancelPatientModalBtn').addEventListener('click', closePatientModal);
+
+      document.getElementById('newPatientForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const name = document.getElementById('newPatientName').value.trim();
+        const phone = document.getElementById('newPatientPhone').value.trim();
+        const age = Number(document.getElementById('newPatientAge').value) || 30;
+        const blood = document.getElementById('newPatientBlood').value;
+        const dept = document.getElementById('newPatientDept').value;
+        const notes = document.getElementById('newPatientNotes').value.trim() || 'ملف طبي جديد';
+        if (!name) return;
+
+        state.patients.unshift({
+          code: `YC-${2045 + state.patients.length}`,
+          nameAr: name,
+          nameEn: name,
+          age,
+          blood,
+          phone,
+          deptAr: dept,
+          deptEn: dept,
+          lastVisit: '2026-10-16',
+          notesAr: notes,
+          notesEn: notes,
+          bp: '120/80'
+        });
+        document.getElementById('newPatientName').value = '';
+        closePatientModal();
+        renderPatients();
+        switchTab('patients');
+        showToast(state.lang === 'ar' ? 'تم إنشاء السجل الطبي للمريض بنجاح!' : 'Patient EMR profile created!');
+      });
+
+      // Brand Identity Customizer Controls
+      document.getElementById('exportThemeBtn').addEventListener('click', copyBrandTokens);
+      document.getElementById('copyTokensBtn2').addEventListener('click', copyBrandTokens);
+
+      document.querySelectorAll('.palette-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const p = btn.getAttribute('data-palette');
+          const root = document.documentElement;
+          if (p === 'teal') {
+            root.style.setProperty('--yc-brand', '#14B8A6');
+            root.style.setProperty('--yc-accent', '#38BDF8');
+          } else if (p === 'royal') {
+            root.style.setProperty('--yc-brand', '#3B82F6');
+            root.style.setProperty('--yc-accent', '#6366F1');
+          } else if (p === 'emerald') {
+            root.style.setProperty('--yc-brand', '#10B981');
+            root.style.setProperty('--yc-accent', '#0D9488');
+          }
+          showToast(state.lang === 'ar' ? 'تم تطبيق باليت ألوان يلا كلينيك فوراً!' : 'Applied Yalla Clinic brand palette!');
+        });
+      });
+
+      document.getElementById('radiusSlider').addEventListener('input', (e) => {
+        const val = `${e.target.value}px`;
+        document.documentElement.style.setProperty('--yc-radius', val);
+        document.getElementById('radiusValueText').textContent = val;
+      });
+    });
+  </script>
+</body>
+</html>
