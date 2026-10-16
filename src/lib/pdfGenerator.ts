@@ -249,6 +249,16 @@ async function captureElementCanvas(element: HTMLElement, scale: number = 2.5): 
   // Target inner sheet if element is a wrapper
   const targetSheet = (element.querySelector('#patient-a4-print-sheet') as HTMLElement) || element
 
+  // 1. Ensure fonts in current document are fully loaded before capturing
+  if (typeof document !== 'undefined' && document.fonts) {
+    try {
+      await document.fonts.ready
+    } catch (e) {
+      console.warn('Font loading await skipped:', e)
+    }
+  }
+
+  // 2. Pre-inline any remote images
   try {
     await inlineImagesAsBase64(targetSheet)
   } catch (e) {
@@ -265,9 +275,49 @@ async function captureElementCanvas(element: HTMLElement, scale: number = 2.5): 
       foreignObjectRendering: false,
       windowWidth: 1200,
       onclone: (clonedDoc, clonedEl) => {
-        // Universal color sanitization to neutralize any Tailwind 4 lab/oklab colors
+        // A. Set explicit RTL and Arabic language on cloned document
+        try {
+          clonedDoc.documentElement.setAttribute('dir', 'rtl')
+          clonedDoc.documentElement.setAttribute('lang', 'ar')
+          clonedEl.setAttribute('dir', 'rtl')
+        } catch {}
+
+        // B. Inject Cairo Google Font directly into clonedDoc head to guarantee Arabic cursive ligatures
+        try {
+          const fontStyle = clonedDoc.createElement('style')
+          fontStyle.innerHTML = `
+            @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap');
+            *, html, body, [dir="rtl"], #patient-a4-print-sheet, #patient-a4-print-sheet * {
+              font-family: 'Cairo', 'Segoe UI', Tahoma, -apple-system, sans-serif !important;
+              letter-spacing: 0px !important;
+              word-spacing: 0px !important;
+              font-feature-settings: "liga" 1, "calt" 1, "dlig" 1 !important;
+              font-variant-ligatures: normal !important;
+              text-rendering: geometricPrecision !important;
+              -webkit-font-smoothing: antialiased !important;
+            }
+          `
+          clonedDoc.head.appendChild(fontStyle)
+        } catch (e) {
+          console.warn('Failed to inject font style in clone:', e)
+        }
+
+        // C. Universal color sanitization to neutralize any Tailwind 4 lab/oklab colors
         sanitizeColorsToRgb(clonedDoc, clonedEl)
 
+        // D. Clean out negative letter-spacing and broken ellipsis on all nodes
+        const allNodes = Array.from(clonedEl.querySelectorAll<HTMLElement>('*'))
+        allNodes.forEach((node) => {
+          if (node.style) {
+            node.style.letterSpacing = '0px'
+            node.style.wordSpacing = '0px'
+            if (node.style.textOverflow === 'ellipsis') {
+              node.style.textOverflow = 'clip'
+            }
+          }
+        })
+
+        // E. Geometry and print isolation
         const sheet = (clonedEl.querySelector('#patient-a4-print-sheet') || clonedEl) as HTMLElement
         const isA5 = sheet.classList?.contains('max-w-[560px]') || sheet.innerText?.includes('A5')
 
@@ -290,17 +340,10 @@ async function captureElementCanvas(element: HTMLElement, scale: number = 2.5): 
           sheet.style.borderRadius = '0px'
           sheet.style.transform = 'none'
           sheet.style.margin = '0px'
+          sheet.style.letterSpacing = '0px'
         }
 
-        // Clean out print media stylesheets that might interfere with canvas rasterization
-        const styleTags = Array.from(clonedDoc.querySelectorAll('style'))
-        styleTags.forEach((s) => {
-          if (s.innerHTML.includes('@page') || s.innerHTML.includes('@media print')) {
-            s.remove()
-          }
-        })
-
-        // Safety: hide any remaining remote image that could not be inlined and might taint canvas
+        // F. Safety: hide any remaining remote image that could not be inlined and might taint canvas
         const clonedImgs = Array.from(clonedEl.querySelectorAll('img'))
         clonedImgs.forEach((img) => {
           if (!img.src.startsWith('data:') && !img.src.startsWith('blob:')) {
@@ -323,6 +366,7 @@ async function captureElementCanvas(element: HTMLElement, scale: number = 2.5): 
     container.style.width = '794px'
     container.style.background = '#ffffff'
     container.style.zIndex = '-9999'
+    container.setAttribute('dir', 'rtl')
     container.appendChild(clone)
     document.body.appendChild(container)
 

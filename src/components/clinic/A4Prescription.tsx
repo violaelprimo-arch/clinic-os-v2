@@ -80,6 +80,19 @@ export function A4Prescription({
       <style
         dangerouslySetInnerHTML={{
           __html: `
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap');
+
+        #patient-a4-print-sheet,
+        #patient-a4-print-sheet * {
+          font-family: 'Cairo', var(--font-cairo), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+          letter-spacing: 0px !important;
+          word-spacing: 0px !important;
+          font-feature-settings: "liga" 1, "calt" 1, "dlig" 1 !important;
+          font-variant-ligatures: normal !important;
+          text-rendering: geometricPrecision !important;
+          -webkit-font-smoothing: antialiased !important;
+        }
+
         @media print {
           * {
             -webkit-print-color-adjust: exact !important;
@@ -178,7 +191,7 @@ export function A4Prescription({
                 {/* Doctor Arabic Details */}
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <h1 className={`${isA5 ? 'text-lg sm:text-xl' : 'text-2xl sm:text-3xl'} font-black text-slate-900 tracking-tight`}>
+                    <h1 className={`${isA5 ? 'text-lg sm:text-xl' : 'text-2xl sm:text-3xl'} font-black text-slate-900`}>
                       {doctorTitle} {doctorName}
                     </h1>
                   </div>
@@ -249,7 +262,7 @@ export function A4Prescription({
                   <span className="text-[10px] text-slate-400 font-semibold block leading-tight">
                     {language === 'en' ? 'Patient:' : 'المريض:'}
                   </span>
-                  <strong className="text-slate-900 font-black truncate block text-[11px] sm:text-xs">
+                  <strong className="text-slate-900 font-black block text-[11px] sm:text-xs leading-normal">
                     {patientName || (language === 'en' ? 'Patient' : 'المريض')}
                   </strong>
                 </div>
@@ -359,7 +372,7 @@ export function A4Prescription({
                   <div className="flex-1 min-w-0 space-y-1 text-left">
                     {/* Drug Commercial Name in Bold Latin */}
                     <div className="flex items-center gap-2">
-                      <h3 className={`${isA5 ? 'text-xs sm:text-sm' : 'text-sm sm:text-base'} font-black text-slate-900 tracking-tight`}>
+                      <h3 className={`${isA5 ? 'text-xs sm:text-sm' : 'text-sm sm:text-base'} font-black text-slate-900`}>
                         {drug.name}
                       </h3>
                     </div>
@@ -425,7 +438,7 @@ export function A4Prescription({
               <div className="flex items-center gap-3">
                 <div className="text-center">
                   <div
-                    className={`${isA5 ? 'w-28' : 'w-36'} border-b-2 border-slate-400 pb-1 italic font-serif text-slate-800 ${isA5 ? 'text-xs' : 'text-sm'} font-bold`}
+                    className={`${isA5 ? 'w-28' : 'w-36'} border-b-2 border-slate-400 pb-1 text-slate-800 ${isA5 ? 'text-xs' : 'text-sm'} font-bold leading-normal`}
                   >
                     {doctorTitle} {doctorName}
                   </div>
@@ -448,7 +461,7 @@ export function A4Prescription({
 
               {/* Clinic Address & Contacts */}
               <div className={`${language === 'en' ? 'text-left' : 'text-right'} space-y-0.5 text-[9.5px] text-slate-600 max-w-[220px]`}>
-                <p className="flex items-center gap-1 font-semibold truncate">
+                <p className="flex items-center gap-1 font-semibold leading-normal">
                   <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
                   <span>{clinic?.clinicAddress || (language === 'en' ? 'Registered at clinic' : 'العنوان: مسجل بالعيادة')}</span>
                 </p>

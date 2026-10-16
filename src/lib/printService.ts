@@ -1219,6 +1219,9 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
 <head>
   <meta charset="utf-8">
   <title>الروشتة الطبية - ${data.patientName || 'المريض'}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
     * {
       box-sizing: border-box;
@@ -1227,6 +1230,8 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
       color-adjust: exact !important;
+      letter-spacing: 0px !important;
+      word-spacing: 0px !important;
     }
     @page {
       size: ${isA5 ? 'A5' : 'A4'} portrait;
@@ -1239,10 +1244,11 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
       padding: 0 !important;
       background: #ffffff;
       color: #0f172a;
-      font-family: 'Segoe UI', Tahoma, -apple-system, Roboto, 'Cairo', Arial, sans-serif;
+      font-family: 'Cairo', 'Segoe UI', Tahoma, -apple-system, Arial, sans-serif;
       direction: rtl;
       text-align: right;
       overflow: hidden;
+      font-feature-settings: "liga" 1, "calt" 1, "dlig" 1 !important;
     }
     .prescription-sheet {
       position: relative;
