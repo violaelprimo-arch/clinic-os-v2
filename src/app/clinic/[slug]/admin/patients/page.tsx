@@ -19,10 +19,12 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { exportPatientsToExcel } from '@/lib/excelExport'
 import { printHtmlViaIframe, generatePatientsReportHtml } from '@/lib/printService'
+import { useLanguage } from '@/context/LanguageContext'
 
 export default function PatientsPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
+  const { t, dir } = useLanguage()
   const [clinic, setClinic] = useState<any>(null)
   const [patients, setPatients] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -310,13 +312,16 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
   }
 
   return (
-    <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto" dir="rtl">
+    <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto" dir={dir}>
       
       {/* 1. Header with Title and Add Patient CTA */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-black text-[#182230]">سجل المرضى</h1>
-          <p className="text-xs text-slate-400 mt-1">
+          <h1 className="text-2xl font-black text-foreground flex items-center gap-2">
+            <User className="w-6 h-6 text-primary" />
+            {t('nav_patients', 'سجل المرضى')}
+          </h1>
+          <p className="text-xs text-muted-foreground mt-1">
             إدارة السجلات الطبية، ملفات المرضى وتصدير السجل بالتاريخ (PDF & Excel)
           </p>
         </div>
@@ -326,26 +331,26 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
           <Button
             variant="outline"
             onClick={handleExportExcel}
-            className="h-10 px-4 border-teal-200 text-teal-700 hover:bg-teal-50 font-bold rounded-xl text-xs inline-flex items-center cursor-pointer"
+            className="h-10 px-4 border-border text-foreground hover:bg-secondary font-bold rounded-xl text-xs inline-flex items-center cursor-pointer"
           >
-            <FileSpreadsheet className="w-4 h-4 ml-1.5 text-emerald-600" />
-            تصدير المرضى (Excel)
+            <FileSpreadsheet className="w-4 h-4 ml-1.5 text-emerald-500" />
+            {t('export_excel', 'تصدير المرضى (Excel)')}
           </Button>
 
           {/* PDF Report Export */}
           <Button
             variant="outline"
             onClick={handlePrintPatientsReport}
-            className="h-10 px-4 border-[#E5EAF0] text-slate-700 hover:bg-slate-100 font-bold rounded-xl text-xs inline-flex items-center cursor-pointer"
+            className="h-10 px-4 border-border text-foreground hover:bg-secondary font-bold rounded-xl text-xs inline-flex items-center cursor-pointer"
           >
-            <Printer className="w-4 h-4 ml-1.5 text-[#087CF4]" />
+            <Printer className="w-4 h-4 ml-1.5 text-primary" />
             طباعة تقرير المرضى (PDF / A4)
           </Button>
 
           <Button 
             variant="destructive"
             onClick={handleDeleteAllPatients}
-            className="h-10 px-4 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl shadow-md shadow-rose-500/20 transition-all text-xs inline-flex items-center justify-center cursor-pointer"
+            className="h-10 px-4 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 font-bold rounded-xl transition-all text-xs inline-flex items-center justify-center cursor-pointer"
           >
             <Trash2 className="w-4 h-4 ml-1.5" />
             مسح جميع المرضى
@@ -353,112 +358,112 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
           
           {/* Add Patient Modal */}
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-          <DialogTrigger className="h-10 px-4 yalla-gradient-btn text-white font-bold rounded-xl shadow-md transition-all text-xs inline-flex items-center justify-center cursor-pointer">
-            <Plus className="w-4 h-4 ml-1.5" />
-            إضافة مريض جديد
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-md" dir="rtl">
-            <DialogHeader>
-              <DialogTitle className="text-lg font-bold text-[#182230]">إضافة مريض جديد للسجل</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleAddNewPatient} className="space-y-4 pt-2">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-600">اسم المريض الثلاثي</Label>
-                <Input
-                  value={newName}
-                  onChange={e => setNewName(e.target.value)}
-                  placeholder="مثال: محمد أحمد علي"
-                  className="h-10 text-sm rounded-xl"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-600">رقم الهاتف (واتساب)</Label>
-                <Input
-                  value={newPhone}
-                  onChange={e => setNewPhone(e.target.value)}
-                  placeholder="01xxxxxxxxx"
-                  className="h-10 text-sm font-mono text-right rounded-xl"
-                  dir="ltr"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
+            <DialogTrigger className="h-10 px-4 yalla-gradient-btn text-white font-bold rounded-xl shadow-md transition-all text-xs inline-flex items-center justify-center cursor-pointer">
+              <Plus className="w-4 h-4 ml-1.5" />
+              إضافة مريض جديد
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md bg-card border border-border" dir={dir}>
+              <DialogHeader>
+                <DialogTitle className="text-lg font-bold text-foreground">إضافة مريض جديد للسجل</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleAddNewPatient} className="space-y-4 pt-2">
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-600">تاريخ الميلاد</Label>
+                  <Label className="text-xs font-bold text-muted-foreground">اسم المريض الثلاثي</Label>
                   <Input
-                    type="date"
-                    value={newDob}
-                    onChange={e => handleDobChange(e.target.value)}
-                    className="h-10 text-sm rounded-xl"
+                    value={newName}
+                    onChange={e => setNewName(e.target.value)}
+                    placeholder="مثال: محمد أحمد علي"
+                    className="h-10 text-sm rounded-xl bg-background border-border text-foreground"
+                    required
                   />
                 </div>
+
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-600">العمر</Label>
+                  <Label className="text-xs font-bold text-muted-foreground">رقم الهاتف (واتساب)</Label>
                   <Input
-                    type="number"
-                    value={newAge}
-                    onChange={e => handleAgeChange(e.target.value)}
-                    placeholder="25"
-                    className="h-10 text-sm rounded-xl"
+                    value={newPhone}
+                    onChange={e => setNewPhone(e.target.value)}
+                    placeholder="01xxxxxxxxx"
+                    className="h-10 text-sm font-mono text-right rounded-xl bg-background border-border text-foreground"
+                    dir="ltr"
+                    required
                   />
                 </div>
-              </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-muted-foreground">تاريخ الميلاد</Label>
+                    <Input
+                      type="date"
+                      value={newDob}
+                      onChange={e => handleDobChange(e.target.value)}
+                      className="h-10 text-sm rounded-xl bg-background border-border text-foreground"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-muted-foreground">العمر</Label>
+                    <Input
+                      type="number"
+                      value={newAge}
+                      onChange={e => handleAgeChange(e.target.value)}
+                      placeholder="25"
+                      className="h-10 text-sm rounded-xl bg-background border-border text-foreground"
+                    />
+                  </div>
+                </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-600">نوع الخدمة</Label>
-                  <select
-                    value={newService}
-                    onChange={e => setNewService(e.target.value)}
-                    className="w-full h-10 px-3 rounded-xl border border-[#E5EAF0] text-xs font-bold text-slate-700 bg-white"
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-muted-foreground">نوع الخدمة</Label>
+                    <select
+                      value={newService}
+                      onChange={e => setNewService(e.target.value)}
+                      className="w-full h-10 px-3 rounded-xl border border-border text-xs font-bold text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    >
+                      <option value="كشف عادي">كشف عادي</option>
+                      <option value="استشارة">استشارة</option>
+                      <option value="كشف مستعجل">كشف مستعجل</option>
+                      <option value="متابعة">متابعة</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-muted-foreground">القيمة ({t('currency_egp', 'ج.م')})</Label>
+                    <Input
+                      type="number"
+                      value={newPrice}
+                      onChange={e => setNewPrice(Number(e.target.value))}
+                      className="h-10 text-sm rounded-xl bg-background border-border text-foreground"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-3 flex gap-2">
+                  <Button
+                    type="submit"
+                    disabled={isAdding}
+                    className="flex-1 yalla-gradient-btn text-white font-bold h-10 rounded-xl text-xs"
                   >
-                    <option value="كشف عادي">كشف عادي</option>
-                    <option value="استشارة">استشارة</option>
-                    <option value="كشف مستعجل">كشف مستعجل</option>
-                    <option value="متابعة">متابعة</option>
-                  </select>
+                    {isAdding ? 'جاري الحفظ...' : 'حفظ المريض'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsAddOpen(false)}
+                    className="h-10 text-xs font-bold rounded-xl border-border"
+                  >
+                    إلغاء
+                  </Button>
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-600">القيمة (ج.م)</Label>
-                  <Input
-                    type="number"
-                    value={newPrice}
-                    onChange={e => setNewPrice(Number(e.target.value))}
-                    className="h-10 text-sm rounded-xl"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-3 flex gap-2">
-                <Button
-                  type="submit"
-                  disabled={isAdding}
-                  className="flex-1 yalla-gradient-btn text-white font-bold h-10 rounded-xl text-xs"
-                >
-                  {isAdding ? 'جاري الحفظ...' : 'حفظ المريض'}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsAddOpen(false)}
-                  className="h-10 text-xs font-bold rounded-xl"
-                >
-                  إلغاء
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
       {/* Date Range Filter Bar */}
-      <div className="medical-card p-4 bg-white space-y-3">
+      <div className="yalla-card p-4 space-y-3 border border-border">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-            <Calendar className="w-4 h-4 text-[#087CF4]" />
+          <div className="flex items-center gap-2 text-xs font-bold text-foreground">
+            <Calendar className="w-4 h-4 text-primary" />
             <span>فرز سجل المرضى بالتاريخ (من / إلى):</span>
           </div>
 
@@ -468,7 +473,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
               type="button"
               onClick={() => setDatePreset('all')}
               className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
-                !fromDate && !toDate ? 'bg-[#087CF4] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                !fromDate && !toDate ? 'yalla-gradient-btn text-white shadow-xs' : 'bg-secondary text-foreground hover:bg-secondary/80'
               }`}
             >
               الكل
@@ -477,7 +482,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
               type="button"
               onClick={() => setDatePreset('today')}
               className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
-                fromDate === todayCairoStr && toDate === todayCairoStr ? 'bg-[#087CF4] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                fromDate === todayCairoStr && toDate === todayCairoStr ? 'yalla-gradient-btn text-white shadow-xs' : 'bg-secondary text-foreground hover:bg-secondary/80'
               }`}
             >
               اليوم
@@ -485,50 +490,50 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
             <button
               type="button"
               onClick={() => setDatePreset('week')}
-              className="px-3 py-1 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
+              className="px-3 py-1 text-xs font-bold rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-colors cursor-pointer"
             >
               آخر 7 أيام
             </button>
             <button
               type="button"
               onClick={() => setDatePreset('month')}
-              className="px-3 py-1 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
+              className="px-3 py-1 text-xs font-bold rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-colors cursor-pointer"
             >
               هذا الشهر
             </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-slate-100 items-center">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-border items-center">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-500 shrink-0">من تاريخ:</span>
+            <span className="text-xs font-bold text-muted-foreground shrink-0">من تاريخ:</span>
             <Input
               type="date"
               value={fromDate}
               onChange={e => { setFromDate(e.target.value); setCurrentPage(1); }}
-              className="h-9 text-xs bg-[#F6F8FB] border-[#E5EAF0] rounded-xl font-mono"
+              className="h-9 text-xs bg-background border-border text-foreground rounded-xl font-mono"
             />
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-500 shrink-0">إلى تاريخ:</span>
+            <span className="text-xs font-bold text-muted-foreground shrink-0">إلى تاريخ:</span>
             <Input
               type="date"
               value={toDate}
               onChange={e => { setToDate(e.target.value); setCurrentPage(1); }}
-              className="h-9 text-xs bg-[#F6F8FB] border-[#E5EAF0] rounded-xl font-mono"
+              className="h-9 text-xs bg-background border-border text-foreground rounded-xl font-mono"
             />
           </div>
 
           {(fromDate || toDate) && (
             <div className="sm:col-span-2 flex items-center justify-end gap-2">
-              <span className="text-xs text-teal-700 font-semibold bg-teal-50 px-2.5 py-1 rounded-lg border border-teal-200">
+              <span className="text-xs text-primary font-semibold bg-primary/10 px-2.5 py-1 rounded-lg border border-primary/20">
                 مفلتر: {fromDate || 'البداية'} ⬅ {toDate || 'اليوم'} ({filtered.length} مريض)
               </span>
               <button
                 type="button"
                 onClick={() => { setFromDate(''); setToDate(''); setCurrentPage(1); }}
-                className="h-9 px-3 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
+                className="h-9 px-3 text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
                 إلغاء الفرز
@@ -539,14 +544,14 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
       </div>
 
       {/* 2. Search & Filters Bar */}
-      <div className="medical-card p-4 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white">
+      <div className="yalla-card p-4 flex flex-col sm:flex-row items-center justify-between gap-3 border border-border">
         <div className="relative w-full sm:w-96">
-          <Search className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
             onChange={e => { setSearch(e.target.value); setCurrentPage(1); }}
             placeholder="ابحث بالاسم أو رقم الهاتف..."
-            className="pr-10 h-10 text-sm bg-[#F6F8FB] border-[#E5EAF0] rounded-xl focus:bg-white"
+            className="pr-10 h-10 text-sm bg-background border-border text-foreground rounded-xl"
           />
         </div>
 
@@ -554,7 +559,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
           <select
             value={statusFilter}
             onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-            className="h-10 px-4 rounded-xl border border-[#E5EAF0] text-xs font-bold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#087CF4]/20"
+            className="h-10 px-4 rounded-xl border border-border text-xs font-bold text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
           >
             <option value="ALL">كل الحالات</option>
             <option value="نشط">نشط</option>
@@ -565,10 +570,10 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
       </div>
 
       {/* 3. Patients Data Table */}
-      <div className="medical-card overflow-hidden">
+      <div className="yalla-card overflow-hidden border border-border">
         <div className="overflow-x-auto">
           <table className="w-full text-right text-sm">
-            <thead className="bg-[#F8FAFC] border-b border-[#E5EAF0] text-slate-400 text-xs font-bold select-none">
+            <thead className="bg-secondary/60 border-b border-border text-muted-foreground text-xs font-bold select-none">
               <tr>
                 <th className="py-3.5 px-4">المريض</th>
                 <th className="py-3.5 px-4">رقم الهاتف</th>
@@ -579,38 +584,38 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                 <th className="py-3.5 px-4 text-center">إجراء</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E5EAF0]">
+            <tbody className="divide-y divide-border">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
-                    <div className="w-7 h-7 border-2 border-[#087CF4] border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                  <td colSpan={7} className="py-12 text-center text-muted-foreground">
+                    <div className="w-7 h-7 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
                     جاري تحميل سجل المرضى...
                   </td>
                 </tr>
               ) : paginatedPatients.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                  <td colSpan={7} className="py-12 text-center text-muted-foreground">
                     لا يوجد مرضى مطابقين للبحث.
                   </td>
                 </tr>
               ) : (
                 paginatedPatients.map((patient) => {
                   return (
-                    <tr key={patient.id} className="hover:bg-slate-50/80 transition-colors group">
+                    <tr key={patient.id} className="hover:bg-secondary/40 transition-colors group">
                       {/* Name & Avatar */}
                       <td className="py-3.5 px-4">
                         <Link href={`/clinic/${slug}/admin/patients/${encodeURIComponent(patient.phone)}`}>
                           <div className="flex items-center gap-3 cursor-pointer">
-                            <Avatar className="w-9 h-9 border border-blue-100 bg-[#087CF4]/10 text-[#087CF4] shrink-0">
-                              <AvatarFallback className="font-bold text-xs bg-[#087CF4]/10 text-[#087CF4]">
+                            <Avatar className="w-9 h-9 border border-primary/20 bg-primary/10 text-primary shrink-0">
+                              <AvatarFallback className="font-bold text-xs bg-primary/10 text-primary">
                                 {patient.name.charAt(0)}
                               </AvatarFallback>
                             </Avatar>
                             <div>
-                              <p className="font-bold text-xs text-[#182230] group-hover:text-[#087CF4] transition-colors">
+                              <p className="font-bold text-xs text-foreground group-hover:text-primary transition-colors">
                                 {patient.name}
                               </p>
-                              <span className="text-[10px] text-slate-400 font-mono sm:hidden">
+                              <span className="text-[10px] text-muted-foreground font-mono sm:hidden">
                                 {patient.phone}
                               </span>
                             </div>
@@ -619,25 +624,25 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                       </td>
 
                       {/* Phone */}
-                      <td className="py-3.5 px-4 font-mono text-xs text-slate-600">
+                      <td className="py-3.5 px-4 font-mono text-xs text-muted-foreground">
                         {patient.phone}
                       </td>
 
                       {/* Visits Count */}
                       <td className="py-3.5 px-4 text-center">
-                        <span className="inline-block px-2.5 py-0.5 rounded-full bg-slate-100 font-black text-xs text-slate-700">
+                        <span className="inline-block px-2.5 py-0.5 rounded-full bg-secondary font-black text-xs text-foreground">
                           {patient.visitsCount}
                         </span>
                       </td>
 
                       {/* Last Visit */}
-                      <td className="py-3.5 px-4 text-xs text-slate-500 font-mono">
+                      <td className="py-3.5 px-4 text-xs text-muted-foreground font-mono">
                         {patient.lastVisit}
                       </td>
 
                       {/* Last Service */}
                       <td className="py-3.5 px-4">
-                        <span className="inline-block text-[11px] font-semibold px-2 py-0.5 rounded-md bg-blue-50 text-[#2F80ED] border border-blue-100">
+                        <span className="inline-block text-[11px] font-semibold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
                           {patient.lastService}
                         </span>
                       </td>
@@ -645,12 +650,12 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                       {/* Status */}
                       <td className="py-3.5 px-4 text-center">
                         <Badge
-                          className={`text-[10px] font-bold px-2 py-0.5 border-none ${
+                          className={`text-[10px] font-bold px-2.5 py-0.5 border-none ${
                             patient.status === 'مستعجل'
-                              ? 'bg-rose-100 text-rose-700'
+                              ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
                               : patient.status === 'خامل'
-                              ? 'bg-slate-100 text-slate-500'
-                              : 'bg-emerald-100 text-emerald-800'
+                              ? 'bg-secondary text-muted-foreground'
+                              : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                           }`}
                         >
                           {patient.status || 'نشط'}
@@ -664,7 +669,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                             <Button
                               size="sm"
                               variant="outline"
-                              className="h-8 px-3 text-xs font-bold text-[#087CF4] border-blue-200 hover:bg-blue-50 rounded-xl"
+                              className="h-8 px-3 text-xs font-bold text-primary border-border hover:bg-primary/10 rounded-xl"
                             >
                               ملف المريض
                             </Button>
@@ -672,7 +677,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-8 w-8 text-emerald-600 hover:bg-emerald-50 rounded-xl"
+                            className="h-8 w-8 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-xl"
                             onClick={() => sendWhatsApp(patient.phone, patient.name)}
                             title="مراسلة عبر واتساب"
                           >
@@ -681,7 +686,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-8 w-8 text-rose-500 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-colors"
+                            className="h-8 w-8 text-rose-500 hover:bg-rose-500/10 rounded-xl transition-colors"
                             onClick={() => handleDeletePatient(patient.phone, patient.name)}
                             title="حذف المريض"
                           >
@@ -697,8 +702,8 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
           </table>
         </div>
 
-        {/* 4. Table Pagination Footer matching Mockup */}
-        <div className="p-4 border-t border-[#E5EAF0] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 bg-slate-50/50">
+        {/* 4. Table Pagination Footer */}
+        <div className="p-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground bg-secondary/30">
           <div>
             عرض {paginatedPatients.length} من أصل {filtered.length} مريض
           </div>
@@ -709,9 +714,9 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
               variant="outline"
               onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}
-              className="h-8 px-3 text-xs font-bold rounded-xl"
+              className="h-8 px-3 text-xs font-bold rounded-xl border-border"
             >
-              السابق
+              {t('previous', 'السابق')}
             </Button>
 
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
@@ -721,7 +726,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                 variant={currentPage === page ? 'default' : 'outline'}
                 onClick={() => setCurrentPage(page)}
                 className={`h-8 w-8 text-xs font-bold rounded-xl ${
-                  currentPage === page ? 'bg-[#087CF4] text-white hover:bg-[#0662C4]' : ''
+                  currentPage === page ? 'yalla-gradient-btn text-white' : 'border-border'
                 }`}
               >
                 {page}
@@ -733,9 +738,9 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
               variant="outline"
               onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
               disabled={currentPage === totalPages}
-              className="h-8 px-3 text-xs font-bold rounded-xl"
+              className="h-8 px-3 text-xs font-bold rounded-xl border-border"
             >
-              التالي
+              {t('next', 'التالي')}
             </Button>
           </div>
         </div>

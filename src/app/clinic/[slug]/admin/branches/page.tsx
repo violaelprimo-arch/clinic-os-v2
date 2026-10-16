@@ -30,10 +30,12 @@ import {
   getClinicBranches,
   checkScheduleConflicts
 } from '@/lib/branchService'
+import { useLanguage } from '@/context/LanguageContext'
 
 export default function BranchesPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
+  const { t, dir } = useLanguage()
 
   const [clinic, setClinic] = useState<any>(null)
   const [branches, setBranches] = useState<Branch[]>([])
@@ -280,15 +282,15 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
   }
 
   return (
-    <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto" dir="rtl">
+    <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto" dir={dir}>
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-black text-[#182230] flex items-center gap-2.5">
-            <Building2 className="w-7 h-7 text-[#087CF4]" />
+          <h1 className="text-2xl font-black text-foreground flex items-center gap-2.5">
+            <Building2 className="w-7 h-7 text-primary" />
             إدارة فروع العيادة
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             إضافة فروع متعددة للعيادة، تخصيص مواعيد عمل وجدول أسبوعي مستقل لكل فرع، وتجنب تعارض مواعيد الطبيب
           </p>
         </div>
@@ -298,10 +300,10 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
             variant="outline"
             className={`text-xs px-3 py-1.5 font-bold ${
               !branchesEnabled
-                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
                 : isLimitReached
-                ? 'bg-amber-50 text-amber-700 border-amber-200'
-                : 'bg-blue-50 text-[#087CF4] border-blue-200'
+                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                : 'bg-primary/10 text-primary border-primary/20'
             }`}
           >
             {!branchesEnabled
@@ -312,7 +314,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
           {canAddBranch && (
             <Button
               onClick={openAddModal}
-              className="h-10 px-4 bg-[#087CF4] hover:bg-[#0769D1] text-white font-bold rounded-xl shadow-md text-xs cursor-pointer"
+              className="h-10 px-4 yalla-gradient-btn text-white font-bold rounded-xl shadow-xs text-xs cursor-pointer"
             >
               <Plus className="w-4 h-4 ml-1.5" />
               إضافة فرع جديد
@@ -322,9 +324,9 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
       </div>
 
       {!branchesEnabled && (
-        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between">
+        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+            <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
             <span>
               ميزة تعدد الفروع غير مفعلة في اشتراك هذه العيادة. يعمل الفرع الرئيسي حالياً بصورة طبيعية، ولطلب زيادة عدد الفروع يرجى التواصل مع إدارة Yalla Clinic.
             </span>
@@ -333,9 +335,9 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
       )}
 
       {branchesEnabled && isLimitReached && (
-        <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200 text-blue-900 text-xs flex items-center justify-between">
+        <div className="p-4 rounded-2xl bg-primary/10 border border-primary/20 text-primary text-xs flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-5 h-5 text-[#087CF4] shrink-0" />
+            <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
             <span>
               تم استهلاك السعة القصوى للفروع المتاحة في باقتكم ({activeBranches.length} من أصل {maxBranches} فروع). لترقية الباقة يرجى التواصل مع إدارة Yalla Clinic.
             </span>
@@ -345,16 +347,16 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
 
       {/* Branches Cards Grid */}
       {isLoading ? (
-        <div className="py-20 text-center text-slate-400">
-          <div className="w-8 h-8 border-2 border-[#087CF4] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+        <div className="py-20 text-center text-muted-foreground">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
           جاري تحميل الفروع...
         </div>
       ) : branches.length === 0 ? (
-        <div className="medical-card p-12 text-center bg-white space-y-3">
-          <Building2 className="w-12 h-12 text-slate-300 mx-auto" />
-          <h3 className="font-bold text-base text-slate-700">لا توجد فروع مسجلة</h3>
-          <p className="text-xs text-slate-400">يمكنك إضافة فروع جديدة لتمكين المرضى من اختيار الفرع الأقرب إليهم.</p>
-          <Button onClick={openAddModal} size="sm" className="bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl">
+        <div className="yalla-card p-12 text-center space-y-3">
+          <Building2 className="w-12 h-12 text-muted-foreground/40 mx-auto" />
+          <h3 className="font-bold text-base text-foreground">لا توجد فروع مسجلة</h3>
+          <p className="text-xs text-muted-foreground">يمكنك إضافة فروع جديدة لتمكين المرضى من اختيار الفرع الأقرب إليهم.</p>
+          <Button onClick={openAddModal} size="sm" className="yalla-gradient-btn text-white rounded-xl">
             إضافة الفرع الأول
           </Button>
         </div>
@@ -363,30 +365,30 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
           {branches.map((b) => (
             <div
               key={b.id}
-              className={`medical-card bg-white border rounded-2xl p-5 space-y-4 transition-all shadow-xs ${
-                b.isOpen ? 'border-[#E5EAF0] hover:border-teal-300' : 'border-rose-200 bg-rose-50/20'
+              className={`yalla-card p-5 space-y-4 transition-all shadow-xs ${
+                b.isOpen ? 'border border-border hover:border-primary/40' : 'border border-rose-500/20 bg-rose-500/5'
               }`}
             >
               {/* Branch Title & Status */}
               <div className="flex items-start justify-between gap-2">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <h3 className="font-black text-base text-[#182230]">{b.name}</h3>
+                    <h3 className="font-black text-base text-foreground">{b.name}</h3>
                     {b.isMain && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-[#087CF4] border border-blue-200 dark:bg-blue-900/30 dark:text-[#02CFF3] dark:border-blue-800">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                         الرئيسي
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-slate-500 flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                     <span>{b.area || b.city} • {b.address}</span>
                   </p>
                 </div>
 
                 <Badge
                   className={`text-[10px] font-bold px-2 py-0.5 border-none ${
-                    b.isOpen ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                    b.isOpen ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
                   }`}
                 >
                   {b.isOpen ? 'مفتوح للحجز' : 'مغلق مؤقتاً'}
@@ -394,26 +396,26 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
               </div>
 
               {/* Contact info */}
-              <div className="p-3 bg-slate-50 rounded-xl space-y-1.5 text-xs text-slate-600">
+              <div className="p-3 bg-muted/40 rounded-xl space-y-1.5 text-xs text-foreground">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-400">الهاتف:</span>
+                  <span className="text-muted-foreground">الهاتف:</span>
                   <span className="font-mono font-bold">{b.phone}</span>
                 </div>
                 {b.whatsapp && (
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-400">واتساب:</span>
-                    <span className="font-mono font-bold text-emerald-700">{b.whatsapp}</span>
+                    <span className="text-muted-foreground">واتساب:</span>
+                    <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{b.whatsapp}</span>
                   </div>
                 )}
                 {b.slotDuration && (
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-400">مدة الكشف:</span>
+                    <span className="text-muted-foreground">مدة الكشف:</span>
                     <span>{b.slotDuration} دقيقة</span>
                   </div>
                 )}
                 {b.maxDailyBookings ? (
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-400">الحد الأقصى يومياً:</span>
+                    <span className="text-muted-foreground">الحد الأقصى يومياً:</span>
                     <span>{b.maxDailyBookings} كشف</span>
                   </div>
                 ) : null}
@@ -421,12 +423,12 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
 
               {/* Working Days Pill Tags */}
               <div className="space-y-1">
-                <span className="text-[11px] font-bold text-slate-400 block">أيام العمل المفتوحة:</span>
+                <span className="text-[11px] font-bold text-muted-foreground block">أيام العمل المفتوحة:</span>
                 <div className="flex flex-wrap gap-1">
                   {b.weeklySchedule?.filter((d) => d.isOpen).map((d) => (
                     <span
                       key={d.id}
-                      className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-teal-50 text-[#0F766E] border border-teal-100"
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20"
                     >
                       {d.day} ({d.start}-{d.end})
                     </span>
@@ -435,12 +437,12 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
               </div>
 
               {/* Actions Footer */}
-              <div className="pt-3 border-t border-[#E5EAF0] flex items-center justify-between gap-2">
+              <div className="pt-3 border-t border-border flex items-center justify-between gap-2">
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => openEditModal(b)}
-                  className="h-8 px-3 text-xs font-bold text-blue-600 border-blue-200 hover:bg-blue-50 rounded-xl"
+                  className="h-8 px-3 text-xs font-bold text-primary border-primary/20 hover:bg-primary/5 rounded-xl"
                 >
                   <Edit className="w-3.5 h-3.5 ml-1" />
                   تعديل
@@ -452,7 +454,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                     variant="ghost"
                     onClick={() => handleToggleStatus(b.id, b.isOpen)}
                     className={`h-8 px-2 text-xs font-bold rounded-xl ${
-                      b.isOpen ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'
+                      b.isOpen ? 'text-amber-600 hover:bg-amber-500/10' : 'text-emerald-600 hover:bg-emerald-500/10'
                     }`}
                     title={b.isOpen ? 'إيقاف الحجز' : 'فتح الحجز'}
                   >
@@ -465,7 +467,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                       size="sm"
                       variant="ghost"
                       onClick={() => handleArchiveBranch(b.id, b.isMain)}
-                      className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl"
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 rounded-xl"
                       title="أرشفة الفرع"
                     >
                       <Archive className="w-3.5 h-3.5" />
@@ -480,19 +482,19 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
 
       {/* Add / Edit Branch Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in" dir="rtl">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden flex flex-col max-h-[92vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in" dir={dir}>
+          <div className="bg-card text-card-foreground rounded-3xl shadow-2xl border border-border w-full max-w-2xl overflow-hidden flex flex-col max-h-[92vh]">
             {/* Modal Header */}
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+            <div className="p-4 border-b border-border flex items-center justify-between bg-muted/40">
               <div className="flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-[#087CF4]" />
-                <h3 className="font-black text-sm text-[#182230]">
+                <Building2 className="w-5 h-5 text-primary" />
+                <h3 className="font-black text-sm text-foreground">
                   {editingBranchId ? 'تعديل بيانات الفرع' : 'إضافة فرع جديد للعيادة'}
                 </h3>
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg"
+                className="text-muted-foreground hover:text-foreground p-1.5 rounded-lg transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -502,9 +504,9 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
             <form onSubmit={handleSaveBranch} className="overflow-y-auto p-6 space-y-6 flex-1">
               {/* Conflicts Alert Banner if any */}
               {conflicts.length > 0 && (
-                <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl space-y-1 text-xs text-amber-900">
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-1 text-xs text-amber-700 dark:text-amber-400">
                   <div className="flex items-center gap-1.5 font-bold">
-                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
                     <span>تنبيه تعارض مواعيد الطبيب بين الفروع:</span>
                   </div>
                   <ul className="list-disc list-inside space-y-0.5 text-[11px] pr-2">
@@ -517,10 +519,10 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
 
               {/* Section 1: Basic Info */}
               <div className="space-y-3">
-                <h4 className="text-xs font-black text-slate-700">بيانات الفرع والعنوان</h4>
+                <h4 className="text-xs font-black text-foreground">بيانات الفرع والعنوان</h4>
                 <div className="grid sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs font-bold text-slate-600">اسم الفرع *</Label>
+                    <Label className="text-xs font-bold text-muted-foreground">اسم الفرع *</Label>
                     <Input
                       value={name}
                       onChange={(e) => setName(e.target.value)}
@@ -531,7 +533,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                   </div>
 
                   <div className="space-y-1">
-                    <Label className="text-xs font-bold text-slate-600">المحافظة / المدينة</Label>
+                    <Label className="text-xs font-bold text-muted-foreground">المحافظة / المدينة</Label>
                     <Input
                       value={governorate}
                       onChange={(e) => setGovernorate(e.target.value)}
@@ -541,7 +543,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                   </div>
 
                   <div className="space-y-1 sm:col-span-2">
-                    <Label className="text-xs font-bold text-slate-600">العنوان بالتفصيل *</Label>
+                    <Label className="text-xs font-bold text-muted-foreground">العنوان بالتفصيل *</Label>
                     <Input
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
@@ -552,7 +554,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                   </div>
 
                   <div className="space-y-1">
-                    <Label className="text-xs font-bold text-slate-600">رابط Google Maps</Label>
+                    <Label className="text-xs font-bold text-muted-foreground">رابط Google Maps</Label>
                     <Input
                       value={mapsLink}
                       onChange={(e) => setMapsLink(e.target.value)}
@@ -564,7 +566,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
 
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
-                      <Label className="text-[11px] font-bold text-slate-600">Latitude (إحداثي)</Label>
+                      <Label className="text-[11px] font-bold text-muted-foreground">Latitude (إحداثي)</Label>
                       <Input
                         value={latitude}
                         onChange={(e) => setLatitude(e.target.value)}
@@ -574,7 +576,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[11px] font-bold text-slate-600">Longitude (إحداثي)</Label>
+                      <Label className="text-[11px] font-bold text-muted-foreground">Longitude (إحداثي)</Label>
                       <Input
                         value={longitude}
                         onChange={(e) => setLongitude(e.target.value)}
@@ -588,11 +590,11 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
               </div>
 
               {/* Section 2: Contact & Operating Numbers */}
-              <div className="space-y-3 pt-2 border-t border-slate-100">
-                <h4 className="text-xs font-black text-slate-700">أرقام التواصل وإعدادات الكشف</h4>
+              <div className="space-y-3 pt-2 border-t border-border">
+                <h4 className="text-xs font-black text-foreground">أرقام التواصل وإعدادات الكشف</h4>
                 <div className="grid sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs font-bold text-slate-600">رقم هاتف الفرع *</Label>
+                    <Label className="text-xs font-bold text-muted-foreground">رقم هاتف الفرع *</Label>
                     <Input
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
@@ -603,7 +605,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs font-bold text-slate-600">رقم واتساب الفرع</Label>
+                    <Label className="text-xs font-bold text-muted-foreground">رقم واتساب الفرع</Label>
                     <Input
                       value={whatsapp}
                       onChange={(e) => setWhatsapp(e.target.value)}
@@ -613,7 +615,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs font-bold text-slate-600">متوسط مدة الكشف (بالدقائق)</Label>
+                    <Label className="text-xs font-bold text-muted-foreground">متوسط مدة الكشف (بالدقائق)</Label>
                     <Input
                       type="number"
                       value={slotDuration}
@@ -622,7 +624,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs font-bold text-slate-600">الحد الأقصى للحجوزات اليومية (0 = غير محدود)</Label>
+                    <Label className="text-xs font-bold text-muted-foreground">الحد الأقصى للحجوزات اليومية (0 = غير محدود)</Label>
                     <Input
                       type="number"
                       value={maxDailyBookings}
@@ -634,18 +636,18 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
               </div>
 
               {/* Section 3: Independent Weekly Schedule */}
-              <div className="space-y-3 pt-2 border-t border-slate-100">
+              <div className="space-y-3 pt-2 border-t border-border">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-black text-slate-700">مواعيد عمل الفرع الأسبوعية</h4>
-                  <span className="text-[11px] text-slate-400">حدد الأيام وساعات البداية والنهاية</span>
+                  <h4 className="text-xs font-black text-foreground">مواعيد عمل الفرع الأسبوعية</h4>
+                  <span className="text-[11px] text-muted-foreground">حدد الأيام وساعات البداية والنهاية</span>
                 </div>
 
-                <div className="space-y-2 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                <div className="space-y-2 bg-muted/40 p-3 rounded-2xl border border-border">
                   {weeklySchedule.map((d, index) => (
                     <div
                       key={d.id}
                       className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-2.5 rounded-xl border gap-2 transition-all ${
-                        d.isOpen ? 'bg-white border-teal-200 shadow-2xs' : 'bg-slate-100/60 border-slate-200 opacity-60'
+                        d.isOpen ? 'bg-card border-border shadow-2xs' : 'bg-muted/30 border-border opacity-60'
                       }`}
                     >
                       <div className="flex items-center gap-3 w-32">
@@ -653,28 +655,28 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                           checked={d.isOpen}
                           onCheckedChange={() => handleToggleScheduleDay(index)}
                         />
-                        <span className="text-xs font-bold text-slate-800">{d.day}</span>
+                        <span className="text-xs font-bold text-foreground">{d.day}</span>
                       </div>
 
                       {d.isOpen ? (
                         <div className="flex items-center gap-2 text-xs">
-                          <span className="text-slate-400 text-[11px]">من:</span>
+                          <span className="text-muted-foreground text-[11px]">من:</span>
                           <Input
                             type="time"
                             value={d.start}
                             onChange={(e) => handleScheduleTimeChange(index, 'start', e.target.value)}
-                            className="h-8 w-28 text-xs rounded-lg bg-slate-50 text-center"
+                            className="h-8 w-28 text-xs rounded-lg bg-background text-center"
                           />
-                          <span className="text-slate-400 text-[11px]">إلى:</span>
+                          <span className="text-muted-foreground text-[11px]">إلى:</span>
                           <Input
                             type="time"
                             value={d.end}
                             onChange={(e) => handleScheduleTimeChange(index, 'end', e.target.value)}
-                            className="h-8 w-28 text-xs rounded-lg bg-slate-50 text-center"
+                            className="h-8 w-28 text-xs rounded-lg bg-background text-center"
                           />
                         </div>
                       ) : (
-                        <span className="text-[11px] font-bold text-slate-400">مغلق / إجازة</span>
+                        <span className="text-[11px] font-bold text-muted-foreground">مغلق / إجازة</span>
                       )}
                     </div>
                   ))}
@@ -682,7 +684,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
               </div>
 
               {/* Submit Buttons */}
-              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2">
+              <div className="pt-4 border-t border-border flex items-center justify-end gap-2">
                 <Button
                   type="button"
                   variant="outline"
@@ -694,7 +696,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                 <Button
                   type="submit"
                   disabled={isSaving}
-                  className="bg-[#087CF4] hover:bg-[#0769D1] text-white font-bold rounded-xl text-xs px-6 shadow-md transition-colors"
+                  className="yalla-gradient-btn text-white font-bold rounded-xl text-xs px-6 shadow-xs"
                 >
                   {isSaving ? 'جاري الحفظ...' : editingBranchId ? 'حفظ التعديلات' : 'إضافة الفرع'}
                 </Button>

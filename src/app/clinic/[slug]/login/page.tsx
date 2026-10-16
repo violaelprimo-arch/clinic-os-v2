@@ -15,10 +15,12 @@ import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import Link from 'next/link'
+import { useLanguage } from '@/context/LanguageContext'
 
 export default function DoctorLogin({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
+  const { t, dir } = useLanguage()
   const [email, setEmail] = useState('')
   
   useEffect(() => {
@@ -184,15 +186,15 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
   }
 
   return (
-    <div className="min-h-screen bg-[#F6F8FB] flex items-center justify-center font-sans p-4 sm:p-6" dir="rtl">
+    <div className="min-h-screen bg-background flex items-center justify-center font-sans p-4 sm:p-6" dir={dir}>
       
       {/* Outer Card Shell with Split-Screen layout matching Mockup */}
-      <div className="w-full max-w-5xl bg-white rounded-3xl border border-[#E5EAF0] shadow-2xl overflow-hidden grid lg:grid-cols-12 min-h-[640px]">
+      <div className="w-full max-w-5xl yalla-card rounded-3xl border border-border shadow-2xl overflow-hidden grid lg:grid-cols-12 min-h-[640px]">
         
         {/* RIGHT SIDE: Branding Doctor Visual Hero (in RTL this appears first/right) */}
         <div className="lg:col-span-5 bg-gradient-to-br from-[#061A38] via-[#0E2342] to-[#07162D] relative p-8 flex flex-col justify-between text-white overflow-hidden hidden lg:flex">
           {/* Decorative background glow */}
-          <div className="absolute top-0 right-0 w-80 h-80 bg-[#087CF4]/20 rounded-full blur-3xl pointer-events-none"></div>
+          <div className="absolute top-0 right-0 w-80 h-80 bg-primary/20 rounded-full blur-3xl pointer-events-none"></div>
           <div className="absolute bottom-0 left-0 w-80 h-80 bg-[#02CFF3]/20 rounded-full blur-3xl pointer-events-none"></div>
 
           {/* Top Logo */}
@@ -224,7 +226,7 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
           {/* Bottom Security Badge */}
           <div className="relative z-10 flex items-center justify-between text-xs text-slate-400 border-t border-white/10 pt-4">
             <span className="flex items-center gap-1.5 text-slate-300">
-              <ShieldCheck className="w-4 h-4 text-[#087CF4]" />
+              <ShieldCheck className="w-4 h-4 text-primary" />
               نظام تشفير وحماية معتمد
             </span>
             <span className="font-mono text-[11px] text-slate-400">/clinic/{slug}</span>
@@ -232,7 +234,7 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
         </div>
 
         {/* LEFT SIDE: Clean Medical SaaS Login Form */}
-        <div className="lg:col-span-7 p-6 sm:p-12 flex flex-col justify-between space-y-8">
+        <div className="lg:col-span-7 p-6 sm:p-12 flex flex-col justify-between space-y-8 bg-card text-card-foreground">
           
           {/* Top Header */}
           <div className="space-y-4">
@@ -241,10 +243,10 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
             </div>
 
             <div className="space-y-1.5 text-right">
-              <h1 className="text-2xl sm:text-3xl font-black text-[#182230]">
+              <h1 className="text-2xl sm:text-3xl font-black text-foreground">
                 تسجيل الدخول
               </h1>
-              <p className="text-xs sm:text-sm text-slate-400 font-medium">
+              <p className="text-xs sm:text-sm text-muted-foreground font-medium">
                 ادخل إلى حسابك لإدارة العيادة والمواعيد والروشتات
               </p>
             </div>
@@ -255,50 +257,50 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
             {isResetMode ? (
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-600">البريد الإلكتروني (للتأكيد)</Label>
+                <Label className="text-xs font-bold text-muted-foreground">البريد الإلكتروني (للتأكيد)</Label>
                 <Input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="h-12 text-sm bg-slate-50 border-slate-200"
+                  className="h-12 text-sm bg-background border-border"
                   dir="ltr"
                   disabled={resetOtpSent}
                 />
               </div>
               
               {!resetOtpSent ? (
-                <Button onClick={handleForgotPassword} disabled={isLoading} className="w-full h-12 bg-[#087CF4] hover:bg-[#0769D1] text-white font-bold rounded-xl shadow-lg">
+                <Button onClick={handleForgotPassword} disabled={isLoading} className="w-full h-12 yalla-gradient-btn text-white font-bold rounded-xl shadow-xs">
                   {isLoading ? 'جاري الإرسال...' : 'طلب رمز التحقق عبر البريد الإلكتروني (Gmail)'}
                 </Button>
               ) : (
                 <>
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-bold text-slate-600">رمز التحقق (OTP) من البريد الإلكتروني</Label>
+                    <Label className="text-xs font-bold text-muted-foreground">رمز التحقق (OTP) من البريد الإلكتروني</Label>
                     <Input
                       type="text"
                       value={resetOtp}
                       onChange={(e) => setResetOtp(e.target.value)}
-                      className="h-12 text-sm text-center tracking-widest font-mono"
+                      className="h-12 text-sm text-center tracking-widest font-mono bg-background border-border"
                       dir="ltr"
                       placeholder="123456"
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-bold text-slate-600">كلمة المرور الجديدة</Label>
+                    <Label className="text-xs font-bold text-muted-foreground">كلمة المرور الجديدة</Label>
                     <PasswordInput
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      className="h-12 text-sm"
+                      className="h-12 text-sm bg-background border-border"
                       dir="ltr"
                       placeholder="••••••••"
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-bold text-slate-600">تأكيد كلمة المرور الجديدة</Label>
+                    <Label className="text-xs font-bold text-muted-foreground">تأكيد كلمة المرور الجديدة</Label>
                     <PasswordInput
                       value={newPasswordConfirm}
                       onChange={(e) => setNewPasswordConfirm(e.target.value)}
-                      className="h-12 text-sm"
+                      className="h-12 text-sm bg-background border-border"
                       dir="ltr"
                       placeholder="••••••••"
                     />
@@ -306,30 +308,30 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
                       <p className="text-[11px] font-bold text-rose-500">كلمتا المرور غير متطابقتين</p>
                     )}
                   </div>
-                  <Button onClick={handleResetPassword} disabled={isLoading} className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg">
+                  <Button onClick={handleResetPassword} disabled={isLoading} className="w-full h-12 yalla-gradient-btn text-white font-bold rounded-xl shadow-xs">
                     {isLoading ? 'جاري الحفظ...' : 'تأكيد وتغيير كلمة المرور'}
                   </Button>
                 </>
               )}
               
               <div className="text-center">
-                <button type="button" onClick={() => setIsResetMode(false)} className="text-xs font-bold text-slate-500 hover:text-slate-800">
+                <button type="button" onClick={() => setIsResetMode(false)} className="text-xs font-bold text-muted-foreground hover:text-foreground">
                   العودة لتسجيل الدخول
                 </button>
               </div>
             </div>
-          ) : (
+            ) : (
             <>
               {error && (
-              <Alert variant="destructive" className="bg-rose-50 border-rose-200 text-rose-800 rounded-xl text-xs">
-                <AlertCircle className="h-4 w-4 text-rose-600" />
+              <Alert variant="destructive" className="bg-rose-500/10 border-rose-500/20 text-rose-700 dark:text-rose-400 rounded-xl text-xs">
+                <AlertCircle className="h-4 w-4 text-rose-600 dark:text-rose-400" />
                 <AlertTitle className="font-bold">خطأ في الدخول</AlertTitle>
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-slate-600">
+              <Label className="text-xs font-bold text-muted-foreground">
                 رقم الهاتف أو البريد الإلكتروني
               </Label>
               <Input
@@ -339,16 +341,16 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
                 onChange={e => setEmail(e.target.value)}
                 required
                 dir="ltr"
-                className="h-12 text-sm text-right rounded-xl bg-[#F6F8FB] border-[#E5EAF0] focus:bg-white"
+                className="h-12 text-sm text-right rounded-xl bg-background border-border focus:bg-background"
               />
             </div>
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <Label className="text-xs font-bold text-slate-600">كلمة المرور</Label>
+                <Label className="text-xs font-bold text-muted-foreground">كلمة المرور</Label>
                 <Link
                   href={`/clinic/${slug}/login/update-password`}
-                  className="text-xs font-bold text-[#087CF4] hover:underline"
+                  className="text-xs font-bold text-primary hover:underline"
                 >
                   نسيت كلمة المرور؟
                 </Link>
@@ -359,7 +361,7 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
                 required
                 dir="ltr"
                 placeholder="••••••••"
-                className="h-12 text-sm text-right rounded-xl bg-[#F6F8FB] border-[#E5EAF0] focus:bg-white"
+                className="h-12 text-sm text-right rounded-xl bg-background border-border focus:bg-background"
               />
             </div>
 
@@ -369,9 +371,9 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
                 id="remember"
                 checked={rememberMe}
                 onChange={e => setRememberMe(e.target.checked)}
-                className="rounded text-[#087CF4] focus:ring-[#087CF4] w-4 h-4 cursor-pointer"
+                className="rounded text-primary focus:ring-primary w-4 h-4 cursor-pointer"
               />
-              <label htmlFor="remember" className="text-xs font-semibold text-slate-600 cursor-pointer">
+              <label htmlFor="remember" className="text-xs font-semibold text-muted-foreground cursor-pointer">
                 تذكر تسجيل الدخول على هذا الجهاز
               </label>
             </div>
@@ -380,7 +382,7 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
             <Button
               type="submit"
               disabled={isLoading}
-              className="w-full h-12 text-sm font-black bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl shadow-lg shadow-[#087CF4]/25 transition-all cursor-pointer"
+              className="w-full h-12 text-sm font-black yalla-gradient-btn text-white rounded-xl shadow-xs transition-all cursor-pointer"
             >
               {isLoading ? 'جاري التحقق من البيانات...' : 'تسجيل الدخول'}
             </Button>
@@ -388,9 +390,9 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
             {/* Divider */}
             <div className="relative my-4 text-center">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-[#E5EAF0]"></div>
+                <div className="w-full border-t border-border"></div>
               </div>
-              <span className="relative bg-white px-3 text-xs text-slate-400 font-bold">أو</span>
+              <span className="relative bg-card px-3 text-xs text-muted-foreground font-bold">أو</span>
             </div>
 
             {/* Mock Google Login Button */}
@@ -398,7 +400,7 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
               type="button"
               variant="outline"
               onClick={() => toast.info('تسجيل الدخول عبر Google متاح لحسابات المؤسسات الطبية')}
-              className="w-full h-11 text-xs font-bold text-slate-700 border-[#E5EAF0] hover:bg-slate-50 rounded-xl flex items-center justify-center gap-2"
+              className="w-full h-11 text-xs font-bold text-foreground border-border hover:bg-muted/40 rounded-xl flex items-center justify-center gap-2"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24">
                 <path
@@ -425,16 +427,21 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
           </form>
 
           {/* Footer Contact */}
-          <div className="pt-4 border-t border-[#E5EAF0] text-center text-xs text-slate-400">
-            ليس لديك حساب بعد؟{' '}
-            <a
-              href="https://wa.me/201012345678"
-              target="_blank"
-              rel="noreferrer"
-              className="text-[#087CF4] font-bold hover:underline"
-            >
-              تواصل مع إدارة المنصة
-            </a>
+          <div className="pt-4 border-t border-border flex flex-col items-center gap-1.5 text-center text-xs text-muted-foreground">
+            <div>
+              ليس لديك حساب بعد؟{' '}
+              <a
+                href="https://wa.me/201012345678"
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary font-bold hover:underline"
+              >
+                تواصل مع إدارة المنصة
+              </a>
+            </div>
+            <div className="text-[11px] text-muted-foreground/80">
+              جميع الحقوق محفوظة YallaCodeX 2026
+            </div>
           </div>
 
         </div>

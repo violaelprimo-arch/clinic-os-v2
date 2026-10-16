@@ -77,9 +77,13 @@ export default function RootLayout({
                   if (l === 'en') {
                     document.documentElement.lang = 'en';
                     document.documentElement.dir = 'ltr';
+                    document.documentElement.classList.add('ltr');
+                    document.documentElement.classList.remove('rtl');
                   } else {
                     document.documentElement.lang = 'ar';
                     document.documentElement.dir = 'rtl';
+                    document.documentElement.classList.add('rtl');
+                    document.documentElement.classList.remove('ltr');
                   }
                 } catch (e) {}
               })();

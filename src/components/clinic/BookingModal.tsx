@@ -20,6 +20,7 @@ import { getClinicBranches, ensureClinicHasMainBranch } from '@/lib/branchServic
 import { createClinicNotification } from '@/lib/notificationService'
 import { getClinicUrl } from '@/lib/clinic-url'
 import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
+import { useLanguage } from '@/context/LanguageContext'
 
 interface BookingModalProps {
   isOpen: boolean
@@ -39,6 +40,7 @@ export function BookingModal({
   initialBranchId = null
 }: BookingModalProps) {
   const router = useRouter()
+  const { dir, t, isRtl } = useLanguage()
   const primaryColor = clinic?.primaryColor || '#087CF4'
   const showPrices = clinic?.showPrices !== false && clinic?.hidePrices !== true
 
@@ -483,26 +485,26 @@ export function BookingModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
-      dir="rtl"
+      className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-background/80 backdrop-blur-md animate-in fade-in duration-200"
+      dir={dir}
       onClick={handleClose}
     >
       <div
-        className="w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-2xl bg-white sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-[#E5EAF0] animate-in zoom-in-95 duration-200"
+        className="w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-2xl bg-card text-card-foreground sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-border animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* MODAL HEADER */}
-        <div className="p-4 sm:p-6 bg-gradient-to-r from-[#0B1F33] to-[#132B45] text-white flex items-center justify-between shrink-0">
+        <div className="p-4 sm:p-6 bg-gradient-to-r from-[#061A38] to-[#0E2342] text-white flex items-center justify-between shrink-0 border-b border-[#254565]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#087CF4]/20 text-[#087CF4] border border-[#087CF4]/30 flex items-center justify-center font-bold">
+            <div className="w-10 h-10 rounded-xl bg-primary/20 text-primary border border-primary/30 flex items-center justify-center font-bold">
               <Calendar className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-black text-white">
-                {successData ? 'تم تسجيل الحجز بنجاح' : 'حجز موعد طبي جديد'}
+                {successData ? t('booking_success_title', 'تم تسجيل الحجز بنجاح') : t('new_medical_appt', 'حجز موعد طبي جديد')}
               </h2>
               <p className="text-[11px] text-slate-300">
-                {clinic?.clinicName || clinic?.doctorName ? `عيادة ${clinic.doctorName || clinic.clinicName}` : 'العيادة الطبية'}
+                {clinic?.clinicName || clinic?.doctorName ? `عيادة ${clinic.doctorName || clinic.clinicName}` : t('clinic', 'العيادة الطبية')}
               </p>
             </div>
           </div>
@@ -510,25 +512,25 @@ export function BookingModal({
           <button
             onClick={handleClose}
             className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
-            title="إغلاق"
+            title={t('close', 'إغلاق')}
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* STEP PROGRESS BAR (Shown only before success) */}
+        {/* STEP PROGRESS BAR */}
         {!successData && (
-          <div className="px-4 sm:px-6 pt-4 pb-2 bg-slate-50 border-b border-[#E5EAF0] shrink-0">
-            <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-2">
-              <span className={step >= 1 ? 'text-[#087CF4]' : ''}>1. الفرع واليوم</span>
-              <span className={step >= 2 ? 'text-[#087CF4]' : ''}>2. البيانات</span>
-              <span className={step >= 3 ? 'text-[#087CF4]' : ''}>3. الخدمة</span>
-              <span className={step >= 4 ? 'text-[#087CF4]' : ''}>4. الدفع</span>
-              <span className={step >= 5 ? 'text-[#087CF4]' : ''}>5. التأكيد</span>
+          <div className="px-4 sm:px-6 pt-4 pb-2 bg-secondary/40 border-b border-border shrink-0">
+            <div className="flex items-center justify-between text-xs font-bold text-muted-foreground mb-2">
+              <span className={step >= 1 ? 'text-primary font-black' : ''}>1. {t('branch_and_day', 'الفرع واليوم')}</span>
+              <span className={step >= 2 ? 'text-primary font-black' : ''}>2. {t('patient_data', 'البيانات')}</span>
+              <span className={step >= 3 ? 'text-primary font-black' : ''}>3. {t('service', 'الخدمة')}</span>
+              <span className={step >= 4 ? 'text-primary font-black' : ''}>4. {t('payment', 'الدفع')}</span>
+              <span className={step >= 5 ? 'text-primary font-black' : ''}>5. {t('confirmation', 'التأكيد')}</span>
             </div>
-            <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+            <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
               <div
-                className="h-full bg-[#087CF4] transition-all duration-300 rounded-full"
+                className="h-full bg-primary transition-all duration-300 rounded-full"
                 style={{ width: `${(step / 5) * 100}%` }}
               />
             </div>

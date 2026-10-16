@@ -9,10 +9,12 @@ import { Input } from '@/components/ui/input'
 import { Bot, User, Send, Loader2, Info, Sparkles, Trash2, AlertTriangle, ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
+import { useLanguage } from '@/context/LanguageContext'
 
 export default function AITrainingPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
+  const { t, dir } = useLanguage()
 
   const [clinicId, setClinicId] = useState<string | null>(null)
   const [messages, setMessages] = useState<{ role: 'user' | 'model', text: string }[]>([])
@@ -115,16 +117,16 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
   }
 
   return (
-    <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-6" dir="rtl">
+    <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-6" dir={dir}>
       
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-black text-[#182230] flex items-center gap-2">
-            <Bot className="w-6 h-6 text-[#087CF4]" />
+          <h1 className="text-2xl font-black text-foreground flex items-center gap-2">
+            <Bot className="w-6 h-6 text-primary" />
             تدريب المساعد الذكي للعيادة
           </h1>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs text-muted-foreground mt-0.5">
             تحدث مع المساعد كما تتحدث مع سكرتير العيادة، وسيتعلم الرد على استفسارات المرضى تلقائياً
           </p>
         </div>
@@ -133,7 +135,7 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
           variant="outline"
           size="sm"
           onClick={handleClearMemory}
-          className="h-9 text-xs font-bold text-rose-600 border-rose-200 hover:bg-rose-50 rounded-xl"
+          className="h-9 text-xs font-bold text-rose-600 dark:text-rose-400 border-rose-500/20 hover:bg-rose-500/10 rounded-xl"
         >
           <Trash2 className="w-3.5 h-3.5 ml-1" />
           مسح الذاكرة
@@ -141,15 +143,15 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
       </div>
 
       {/* AI Usage Quota Card */}
-      <div className="medical-card p-5 bg-white border border-[#E5EAF0] rounded-2xl shadow-xs space-y-3">
+      <div className="yalla-card p-5 space-y-3">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
               <Bot className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-[#182230]">رصيد استهلاك المساعد الذكي (AI Responses Quota)</h3>
-              <p className="text-xs text-slate-400">
+              <h3 className="font-bold text-sm text-foreground">رصيد استهلاك المساعد الذكي (AI Responses Quota)</h3>
+              <p className="text-xs text-muted-foreground">
                 إجمالي ردود المساعد الذكي المتاحة لمرضى العيادة خلال فترة الاشتراك الحالي
               </p>
             </div>
@@ -157,12 +159,12 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
 
           <div className="text-left">
             <div className="flex items-baseline gap-1 font-mono font-black" dir="ltr">
-              <span className={`text-xl ${aiResponsesCount >= aiResponsesLimit ? 'text-rose-600' : 'text-[#087CF4]'}`}>
+              <span className={`text-xl ${aiResponsesCount >= aiResponsesLimit ? 'text-rose-600 dark:text-rose-400' : 'text-primary'}`}>
                 {aiResponsesCount}
               </span>
-              <span className="text-xs text-slate-400">/ {aiResponsesLimit} رد</span>
+              <span className="text-xs text-muted-foreground">/ {aiResponsesLimit} رد</span>
             </div>
-            <span className="text-[10px] text-slate-400 font-bold block text-right">
+            <span className="text-[10px] text-muted-foreground font-bold block text-right">
               {aiResponsesCount >= aiResponsesLimit
                 ? 'تم استهلاك الرصيد بالكامل'
                 : `متبقي ${Math.max(0, aiResponsesLimit - aiResponsesCount)} رد`}
@@ -171,14 +173,14 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
         </div>
 
         {/* Progress Bar */}
-        <div className="w-full h-2.5 rounded-full bg-slate-100 overflow-hidden">
+        <div className="w-full h-2.5 rounded-full bg-muted overflow-hidden">
           <div
             className={`h-full rounded-full transition-all duration-500 ${
               aiResponsesCount >= aiResponsesLimit
                 ? 'bg-rose-500'
                 : (aiResponsesCount / aiResponsesLimit) >= 0.8
                 ? 'bg-amber-400'
-                : 'bg-[#087CF4]'
+                : 'bg-primary'
             }`}
             style={{ width: `${Math.min(100, Math.round((aiResponsesCount / Math.max(1, aiResponsesLimit)) * 100))}%` }}
           />
@@ -186,9 +188,9 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
 
         {/* Limit Warning */}
         {aiResponsesCount >= aiResponsesLimit && (
-          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold flex items-center justify-between gap-2">
+          <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-700 dark:text-rose-400 text-xs font-semibold flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+              <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
               <span>لقد انتهت الردود المخصصة للباقة! تم إيقاف البوت مؤقتاً لحين شحن الرصيد أو ترقية الباقة.</span>
             </div>
           </div>
@@ -196,16 +198,16 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
       </div>
 
       {!aiEnabled && (
-        <div className="p-4 rounded-2xl bg-slate-100 border border-slate-300 text-slate-800 text-xs font-semibold flex items-center justify-between gap-3">
+        <div className="p-4 rounded-2xl bg-muted/60 border border-border text-foreground text-xs font-semibold flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
             <div>
-              <span className="font-bold block text-slate-900">خدمة المساعد الذكي معطلة حالياً عن العيادة:</span>
-              <span className="text-slate-600">لن يظهر الشات للمرضى حتى تقوم بإعادة تفعيله من الإعدادات.</span>
+              <span className="font-bold block text-foreground">خدمة المساعد الذكي معطلة حالياً عن العيادة:</span>
+              <span className="text-muted-foreground">لن يظهر الشات للمرضى حتى تقوم بإعادة تفعيله من الإعدادات.</span>
             </div>
           </div>
           <Link href={`/clinic/${slug}/admin/settings`}>
-            <Button size="sm" variant="outline" className="h-8 text-xs font-bold rounded-lg border-slate-300">
+            <Button size="sm" variant="outline" className="h-8 text-xs font-bold rounded-lg border-border">
               الانتقال للإعدادات
               <ArrowLeft className="w-3.5 h-3.5 mr-1" />
             </Button>
@@ -214,8 +216,8 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
       )}
 
       {!hasApiKey && (
-        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold flex items-start gap-3">
-          <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-semibold flex items-start gap-3">
+          <Info className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
           <div>
             <span className="font-bold block mb-0.5">ملاحظة بشأن مفتاح الذكاء الاصطناعي:</span>
             <span>لم يتم تعيين مفتاح API مباشر لهذه العيادة. يمكنك تدريب وحفظ الذاكرة، ولكن لردود حية للمرضى تأكد من ضبط المفتاح من لوحة المالك.</span>
@@ -224,21 +226,21 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
       )}
 
       {/* Chat Container */}
-      <div className="medical-card overflow-hidden h-[580px] flex flex-col bg-white">
+      <div className="yalla-card overflow-hidden h-[580px] flex flex-col">
         
         {/* Chat Messages Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-[#F8FAFC]">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-muted/20">
           {messages.map((m, idx) => (
             <div key={idx} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
               <div
                 className={`max-w-[85%] sm:max-w-[75%] rounded-2xl p-4 text-xs sm:text-sm leading-relaxed shadow-xs flex items-start gap-3 ${
                   m.role === 'user'
-                    ? 'bg-[#087CF4] text-white rounded-tr-none'
-                    : 'bg-white text-slate-800 border border-[#E5EAF0] rounded-tl-none'
+                    ? 'yalla-gradient-btn text-white rounded-tr-none'
+                    : 'bg-card text-card-foreground border border-border rounded-tl-none'
                 }`}
               >
                 {m.role === 'model' && (
-                  <div className="w-7 h-7 rounded-lg bg-blue-50 text-[#087CF4] flex items-center justify-center shrink-0">
+                  <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
                     <Bot className="w-4 h-4" />
                   </div>
                 )}
@@ -254,8 +256,8 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
 
           {isLoading && (
             <div className="flex justify-end">
-              <div className="bg-white border border-[#E5EAF0] rounded-2xl rounded-tl-none p-3 shadow-xs flex items-center gap-2 text-xs text-slate-500 font-bold">
-                <Loader2 className="w-4 h-4 animate-spin text-[#087CF4]" />
+              <div className="bg-card border border-border rounded-2xl rounded-tl-none p-3 shadow-xs flex items-center gap-2 text-xs text-muted-foreground font-bold">
+                <Loader2 className="w-4 h-4 animate-spin text-primary" />
                 جاري استيعاب وتطبيق التعليمات...
               </div>
             </div>
@@ -264,18 +266,18 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
         </div>
 
         {/* Chat Input Bar */}
-        <div className="p-4 bg-white border-t border-[#E5EAF0]">
+        <div className="p-4 bg-card border-t border-border">
           <form onSubmit={handleSend} className="flex gap-2">
             <Input
               value={input}
               onChange={e => setInput(e.target.value)}
               placeholder="اكتب تعليمات جديدة للذكاء الاصطناعي (مثال: مواعيد العيادة تبدأ يومياً من الساعة 5 مساءً)..."
-              className="h-12 text-xs sm:text-sm rounded-xl bg-[#F6F8FB] border-[#E5EAF0] focus:bg-white"
+              className="h-12 text-xs sm:text-sm rounded-xl bg-background border-border"
             />
             <Button
               type="submit"
               disabled={!input.trim() || isLoading}
-              className="h-12 px-6 font-bold bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl shadow-md shadow-[#087CF4]/20"
+              className="h-12 px-6 font-bold yalla-gradient-btn text-white rounded-xl shadow-xs"
             >
               <Send className="w-4 h-4 ml-1.5" />
               إرسال

@@ -1325,49 +1325,49 @@ export default function OwnerDashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         
         {/* Card 1: Total Clinics */}
-        <div className="medical-card p-5 bg-white dark:bg-[#0E2342] border border-[#DCE9F5] dark:border-[#254565] rounded-2xl flex items-center gap-4 shadow-xs">
-          <div className="w-12 h-12 rounded-2xl bg-[#087CF4]/10 text-[#087CF4] flex items-center justify-center shrink-0">
+        <div className="yalla-card p-5 border border-border rounded-2xl flex items-center gap-4 shadow-xs">
+          <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
             <Building className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-[11px] font-bold text-slate-400 block">إجمالي العيادات</span>
-            <span className="text-2xl font-black text-[#092145] dark:text-[#F3FAFF] font-mono">{totalClinics}</span>
+            <span className="text-[11px] font-bold text-muted-foreground block">إجمالي العيادات</span>
+            <span className="text-2xl font-black text-foreground font-mono">{totalClinics}</span>
           </div>
         </div>
 
         {/* Card 2: Active Clinics */}
-        <div className="medical-card p-5 bg-white dark:bg-[#0E2342] border border-[#DCE9F5] dark:border-[#254565] rounded-2xl flex items-center gap-4 shadow-xs">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+        <div className="yalla-card p-5 border border-border rounded-2xl flex items-center gap-4 shadow-xs">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
             <CheckCircle2 className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-[11px] font-bold text-slate-400 block">العيادات النشطة</span>
+            <span className="text-[11px] font-bold text-muted-foreground block">العيادات النشطة</span>
             <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono">{activeClinicsCount}</span>
           </div>
         </div>
 
         {/* Card 3: AI Chatbot Enabled */}
-        <div className="medical-card p-5 bg-white dark:bg-[#0E2342] border border-[#DCE9F5] dark:border-[#254565] rounded-2xl flex items-center gap-4 shadow-xs">
-          <div className="w-12 h-12 rounded-2xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+        <div className="yalla-card p-5 border border-border rounded-2xl flex items-center gap-4 shadow-xs">
+          <div className="w-12 h-12 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
             <Bot className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-[11px] font-bold text-slate-400 block">مفعل بها AI Chatbot</span>
+            <span className="text-[11px] font-bold text-muted-foreground block">مفعل بها AI Chatbot</span>
             <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-black text-purple-700 dark:text-purple-300 font-mono">{aiEnabledCount}</span>
-              <span className="text-[10px] text-slate-400 font-bold">من {totalClinics}</span>
+              <span className="text-2xl font-black text-purple-600 dark:text-purple-400 font-mono">{aiEnabledCount}</span>
+              <span className="text-[10px] text-muted-foreground font-bold">من {totalClinics}</span>
             </div>
           </div>
         </div>
 
         {/* Card 4: Custom Prescription Template */}
-        <div className="medical-card p-5 bg-white dark:bg-[#0E2342] border border-[#DCE9F5] dark:border-[#254565] rounded-2xl flex items-center gap-4 shadow-xs">
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-[#087CF4] flex items-center justify-center shrink-0">
+        <div className="yalla-card p-5 border border-border rounded-2xl flex items-center gap-4 shadow-xs">
+          <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
             <FileSignature className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-[11px] font-bold text-slate-400 block">قوالب روشتات مخصصة</span>
-            <span className="text-2xl font-black text-[#087CF4] font-mono">{customTemplateCount}</span>
+            <span className="text-[11px] font-bold text-muted-foreground block">قوالب روشتات مخصصة</span>
+            <span className="text-2xl font-black text-primary font-mono">{customTemplateCount}</span>
           </div>
         </div>
 
@@ -1459,14 +1459,14 @@ export default function OwnerDashboard() {
           className="space-y-4"
         >
           {/* Search and Filters Strip */}
-          <div className="medical-card p-4 bg-white border border-[#E5EAF0] rounded-2xl flex flex-col md:flex-row items-center justify-between gap-3 shadow-2xs">
+          <div className="yalla-card p-4 border border-border rounded-2xl flex flex-col md:flex-row items-center justify-between gap-3 shadow-2xs">
             <div className="relative w-full md:w-96">
-              <Search className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder="ابحث بالاسم، الطبيب، الهاتف، أو الرابط slug..."
-                className="pr-10 h-10 text-xs bg-slate-50 rounded-xl border-[#E5EAF0] focus:bg-white"
+                className="pr-10 h-10 text-xs bg-background rounded-xl border-border text-foreground"
               />
             </div>
 
@@ -1483,8 +1483,8 @@ export default function OwnerDashboard() {
                   onClick={() => setFilterMode(f.id as any)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                     filterMode === f.id
-                      ? 'bg-[#087CF4] text-white shadow-xs'
-                      : 'bg-slate-100 dark:bg-[#0E2342] text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#142D50]'
+                      ? 'yalla-gradient-btn text-white shadow-xs'
+                      : 'bg-secondary text-foreground hover:bg-secondary/80'
                   }`}
                 >
                   {f.label}
@@ -1494,15 +1494,15 @@ export default function OwnerDashboard() {
           </div>
 
           {/* Clinics Data Table */}
-          <div className="medical-card bg-white border border-[#E5EAF0] rounded-2xl overflow-hidden shadow-xs">
+          <div className="yalla-card border border-border rounded-2xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-right text-xs">
-                <thead className="bg-[#F8FAFC] text-slate-500 font-bold border-b border-[#E5EAF0]">
+                <thead className="bg-secondary/60 text-muted-foreground font-bold border-b border-border">
                   <tr>
                     <th className="py-4 px-4">العيادة والطبيب</th>
                     <th className="py-4 px-4">روابط المنصة</th>
                     <th className="py-4 px-4 text-center">
-                      <span className="flex items-center justify-center gap-1.5 text-purple-700">
+                      <span className="flex items-center justify-center gap-1.5 text-purple-600 dark:text-purple-400">
                         <Bot className="w-4 h-4" />
                         <span>تشغيل / قفل AI Chatbot</span>
                       </span>
@@ -1724,7 +1724,7 @@ export default function OwnerDashboard() {
           {/* 1. Grand Financial KPI Summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {/* Total Due */}
-            <div className="medical-card p-5 bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-3xl border border-slate-700 shadow-md">
+            <div className="yalla-card p-5 bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-3xl border border-slate-700 shadow-md">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-300">المبلغ المستحق إجمالي (المطلوب)</span>
                 <div className="w-9 h-9 rounded-2xl bg-white/10 flex items-center justify-center text-amber-400">
@@ -1743,7 +1743,7 @@ export default function OwnerDashboard() {
             </div>
 
             {/* Total Collected */}
-            <div className="medical-card p-5 bg-gradient-to-br from-emerald-900/90 to-teal-900 text-white rounded-3xl border border-emerald-700/50 shadow-md">
+            <div className="yalla-card p-5 bg-gradient-to-br from-emerald-900/90 to-teal-900 text-white rounded-3xl border border-emerald-700/50 shadow-md">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-emerald-200">المبلغ المحصل (اللي استلمته)</span>
                 <div className="w-9 h-9 rounded-2xl bg-emerald-500/20 flex items-center justify-center text-emerald-300">
@@ -1766,7 +1766,7 @@ export default function OwnerDashboard() {
               onClick={() => {
                 setPaymentFilter(paymentFilter === 'unpaid' ? 'all' : 'unpaid')
               }}
-              className={`medical-card p-5 rounded-3xl border shadow-md cursor-pointer transition-all transform hover:-translate-y-0.5 select-none relative overflow-hidden ${
+              className={`yalla-card p-5 rounded-3xl border shadow-md cursor-pointer transition-all transform hover:-translate-y-0.5 select-none relative overflow-hidden ${
                 paymentFilter === 'unpaid'
                   ? 'bg-rose-950 text-white border-rose-500 ring-2 ring-rose-500 shadow-rose-900/40'
                   : 'bg-gradient-to-br from-rose-900/90 to-red-950 text-white border-rose-700/60 hover:border-rose-400'
@@ -1865,14 +1865,14 @@ export default function OwnerDashboard() {
           </div>
 
           {/* 3. Search and Dual Excel Export Bar */}
-          <div className="medical-card p-4 bg-white border border-[#E5EAF0] rounded-2xl flex flex-col lg:flex-row items-center justify-between gap-3 shadow-2xs">
+          <div className="yalla-card p-4 border border-border rounded-2xl flex flex-col lg:flex-row items-center justify-between gap-3 shadow-2xs">
             <div className="relative w-full lg:w-96">
-              <Search className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={doctorsSearchQuery}
                 onChange={e => setDoctorsSearchQuery(e.target.value)}
                 placeholder="ابحث باسم الطبيب، العيادة، التخصص، أو الهاتف..."
-                className="pr-10 h-10 text-xs bg-slate-50 rounded-xl border-[#E5EAF0] focus:bg-white"
+                className="pr-10 h-10 text-xs bg-background rounded-xl border-border text-foreground"
               />
             </div>
 
@@ -1947,11 +1947,11 @@ export default function OwnerDashboard() {
             </div>
           )}
 
-          {/* 4. Doctors & Accounts Table (Strictly NO credentials!) */}
-          <div className="medical-card bg-white border border-[#E5EAF0] rounded-2xl overflow-hidden shadow-xs">
+          {/* 4. Doctors & Accounts Table */}
+          <div className="yalla-card border border-border rounded-2xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-right text-xs">
-                <thead className="bg-[#F8FAFC] text-slate-500 font-bold border-b border-[#E5EAF0]">
+                <thead className="bg-secondary/60 text-muted-foreground font-bold border-b border-border">
                   <tr>
                     <th className="py-3.5 px-3 text-center">#</th>
                     <th className="py-3.5 px-4">اسم الدكتور</th>
@@ -2431,13 +2431,13 @@ export default function OwnerDashboard() {
           className="space-y-6"
         >
           {/* Header & Add Button */}
-          <div className="medical-card p-6 bg-white border border-[#E5EAF0] rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+          <div className="yalla-card p-6 border border-border rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
             <div>
-              <h2 className="text-xl font-black text-[#182230] flex items-center gap-2">
-                <Package className="w-6 h-6 text-amber-600" />
+              <h2 className="text-xl font-black text-foreground flex items-center gap-2">
+                <Package className="w-6 h-6 text-amber-500" />
                 التحكم في باقات واشتراكات المنصة
               </h2>
-              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
                 أنشئ وعدل باقات الاشتراك مع تحديد الأسعار والعروض (بدل كذا)، وتصنيفها (شهرية / سنوية)، وتحديد عدد الفروع وحدود ردود المساعد الذكي AI. تظهر هذه الباقات تلقائياً للأطباء في لوحة العيادة تحت خانة «ترقية حسابك / الباقات».
               </p>
             </div>
@@ -2526,10 +2526,10 @@ export default function OwnerDashboard() {
                 return (
                   <div
                     key={pkg.id}
-                    className={`medical-card relative bg-white border rounded-3xl p-6 flex flex-col justify-between transition-all hover:shadow-xl ${
+                    className={`yalla-card relative border rounded-3xl p-6 flex flex-col justify-between transition-all hover:shadow-xl ${
                       isPop
-                        ? 'border-[#087CF4] shadow-lg ring-2 ring-[#087CF4]/20'
-                        : 'border-[#E5EAF0] shadow-sm'
+                        ? 'border-primary shadow-lg ring-2 ring-primary/20'
+                        : 'border-border shadow-xs'
                     }`}
                   >
                     {/* Recommended / Custom Badge */}
@@ -3253,15 +3253,15 @@ export default function OwnerDashboard() {
           transition={{ duration: 0.3 }}
           className="space-y-6"
         >
-          <div className="medical-card bg-white border border-[#E5EAF0] rounded-3xl p-6 sm:p-8 shadow-md">
+          <div className="yalla-card border border-border rounded-3xl p-6 sm:p-8 shadow-md">
             
-            <div className="flex items-center justify-between pb-5 border-b border-[#E5EAF0] mb-6">
+            <div className="flex items-center justify-between pb-5 border-b border-border mb-6">
               <div>
-                <h2 className="text-xl font-black text-[#182230] flex items-center gap-2">
-                  {editingId ? <Edit className="w-5 h-5 text-blue-600" /> : <Building className="w-5 h-5 text-[#087CF4]" />}
+                <h2 className="text-xl font-black text-foreground flex items-center gap-2">
+                  {editingId ? <Edit className="w-5 h-5 text-primary" /> : <Building className="w-5 h-5 text-primary" />}
                   {editingId ? 'تعديل بيانات العيادة وإعداداتها' : 'إضافة وتكوين عيادة طبية جديدة'}
                 </h2>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5">
                   تحكم كامل في هوية العيادة، أرقام التواصل، رفع تصميم الروشتة، وتفعيل الذكاء الاصطناعي
                 </p>
               </div>
@@ -4031,13 +4031,13 @@ export default function OwnerDashboard() {
           transition={{ duration: 0.3 }}
           className="space-y-6 max-w-3xl"
         >
-          <div className="medical-card bg-white border border-[#E5EAF0] rounded-3xl p-6 sm:p-8 space-y-6 shadow-md">
-            <div className="pb-4 border-b border-[#E5EAF0]">
-              <h2 className="text-xl font-black text-[#182230] flex items-center gap-2">
-                <Bot className="w-6 h-6 text-purple-600" />
+          <div className="yalla-card border border-border rounded-3xl p-6 sm:p-8 space-y-6 shadow-md">
+            <div className="pb-4 border-b border-border">
+              <h2 className="text-xl font-black text-foreground flex items-center gap-2">
+                <Bot className="w-6 h-6 text-purple-600 dark:text-purple-400" />
                 المفتاح المركزي للذكاء الاصطناعي (OpenAI / Gemini)
               </h2>
-              <p className="text-xs text-slate-400 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 يشغل المساعد الذكي لكافة العيادات التي يقوم المالك بتفعيل ميزة الـ AI لها تلقائياً.
               </p>
             </div>

@@ -15,11 +15,13 @@ import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
+import { useLanguage } from '@/context/LanguageContext'
 
 export default function PatientLogin({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
   const router = useRouter()
+  const { t, dir } = useLanguage()
 
   const [isRegistering, setIsRegistering] = useState(false)
   const [name, setName] = useState('')
@@ -224,16 +226,16 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#F6F8FB] font-sans relative p-4 text-[#182230]" dir="rtl">
+    <div className="min-h-screen flex items-center justify-center bg-background font-sans relative p-4 text-foreground" dir={dir}>
       {/* Floating Back Button */}
       <Link href={`/clinic/${slug}`} className="absolute top-6 right-6 z-50">
-        <Button variant="outline" className="rounded-xl shadow-xs bg-white text-xs font-bold text-slate-700 hover:text-[#087CF4] hover:bg-slate-50 border-[#E5EAF0] h-9 px-4">
+        <Button variant="outline" className="rounded-xl shadow-xs bg-card text-xs font-bold text-foreground hover:text-primary hover:bg-muted/40 border-border h-9 px-4">
           <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
           العودة للعيادة
         </Button>
       </Link>
 
-      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#087CF4]/5 rounded-full blur-3xl pointer-events-none -translate-y-1/2 translate-x-1/3"></div>
+      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl pointer-events-none -translate-y-1/2 translate-x-1/3"></div>
       
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -245,25 +247,27 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
           <Link href={`/clinic/${slug}`} className="inline-block">
             <ClinicLogo size="md" variant="light" />
           </Link>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-[#087CF4] text-xs font-bold border border-blue-100 mt-2">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>بوابة المريض المعتمدة</span>
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold border border-primary/20 mt-2">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>بوابة المريض المعتمدة</span>
+            </div>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             تابع تاريخك الطبي وكشوفاتك وروشتاتك السابقة برقم هاتفك وكلمة المرور
           </p>
         </div>
 
         {/* Auth Card */}
-        <div className="medical-card p-6 sm:p-8 bg-white border border-[#E5EAF0] shadow-xl rounded-3xl space-y-6">
+        <div className="yalla-card p-6 sm:p-8 shadow-xl rounded-3xl space-y-6 border border-border">
           
           {/* Mode Switcher Tabs */}
-          <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl">
+          <div className="grid grid-cols-2 p-1 bg-muted/60 rounded-xl">
             <button
               type="button"
               onClick={() => setIsRegistering(false)}
               className={`py-2 text-xs font-black rounded-lg transition-all cursor-pointer ${
-                !isRegistering ? 'bg-white text-[#087CF4] shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                !isRegistering ? 'bg-card text-primary shadow-xs' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               تسجيل الدخول
@@ -272,7 +276,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
               type="button"
               onClick={() => setIsRegistering(true)}
               className={`py-2 text-xs font-black rounded-lg transition-all cursor-pointer ${
-                isRegistering ? 'bg-white text-[#087CF4] shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                isRegistering ? 'bg-card text-primary shadow-xs' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               مريض جديد (حساب جديد)
@@ -284,17 +288,17 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
               <>
                 {/* Full Name */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-600">
+                  <Label className="text-xs font-bold text-muted-foreground">
                     الاسم بالكامل <span className="text-rose-500">*</span>
                   </Label>
                   <div className="relative">
-                    <User className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <User className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input 
                       required 
                       value={name} 
                       onChange={e => setName(e.target.value)} 
                       placeholder="اكتب اسمك الثلاثي" 
-                      className="pr-10 h-11 text-xs bg-slate-50 rounded-xl border-[#E5EAF0] focus:bg-white"
+                      className="pr-10 h-11 text-xs bg-background rounded-xl border-border"
                     />
                   </div>
                 </div>
@@ -302,15 +306,15 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
                 {/* Age - MANDATORY */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs font-bold text-slate-600">
+                    <Label className="text-xs font-bold text-muted-foreground">
                       السن (بالسنوات) <span className="text-rose-500">*</span>
                     </Label>
-                    <span className="text-[10px] font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-100">
+                    <span className="text-[10px] font-black text-rose-600 dark:text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20">
                       إجباري للروشتة
                     </span>
                   </div>
                   <div className="relative">
-                    <Calendar className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Calendar className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input 
                       required 
                       type="number"
@@ -319,7 +323,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
                       value={age} 
                       onChange={e => setAge(e.target.value)} 
                       placeholder="مثال: 28" 
-                      className="pr-10 h-11 text-xs bg-slate-50 rounded-xl border-[#E5EAF0] focus:bg-white text-right font-mono"
+                      className="pr-10 h-11 text-xs bg-background rounded-xl border-border text-right font-mono"
                     />
                   </div>
                 </div>
@@ -328,18 +332,18 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
 
             {/* Phone Number */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-slate-600">
+              <Label className="text-xs font-bold text-muted-foreground">
                 رقم التليفون المحمول <span className="text-rose-500">*</span>
               </Label>
               <div className="relative">
-                <Phone className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Phone className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input 
                   required 
                   type="tel"
                   value={phone} 
                   onChange={e => setPhone(e.target.value)} 
                   placeholder="01xxxxxxxxx" 
-                  className="pr-10 h-11 text-xs bg-slate-50 rounded-xl border-[#E5EAF0] focus:bg-white text-left font-mono"
+                  className="pr-10 h-11 text-xs bg-background rounded-xl border-border text-left font-mono"
                   dir="ltr"
                 />
               </div>
@@ -347,24 +351,24 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
 
             {/* Password */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-slate-600">
+              <Label className="text-xs font-bold text-muted-foreground">
                 كلمة المرور <span className="text-rose-500">*</span>
               </Label>
               <div className="relative">
-                <Lock className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Lock className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input 
                   required 
                   type={showPassword ? 'text' : 'password'}
                   value={password} 
                   onChange={e => setPassword(e.target.value)} 
                   placeholder={isRegistering ? 'اكتب كلمة مرور قوية (4 خانات فأكثر)' : 'أدخل كلمة المرور'} 
-                  className="pr-10 pl-10 h-11 text-xs bg-slate-50 rounded-xl border-[#E5EAF0] focus:bg-white text-left font-mono"
+                  className="pr-10 pl-10 h-11 text-xs bg-background rounded-xl border-border text-left font-mono"
                   dir="ltr"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -374,24 +378,24 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
             {/* Confirm Password (Registration Only) */}
             {isRegistering && (
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-600">
+                <Label className="text-xs font-bold text-muted-foreground">
                   تأكيد كلمة المرور <span className="text-rose-500">*</span>
                 </Label>
                 <div className="relative">
-                  <Lock className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Lock className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input 
                     required 
                     type={showConfirmPassword ? 'text' : 'password'}
                     value={confirmPassword} 
                     onChange={e => setConfirmPassword(e.target.value)} 
                     placeholder="أعد كتابة كلمة المرور للتأكيد" 
-                    className="pr-10 pl-10 h-11 text-xs bg-slate-50 rounded-xl border-[#E5EAF0] focus:bg-white text-left font-mono"
+                    className="pr-10 pl-10 h-11 text-xs bg-background rounded-xl border-border text-left font-mono"
                     dir="ltr"
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
                   >
                     {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -401,7 +405,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
 
             <Button
               type="submit"
-              className="w-full h-11 text-xs font-black bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl shadow-lg shadow-[#087CF4]/25 transition-all cursor-pointer"
+              className="w-full h-11 text-xs font-black yalla-gradient-btn text-white rounded-xl shadow-xs cursor-pointer"
               disabled={isLoading}
             >
               {isLoading ? (
@@ -415,7 +419,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
             </Button>
           </form>
           
-          <div className="pt-2 border-t border-[#E5EAF0] text-center">
+          <div className="pt-2 border-t border-border text-center">
             <button 
               type="button" 
               onClick={() => {
@@ -423,11 +427,15 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
                 setPassword('')
                 setConfirmPassword('')
               }}
-              className="text-xs text-[#087CF4] font-bold hover:underline cursor-pointer"
+              className="text-xs text-primary font-bold hover:underline cursor-pointer"
             >
               {isRegistering ? 'لديك ملف مسجل بالفعل؟ سجل دخولك الآن' : 'أول زيارة للعيادة؟ أنشئ حسابك الطبي في ثوانٍ'}
             </button>
           </div>
+        </div>
+
+        <div className="mt-6 text-center text-xs text-muted-foreground">
+          جميع الحقوق محفوظة YallaCodeX 2026
         </div>
       </motion.div>
     </div>

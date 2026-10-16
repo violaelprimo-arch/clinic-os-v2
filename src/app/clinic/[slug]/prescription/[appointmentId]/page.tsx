@@ -14,7 +14,6 @@ import { A4Prescription } from '@/components/clinic/A4Prescription'
 import { downloadElementAsPdf, renderElementToPdfBlob, downloadElementAsImage, renderElementToImageBlob } from '@/lib/pdfGenerator'
 import { printHtmlViaIframe, generateA4PrescriptionHtml } from '@/lib/printService'
 import { shareDocumentOrImage, sharePdfDocument } from '@/lib/whatsappShare'
-import { TechnicalSupportButton } from '@/components/clinic/TechnicalSupportButton'
 import { getClinicUrl } from '@/lib/clinic-url'
 import { toast } from 'sonner'
 
@@ -297,15 +296,13 @@ export default function PublicPrescriptionPage({
           </div>
         </div>
 
-        {/* Bottom Support & Standard Footer */}
-        <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
+        {/* Bottom Standard Footer */}
+        <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">
           <div>
             جميع الحقوق محفوظة YallaCodeX 2026
           </div>
           <div className="flex items-center gap-3">
-            <TechnicalSupportButton />
-            <span>•</span>
-            <Link href={`/clinic/${slug}`} className="hover:text-[#087CF4]">
+            <Link href={`/clinic/${slug}`} className="hover:text-primary transition-colors">
               {clinic?.clinicName || 'صفحة العيادة'}
             </Link>
           </div>

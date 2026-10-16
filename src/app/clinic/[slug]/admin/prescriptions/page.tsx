@@ -24,11 +24,13 @@ import { printHtmlViaIframe, generateA4PrescriptionHtml } from '@/lib/printServi
 import { renderElementToPdfBlob, downloadElementAsPdf, renderElementToImageBlob, downloadElementAsImage } from '@/lib/pdfGenerator'
 import { shareDocumentOrImage, sharePdfDocument } from '@/lib/whatsappShare'
 import { getClinicUrl } from '@/lib/clinic-url'
+import { useLanguage } from '@/context/LanguageContext'
 
 export default function PrescriptionsPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
   const searchParams = useSearchParams()
+  const { t, dir } = useLanguage()
 
   const [appointmentId, setAppointmentId] = useState(searchParams?.get('appointmentId') || '')
   const [patientName, setPatientName] = useState(searchParams?.get('patientName') || '')
@@ -355,16 +357,16 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   }, [drugSearch, apiDrugs])
 
   return (
-    <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto" dir="rtl">
+    <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto" dir={dir}>
       
       {/* 1. Header Toolbar */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-2xl border border-[#E5EAF0] shadow-xs">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 yalla-card p-5 border border-border shadow-xs">
         <div>
-          <h1 className="text-2xl font-black text-[#182230] flex items-center gap-2">
-            <FileSignature className="w-6 h-6 text-[#087CF4]" />
-            إصدار روشتة طبية (A4 Premium)
+          <h1 className="text-2xl font-black text-foreground flex items-center gap-2">
+            <FileSignature className="w-6 h-6 text-primary" />
+            {t('nav_prescriptions', 'إصدار روشتة طبية (A4 Premium)')}
           </h1>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs text-muted-foreground mt-0.5">
             تعبئة بيانات الكشف والأدوية مع معاينة فورية وتصدير PDF أصلي
           </p>
         </div>
@@ -375,7 +377,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             onClick={handleShareWhatsAppImage}
             disabled={isSharingPdf}
             variant="outline"
-            className="h-10 text-xs font-bold text-emerald-600 border-emerald-200 hover:bg-emerald-50 rounded-xl"
+            className="h-10 text-xs font-bold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 rounded-xl"
             title="مشاركة الروشتة كصورة ونسخها للحافظة للصق الفوري Ctrl+V في واتساب ويب"
           >
             <MessageCircle className="w-4 h-4 ml-1.5" />
@@ -387,7 +389,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             onClick={handleShareWhatsAppPdf}
             disabled={isSharingPdf}
             variant="outline"
-            className="h-10 text-xs font-bold text-emerald-700 border-emerald-300 hover:bg-emerald-50 rounded-xl"
+            className="h-10 text-xs font-bold text-emerald-700 dark:text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/10 rounded-xl"
             title="مشاركة الروشتة كملف PDF رسمي"
           >
             <FileText className="w-4 h-4 ml-1.5" />
@@ -399,7 +401,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             onClick={handleDownloadImage}
             disabled={isDownloadingImage}
             variant="outline"
-            className="h-10 text-xs font-bold border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl"
+            className="h-10 text-xs font-bold border-border text-foreground hover:bg-secondary rounded-xl"
             title="تحميل الروشتة كصورة عالية الجودة PNG"
           >
             <ImageIcon className="w-4 h-4 ml-1.5" />
@@ -411,7 +413,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             onClick={handleDownloadPdf}
             disabled={isDownloadingPdf}
             variant="outline"
-            className="h-10 text-xs font-bold border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl"
+            className="h-10 text-xs font-bold border-border text-foreground hover:bg-secondary rounded-xl"
             title="تحميل الروشتة كملف PDF"
           >
             <Download className="w-4 h-4 ml-1.5" />
@@ -422,7 +424,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           <Button
             onClick={handlePrint}
             variant="outline"
-            className="h-10 text-xs font-bold border-[#087CF4] text-[#087CF4] hover:bg-blue-50 rounded-xl"
+            className="h-10 text-xs font-bold border-primary text-primary hover:bg-primary/10 rounded-xl"
           >
             <Printer className="w-4 h-4 ml-1.5" />
             طباعة {pageSize.toUpperCase()}
@@ -445,16 +447,16 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
         <div className="lg:col-span-7 space-y-5">
           
           {/* Patient Details Card */}
-          <div className="medical-card p-5 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[#E5EAF0]">
-              <h3 className="font-bold text-sm text-[#182230] flex items-center gap-2">
-                <UserIcon className="w-4 h-4 text-[#087CF4]" />
+          <div className="yalla-card p-5 space-y-4 border border-border">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
+                <UserIcon className="w-4 h-4 text-primary" />
                 بيانات المريض والزيارة
               </h3>
 
               {todayPatients.length > 0 && (
                 <select
-                  className="text-xs font-bold border border-[#E5EAF0] rounded-xl px-2.5 py-1.5 bg-slate-50 text-slate-700"
+                  className="text-xs font-bold border border-border rounded-xl px-2.5 py-1.5 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
                   onChange={(e) => {
                     const selected = todayPatients.find(p => p.id === e.target.value)
                     if (selected) {
@@ -479,70 +481,70 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
 
             <div className="grid sm:grid-cols-3 gap-3">
               <div className="sm:col-span-1 space-y-1">
-                <Label className="text-xs font-bold text-slate-600">اسم المريض</Label>
+                <Label className="text-xs font-bold text-muted-foreground">اسم المريض</Label>
                 <Input
                   value={patientName}
                   onChange={e => setPatientName(e.target.value)}
                   placeholder="اسم المريض"
-                  className="h-10 text-xs rounded-xl"
+                  className="h-10 text-xs rounded-xl bg-background border-border text-foreground"
                 />
               </div>
 
               <div className="sm:col-span-1 space-y-1">
-                <Label className="text-xs font-bold text-slate-600">رقم الهاتف</Label>
+                <Label className="text-xs font-bold text-muted-foreground">رقم الهاتف</Label>
                 <Input
                   value={patientPhone}
                   onChange={e => setPatientPhone(e.target.value)}
                   placeholder="01xxxxxxxxx"
-                  className="h-10 text-xs font-mono text-right rounded-xl"
+                  className="h-10 text-xs font-mono text-right rounded-xl bg-background border-border text-foreground"
                   dir="ltr"
                 />
               </div>
 
               <div className="sm:col-span-1 space-y-1">
-                <Label className="text-xs font-bold text-slate-600">السن</Label>
+                <Label className="text-xs font-bold text-muted-foreground">السن</Label>
                 <Input
                   value={age}
                   onChange={e => setAge(e.target.value)}
                   placeholder="مثال: 32 سنة"
-                  className="h-10 text-xs rounded-xl"
+                  className="h-10 text-xs rounded-xl bg-background border-border text-foreground"
                 />
               </div>
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs font-bold text-slate-600">التشخيص الطبي</Label>
+              <Label className="text-xs font-bold text-muted-foreground">التشخيص الطبي</Label>
               <Input
                 value={diagnosis}
                 onChange={e => setDiagnosis(e.target.value)}
                 placeholder="التشخيص الإكلينيكي للحالة"
-                className="h-10 text-xs rounded-xl"
+                className="h-10 text-xs rounded-xl bg-background border-border text-foreground"
               />
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs font-bold text-slate-600">تعليمات وإرشادات الطبيب للمريض</Label>
+              <Label className="text-xs font-bold text-muted-foreground">تعليمات وإرشادات الطبيب للمريض</Label>
               <Input
                 value={instructions}
                 onChange={e => setInstructions(e.target.value)}
                 placeholder="مثال: شرب سوائل دافئة، الراحة التامة، العودة للاستشارة بعد أسبوع"
-                className="h-10 text-xs rounded-xl"
+                className="h-10 text-xs rounded-xl bg-background border-border text-foreground"
               />
             </div>
           </div>
 
           {/* Medicines Prescription Section */}
-          <div className="medical-card p-5 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[#E5EAF0]">
-              <h3 className="font-bold text-sm text-[#182230] flex items-center gap-2">
-                <FileText className="w-4 h-4 text-[#087CF4]" />
+          <div className="yalla-card p-5 space-y-4 border border-border">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
+                <FileText className="w-4 h-4 text-primary" />
                 الأدوية والعلاج المطلوب (Rx)
               </h3>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => addDrug()}
-                className="h-8 text-xs font-bold border-[#087CF4] text-[#087CF4] hover:bg-blue-50 rounded-lg"
+                className="h-8 text-xs font-bold border-primary text-primary hover:bg-primary/10 rounded-lg"
               >
                 <Plus className="w-3.5 h-3.5 ml-1" />
                 إضافة دواء جديد
@@ -553,13 +555,13 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             {isDrugsDbEnabled ? (
               <>
                 <div className="space-y-1.5">
-                  <span className="text-[11px] font-bold text-slate-400">الأدوية الأكثر تكراراً:</span>
+                  <span className="text-[11px] font-bold text-muted-foreground">الأدوية الأكثر تكراراً:</span>
                   <div className="flex flex-wrap gap-1.5">
                     {favoriteDrugs.map((fav, i) => (
                       <button
                         key={i}
                         onClick={() => addDrug(fav, 'قرص كل 12 ساعة', 'لمدة 5 أيام')}
-                        className="px-2.5 py-1 text-[11px] font-bold bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-[#087CF4] rounded-lg transition-colors"
+                        className="px-2.5 py-1 text-[11px] font-bold bg-secondary hover:bg-primary/10 text-foreground hover:text-primary rounded-lg transition-colors cursor-pointer"
                       >
                         + {fav}
                       </button>
@@ -569,15 +571,15 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
 
                 {/* Drug Search Input */}
                 <div className="relative">
-                  <Search className="w-4 h-4 absolute right-3 top-3 text-slate-400" />
+                  <Search className="w-4 h-4 absolute right-3 top-3 text-muted-foreground" />
                   <Input
                     value={drugSearch}
                     onChange={e => setDrugSearch(e.target.value)}
                     placeholder="ابحث في قاعدة الأدوية المصرية..."
-                    className="h-10 pr-9 text-xs rounded-xl"
+                    className="h-10 pr-9 text-xs rounded-xl bg-background border-border text-foreground"
                   />
                   {filteredSearchDrugs.length > 0 && (
-                    <div className="absolute top-full right-0 w-full mt-1 bg-white border border-[#E5EAF0] shadow-xl rounded-xl z-50 overflow-hidden divide-y divide-slate-100">
+                    <div className="absolute top-full right-0 w-full mt-1 bg-card border border-border shadow-xl rounded-xl z-50 overflow-hidden divide-y divide-border">
                       {filteredSearchDrugs.map((d, idx) => (
                         <button
                           key={idx}
@@ -585,7 +587,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                             addDrug(d, 'قرص كل 12 ساعة', 'لمدة 5 أيام')
                             setDrugSearch('')
                           }}
-                          className="w-full text-right p-2.5 text-xs font-bold text-slate-700 hover:bg-blue-50 hover:text-[#087CF4] transition-colors"
+                          className="w-full text-right p-2.5 text-xs font-bold text-foreground hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer"
                         >
                           + {d}
                         </button>
@@ -595,8 +597,8 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                 </div>
               </>
             ) : (
-              <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center gap-2">
-                <Lock className="w-4 h-4 text-amber-600 shrink-0" />
+              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-800 dark:text-amber-400 flex items-center gap-2">
+                <Lock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
                 <span>دليل وقاعدة الأدوية المصرية غير مفعلة في باقة اشتراكك الحالية. يمكنك كتابة أسماء الأدوية والجرعات يدوياً بالأسفل.</span>
               </div>
             )}
@@ -606,13 +608,13 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
               {drugs.map((drug, index) => (
                 <div
                   key={drug.id}
-                  className="p-3.5 rounded-xl border border-[#E5EAF0] bg-slate-50/50 space-y-2.5"
+                  className="p-3.5 rounded-xl border border-border bg-secondary/30 space-y-2.5"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-slate-500">دواء #{index + 1}</span>
+                    <span className="text-xs font-black text-muted-foreground">دواء #{index + 1}</span>
                     <button
                       onClick={() => removeDrug(drug.id)}
-                      className="text-slate-400 hover:text-rose-600 transition-colors"
+                      className="text-muted-foreground hover:text-rose-500 transition-colors cursor-pointer"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -624,7 +626,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                         value={drug.name}
                         onChange={e => updateDrug(drug.id, 'name', e.target.value)}
                         placeholder="اسم الدواء التجاري"
-                        className="h-9 text-xs rounded-lg bg-white"
+                        className="h-9 text-xs rounded-lg bg-background border-border text-foreground"
                       />
                     </div>
                     <div className="sm:col-span-4">
@@ -632,7 +634,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                         value={drug.dosage}
                         onChange={e => updateDrug(drug.id, 'dosage', e.target.value)}
                         placeholder="الجرعة (مثال: قرص كل 12 ساعة)"
-                        className="h-9 text-xs rounded-lg bg-white"
+                        className="h-9 text-xs rounded-lg bg-background border-border text-foreground"
                       />
                     </div>
                     <div className="sm:col-span-3">
@@ -640,7 +642,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                         value={drug.duration}
                         onChange={e => updateDrug(drug.id, 'duration', e.target.value)}
                         placeholder="المدة (مثال: 5 أيام)"
-                        className="h-9 text-xs rounded-lg bg-white"
+                        className="h-9 text-xs rounded-lg bg-background border-border text-foreground"
                       />
                     </div>
                   </div>
@@ -649,35 +651,35 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             </div>
           </div>
 
-          {/* TASK 8: Accent Color Customizer */}
-          <div className="medical-card p-4 space-y-3">
-            <h4 className="font-bold text-xs text-slate-700 flex items-center gap-1.5">
-              <Palette className="w-4 h-4 text-[#087CF4]" />
+          {/* Accent Color Customizer */}
+          <div className="yalla-card p-4 space-y-3 border border-border">
+            <h4 className="font-bold text-xs text-foreground flex items-center gap-1.5">
+              <Palette className="w-4 h-4 text-primary" />
               تخصيص ألوان وتصميم الروشتة (Live Color Accents)
             </h4>
             <div className="grid grid-cols-2 gap-4 text-xs">
               <div>
-                <Label className="text-[11px] font-bold text-slate-500 block mb-1">اللون الرئيسي للترويسة</Label>
+                <Label className="text-[11px] font-bold text-muted-foreground block mb-1">اللون الرئيسي للترويسة</Label>
                 <div className="flex items-center gap-2">
                   <input
                     type="color"
                     value={primaryColor}
                     onChange={e => setPrimaryColor(e.target.value)}
-                    className="w-8 h-8 rounded-lg cursor-pointer border border-slate-200"
+                    className="w-8 h-8 rounded-lg cursor-pointer border border-border"
                   />
-                  <span className="font-mono text-slate-600 text-xs">{primaryColor}</span>
+                  <span className="font-mono text-muted-foreground text-xs">{primaryColor}</span>
                 </div>
               </div>
               <div>
-                <Label className="text-[11px] font-bold text-slate-500 block mb-1">اللون الثانوي والخطوط</Label>
+                <Label className="text-[11px] font-bold text-muted-foreground block mb-1">اللون الثانوي والخطوط</Label>
                 <div className="flex items-center gap-2">
                   <input
                     type="color"
                     value={secondaryColor}
                     onChange={e => setSecondaryColor(e.target.value)}
-                    className="w-8 h-8 rounded-lg cursor-pointer border border-slate-200"
+                    className="w-8 h-8 rounded-lg cursor-pointer border border-border"
                   />
-                  <span className="font-mono text-slate-600 text-xs">{secondaryColor}</span>
+                  <span className="font-mono text-muted-foreground text-xs">{secondaryColor}</span>
                 </div>
               </div>
             </div>
@@ -688,18 +690,18 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
         <div className="lg:col-span-5 space-y-3">
           
           {/* Template & Paper Size Designer Controls */}
-          <div className="p-3.5 bg-white rounded-2xl border border-[#E5EAF0] space-y-3 shadow-2xs">
+          <div className="p-3.5 yalla-card rounded-2xl border border-border space-y-3 shadow-2xs">
             {/* Row 1: Option A vs Option B */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
-              <span className="text-xs font-black text-slate-800">قالب الروشتة:</span>
-              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-border">
+              <span className="text-xs font-black text-foreground">قالب الروشتة:</span>
+              <div className="flex items-center gap-1.5 bg-secondary p-1 rounded-xl">
                 <button
                   type="button"
                   onClick={() => setTemplateMode('standard')}
                   className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                     templateMode === 'standard'
-                      ? 'bg-white text-[#087CF4] shadow-xs'
-                      : 'text-slate-500 hover:text-slate-800'
+                      ? 'bg-card text-primary shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   Option B (النموذج الفاخر)
@@ -716,8 +718,8 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                     }}
                     className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                       templateMode === 'custom'
-                        ? 'bg-white text-[#087CF4] shadow-xs'
-                        : 'text-slate-500 hover:text-slate-800'
+                        ? 'bg-card text-primary shadow-xs'
+                        : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
                     Option A (تصميم العيادة) {clinic?.prescriptionTemplateUrl && '✓'}
@@ -728,7 +730,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                     onClick={() => {
                       toast.error('ميزة قالب الروشتة المخصص (Option A) مقفولة في باقة اشتراكك الحالية. يرجى الترقية لتفعيلها.')
                     }}
-                    className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-not-allowed opacity-60 flex items-center gap-1 text-slate-400 bg-slate-200/50"
+                    className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-not-allowed opacity-60 flex items-center gap-1 text-muted-foreground bg-secondary/50"
                     title="ميزة مقفولة في باقتك الحالية"
                   >
                     <Lock className="w-3 h-3 text-amber-600" />
@@ -739,16 +741,16 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             </div>
 
             {/* Row 2: Paper Size A4 vs A5 */}
-            <div className="flex items-center justify-between text-xs pb-2.5 border-b border-slate-100">
-              <span className="font-bold text-slate-700">مقاس الورق:</span>
-              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg">
+            <div className="flex items-center justify-between text-xs pb-2.5 border-b border-border">
+              <span className="font-bold text-foreground">مقاس الورق:</span>
+              <div className="flex items-center gap-1.5 bg-secondary p-1 rounded-lg">
                 <button
                   type="button"
                   onClick={() => setPageSize('a4')}
                   className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
                     pageSize === 'a4'
-                      ? 'bg-white text-[#087CF4] shadow-xs'
-                      : 'text-slate-500 hover:text-slate-800'
+                      ? 'bg-card text-primary shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   A4 (ورق كامل)
@@ -758,8 +760,8 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                   onClick={() => setPageSize('a5')}
                   className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
                     pageSize === 'a5'
-                      ? 'bg-white text-[#087CF4] shadow-xs'
-                      : 'text-slate-500 hover:text-slate-800'
+                      ? 'bg-card text-primary shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   A5 (نصف ورقة)
@@ -769,23 +771,23 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
 
             {/* Row 3: Printing Toggles */}
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-0.5">
-              <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-600 select-none">
+              <label className="flex items-center gap-2 cursor-pointer font-bold text-muted-foreground select-none">
                 <input
                   type="checkbox"
                   checked={showHeaderFooter}
                   onChange={(e) => setShowHeaderFooter(e.target.checked)}
-                  className="rounded text-[#087CF4] focus:ring-[#087CF4]"
+                  className="rounded text-primary focus:ring-primary"
                 />
                 <span>إظهار الترويسة والفوتر (تعطيل للورق الجاهز)</span>
               </label>
 
               {templateMode === 'custom' && (
-                <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-600 select-none">
+                <label className="flex items-center gap-2 cursor-pointer font-bold text-muted-foreground select-none">
                   <input
                     type="checkbox"
                     checked={printBackground}
                     onChange={(e) => setPrintBackground(e.target.checked)}
-                    className="rounded text-[#087CF4] focus:ring-[#087CF4]"
+                    className="rounded text-primary focus:ring-primary"
                   />
                   <span>طباعة صورة الخلفية (تفعيل للـ PDF)</span>
                 </label>
@@ -794,7 +796,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
 
             {/* Custom Template Top Offset Slider */}
             {templateMode === 'custom' && clinic?.prescriptionTemplateUrl && (
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+              <div className="pt-2 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
                 <span className="font-medium text-[11px]">إزاحة البداية من أعلى:</span>
                 <div className="flex items-center gap-2">
                   <input
@@ -804,16 +806,16 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                     step="1"
                     value={topOffset}
                     onChange={e => setTopOffset(Number(e.target.value))}
-                    className="w-28 accent-[#087CF4]"
+                    className="w-28 accent-primary"
                   />
-                  <span className="font-mono text-[11px] text-[#087CF4] font-bold">{topOffset}%</span>
+                  <span className="font-mono text-[11px] text-primary font-bold">{topOffset}%</span>
                 </div>
               </div>
             )}
           </div>
 
           {/* Render High-Fidelity Prescription Sheet (Live Preview) */}
-          <div ref={sheetRef} className="overflow-hidden rounded-2xl shadow-xl">
+          <div ref={sheetRef} className="overflow-hidden rounded-2xl shadow-xl border border-border">
             <A4Prescription
               clinic={clinic}
               patientName={patientName || 'اسم المريض'}

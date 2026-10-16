@@ -20,10 +20,12 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { PremiumLanding } from '@/components/clinic/PremiumLanding'
 import { MessageCircle } from 'lucide-react'
+import { useLanguage } from '@/context/LanguageContext'
 
 export default function ClinicSettings({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
+  const { t, dir } = useLanguage()
 
   const [activeTab, setActiveTab] = useState<'profile' | 'branding' | 'queue' | 'services' | 'payment' | 'staff' | 'print' | 'ai' | 'security'>('profile')
   const [logoUrl, setLogoUrl] = useState('')
@@ -353,16 +355,16 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
     : [...baseTabs, { id: 'ai', label: 'المساعد الذكي (AI Chatbot)', icon: Bot }]
 
   return (
-    <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto" dir="rtl">
+    <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto" dir={dir}>
       
       {/* 1. Header with Title and Global Save CTA */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-black text-[#182230] flex items-center gap-2">
-            <Settings className="w-6 h-6 text-[#087CF4]" />
-            إعدادات العيادة المتقدمة
+          <h1 className="text-2xl font-black text-foreground flex items-center gap-2">
+            <Settings className="w-6 h-6 text-primary" />
+            {t('nav_settings', 'إعدادات العيادة المتقدمة')}
           </h1>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs text-muted-foreground mt-0.5">
             تخصيص الهوية البصرية، أسعار الخدمات، المساعدين، وبوابات الدفع الإلكتروني
           </p>
         </div>
@@ -378,7 +380,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       </div>
 
       {/* 2. Structured Settings Tabs */}
-      <div className="flex border-b border-[#E5EAF0] gap-2 overflow-x-auto no-scrollbar">
+      <div className="flex border-b border-border gap-2 overflow-x-auto no-scrollbar">
         {tabs.filter(t => t.id !== 'security' || currentRole === 'doctor').map((tab) => {
           const Icon = tab.icon
           const isActive = activeTab === tab.id
@@ -388,8 +390,8 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               onClick={() => setActiveTab(tab.id as any)}
               className={`flex items-center gap-2 py-3 px-4 border-b-2 font-bold text-xs whitespace-nowrap transition-colors cursor-pointer ${
                 isActive
-                  ? 'border-[#087CF4] text-[#087CF4] bg-white rounded-t-xl'
-                  : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+                  ? 'border-primary text-primary bg-card rounded-t-xl'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
               }`}
             >
               <Icon className="w-4 h-4" />
@@ -400,16 +402,13 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       </div>
 
       {/* 3. Tab Contents */}
-      
-
-
 
       {/* TAB SECURITY */}
       {activeTab === 'security' && currentRole === 'doctor' && (
-        <div className="medical-card p-6 max-w-2xl space-y-5">
-          <div className="pb-3 border-b border-[#E5EAF0]">
-            <h3 className="font-bold text-sm text-[#182230]">إعدادات حساب الطبيب</h3>
-            <p className="text-xs text-slate-400">يمكنك هنا تغيير البريد الإلكتروني وكلمة المرور الخاصة بك. هذه البيانات لا تظهر لمالك المنصة.</p>
+        <div className="yalla-card p-6 max-w-2xl space-y-5 border border-border">
+          <div className="pb-3 border-b border-border">
+            <h3 className="font-bold text-sm text-foreground">إعدادات حساب الطبيب</h3>
+            <p className="text-xs text-muted-foreground">يمكنك هنا تغيير البريد الإلكتروني وكلمة المرور الخاصة بك. هذه البيانات لا تظهر لمالك المنصة.</p>
           </div>
           <div className="space-y-4 pt-2">
             <div className="space-y-1.5">
@@ -460,23 +459,23 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       {activeTab === 'branding' && (
         <div className="grid lg:grid-cols-12 gap-6 items-start">
           {/* Settings Form (7 cols) */}
-          <div className="lg:col-span-7 medical-card p-6 space-y-6">
-            <div className="pb-3 border-b border-[#E5EAF0]">
-              <h3 className="font-bold text-base text-[#182230] flex items-center gap-2">
-                <Palette className="w-5 h-5 text-[#087CF4]" />
+          <div className="lg:col-span-7 yalla-card p-6 space-y-6">
+            <div className="pb-3 border-b border-border">
+              <h3 className="font-bold text-base text-foreground flex items-center gap-2">
+                <Palette className="w-5 h-5 text-primary" />
                 إعدادات هوية العيادة والطباعة الحرارية
               </h3>
-              <p className="text-xs text-slate-400 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 تخصيص الشعار الملون، شعار الفواتير الحرارية 80mm أحادي اللون، ألوان الهوية، ونصوص التذييل
               </p>
             </div>
 
             {!canEditBranding && (
-              <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-900 text-xs flex items-start gap-3">
-                <Lock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs flex items-start gap-3">
+                <Lock className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
                 <div className="space-y-1">
-                  <h4 className="font-bold text-amber-950">تعديل هوية العيادة مقفول</h4>
-                  <p className="text-amber-800 leading-relaxed">
+                  <h4 className="font-bold">تعديل هوية العيادة مقفول</h4>
+                  <p className="leading-relaxed opacity-90">
                     ميزة تخصيص الهوية البصرية (الشعارات، الألوان، ونصوص الفواتير) مقفولة في باقة اشتراك عيادتك الحالية أو تم تقييدها من قبل إدارة المنصة Super Admin. لتعديلها يرجى الترقية أو التواصل مع الدعم.
                   </p>
                 </div>
@@ -486,11 +485,11 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
             <fieldset disabled={!canEditBranding} className={`space-y-6 ${!canEditBranding ? 'opacity-60 pointer-events-none' : ''}`}>
               {/* Logos Section */}
               <div className="space-y-4">
-                <h4 className="font-bold text-xs text-slate-700 pb-1 border-b border-slate-100">شعارات العيادة</h4>
+                <h4 className="font-bold text-xs text-foreground pb-1 border-b border-border">شعارات العيادة</h4>
 
                 {/* Standard Colored Logo */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-600">رابط الشعار الملون (Standard Color Logo)</Label>
+                  <Label className="text-xs font-bold text-muted-foreground">رابط الشعار الملون (Standard Color Logo)</Label>
                   <Input
                     value={logoUrl}
                     onChange={e => setLogoUrl(e.target.value)}
@@ -498,12 +497,12 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                     className="h-10 text-xs rounded-xl text-left font-mono"
                     dir="ltr"
                   />
-                  <p className="text-[11px] text-slate-400">يظهر في صفحة الحجز، التقارير المالية A4، ولوحة التحكم.</p>
+                  <p className="text-[11px] text-muted-foreground">يظهر في صفحة الحجز، التقارير المالية A4، ولوحة التحكم.</p>
                 </div>
 
                 {/* Monochrome Thermal Receipt Logo */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-600">شعار الفاتورة الحرارية 80mm (أحادي اللون 1-Bit Mono)</Label>
+                  <Label className="text-xs font-bold text-muted-foreground">شعار الفاتورة الحرارية 80mm (أحادي اللون 1-Bit Mono)</Label>
                   <Input
                     value={thermalMonoLogoUrl}
                     onChange={e => setThermalMonoLogoUrl(e.target.value)}
@@ -511,7 +510,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                     className="h-10 text-xs rounded-xl text-left font-mono"
                     dir="ltr"
                   />
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[11px] text-muted-foreground">
                     لوجو أسود وأبيض عالي التباين بدون تدرجات رمادية للحصول على أعلى دقة طباعة على ورق 80mm الحراري.
                   </p>
                 </div>
@@ -519,17 +518,17 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
               {/* Colors Section */}
               <div className="space-y-4 pt-2">
-                <h4 className="font-bold text-xs text-slate-700 pb-1 border-b border-slate-100">ألوان الهوية البصرية</h4>
+                <h4 className="font-bold text-xs text-foreground pb-1 border-b border-border">ألوان الهوية البصرية</h4>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-bold text-slate-600">اللون الأساسي (Primary)</Label>
+                    <Label className="text-xs font-bold text-muted-foreground">اللون الأساسي (Primary)</Label>
                     <div className="flex items-center gap-2">
                       <input
                         type="color"
                         value={primaryColor}
                         onChange={e => setPrimaryColor(e.target.value)}
-                        className="w-10 h-10 rounded-xl cursor-pointer border border-slate-200 p-0.5 bg-white shrink-0"
+                        className="w-10 h-10 rounded-xl cursor-pointer border border-border p-0.5 bg-background shrink-0"
                       />
                       <Input
                         value={primaryColor}
@@ -541,13 +540,13 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-bold text-slate-600">اللون الثانوي (Secondary)</Label>
+                    <Label className="text-xs font-bold text-muted-foreground">اللون الثانوي (Secondary)</Label>
                     <div className="flex items-center gap-2">
                       <input
                         type="color"
                         value={secondaryColor}
                         onChange={e => setSecondaryColor(e.target.value)}
-                        className="w-10 h-10 rounded-xl cursor-pointer border border-slate-200 p-0.5 bg-white shrink-0"
+                        className="w-10 h-10 rounded-xl cursor-pointer border border-border p-0.5 bg-background shrink-0"
                       />
                       <Input
                         value={secondaryColor}
@@ -562,10 +561,10 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
               {/* Slogan & Notes Section */}
               <div className="space-y-4 pt-2">
-                <h4 className="font-bold text-xs text-slate-700 pb-1 border-b border-slate-100">النصوص والشعارات</h4>
+                <h4 className="font-bold text-xs text-foreground pb-1 border-b border-border">النصوص والشعارات</h4>
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-600">شعار العيادة اللفظي (Slogan / Tagline)</Label>
+                  <Label className="text-xs font-bold text-muted-foreground">شعار العيادة اللفظي (Slogan / Tagline)</Label>
                   <Input
                     value={slogan}
                     onChange={e => setSlogan(e.target.value)}
@@ -575,7 +574,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-600">نص رأس الفاتورة الحرارية (Receipt Subtitle)</Label>
+                  <Label className="text-xs font-bold text-muted-foreground">نص رأس الفاتورة الحرارية (Receipt Subtitle)</Label>
                   <Input
                     value={receiptHeaderNote}
                     onChange={e => setReceiptHeaderNote(e.target.value)}
@@ -585,7 +584,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-600">تذييل الفاتورة الحرارية (Footer Note)</Label>
+                  <Label className="text-xs font-bold text-muted-foreground">تذييل الفاتورة الحرارية (Footer Note)</Label>
                   <Textarea
                     value={receiptFooterNote}
                     onChange={e => setReceiptFooterNote(e.target.value)}
@@ -602,10 +601,10 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           <div className="lg:col-span-5 space-y-6">
             
             {/* Preview 1: Thermal Receipt 80mm Simulation */}
-            <div className="medical-card p-5 space-y-3 bg-slate-50 border-2 border-slate-300">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                <h4 className="font-bold text-xs text-[#182230] flex items-center gap-1.5">
-                  <Printer className="w-4 h-4 text-slate-600" />
+            <div className="yalla-card p-5 space-y-3 bg-muted/40 border border-border">
+              <div className="flex items-center justify-between pb-2 border-b border-border">
+                <h4 className="font-bold text-xs text-foreground flex items-center gap-1.5">
+                  <Printer className="w-4 h-4 text-muted-foreground" />
                   معاينة الفاتورة الحرارية (80mm Thermal Preview)
                 </h4>
                 <Badge variant="outline" className="text-[10px] font-mono">80mm ESC/POS</Badge>
@@ -670,8 +669,8 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
             </div>
 
             {/* Preview 2: Colored Digital Brand Card */}
-            <div className="medical-card p-5 space-y-3">
-              <h4 className="font-bold text-xs text-[#182230]">معاينة الهوية الرقمية الملونة</h4>
+            <div className="yalla-card p-5 space-y-3">
+              <h4 className="font-bold text-xs text-foreground">معاينة الهوية الرقمية الملونة</h4>
               <div
                 style={{ backgroundColor: primaryColor }}
                 className="p-5 rounded-2xl text-white text-center space-y-2 shadow-md"
@@ -706,13 +705,13 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         <div className="space-y-6">
           <div className="grid lg:grid-cols-2 gap-6">
             {/* Form Side */}
-            <div className="medical-card p-6 space-y-5">
-              <div className="pb-3 border-b border-[#E5EAF0]">
-                <h3 className="font-bold text-sm text-[#182230]">البيانات العامة للعيادة</h3>
+            <div className="yalla-card p-6 space-y-5">
+              <div className="pb-3 border-b border-border">
+                <h3 className="font-bold text-sm text-foreground">البيانات العامة للعيادة</h3>
               </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-slate-600">اسم العيادة</Label>
+              <Label className="text-xs font-bold text-muted-foreground">اسم العيادة</Label>
               <Input
                 value={clinicName}
                 onChange={e => setClinicName(e.target.value)}
@@ -724,12 +723,12 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
             <div className="grid sm:grid-cols-2 gap-4">
               
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-600">اسم الطبيب المعالج</Label>
+                <Label className="text-xs font-bold text-muted-foreground">اسم الطبيب المعالج</Label>
                 <div className="flex gap-2">
                   <select
                     value={doctorTitle}
                     onChange={e => setDoctorTitle(e.target.value)}
-                    className="h-10 text-xs rounded-xl border border-slate-200 px-2 bg-slate-50 w-24"
+                    className="h-10 text-xs rounded-xl border border-border px-2 bg-background text-foreground w-24"
                   >
                     <option value="د.">د.</option>
                     <option value="أ.د.">أ.د.</option>
@@ -749,7 +748,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-600">التخصص والمسمى</Label>
+                <Label className="text-xs font-bold text-muted-foreground">التخصص والمسمى</Label>
                 <Input
                   value={specialty}
                   onChange={e => setSpecialty(e.target.value)}
@@ -763,7 +762,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-600">اللقب / الاعتماد (يظهر على صورة الطبيب)</Label>
+                <Label className="text-xs font-bold text-muted-foreground">اللقب / الاعتماد (يظهر على صورة الطبيب)</Label>
                 <Input
                   value={certificationTitle}
                   onChange={e => setCertificationTitle(e.target.value)}
@@ -773,7 +772,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-600">الجهة المانحة (النقابة / الزمالة)</Label>
+                <Label className="text-xs font-bold text-muted-foreground">الجهة المانحة (النقابة / الزمالة)</Label>
                 <Input
                   value={certificationEntity}
                   onChange={e => setCertificationEntity(e.target.value)}
@@ -783,7 +782,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               </div>
             </div>
 
-            <Label className="text-xs font-bold text-slate-600">نبذة تعريفية (تظهر للمرضى)</Label>
+            <Label className="text-xs font-bold text-muted-foreground">نبذة تعريفية (تظهر للمرضى)</Label>
               <Textarea
                 value={heroSubtitle}
                 onChange={e => setHeroSubtitle(e.target.value)}
@@ -794,37 +793,37 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
             
             <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-600">اللون الرئيسي للنظام</Label>
+                <Label className="text-xs font-bold text-muted-foreground">اللون الرئيسي للنظام</Label>
                 <div className="flex items-center gap-3">
                   <input
                     type="color"
                     value={primaryColor}
                     onChange={e => setPrimaryColor(e.target.value)}
-                    className="w-10 h-10 rounded-xl cursor-pointer border-0 p-0"
+                    className="w-10 h-10 rounded-xl cursor-pointer border border-border p-0.5 bg-background"
                   />
-                  <span className="font-mono text-sm text-slate-600">{primaryColor}</span>
+                  <span className="font-mono text-sm text-muted-foreground">{primaryColor}</span>
                 </div>
               </div>
 
 
             <div className="space-y-1.5 pt-2">
-              <Label className="text-xs font-bold text-slate-600">حالة العيادة (مفتوحة / مغلقة)</Label>
+              <Label className="text-xs font-bold text-muted-foreground">حالة العيادة (مفتوحة / مغلقة)</Label>
               <div className="flex items-center gap-2">
                 <Switch checked={isClinicOpen} onCheckedChange={setIsClinicOpen} />
-                <span className="text-sm text-slate-600 font-bold">{isClinicOpen ? 'العيادة تستقبل حجوزات' : 'العيادة مغلقة حالياً'}</span>
+                <span className="text-sm text-foreground font-bold">{isClinicOpen ? 'العيادة تستقبل حجوزات' : 'العيادة مغلقة حالياً'}</span>
               </div>
             </div>
 
             <div className="space-y-1.5 pt-2">
-              <Label className="text-xs font-bold text-slate-600">إظهار أسعار الكشوفات للمرضى</Label>
+              <Label className="text-xs font-bold text-muted-foreground">إظهار أسعار الكشوفات للمرضى</Label>
               <div className="flex items-center gap-2">
                 <Switch checked={showPrices} onCheckedChange={setShowPrices} />
-                <span className="text-sm text-slate-600 font-bold">{showPrices ? 'الأسعار ظاهرة' : 'الأسعار مخفية'}</span>
+                <span className="text-sm text-foreground font-bold">{showPrices ? 'الأسعار ظاهرة' : 'الأسعار مخفية'}</span>
               </div>
             </div>
 
             <div className="space-y-1.5 pt-2">
-              <Label className="text-xs font-bold text-slate-600">عنوان العيادة التفصيلي</Label>
+              <Label className="text-xs font-bold text-muted-foreground">عنوان العيادة التفصيلي</Label>
               <Input
                 value={address}
                 onChange={e => setAddress(e.target.value)}
@@ -835,7 +834,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-1.5 col-span-2">
-                <Label className="text-xs font-bold text-slate-600">أرقام هواتف العيادة (للحجز والواتساب)</Label>
+                <Label className="text-xs font-bold text-muted-foreground">أرقام هواتف العيادة (للحجز والواتساب)</Label>
                 <div className="space-y-2">
                   {phones.map((p, idx) => (
                     <div key={idx} className="flex items-center gap-2">
@@ -854,7 +853,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                         variant="ghost"
                         size="icon"
                         onClick={() => setPhones(phones.filter((_, i) => i !== idx))}
-                        className="text-rose-500 hover:text-rose-600 hover:bg-rose-50"
+                        className="text-rose-500 hover:text-rose-600 hover:bg-rose-500/10"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -863,7 +862,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                   <Button
                     variant="outline"
                     onClick={() => setPhones([...phones, ''])}
-                    className="w-full border-dashed h-10 text-xs font-bold text-[#087CF4] border-blue-200 hover:bg-blue-50"
+                    className="w-full border-dashed h-10 text-xs font-bold text-primary border-primary/30 hover:bg-primary/5"
                   >
                     <Plus className="w-4 h-4 ml-2" /> إضافة رقم آخر
                   </Button>
@@ -871,7 +870,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               </div>
 
               <div className="space-y-1.5 col-span-2">
-                <Label className="text-xs font-bold text-slate-600">رابط موقع العيادة (Google Maps)</Label>
+                <Label className="text-xs font-bold text-muted-foreground">رابط موقع العيادة (Google Maps)</Label>
                 <Input
                   value={mapsLink}
                   onChange={e => setMapsLink(e.target.value)}
@@ -884,18 +883,18 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           </div>
 
           {/* Preview Side */}
-          <div className="medical-card overflow-hidden bg-slate-50 relative flex flex-col hidden lg:flex border-4 border-slate-100">
-            <div className="p-3 border-b border-slate-200 bg-white flex items-center justify-between shadow-sm z-10">
-              <h3 className="font-bold text-sm text-[#182230] flex items-center gap-2">
+          <div className="yalla-card overflow-hidden bg-muted/20 relative flex flex-col hidden lg:flex border border-border">
+            <div className="p-3 border-b border-border bg-card flex items-center justify-between shadow-xs z-10">
+              <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-amber-500" />
                 معاينة حية لصفحة المريض
               </h3>
-              <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full font-bold">
+              <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full font-bold">
                 Live Preview
               </span>
             </div>
             
-            <div className="flex-1 relative overflow-y-auto overflow-x-hidden no-scrollbar bg-white">
+            <div className="flex-1 relative overflow-y-auto overflow-x-hidden no-scrollbar bg-background">
               <div className="absolute inset-0 origin-top" style={{ transform: 'scale(0.85)', width: '117%' }}>
                 <PremiumLanding 
                   key={`${clinicName}-${doctorName}-${specialty}-${primaryColor}-${photoUrl}`}
@@ -926,15 +925,15 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       )}
       {/* TAB 2: Queue & Visit Duration */}
       {activeTab === 'queue' && (
-        <div className="medical-card p-6 max-w-2xl space-y-5">
-          <div className="flex items-center gap-2 pb-3 border-b border-[#E5EAF0]">
-            <Clock className="w-5 h-5 text-[#087CF4]" />
-            <h3 className="font-bold text-sm text-[#182230]">تنظيم المواعيد وسرعة الكشف</h3>
+        <div className="yalla-card p-6 max-w-2xl space-y-5">
+          <div className="flex items-center gap-2 pb-3 border-b border-border">
+            <Clock className="w-5 h-5 text-primary" />
+            <h3 className="font-bold text-sm text-foreground">تنظيم المواعيد وسرعة الكشف</h3>
           </div>
 
           <div className="space-y-4">
-            <div className="space-y-2 pb-4 border-b border-[#E5EAF0]">
-              <Label className="text-xs font-bold text-slate-600">
+            <div className="space-y-2 pb-4 border-b border-border">
+              <Label className="text-xs font-bold text-muted-foreground">
                 متوسط وقت الكشف المتوقع لكل مريض (بالدقائق)
               </Label>
               <Input
@@ -945,13 +944,13 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                 min={3}
                 max={60}
               />
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-muted-foreground">
                 يُستخدم لحساب الوقت التقريبي المتبقي لشاشة تتبع دور المريض الذكية تلقائياً.
               </p>
             </div>
 
-            <div className="space-y-2 pb-4 border-b border-[#E5EAF0]">
-              <Label className="text-xs font-bold text-slate-600">
+            <div className="space-y-2 pb-4 border-b border-border">
+              <Label className="text-xs font-bold text-muted-foreground">
                 الحد الأقصى لعدد الكشوفات يومياً
               </Label>
               <Input
@@ -963,75 +962,75 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                 min={0}
                 max={500}
               />
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-muted-foreground">
                 عند اكتمال هذا العدد من الحجوزات في أي يوم، يتم إغلاق الحجز لذلك اليوم تلقائياً وإتاحة اليوم التالي للمرضى.
               </p>
             </div>
 
-            <div className="space-y-4 pt-4 border-t border-[#E5EAF0]">
-    <h4 className="font-bold text-sm text-[#182230]">مواعيد العمل الأسبوعية</h4>
-    <p className="text-xs text-slate-500">تحديد أيام العمل ومواعيد استقبال المرضى</p>
-    <div className="space-y-3">
-      {weeklySchedule.map((day, idx) => (
-        <div key={day.id} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl">
-          <div className="flex items-center gap-3 w-32">
-            <Switch
-              checked={day.isOpen}
-              onCheckedChange={(val) => {
-                const newS = [...weeklySchedule];
-                newS[idx].isOpen = val;
-                setWeeklySchedule(newS);
-              }}
-            />
-            <span className="text-xs font-bold text-slate-700">{day.day}</span>
-          </div>
-          {day.isOpen && (
-            <div className="flex items-center gap-2">
-              <Input
-                type="time"
-                value={day.start}
-                onChange={(e) => {
-                  const newS = [...weeklySchedule];
-                  newS[idx].start = e.target.value;
-                  setWeeklySchedule(newS);
-                }}
-                className="h-9 text-xs w-28"
-              />
-              <span className="text-xs text-slate-400">إلى</span>
-              <Input
-                type="time"
-                value={day.end}
-                onChange={(e) => {
-                  const newS = [...weeklySchedule];
-                  newS[idx].end = e.target.value;
-                  setWeeklySchedule(newS);
-                }}
-                className="h-9 text-xs w-28"
-              />
+            <div className="space-y-4 pt-4 border-t border-border">
+              <h4 className="font-bold text-sm text-foreground">مواعيد العمل الأسبوعية</h4>
+              <p className="text-xs text-muted-foreground">تحديد أيام العمل ومواعيد استقبال المرضى</p>
+              <div className="space-y-3">
+                {weeklySchedule.map((day, idx) => (
+                  <div key={day.id} className="flex items-center justify-between p-3 bg-muted/40 border border-border rounded-xl">
+                    <div className="flex items-center gap-3 w-32">
+                      <Switch
+                        checked={day.isOpen}
+                        onCheckedChange={(val) => {
+                          const newS = [...weeklySchedule];
+                          newS[idx].isOpen = val;
+                          setWeeklySchedule(newS);
+                        }}
+                      />
+                      <span className="text-xs font-bold text-foreground">{day.day}</span>
+                    </div>
+                    {day.isOpen && (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="time"
+                          value={day.start}
+                          onChange={(e) => {
+                            const newS = [...weeklySchedule];
+                            newS[idx].start = e.target.value;
+                            setWeeklySchedule(newS);
+                          }}
+                          className="h-9 text-xs w-28"
+                        />
+                        <span className="text-xs text-muted-foreground">إلى</span>
+                        <Input
+                          type="time"
+                          value={day.end}
+                          onChange={(e) => {
+                            const newS = [...weeklySchedule];
+                            newS[idx].end = e.target.value;
+                            setWeeklySchedule(newS);
+                          }}
+                          className="h-9 text-xs w-28"
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
-          )}
-        </div>
-      ))}
-    </div>
-  </div>
 
-  <div className="space-y-3 pt-4 border-t border-[#E5EAF0]">
-    <h4 className="font-bold text-sm text-[#182230]">نظام ترتيب الأدوار (نمط الدخول)</h4>
-              <p className="text-xs text-slate-500">حدد عدد الحالات التي تدخل بالترتيب قبل إعادة الدورة. اكتب (0) للمستعجل ليدخل فوراً قبل أي خدمة أخرى.</p>
+            <div className="space-y-3 pt-4 border-t border-border">
+              <h4 className="font-bold text-sm text-foreground">نظام ترتيب الأدوار (نمط الدخول)</h4>
+              <p className="text-xs text-muted-foreground">حدد عدد الحالات التي تدخل بالترتيب قبل إعادة الدورة. اكتب (0) للمستعجل ليدخل فوراً قبل أي خدمة أخرى.</p>
               
               <div className="grid grid-cols-3 gap-4 max-w-lg">
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-600 text-rose-600">كشف مستعجل</Label>
+                  <Label className="text-xs font-bold text-rose-500">كشف مستعجل</Label>
                   <Input
                     type="number"
                     value={queueUrgent}
                     onChange={e => setQueueUrgent(Number(e.target.value))}
-                    className="h-10 text-sm rounded-xl font-bold border-rose-200 bg-rose-50 text-rose-900"
+                    className="h-10 text-sm rounded-xl font-bold border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400"
                     min={0}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-600">كشف عادي</Label>
+                  <Label className="text-xs font-bold text-muted-foreground">كشف عادي</Label>
                   <Input
                     type="number"
                     value={queueNormal}
@@ -1041,12 +1040,12 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-600 text-blue-600">استشارة</Label>
+                  <Label className="text-xs font-bold text-primary">استشارة</Label>
                   <Input
                     type="number"
                     value={queueConsult}
                     onChange={e => setQueueConsult(Number(e.target.value))}
-                    className="h-10 text-sm rounded-xl font-bold border-blue-200 bg-blue-50 text-blue-900"
+                    className="h-10 text-sm rounded-xl font-bold border-primary/30 bg-primary/10 text-primary"
                     min={0}
                   />
                 </div>
@@ -1058,37 +1057,37 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
       {/* TAB 3: Services & Pricing */}
       {activeTab === 'services' && (
-        <div className="medical-card p-6 space-y-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-[#E5EAF0]">
+        <div className="yalla-card p-6 space-y-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-border">
             <div>
-              <h3 className="font-bold text-sm text-[#182230]">الخدمات والأسعار المعتمدة في العيادة</h3>
-              <p className="text-xs text-slate-400">تظهر هذه الخدمات في نموذج حجز المرضى وشاشة دور اليوم</p>
+              <h3 className="font-bold text-sm text-foreground">الخدمات والأسعار المعتمدة في العيادة</h3>
+              <p className="text-xs text-muted-foreground">تظهر هذه الخدمات في نموذج حجز المرضى وشاشة دور اليوم</p>
             </div>
           </div>
 
           {/* Add New Service Form */}
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col sm:flex-row gap-3 items-end">
+          <div className="p-4 rounded-xl bg-muted/40 border border-border flex flex-col sm:flex-row gap-3 items-end">
             <div className="flex-1 space-y-1 w-full">
-              <Label className="text-xs font-bold text-slate-600">اسم الخدمة</Label>
+              <Label className="text-xs font-bold text-muted-foreground">اسم الخدمة</Label>
               <Input
                 value={newServiceName}
                 onChange={e => setNewServiceName(e.target.value)}
                 placeholder="مثال: رسم قلب، متابعة سكر"
-                className="h-10 text-xs rounded-xl bg-white"
+                className="h-10 text-xs rounded-xl bg-background"
               />
             </div>
             <div className="w-full sm:w-40 space-y-1">
-              <Label className="text-xs font-bold text-slate-600">السعر (ج.م)</Label>
+              <Label className="text-xs font-bold text-muted-foreground">السعر (ج.م)</Label>
               <Input
                 type="number"
                 value={newServicePrice}
                 onChange={e => setNewServicePrice(Number(e.target.value))}
-                className="h-10 text-xs rounded-xl bg-white"
+                className="h-10 text-xs rounded-xl bg-background"
               />
             </div>
             <Button
               onClick={addService}
-              className="h-10 px-5 text-xs font-bold bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl shadow-xs transition-colors"
+              className="h-10 px-5 text-xs font-bold yalla-gradient-btn text-white rounded-xl shadow-xs"
             >
               <Plus className="w-4 h-4 ml-1" />
               إضافة خدمة
@@ -1096,18 +1095,18 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           </div>
 
           {/* Existing Services List */}
-          <div className="divide-y divide-[#E5EAF0]">
+          <div className="divide-y divide-border">
             {services.map((service) => (
               <div key={service.id} className="py-3.5 flex items-center justify-between">
                 <div>
-                  <h4 className="font-bold text-xs text-[#182230]">{service.name}</h4>
-                  <span className="text-xs font-black text-emerald-600">{service.price} ج.م</span>
+                  <h4 className="font-bold text-xs text-foreground">{service.name}</h4>
+                  <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">{service.price} ج.م</span>
                 </div>
                 <Button
                   size="icon"
                   variant="ghost"
                   onClick={() => removeService(service.id)}
-                  className="text-slate-400 hover:text-rose-600"
+                  className="text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10"
                 >
                   <Trash2 className="w-4 h-4" />
                 </Button>
@@ -1119,11 +1118,11 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
       {/* TAB 4: Payment Methods */}
       {activeTab === 'payment' && (
-        <div className="medical-card p-6 max-w-2xl space-y-5">
-          <div className="flex items-center justify-between pb-3 border-b border-[#E5EAF0]">
+        <div className="yalla-card p-6 max-w-2xl space-y-5">
+          <div className="flex items-center justify-between pb-3 border-b border-border">
             <div>
-              <h3 className="font-bold text-sm text-[#182230]">تفعيل الدفع الإلكتروني (Online Payment)</h3>
-              <p className="text-xs text-slate-400">إتاحة الدفع عبر محفظة إلكترونية أو انستاباي أثناء حجز المريض</p>
+              <h3 className="font-bold text-sm text-foreground">تفعيل الدفع الإلكتروني (Online Payment)</h3>
+              <p className="text-xs text-muted-foreground">إتاحة الدفع عبر محفظة إلكترونية أو انستاباي أثناء حجز المريض</p>
             </div>
             <Switch
               checked={onlinePaymentEnabled}
@@ -1132,18 +1131,18 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           </div>
 
           {onlinePaymentEnabled && (
-            <div className="space-y-4 pt-4 border-t">
-              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border">
+            <div className="space-y-4 pt-4 border-t border-border">
+              <div className="flex items-center justify-between p-3 bg-muted/40 rounded-xl border border-border">
                 <div className="flex items-center gap-3">
                   <Switch checked={isWalletEnabled} onCheckedChange={setIsWalletEnabled} />
                   <div>
-                    <p className="font-bold text-sm text-slate-800">تفعيل الدفع بالمحفظة الإلكترونية (فودافون كاش وغيرها)</p>
+                    <p className="font-bold text-sm text-foreground">تفعيل الدفع بالمحفظة الإلكترونية (فودافون كاش وغيرها)</p>
                   </div>
                 </div>
               </div>
               {isWalletEnabled && (
                 <div className="space-y-1.5 pl-14">
-                  <Label className="text-xs font-bold text-slate-600">رقم المحفظة</Label>
+                  <Label className="text-xs font-bold text-muted-foreground">رقم المحفظة</Label>
                   <Input
                     value={walletNumber}
                     onChange={e => setWalletNumber(e.target.value)}
@@ -1154,17 +1153,17 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                 </div>
               )}
 
-              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border">
+              <div className="flex items-center justify-between p-3 bg-muted/40 rounded-xl border border-border">
                 <div className="flex items-center gap-3">
                   <Switch checked={isInstapayEnabled} onCheckedChange={setIsInstapayEnabled} />
                   <div>
-                    <p className="font-bold text-sm text-slate-800">تفعيل الدفع عبر إنستاباي (InstaPay)</p>
+                    <p className="font-bold text-sm text-foreground">تفعيل الدفع عبر إنستاباي (InstaPay)</p>
                   </div>
                 </div>
               </div>
               {isInstapayEnabled && (
                 <div className="space-y-1.5 pl-14">
-                  <Label className="text-xs font-bold text-slate-600">معرف إنستاباي (InstaPay Handle)</Label>
+                  <Label className="text-xs font-bold text-muted-foreground">معرف إنستاباي (InstaPay Handle)</Label>
                   <Input
                     value={instapayHandle}
                     onChange={e => setInstapayHandle(e.target.value)}
@@ -1181,15 +1180,15 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
       {/* TAB 5: Staff & Permissions */}
       {activeTab === 'staff' && (
-        <div className="medical-card p-6 space-y-6">
-          <div className="pb-3 border-b border-[#E5EAF0]">
-            <h3 className="font-bold text-sm text-[#182230]">حسابات المساعدين والصلاحيات الممنوحة</h3>
-            <p className="text-xs text-slate-400">إدارة حسابات الدخول لسكرتارية العيادة وتحديد الأقسام المتاحة لهم</p>
+        <div className="yalla-card p-6 space-y-6">
+          <div className="pb-3 border-b border-border">
+            <h3 className="font-bold text-sm text-foreground">حسابات المساعدين والصلاحيات الممنوحة</h3>
+            <p className="text-xs text-muted-foreground">إدارة حسابات الدخول لسكرتارية العيادة وتحديد الأقسام المتاحة لهم</p>
           </div>
 
           {/* Permissions Toggle Matrix */}
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
-            <h4 className="text-xs font-black text-slate-700">الأقسام المصرح للمساعد بالوصول إليها:</h4>
+          <div className="p-4 rounded-xl bg-muted/40 border border-border space-y-3">
+            <h4 className="text-xs font-black text-foreground">الأقسام المصرح للمساعد بالوصول إليها:</h4>
             <div className="grid sm:grid-cols-3 gap-3">
               {[
                 { id: 'appointments', label: 'دور اليوم والمواعيد' },
@@ -1199,12 +1198,12 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                 { id: 'accounts', label: 'الحسابات اليومية' },
                 { id: 'finance', label: 'التقارير المالية' },
               ].map(perm => (
-                <label key={perm.id} className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
+                <label key={perm.id} className="flex items-center gap-2 text-xs font-bold text-foreground cursor-pointer">
                   <input
                     type="checkbox"
                     checked={assistantPermissions.includes(perm.id)}
                     onChange={() => togglePermission(perm.id)}
-                    className="rounded text-[#087CF4] focus:ring-[#087CF4]"
+                    className="rounded text-primary focus:ring-primary"
                   />
                   <span>{perm.label}</span>
                 </label>
@@ -1215,7 +1214,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           {/* Add Assistant Form */}
           <div className="flex flex-col sm:flex-row gap-3 items-end">
             <div className="flex-1 space-y-1 w-full">
-              <Label className="text-xs font-bold text-slate-600">بريد المساعد</Label>
+              <Label className="text-xs font-bold text-muted-foreground">بريد المساعد</Label>
               <Input
                 type="email"
                 value={newAssistantEmail}
@@ -1225,7 +1224,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               />
             </div>
             <div className="flex-1 space-y-1 w-full">
-              <Label className="text-xs font-bold text-slate-600">كلمة المرور</Label>
+              <Label className="text-xs font-bold text-muted-foreground">كلمة المرور</Label>
               <Input
                 type="password"
                 value={newAssistantPassword}
@@ -1236,7 +1235,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
             </div>
             <Button
               onClick={addAssistant}
-              className="h-10 px-5 text-xs font-bold bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl shadow-xs transition-colors"
+              className="h-10 px-5 text-xs font-bold yalla-gradient-btn text-white rounded-xl shadow-xs"
             >
               <Plus className="w-4 h-4 ml-1" />
               إضافة مساعد
@@ -1244,18 +1243,18 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           </div>
 
           {/* Assistants List */}
-          <div className="divide-y divide-[#E5EAF0]">
+          <div className="divide-y divide-border">
             {assistants.map((ass) => (
               <div key={ass.id} className="py-3 flex items-center justify-between">
                 <div>
-                  <p className="font-bold text-xs text-[#182230]">{ass.email}</p>
-                  <span className="text-[10px] text-slate-400">صلاحية: مساعد عيادة</span>
+                  <p className="font-bold text-xs text-foreground">{ass.email}</p>
+                  <span className="text-[10px] text-muted-foreground">صلاحية: مساعد عيادة</span>
                 </div>
                 <Button
                   size="icon"
                   variant="ghost"
                   onClick={() => removeAssistant(ass.id)}
-                  className="text-slate-400 hover:text-rose-600"
+                  className="text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10"
                 >
                   <Trash2 className="w-4 h-4" />
                 </Button>
@@ -1267,13 +1266,13 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
       {/* TAB 6: Print Settings */}
       {activeTab === 'print' && (
-        <div className="medical-card p-6 max-w-2xl space-y-4">
-          <div className="pb-3 border-b border-[#E5EAF0]">
-            <h3 className="font-bold text-sm text-[#182230]">إعدادات ورقة الروشتة المطبوعة (A4)</h3>
-            <p className="text-xs text-slate-400">تخصيص الهامش والترويسة السفلية في الطباعة</p>
+        <div className="yalla-card p-6 max-w-2xl space-y-4">
+          <div className="pb-3 border-b border-border">
+            <h3 className="font-bold text-sm text-foreground">إعدادات ورقة الروشتة المطبوعة (A4)</h3>
+            <p className="text-xs text-muted-foreground">تخصيص الهامش والترويسة السفلية في الطباعة</p>
           </div>
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2 text-xs text-slate-600 font-medium">
-            <p className="font-bold text-[#182230]">تنسيق الطباعة المعتمد:</p>
+          <div className="p-4 rounded-xl bg-muted/40 border border-border space-y-2 text-xs text-foreground font-medium">
+            <p className="font-bold text-foreground">تنسيق الطباعة المعتمد:</p>
             <p>✓ تم ضبط مقاس الطباعة القياسي A4 بما يتوافق مع جميع طابعات العيادات الحرارية والعادية.</p>
             <p>✓ يتم إخفاء أزرار التحكم والقوائم الجانبية تلقائياً أثناء أمر الطباعة.</p>
           </div>
@@ -1282,23 +1281,23 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
       {/* TAB 7: AI Assistant */}
       {activeTab === 'ai' && (
-        <div className="medical-card p-6 max-w-3xl space-y-6 text-center">
-          <div className="pb-3 border-b border-[#E5EAF0]">
-            <h3 className="font-bold text-sm text-[#182230] flex items-center justify-center gap-2">
-              <Bot className="w-5 h-5 text-[#087CF4]" />
+        <div className="yalla-card p-6 max-w-3xl space-y-6 text-center">
+          <div className="pb-3 border-b border-border">
+            <h3 className="font-bold text-sm text-foreground flex items-center justify-center gap-2">
+              <Bot className="w-5 h-5 text-primary" />
               إعدادات المساعد الذكي (AI Chatbot)
             </h3>
           </div>
-          <div className="p-8 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-4">
-            <Bot className="w-16 h-16 text-slate-300 mx-auto" />
-            <h4 className="text-lg font-black text-slate-700">هذه الخاصية تدار بواسطة الإدارة</h4>
-            <p className="text-sm text-slate-500 font-medium">
+          <div className="p-8 rounded-2xl bg-muted/40 border border-border space-y-4">
+            <Bot className="w-16 h-16 text-muted-foreground/60 mx-auto" />
+            <h4 className="text-lg font-black text-foreground">هذه الخاصية تدار بواسطة الإدارة</h4>
+            <p className="text-sm text-muted-foreground font-medium">
               لا يمكنك تعديل إعدادات المساعد الذكي أو تفعيله بنفسك. يرجى التواصل مع فريق الدعم الفني للمنصة.
             </p>
             {supportNumbers.filter((n: any) => n.isActive).length > 0 ? (
               <div className="flex flex-wrap justify-center gap-3 pt-6">
                 {supportNumbers.filter((n: any) => n.isActive).map((num: any, idx: number) => (
-                  <a key={idx} href={`https://wa.me/20${num.phone.replace(/^0/, '')}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-5 py-2.5 bg-emerald-100 text-emerald-800 rounded-xl font-bold text-sm hover:bg-emerald-200 transition-colors shadow-sm">
+                  <a key={idx} href={`https://wa.me/20${num.phone.replace(/^0/, '')}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded-xl font-bold text-sm hover:bg-emerald-500/20 transition-colors shadow-xs">
                     <MessageCircle className="w-4 h-4" />
                     {num.label || 'الدعم الفني'} - {num.phone}
                   </a>

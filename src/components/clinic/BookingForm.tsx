@@ -23,6 +23,7 @@ import {
   calculateHaversineDistanceKm
 } from '@/lib/branchService'
 import { createClinicNotification } from '@/lib/notificationService'
+import { useLanguage } from '@/context/LanguageContext'
 
 export function BookingForm({
   clinic,
@@ -39,6 +40,7 @@ export function BookingForm({
   defaultAge?: string
   preselectedServiceId?: string | null
 }) {
+  const { dir, t, isRtl } = useLanguage()
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [name, setName] = useState(defaultName)
   const [phone, setPhone] = useState(defaultPhone)
@@ -431,45 +433,47 @@ export function BookingForm({
   // ─────────────────────────────────────────────
   if (successInfo) {
     return (
-      <div className="medical-card p-6 sm:p-8 max-w-lg mx-auto text-center space-y-6 shadow-2xl bg-white border border-[#E5EAF0] rounded-3xl" dir="rtl">
-        <div className="w-20 h-20 bg-teal-50 border-4 border-teal-100 text-[#087CF4] rounded-full flex items-center justify-center mx-auto shadow-md">
+      <div className="yalla-card p-6 sm:p-8 max-w-lg mx-auto text-center space-y-6 shadow-2xl bg-card border border-border rounded-3xl text-card-foreground" dir={dir}>
+        <div className="w-20 h-20 bg-primary/10 border-4 border-primary/20 text-primary rounded-full flex items-center justify-center mx-auto shadow-md">
           <CheckCircle2 className="w-10 h-10" />
         </div>
 
         <div>
-          <h2 className="text-2xl font-black text-[#182230]">تم تسجيل حجزك بنجاح</h2>
-          <p className="text-xs text-slate-400 mt-1">
-            مرحباً {name}، تم إدراجك في قائمة كشوفات اليوم لدى: <strong>{successInfo.branchName}</strong>
+          <h2 className="text-2xl font-black text-foreground">{t('booking_success', 'تم تسجيل حجزك بنجاح')}</h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            {t('welcome', 'مرحباً')} {name}، {t('added_to_today_list', 'تم إدراجك في قائمة كشوفات اليوم لدى:')} <strong>{successInfo.branchName}</strong>
           </p>
         </div>
 
         {/* Big Queue Number Card */}
-        <div className="bg-[#F8FAFC] border border-[#E5EAF0] rounded-3xl p-6 space-y-2">
-          <p className="text-xs font-bold text-slate-400">رقمك في دور الفرع</p>
-          <div className="text-6xl font-black text-[#087CF4] tracking-tight">
+        <div className="bg-secondary/40 border border-border rounded-3xl p-6 space-y-2">
+          <p className="text-xs font-bold text-muted-foreground">{t('your_branch_queue_num', 'رقمك في دور الفرع')}</p>
+          <div className="text-6xl font-black text-primary tracking-tight">
             #{successInfo.queueNumber}
           </div>
-          <p className="text-[11px] font-bold text-slate-500">{successInfo.branchName}</p>
+          <p className="text-[11px] font-bold text-muted-foreground">{successInfo.branchName}</p>
         </div>
 
         {/* Booking Details Grid */}
-        <div className="grid grid-cols-2 gap-3 text-right">
-          <div className="p-3.5 rounded-2xl bg-[#F8FAFC] border border-[#E5EAF0] space-y-1">
-            <span className="text-[11px] font-bold text-slate-400">حالة الدفع</span>
-            <p className="text-xs font-black text-[#182230]">
-              {paymentMethod === 'cash' ? 'نقداً عند الحضور' : 'بانتظار تأكيد الإدارة'}
+        <div className={`grid grid-cols-2 gap-3 ${isRtl ? 'text-right' : 'text-left'}`}>
+          <div className="p-3.5 rounded-2xl bg-secondary/40 border border-border space-y-1">
+            <span className="text-[11px] font-bold text-muted-foreground">{t('payment_status', 'حالة الدفع')}</span>
+            <p className="text-xs font-black text-foreground">
+              {paymentMethod === 'cash' ? t('cash_on_arrival', 'نقداً عند الحضور') : t('pending_admin_confirm', 'بانتظار تأكيد الإدارة')}
             </p>
           </div>
 
-          <div className="p-3.5 rounded-2xl bg-[#F8FAFC] border border-[#E5EAF0] space-y-1">
-            <span className="text-[11px] font-bold text-slate-400">المرضى في الانتظار قبلك</span>
-            <p className="text-sm font-black text-[#087CF4]">{successInfo.aheadCount} مرضى</p>
+          <div className="p-3.5 rounded-2xl bg-secondary/40 border border-border space-y-1">
+            <span className="text-[11px] font-bold text-muted-foreground">{t('waiting_ahead', 'المرضى في الانتظار قبلك')}</span>
+            <p className="text-sm font-black text-primary">
+              {successInfo.aheadCount} {isRtl ? 'مرضى' : 'patients'}
+            </p>
           </div>
         </div>
 
-        <div className="p-3 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 text-xs font-bold flex items-center justify-center gap-2">
-          <Bell className="w-4 h-4 text-[#087CF4]" />
-          <span>ستصلك تنبيهات صوتية ومباشرة فور اقتراب دورك (من أول متبقي 5 أدوار) ومع كل دخول مريض</span>
+        <div className="p-3 rounded-xl bg-primary/10 border border-primary/20 text-primary text-xs font-bold flex items-center justify-center gap-2">
+          <Bell className="w-4 h-4 text-primary shrink-0" />
+          <span>{t('notification_notice', 'ستصلك تنبيهات صوتية ومباشرة فور اقتراب دورك (من أول متبقي 5 أدوار) ومع كل دخول مريض')}</span>
         </div>
 
         {/* Action CTAs */}
@@ -478,25 +482,25 @@ export function BookingForm({
             href={`/clinic/${clinic.slug}/track/${successInfo.trackingId}`}
             className="block w-full"
           >
-            <Button className="w-full h-12 text-sm font-black bg-[#087CF4] hover:bg-[#0662C4] text-white rounded-xl shadow-lg shadow-[#087CF4]/25">
-              تابع الحجز وإشعار اقتراب الدور مباشرة
+            <Button className="w-full h-12 text-sm font-black bg-primary hover:bg-primary-hover text-white rounded-xl shadow-lg shadow-primary/25">
+              {t('track_booking_live_btn', 'تابع الحجز وإشعار اقتراب الدور مباشرة')}
             </Button>
           </Link>
 
           {selectedBranch?.mapsLink ? (
             <a href={selectedBranch.mapsLink} target="_blank" rel="noreferrer" className="block w-full">
-              <Button variant="outline" className="w-full h-11 text-xs font-bold border-[#E5EAF0] text-slate-700 hover:bg-slate-50 rounded-xl">
-                <MapPin className="w-4 h-4 ml-1.5 text-[#087CF4]" />
-                موقع فرع ({successInfo.branchName}) عبر Google Maps
+              <Button variant="outline" className="w-full h-11 text-xs font-bold border-border text-foreground hover:bg-secondary rounded-xl">
+                <MapPin className={`w-4 h-4 ${isRtl ? 'ml-1.5' : 'mr-1.5'} text-primary`} />
+                {t('branch_location_maps', 'موقع فرع')} ({successInfo.branchName}) {t('via_google_maps', 'عبر Google Maps')}
               </Button>
             </a>
           ) : (
             <Button
               variant="outline"
               onClick={() => window.location.reload()}
-              className="w-full h-11 text-xs font-bold border-[#E5EAF0] text-slate-700 rounded-xl"
+              className="w-full h-11 text-xs font-bold border-border text-foreground hover:bg-secondary rounded-xl"
             >
-              حجز موعد جديد
+              {t('book_new_appointment', 'حجز موعد جديد')}
             </Button>
           )}
         </div>
@@ -508,22 +512,22 @@ export function BookingForm({
   // 2. MULTI-STEP BOOKING FORM
   // ─────────────────────────────────────────────
   return (
-    <div className="medical-card p-6 sm:p-8 max-w-lg mx-auto bg-white border border-[#E5EAF0] shadow-xl rounded-3xl space-y-6" dir="rtl">
+    <div className="yalla-card p-6 sm:p-8 max-w-lg mx-auto bg-card border border-border shadow-xl rounded-3xl space-y-6 text-card-foreground" dir={dir}>
       
-      {/* Stepper Header (1: الفرع والبيانات -> 2: نوع الكشف -> 3: التأكيد والدفع) */}
-      <div className="border-b border-[#E5EAF0] pb-5">
+      {/* Stepper Header */}
+      <div className="border-b border-border pb-5">
         <div className="flex items-center justify-between text-center relative px-2">
-          <div className="absolute top-4 inset-x-8 h-0.5 bg-slate-200 -z-0">
+          <div className="absolute top-4 inset-x-8 h-0.5 bg-secondary -z-0">
             <div
-              className="h-full bg-[#087CF4] transition-all duration-300"
+              className="h-full bg-primary transition-all duration-300"
               style={{ width: step === 1 ? '0%' : step === 2 ? '50%' : '100%' }}
             />
           </div>
 
           {[
-            { num: 1, label: 'الفرع والبيانات' },
-            { num: 2, label: 'نوع الكشف' },
-            { num: 3, label: 'التأكيد والسداد' }
+            { num: 1, label: t('step1_branch_info', 'الفرع والبيانات') },
+            { num: 2, label: t('step2_service_type', 'نوع الكشف') },
+            { num: 3, label: t('step3_confirm_pay', 'التأكيد والسداد') }
           ].map((s) => {
             const isCompleted = step > s.num
             const isCurrent = step === s.num
@@ -532,15 +536,15 @@ export function BookingForm({
                 <div
                   className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-all ${
                     isCurrent
-                      ? 'bg-[#087CF4] text-white ring-4 ring-teal-100 shadow-md'
+                      ? 'bg-primary text-white ring-4 ring-primary/20 shadow-md'
                       : isCompleted
                       ? 'bg-emerald-600 text-white'
-                      : 'bg-white border-2 border-slate-300 text-slate-400'
+                      : 'bg-card border-2 border-border text-muted-foreground'
                   }`}
                 >
                   {isCompleted ? <CheckCircle2 className="w-4 h-4" /> : s.num}
                 </div>
-                <span className={`text-[11px] font-bold mt-1.5 ${isCurrent ? 'text-[#087CF4]' : 'text-slate-400'}`}>
+                <span className={`text-[11px] font-bold mt-1.5 ${isCurrent ? 'text-primary' : 'text-muted-foreground'}`}>
                   {s.label}
                 </span>
               </div>
@@ -668,41 +672,42 @@ export function BookingForm({
           </div>
 
           {/* Section: Patient Fields */}
-          <div className="space-y-3 pt-2 border-t border-slate-100">
-            <h4 className="text-xs font-black text-slate-700">بيانات المريض والتواصل</h4>
+          <div className="space-y-3 pt-2 border-t border-border">
+            <h4 className="text-xs font-black text-foreground">{t('patient_data_contact', 'بيانات المريض والتواصل')}</h4>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-slate-600">رقم الهاتف (واتساب) *</Label>
+              <Label className="text-xs font-bold text-foreground">{t('phone_whatsapp_label', 'رقم الهاتف (واتساب) *')}</Label>
               <Input
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="01012345678"
                 type="tel"
-                className="h-11 text-sm font-mono text-right rounded-xl bg-[#F6F8FB] border-[#E5EAF0] focus:bg-white"
+                className={`h-11 text-sm font-mono rounded-xl bg-background border border-input text-foreground focus:ring-2 focus:ring-primary ${isRtl ? 'text-right' : 'text-left'}`}
                 dir="ltr"
                 required
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-slate-600">اسم المريض ثلاثي *</Label>
+              <Label className="text-xs font-bold text-foreground">{t('patient_full_name', 'اسم المريض ثلاثي *')}</Label>
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="مثال: محمد أحمد علي"
-                className="h-11 text-sm rounded-xl bg-[#F6F8FB] border-[#E5EAF0] focus:bg-white"
+                placeholder={isRtl ? 'مثال: محمد أحمد علي' : 'e.g. Mohamed Ahmed Ali'}
+                className="h-11 text-sm rounded-xl bg-background border border-input text-foreground focus:ring-2 focus:ring-primary"
                 required
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-slate-600">السن (مطلوب للروشتة) *</Label>
+              <Label className="text-xs font-bold text-foreground">{t('patient_age_label', 'السن (مطلوب للروشتة) *')}</Label>
               <Input
                 value={age}
                 onChange={(e) => setAge(e.target.value)}
                 placeholder="28"
                 type="number"
-                className="h-11 text-sm rounded-xl bg-[#F6F8FB] border-[#E5EAF0] focus:bg-white"
+                className={`h-11 text-sm rounded-xl bg-background border border-input text-foreground focus:ring-2 focus:ring-primary ${isRtl ? 'text-right' : 'text-left'}`}
+                dir="ltr"
                 required
               />
             </div>
@@ -710,12 +715,12 @@ export function BookingForm({
             {/* Date Selection */}
             <div className="space-y-2 pt-1">
               <div className="flex items-center justify-between">
-                <Label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Calendar className="w-4 h-4 text-[#087CF4]" />
-                  يوم الحجز (مواعيد {selectedBranch?.name || 'الفرع'})
+                <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4 text-primary" />
+                  {t('booking_day', 'يوم الحجز (مواعيد')} {selectedBranch?.name || t('branch', 'الفرع')})
                 </Label>
                 {selectedDate && (
-                  <span className="text-[11px] font-bold text-[#087CF4]">
+                  <span className="text-[11px] font-bold text-primary">
                     {availableDays.find((d) => d.iso === selectedDate)?.label} ({availableDays.find((d) => d.iso === selectedDate)?.formattedDate})
                   </span>
                 )}
@@ -732,14 +737,14 @@ export function BookingForm({
                         onClick={() => setSelectedDate(d.iso)}
                         className={`p-3 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
                           isSelected
-                            ? 'bg-[#087CF4] text-white border-[#087CF4] shadow-md shadow-[#087CF4]/20 ring-2 ring-[#087CF4]/30'
-                            : 'bg-white text-slate-700 border-[#E5EAF0] hover:border-[#087CF4] hover:bg-teal-50/20'
+                            ? 'bg-primary text-white border-primary shadow-md shadow-primary/20 ring-2 ring-primary/30'
+                            : 'bg-card text-foreground border-border hover:border-primary hover:bg-primary/5'
                         }`}
                       >
-                        <span className={`text-xs font-black ${isSelected ? 'text-white' : 'text-[#182230]'}`}>
+                        <span className={`text-xs font-black ${isSelected ? 'text-white' : 'text-foreground'}`}>
                           {d.label}
                         </span>
-                        <span className={`text-[10px] font-bold ${isSelected ? 'text-white/90' : 'text-slate-400 font-mono'}`}>
+                        <span className={`text-[10px] font-bold ${isSelected ? 'text-white/90' : 'text-muted-foreground font-mono'}`}>
                           {d.formattedDate}
                         </span>
                       </button>
@@ -747,8 +752,8 @@ export function BookingForm({
                   })}
                 </div>
               ) : (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-center text-xs text-amber-800 font-bold">
-                  لا توجد مواعيد متاحة للحجز بهذا الفرع حالياً. يرجى اختيار فرع آخر أو التواصل مع العيادة.
+                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-center text-xs text-amber-700 dark:text-amber-400 font-bold">
+                  {t('no_available_times', 'لا توجد مواعيد متاحة للحجز بهذا الفرع حالياً. يرجى اختيار فرع آخر أو التواصل مع العيادة.')}
                 </div>
               )}
             </div>
@@ -756,10 +761,10 @@ export function BookingForm({
 
           <Button
             onClick={handleNextStep1}
-            className="w-full h-12 text-sm font-black bg-[#087CF4] hover:bg-[#0662C4] text-white rounded-xl shadow-md shadow-[#087CF4]/20 mt-2"
+            className="w-full h-12 text-sm font-black bg-primary hover:bg-primary-hover text-white rounded-xl shadow-md mt-2"
           >
-            التالي: اختيار الخدمة
-            <ArrowLeft className="w-4 h-4 mr-2" />
+            {t('next_choose_service', 'التالي: اختيار الخدمة')}
+            {isRtl ? <ArrowLeft className="w-4 h-4 mr-2" /> : <ArrowRight className="w-4 h-4 ml-2" />}
           </Button>
         </div>
       )}
@@ -768,9 +773,9 @@ export function BookingForm({
       {step === 2 && (
         <div className="space-y-4">
           <div className="space-y-1">
-            <h3 className="font-bold text-base text-[#182230]">اختر نوع الكشف والخدمة</h3>
-            <p className="text-xs text-slate-400">
-              خدمات فرع: <strong>{selectedBranch?.name}</strong>
+            <h3 className="font-bold text-base text-foreground">{t('choose_exam_type', 'اختر نوع الكشف والخدمة')}</h3>
+            <p className="text-xs text-muted-foreground">
+              {t('services_of_branch', 'خدمات فرع:')} <strong>{selectedBranch?.name}</strong>
             </p>
           </div>
 
@@ -783,35 +788,35 @@ export function BookingForm({
                   onClick={() => setSelectedServiceId(service.id)}
                   className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex items-center justify-between gap-3 ${
                     isSelected
-                      ? 'border-[#087CF4] bg-teal-50/40 shadow-sm'
-                      : 'border-[#E5EAF0] hover:border-slate-300 bg-white'
+                      ? 'border-primary bg-primary/5 shadow-xs'
+                      : 'border-border hover:border-primary/50 bg-card'
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     <div
                       className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                        isSelected ? 'border-[#087CF4] bg-[#087CF4]' : 'border-slate-300'
+                        isSelected ? 'border-primary bg-primary' : 'border-border'
                       }`}
                     >
                       {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h4 className="font-black text-sm text-[#182230]">{service.name}</h4>
+                        <h4 className="font-black text-sm text-foreground">{service.name}</h4>
                         {service.name.includes('مستعجل') && (
-                          <Badge className="bg-amber-100 text-amber-800 border-none text-[10px] font-bold">
-                            أولوية في الدور
+                          <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20 text-[10px] font-bold">
+                            {t('urgent_priority_badge', 'أولوية في الدور')}
                           </Badge>
                         )}
                       </div>
-                      <p className="text-xs text-slate-400 mt-0.5">
+                      <p className="text-xs text-muted-foreground mt-0.5">
                         {service.description || service.desc || 'كشف طبي شامل'} • {service.duration || 'حوالي 15 دقيقة'}
                       </p>
                     </div>
                   </div>
 
-                  <span className="text-sm font-black text-[#087CF4] shrink-0">
-                    {Number(service.price || 250).toLocaleString('ar-EG')} ج.م
+                  <span className="text-sm font-black text-primary shrink-0">
+                    {Number(service.price || 250).toLocaleString(isRtl ? 'ar-EG' : 'en-US')} {t('egp', 'ج.م')}
                   </span>
                 </div>
               )
@@ -821,73 +826,73 @@ export function BookingForm({
           <div className="flex gap-2.5 pt-2">
             <Button
               onClick={handleNextStep2}
-              className="flex-1 h-12 text-sm font-black bg-[#087CF4] hover:bg-[#0662C4] text-white rounded-xl shadow-md shadow-[#087CF4]/20"
+              className="flex-1 h-12 text-sm font-black bg-primary hover:bg-primary-hover text-white rounded-xl shadow-md"
             >
-              التالي: التأكيد والدفع
-              <ArrowLeft className="w-4 h-4 mr-2" />
+              {t('next_confirm_pay', 'التالي: التأكيد والدفع')}
+              {isRtl ? <ArrowLeft className="w-4 h-4 mr-2" /> : <ArrowRight className="w-4 h-4 ml-2" />}
             </Button>
             <Button
               variant="outline"
               onClick={() => setStep(1)}
-              className="h-12 px-5 text-xs font-bold border-[#E5EAF0] text-slate-700 rounded-xl"
+              className="h-12 px-5 text-xs font-bold border-border text-foreground hover:bg-secondary rounded-xl"
             >
-              رجوع
+              {t('back', 'رجوع')}
             </Button>
           </div>
         </div>
       )}
 
-      {/* STEP 3: Confirmation & Payment (Phase 6) */}
+      {/* STEP 3: Confirmation & Payment */}
       {step === 3 && (
         <div className="space-y-4">
           <div className="space-y-1">
-            <h3 className="font-bold text-base text-[#182230]">تأكيد الحجز وطريقة الدفع</h3>
-            <p className="text-xs text-slate-400">راجع تفاصيل الموعد وطريقة التحويل</p>
+            <h3 className="font-bold text-base text-foreground">{t('booking_confirm_and_pay', 'تأكيد الحجز وطريقة الدفع')}</h3>
+            <p className="text-xs text-muted-foreground">{t('review_details_hint', 'راجع تفاصيل الموعد وطريقة التحويل')}</p>
           </div>
 
           {/* Booking Summary Box */}
-          <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#E5EAF0] space-y-2 text-xs">
-            <div className="flex justify-between py-1 border-b border-slate-200/60">
-              <span className="text-slate-400 font-bold">الفرع المختار:</span>
-              <span className="font-bold text-teal-800">{selectedBranch?.name} ({selectedBranch?.city || selectedBranch?.area})</span>
+          <div className="p-4 rounded-2xl bg-secondary/40 border border-border space-y-2 text-xs">
+            <div className="flex justify-between py-1 border-b border-border">
+              <span className="text-muted-foreground font-bold">{t('selected_branch', 'الفرع المختار:')}</span>
+              <span className="font-bold text-foreground">{selectedBranch?.name} ({selectedBranch?.city || selectedBranch?.area})</span>
             </div>
-            <div className="flex justify-between py-1 border-b border-slate-200/60">
-              <span className="text-slate-400 font-bold">المريض:</span>
-              <span className="font-bold text-[#182230]">{name} ({phone})</span>
+            <div className="flex justify-between py-1 border-b border-border">
+              <span className="text-muted-foreground font-bold">{t('patient', 'المريض:')}</span>
+              <span className="font-bold text-foreground">{name} ({phone})</span>
             </div>
-            <div className="flex justify-between py-1 border-b border-slate-200/60">
-              <span className="text-slate-400 font-bold">الخدمة:</span>
-              <span className="font-bold text-[#182230]">{selectedService.name}</span>
+            <div className="flex justify-between py-1 border-b border-border">
+              <span className="text-muted-foreground font-bold">{t('service', 'الخدمة:')}</span>
+              <span className="font-bold text-foreground">{selectedService.name}</span>
             </div>
-            <div className="flex justify-between py-1 border-b border-slate-200/60">
-              <span className="text-slate-400 font-bold">تاريخ الكشف:</span>
-              <span className="font-bold font-mono text-[#182230]">{selectedDate}</span>
+            <div className="flex justify-between py-1 border-b border-border">
+              <span className="text-muted-foreground font-bold">{t('exam_date', 'تاريخ الكشف:')}</span>
+              <span className="font-bold font-mono text-foreground">{selectedDate}</span>
             </div>
             <div className="flex justify-between pt-1">
-              <span className="text-slate-600 dark:text-slate-300 font-bold">الإجمالي المستحق:</span>
-              <span className="font-black text-lg text-[#087CF4]">
+              <span className="text-foreground font-bold">{t('total_due', 'الإجمالي المستحق:')}</span>
+              <span className="font-black text-lg text-primary">
                 {selectedService?.price !== undefined && selectedService?.price !== null && selectedService?.price !== ''
-                  ? `${Number(selectedService.price).toLocaleString('ar-EG')} ج.م`
-                  : '250 ج.م'}
+                  ? `${Number(selectedService.price).toLocaleString(isRtl ? 'ar-EG' : 'en-US')} ${t('egp', 'ج.م')}`
+                  : `250 ${t('egp', 'ج.م')}`}
               </span>
             </div>
           </div>
 
           {/* Payment Method Selector */}
           <div className="space-y-2">
-            <Label className="text-xs font-bold text-slate-600">طريقة السداد</Label>
+            <Label className="text-xs font-bold text-foreground">{t('payment_method_label', 'طريقة السداد')}</Label>
             <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => setPaymentMethod('cash')}
                 className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
                   paymentMethod === 'cash'
-                    ? 'border-[#087CF4] bg-teal-50 text-[#087CF4] font-black'
-                    : 'border-[#E5EAF0] bg-white text-slate-600 font-bold'
+                    ? 'border-primary bg-primary/10 text-primary font-black'
+                    : 'border-border bg-card text-foreground font-bold hover:bg-secondary'
                 }`}
               >
                 <Banknote className="w-5 h-5 mx-auto mb-1" />
-                <span className="text-xs">كاش بالعيادة</span>
+                <span className="text-xs">{t('cash_at_clinic', 'كاش بالعيادة')}</span>
               </button>
 
               <button
@@ -895,12 +900,12 @@ export function BookingForm({
                 onClick={() => setPaymentMethod('instapay')}
                 className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
                   paymentMethod === 'instapay'
-                    ? 'border-[#087CF4] bg-teal-50 text-[#087CF4] font-black'
-                    : 'border-[#E5EAF0] bg-white text-slate-600 font-bold'
+                    ? 'border-primary bg-primary/10 text-primary font-black'
+                    : 'border-border bg-card text-foreground font-bold hover:bg-secondary'
                 }`}
               >
                 <CreditCard className="w-5 h-5 mx-auto mb-1" />
-                <span className="text-xs">انستاباي</span>
+                <span className="text-xs">InstaPay</span>
               </button>
 
               <button
@@ -908,135 +913,135 @@ export function BookingForm({
                 onClick={() => setPaymentMethod('wallet')}
                 className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
                   paymentMethod === 'wallet'
-                    ? 'border-[#087CF4] bg-teal-50 text-[#087CF4] font-black'
-                    : 'border-[#E5EAF0] bg-white text-slate-600 font-bold'
+                    ? 'border-primary bg-primary/10 text-primary font-black'
+                    : 'border-border bg-card text-foreground font-bold hover:bg-secondary'
                 }`}
               >
                 <Wallet className="w-5 h-5 mx-auto mb-1" />
-                <span className="text-xs">محفظة إلكترونية</span>
+                <span className="text-xs">{t('e_wallet', 'محفظة إلكترونية')}</span>
               </button>
             </div>
           </div>
 
           {/* InstaPay Transfer Info & Proof */}
           {paymentMethod === 'instapay' && (
-            <div className="p-4 rounded-2xl bg-teal-50/70 border-2 border-teal-200 space-y-3">
+            <div className="p-4 rounded-2xl bg-primary/5 border-2 border-primary/20 space-y-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs font-bold text-teal-800">
-                  <CreditCard className="w-4 h-4 text-[#087CF4]" />
-                  <span>بيانات التحويل عبر InstaPay للفرع:</span>
+                <div className="flex items-center gap-2 text-xs font-bold text-primary">
+                  <CreditCard className="w-4 h-4 text-primary" />
+                  <span>{t('instapay_details_for_branch', 'بيانات التحويل عبر InstaPay للفرع:')}</span>
                 </div>
-                <Badge className="bg-[#087CF4] text-white border-none font-bold text-[10px]">
-                  في انتظار التأكيد
+                <Badge className="bg-primary text-white border-none font-bold text-[10px]">
+                  {t('pending_confirmation', 'في انتظار التأكيد')}
                 </Badge>
               </div>
 
-              <div className="p-3 bg-white rounded-xl border border-teal-100 space-y-2">
+              <div className="p-3 bg-card rounded-xl border border-border space-y-2">
                 <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-500 font-bold">عنوان / رقم InstaPay:</span>
-                  <span className="font-mono font-black text-sm text-[#182230] select-all bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200" dir="ltr">
+                  <span className="text-muted-foreground font-bold">{t('instapay_handle_label', 'عنوان / رقم InstaPay:')}</span>
+                  <span className="font-mono font-black text-sm text-foreground select-all bg-secondary px-2.5 py-1 rounded-lg border border-border" dir="ltr">
                     {clinic.instapayHandle || selectedBranch?.phone || clinic.doctorPhone || 'يرجى التواصل مع الفرع'}
                   </span>
                 </div>
-                <div className="flex justify-between items-center text-xs pt-1.5 border-t border-slate-100 dark:border-slate-800">
-                  <span className="text-slate-500 dark:text-slate-400 font-bold">المبلغ المطلوب للتحويل:</span>
-                  <span className="font-black text-base text-[#087CF4]">
-                    {Number(selectedService?.price || 250).toLocaleString('ar-EG')} ج.م
+                <div className="flex justify-between items-center text-xs pt-1.5 border-t border-border">
+                  <span className="text-muted-foreground font-bold">{t('required_amount', 'المبلغ المطلوب للتحويل:')}</span>
+                  <span className="font-black text-base text-primary">
+                    {Number(selectedService?.price || 250).toLocaleString(isRtl ? 'ar-EG' : 'en-US')} {t('egp', 'ج.م')}
                   </span>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-700">رقم الهاتف أو الحساب المحول منه (إجباري) *</Label>
+                <Label className="text-xs font-bold text-foreground">{t('transfer_from_phone_or_account', 'رقم الهاتف أو الحساب المحول منه (إجباري) *')}</Label>
                 <Input
                   value={transferNumber}
                   onChange={(e) => setTransferNumber(e.target.value)}
-                  placeholder="مثال: 010xxxxxxxx أو username@instapay"
-                  className="h-11 text-xs bg-white rounded-xl border-teal-200"
+                  placeholder="010xxxxxxxx / username@instapay"
+                  className="h-11 text-xs bg-background rounded-xl border-input text-foreground"
                   dir="ltr"
                   required
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-700">الرقم المرجعي للمعاملة (اختياري)</Label>
+                <Label className="text-xs font-bold text-foreground">{t('ref_number_optional', 'الرقم المرجعي للمعاملة (اختياري)')}</Label>
                 <Input
                   value={transferReference}
                   onChange={(e) => setTransferReference(e.target.value)}
-                  placeholder="رقم المعاملة في تطبيق انستاباي"
-                  className="h-10 text-xs bg-white rounded-xl border-teal-200"
+                  placeholder={isRtl ? 'رقم المعاملة في تطبيق انستاباي' : 'Transaction Reference'}
+                  className="h-10 text-xs bg-background rounded-xl border-input text-foreground"
                   dir="ltr"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-700">رفع صورة إيصال التحويل (اختياري)</Label>
+                <Label className="text-xs font-bold text-foreground">{t('upload_proof_optional', 'رفع صورة إيصال التحويل (اختياري)')}</Label>
                 <Input
                   type="file"
                   accept="image/*"
                   onChange={handleReceiptProofUpload}
-                  className="h-10 text-xs bg-white rounded-xl file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-xs file:bg-teal-50 file:text-[#0662C4]"
+                  className="h-10 text-xs bg-background rounded-xl border-input text-foreground file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-xs file:bg-primary/10 file:text-primary"
                 />
               </div>
 
-              <div className="p-2.5 bg-teal-100/60 rounded-xl text-[11px] text-teal-800 font-medium leading-relaxed">
-                💡 سيتم إدراجك في دور اليوم فوراً، وستظهر حالة الدفع "في انتظار تأكيد الدفع" حتى يراجعها موظف الاستقبال.
+              <div className="p-2.5 bg-primary/10 rounded-xl text-[11px] text-primary font-medium leading-relaxed">
+                💡 {t('instapay_hint', 'سيتم إدراجك في دور اليوم فوراً، وستظهر حالة الدفع "في انتظار تأكيد الدفع" حتى يراجعها موظف الاستقبال.')}
               </div>
             </div>
           )}
 
           {/* Wallet Transfer Info & Proof */}
           {paymentMethod === 'wallet' && (
-            <div className="p-4 rounded-2xl bg-amber-50/70 border-2 border-amber-200 space-y-3">
+            <div className="p-4 rounded-2xl bg-amber-500/10 border-2 border-amber-500/20 space-y-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs font-bold text-amber-900">
-                  <Wallet className="w-4 h-4 text-amber-600" />
-                  <span>بيانات التحويل عبر المحفظة الإلكترونية (فودافون كاش / أورنج / إتصالات):</span>
+                <div className="flex items-center gap-2 text-xs font-bold text-amber-700 dark:text-amber-400">
+                  <Wallet className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <span>{t('wallet_details_label', 'بيانات التحويل عبر المحفظة الإلكترونية (فودافون كاش / أورنج / إتصالات):')}</span>
                 </div>
                 <Badge className="bg-amber-600 text-white border-none font-bold text-[10px]">
-                  في انتظار التأكيد
+                  {t('pending_confirmation', 'في انتظار التأكيد')}
                 </Badge>
               </div>
 
-              <div className="p-3 bg-white rounded-xl border border-amber-100 space-y-2">
+              <div className="p-3 bg-card rounded-xl border border-border space-y-2">
                 <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-500 font-bold">رقم محفظة الفرع / العيادة:</span>
-                  <span className="font-mono font-black text-sm text-[#182230] select-all bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200" dir="ltr">
+                  <span className="text-muted-foreground font-bold">{t('wallet_number_label', 'رقم محفظة الفرع / العيادة:')}</span>
+                  <span className="font-mono font-black text-sm text-foreground select-all bg-secondary px-2.5 py-1 rounded-lg border border-border" dir="ltr">
                     {clinic.walletNumber || selectedBranch?.phone || clinic.doctorPhone || 'يرجى التواصل مع الفرع'}
                   </span>
                 </div>
-                <div className="flex justify-between items-center text-xs pt-1.5 border-t border-slate-100 dark:border-slate-800">
-                  <span className="text-slate-500 dark:text-slate-400 font-bold">المبلغ المطلوب للتحويل:</span>
-                  <span className="font-black text-base text-[#087CF4]">
-                    {Number(selectedService?.price || 250).toLocaleString('ar-EG')} ج.م
+                <div className="flex justify-between items-center text-xs pt-1.5 border-t border-border">
+                  <span className="text-muted-foreground font-bold">{t('required_amount', 'المبلغ المطلوب للتحويل:')}</span>
+                  <span className="font-black text-base text-primary">
+                    {Number(selectedService?.price || 250).toLocaleString(isRtl ? 'ar-EG' : 'en-US')} {t('egp', 'ج.م')}
                   </span>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-700">رقم المحفظة المحول منها (إجباري) *</Label>
+                <Label className="text-xs font-bold text-foreground">{t('wallet_from_label', 'رقم المحفظة المحول منها (إجباري) *')}</Label>
                 <Input
                   value={transferNumber}
                   onChange={(e) => setTransferNumber(e.target.value)}
                   placeholder="010xxxxxxxx"
-                  className="h-11 text-xs bg-white rounded-xl border-amber-200"
+                  className="h-11 text-xs bg-background rounded-xl border-input text-foreground"
                   dir="ltr"
                   required
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-700">رفع صورة إيصال أو رسالة التحويل (اختياري)</Label>
+                <Label className="text-xs font-bold text-foreground">{t('upload_proof_optional', 'رفع صورة إيصال أو رسالة التحويل (اختياري)')}</Label>
                 <Input
                   type="file"
                   accept="image/*"
                   onChange={handleReceiptProofUpload}
-                  className="h-10 text-xs bg-white rounded-xl file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-xs file:bg-amber-50 file:text-amber-800"
+                  className="h-10 text-xs bg-background rounded-xl border-input text-foreground file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-xs file:bg-amber-500/10 file:text-amber-700 dark:file:text-amber-400"
                 />
               </div>
 
-              <div className="p-2.5 bg-amber-100/60 rounded-xl text-[11px] text-amber-900 font-medium leading-relaxed">
-                💡 سيتم إدراجك في دور اليوم فوراً، وستظهر حالة الدفع "في انتظار تأكيد الدفع" حتى يراجعها موظف الاستقبال.
+              <div className="p-2.5 bg-amber-500/10 rounded-xl text-[11px] text-amber-700 dark:text-amber-400 font-medium leading-relaxed">
+                💡 {t('wallet_hint', 'سيتم إدراجك في دور اليوم فوراً، وستظهر حالة الدفع "في انتظار تأكيد الدفع" حتى يراجعها موظف الاستقبال.')}
               </div>
             </div>
           )}
@@ -1045,16 +1050,16 @@ export function BookingForm({
             <Button
               onClick={handleBooking}
               disabled={isBooking}
-              className="flex-1 h-12 text-sm font-black bg-[#087CF4] hover:bg-[#0662C4] text-white rounded-xl shadow-lg shadow-[#087CF4]/25"
+              className="flex-1 h-12 text-sm font-black bg-primary hover:bg-primary-hover text-white rounded-xl shadow-lg"
             >
-              {isBooking ? 'جاري تأكيد الحجز...' : 'تأكيد الحجز النهائي'}
+              {isBooking ? t('confirming_booking', 'جاري تأكيد الحجز...') : t('final_confirm_booking', 'تأكيد الحجز النهائي')}
             </Button>
             <Button
               variant="outline"
               onClick={() => setStep(2)}
-              className="h-12 px-5 text-xs font-bold border-[#E5EAF0] text-slate-700 rounded-xl"
+              className="h-12 px-5 text-xs font-bold border-border text-foreground hover:bg-secondary rounded-xl"
             >
-              رجوع
+              {t('back', 'رجوع')}
             </Button>
           </div>
         </div>

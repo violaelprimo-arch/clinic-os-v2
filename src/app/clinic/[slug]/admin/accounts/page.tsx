@@ -17,10 +17,12 @@ import { printHtmlViaIframe, generateFinancialReportHtml } from '@/lib/printServ
 import { exportComprehensiveFinancialReportExcel } from '@/lib/excelExport'
 import { InvoiceView, InvoiceData } from '@/components/clinic/InvoiceView'
 import { formatCairo12Hour } from '@/lib/queue-calculator'
+import { useLanguage } from '@/context/LanguageContext'
 
 export default function AccountsPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
+  const { t, dir } = useLanguage()
 
   const [clinic, setClinic] = useState<any>(null)
   const [appointments, setAppointments] = useState<any[]>([])
@@ -263,16 +265,16 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
   }
 
   return (
-    <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto" dir="rtl">
+    <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto" dir={dir}>
       
       {/* 1. Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-black text-[#182230] flex items-center gap-2">
-            <Receipt className="w-6 h-6 text-[#087CF4]" />
-            الحسابات والتقارير المالية
+          <h1 className="text-2xl font-black text-foreground flex items-center gap-2">
+            <Receipt className="w-6 h-6 text-primary" />
+            {t('nav_accounts', 'الحسابات والتقارير المالية')}
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             متابعة التحصيل، الفواتير، التقارير المالية وتصدير الحسابات بالتاريخ
           </p>
         </div>
@@ -282,16 +284,16 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
           <Button
             variant="outline"
             onClick={handleExportExcel}
-            className="h-10 text-xs font-bold border-blue-200 text-blue-700 hover:bg-blue-50 rounded-xl flex items-center gap-1.5"
+            className="h-10 text-xs font-bold border-border text-foreground hover:bg-secondary rounded-xl flex items-center gap-1.5"
           >
-            <FileSpreadsheet className="w-4 h-4 ml-1 text-emerald-600" />
-            تصدير إكسيل (Excel)
+            <FileSpreadsheet className="w-4 h-4 ml-1 text-emerald-500" />
+            {t('export_excel', 'تصدير إكسيل (Excel)')}
           </Button>
 
           <Button
             variant="outline"
             onClick={handlePrintFinancialReport}
-            className="h-10 text-xs font-bold border-[#E5EAF0] text-slate-700 hover:bg-slate-100 rounded-xl flex items-center gap-1.5"
+            className="h-10 text-xs font-bold border-border text-foreground hover:bg-secondary rounded-xl flex items-center gap-1.5"
           >
             <Printer className="w-4 h-4 ml-1" />
             طباعة تقرير مالي (A4 / PDF)
@@ -301,50 +303,50 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
 
       {/* 2. KPI Stat Cards (4 Cards Grid) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="medical-card p-5">
-          <p className="text-xs font-bold text-slate-400 mb-1">إجمالي التحصيل الفعلي</p>
-          <h3 className="text-2xl font-black text-emerald-600">
-            {metrics.collected.toLocaleString()} <span className="text-sm font-bold text-slate-500">ج.م</span>
+        <div className="yalla-card p-5 border border-border">
+          <p className="text-xs font-bold text-muted-foreground mb-1">إجمالي التحصيل الفعلي</p>
+          <h3 className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+            {metrics.collected.toLocaleString()} <span className="text-sm font-bold text-muted-foreground">{t('currency_egp', 'ج.م')}</span>
           </h3>
-          <span className="text-[11px] font-semibold text-emerald-600/80 mt-1 inline-block">مبالغ مسددة بالكامل</span>
+          <span className="text-[11px] font-semibold text-emerald-600/80 dark:text-emerald-400/80 mt-1 inline-block">مبالغ مسددة بالكامل</span>
         </div>
 
-        <div className="medical-card p-5">
-          <p className="text-xs font-bold text-slate-400 mb-1">المبالغ المعلقة (الآجلة)</p>
-          <h3 className="text-2xl font-black text-amber-600">
-            {metrics.pending.toLocaleString()} <span className="text-sm font-bold text-slate-500">ج.م</span>
+        <div className="yalla-card p-5 border border-border">
+          <p className="text-xs font-bold text-muted-foreground mb-1">المبالغ المعلقة (الآجلة)</p>
+          <h3 className="text-2xl font-black text-amber-600 dark:text-amber-400">
+            {metrics.pending.toLocaleString()} <span className="text-sm font-bold text-muted-foreground">{t('currency_egp', 'ج.م')}</span>
           </h3>
-          <span className="text-[11px] font-semibold text-amber-600/80 mt-1 inline-block">في انتظار التحصيل</span>
+          <span className="text-[11px] font-semibold text-amber-600/80 dark:text-amber-400/80 mt-1 inline-block">في انتظار التحصيل</span>
         </div>
 
-        <div className="medical-card p-5">
-          <p className="text-xs font-bold text-slate-400 mb-1">
+        <div className="yalla-card p-5 border border-border">
+          <p className="text-xs font-bold text-muted-foreground mb-1">
             {fromDate || toDate ? 'إجمالي إيراد الفترة' : 'إجمالي إيراد العمليات'}
           </p>
-          <h3 className="text-2xl font-black text-[#087CF4]">
-            {metrics.periodTotal.toLocaleString()} <span className="text-sm font-bold text-slate-500">ج.م</span>
+          <h3 className="text-2xl font-black text-primary">
+            {metrics.periodTotal.toLocaleString()} <span className="text-sm font-bold text-muted-foreground">{t('currency_egp', 'ج.م')}</span>
           </h3>
-          <span className="text-[11px] font-semibold text-[#087CF4]/80 mt-1 inline-block">
+          <span className="text-[11px] font-semibold text-primary/80 mt-1 inline-block">
             {fromDate || toDate ? 'حسب الفرز الزمني' : 'كافة العمليات'}
           </span>
         </div>
 
-        <div className="medical-card p-5">
-          <p className="text-xs font-bold text-slate-400 mb-1">الخصومات الممنوحة</p>
-          <h3 className="text-2xl font-black text-rose-600">
-            {metrics.totalDiscounts.toLocaleString()} <span className="text-sm font-bold text-slate-500">ج.م</span>
+        <div className="yalla-card p-5 border border-border">
+          <p className="text-xs font-bold text-muted-foreground mb-1">الخصومات الممنوحة</p>
+          <h3 className="text-2xl font-black text-rose-600 dark:text-rose-400">
+            {metrics.totalDiscounts.toLocaleString()} <span className="text-sm font-bold text-muted-foreground">{t('currency_egp', 'ج.م')}</span>
           </h3>
-          <span className="text-[11px] font-semibold text-slate-400 mt-1 inline-block">
+          <span className="text-[11px] font-semibold text-muted-foreground mt-1 inline-block">
             من إجمالي {metrics.transactionsCount} معاملة
           </span>
         </div>
       </div>
 
       {/* Date Range Filter Bar */}
-      <div className="medical-card p-4 bg-white space-y-3">
+      <div className="yalla-card p-4 space-y-3 border border-border">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-            <Calendar className="w-4 h-4 text-[#087CF4]" />
+          <div className="flex items-center gap-2 text-xs font-bold text-foreground">
+            <Calendar className="w-4 h-4 text-primary" />
             <span>فرز المعاملات والتقارير بالتاريخ (من / إلى):</span>
           </div>
 
@@ -354,7 +356,7 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
               type="button"
               onClick={() => setDatePreset('all')}
               className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
-                !fromDate && !toDate ? 'bg-[#087CF4] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                !fromDate && !toDate ? 'yalla-gradient-btn text-white shadow-xs' : 'bg-secondary text-foreground hover:bg-secondary/80'
               }`}
             >
               الكل
@@ -363,7 +365,7 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
               type="button"
               onClick={() => setDatePreset('today')}
               className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
-                fromDate === todayCairoStr && toDate === todayCairoStr ? 'bg-[#087CF4] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                fromDate === todayCairoStr && toDate === todayCairoStr ? 'yalla-gradient-btn text-white shadow-xs' : 'bg-secondary text-foreground hover:bg-secondary/80'
               }`}
             >
               اليوم
@@ -371,50 +373,50 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
             <button
               type="button"
               onClick={() => setDatePreset('week')}
-              className="px-3 py-1 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
+              className="px-3 py-1 text-xs font-bold rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-colors cursor-pointer"
             >
               آخر 7 أيام
             </button>
             <button
               type="button"
               onClick={() => setDatePreset('month')}
-              className="px-3 py-1 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
+              className="px-3 py-1 text-xs font-bold rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-colors cursor-pointer"
             >
               هذا الشهر
             </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-slate-100 items-center">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-border items-center">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-500 shrink-0">من تاريخ:</span>
+            <span className="text-xs font-bold text-muted-foreground shrink-0">من تاريخ:</span>
             <Input
               type="date"
               value={fromDate}
               onChange={e => setFromDate(e.target.value)}
-              className="h-9 text-xs bg-[#F6F8FB] border-[#E5EAF0] rounded-xl font-mono"
+              className="h-9 text-xs bg-background border-border text-foreground rounded-xl font-mono"
             />
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-500 shrink-0">إلى تاريخ:</span>
+            <span className="text-xs font-bold text-muted-foreground shrink-0">إلى تاريخ:</span>
             <Input
               type="date"
               value={toDate}
               onChange={e => setToDate(e.target.value)}
-              className="h-9 text-xs bg-[#F6F8FB] border-[#E5EAF0] rounded-xl font-mono"
+              className="h-9 text-xs bg-background border-border text-foreground rounded-xl font-mono"
             />
           </div>
 
           {(fromDate || toDate) && (
             <div className="sm:col-span-2 flex items-center justify-end gap-2">
-              <span className="text-xs text-teal-700 font-semibold bg-teal-50 px-2.5 py-1 rounded-lg border border-teal-200">
+              <span className="text-xs text-primary font-semibold bg-primary/10 px-2.5 py-1 rounded-lg border border-primary/20">
                 مفلتر: {fromDate || 'البداية'} ⬅ {toDate || 'اليوم'} ({filtered.length} معاملة)
               </span>
               <button
                 type="button"
                 onClick={() => { setFromDate(''); setToDate(''); }}
-                className="h-9 px-3 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
+                className="h-9 px-3 text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
                 إلغاء الفرز
@@ -425,37 +427,37 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
       </div>
 
       {/* 3. Payment Methods Breakdown Pills */}
-      <div className="medical-card p-4 flex flex-wrap items-center justify-between gap-4 bg-white">
-        <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+      <div className="yalla-card p-4 flex flex-wrap items-center justify-between gap-4 border border-border">
+        <div className="flex items-center gap-2 text-xs font-bold text-foreground">
           <span>توزيع طرق السداد الفعلي:</span>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-green-50 text-emerald-800 text-xs font-bold border border-green-200">
-            <Banknote className="w-4 h-4 text-emerald-600" />
-            <span>كاش بالعيادة: {metrics.cashTotal.toLocaleString()} ج.م</span>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold border border-emerald-500/20">
+            <Banknote className="w-4 h-4 text-emerald-500" />
+            <span>كاش بالعيادة: {metrics.cashTotal.toLocaleString()} {t('currency_egp', 'ج.م')}</span>
           </div>
 
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-purple-50 text-purple-800 text-xs font-bold border border-purple-200">
-            <CreditCard className="w-4 h-4 text-purple-600" />
-            <span>انستاباي: {metrics.instapayTotal.toLocaleString()} ج.م</span>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xs font-bold border border-purple-500/20">
+            <CreditCard className="w-4 h-4 text-purple-500" />
+            <span>انستاباي: {metrics.instapayTotal.toLocaleString()} {t('currency_egp', 'ج.م')}</span>
           </div>
 
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-800 text-xs font-bold border border-blue-200">
-            <Wallet className="w-4 h-4 text-blue-600" />
-            <span>محفظة إلكترونية: {metrics.walletTotal.toLocaleString()} ج.م</span>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-primary/10 text-primary text-xs font-bold border border-primary/20">
+            <Wallet className="w-4 h-4 text-primary" />
+            <span>محفظة إلكترونية: {metrics.walletTotal.toLocaleString()} {t('currency_egp', 'ج.م')}</span>
           </div>
         </div>
       </div>
 
       {/* 4. Filters & Search Bar */}
-      <div className="medical-card p-4 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white">
+      <div className="yalla-card p-4 flex flex-col sm:flex-row items-center justify-between gap-3 border border-border">
         <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="ابحث باسم المريض أو رقم الهاتف..."
-            className="pr-10 h-10 text-sm bg-[#F6F8FB] border-[#E5EAF0] rounded-xl focus:bg-white"
+            className="pr-10 h-10 text-sm bg-background border-border text-foreground rounded-xl"
           />
         </div>
 
@@ -463,7 +465,7 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
           <select
             value={methodFilter}
             onChange={e => setMethodFilter(e.target.value)}
-            className="h-10 px-3 rounded-xl border border-[#E5EAF0] text-xs font-bold text-slate-700 bg-white"
+            className="h-10 px-3 rounded-xl border border-border text-xs font-bold text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
           >
             <option value="ALL">كل طرق الدفع</option>
             <option value="cash">كاش</option>
@@ -474,7 +476,7 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
           <select
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
-            className="h-10 px-3 rounded-xl border border-[#E5EAF0] text-xs font-bold text-slate-700 bg-white"
+            className="h-10 px-3 rounded-xl border border-border text-xs font-bold text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
           >
             <option value="ALL">كل الحالات</option>
             <option value="paid">تم السداد</option>
@@ -484,10 +486,10 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
       </div>
 
       {/* 5. Transactions Table */}
-      <div className="medical-card overflow-hidden">
+      <div className="yalla-card overflow-hidden border border-border">
         <div className="overflow-x-auto">
           <table className="w-full text-right text-sm">
-            <thead className="bg-[#F8FAFC] border-b border-[#E5EAF0] text-slate-400 text-xs font-bold select-none">
+            <thead className="bg-secondary/60 border-b border-border text-muted-foreground text-xs font-bold select-none">
               <tr>
                 <th className="py-3.5 px-4">رقم المعاملة</th>
                 <th className="py-3.5 px-4">اسم المريض</th>
@@ -499,16 +501,16 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
                 <th className="py-3.5 px-4 text-left">إجراءات</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E5EAF0]">
+            <tbody className="divide-y divide-border">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400">
+                  <td colSpan={8} className="py-12 text-center text-muted-foreground">
                     جاري تحميل سجل المعاملات...
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400">
+                  <td colSpan={8} className="py-12 text-center text-muted-foreground">
                     لا توجد معاملات مطابقة للبحث.
                   </td>
                 </tr>
@@ -516,35 +518,35 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
                 filtered.map((item, idx) => {
                   const isPaid = item.paymentStatus === 'paid' || item.status === 'completed'
                   return (
-                    <tr key={item.id || idx} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-3.5 px-4 font-mono text-xs text-slate-500 font-bold">
+                    <tr key={item.id || idx} className="hover:bg-secondary/40 transition-colors">
+                      <td className="py-3.5 px-4 font-mono text-xs text-muted-foreground font-bold">
                         #{item.id ? item.id.substring(0, 6) : `TRX-${idx + 101}`}
                       </td>
-                      <td className="py-3.5 px-4 font-bold text-xs text-[#182230]">
+                      <td className="py-3.5 px-4 font-bold text-xs text-foreground">
                         {item.patientName || 'مريض'}
                         {item.branchName && (
-                          <span className="block text-[10px] text-slate-400 font-normal">
+                          <span className="block text-[10px] text-muted-foreground font-normal">
                             فرع {item.branchName}
                           </span>
                         )}
                       </td>
                       <td className="py-3.5 px-4">
-                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-blue-50 text-[#2F80ED] border border-blue-100">
+                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
                           {item.serviceName || 'كشف'}
                         </span>
                       </td>
-                      <td className="py-3.5 px-4 font-mono text-xs text-slate-500">
+                      <td className="py-3.5 px-4 font-mono text-xs text-muted-foreground">
                         {item.date || 'اليوم'}
                       </td>
-                      <td className="py-3.5 px-4 text-xs font-medium text-slate-600">
+                      <td className="py-3.5 px-4 text-xs font-medium text-foreground">
                         {item.paymentMethod === 'instapay'
                           ? 'انستاباي'
                           : item.paymentMethod === 'wallet'
                           ? 'محفظة إلكترونية'
                           : 'كاش بالعيادة'}
                       </td>
-                      <td className="py-3.5 px-4 text-center font-bold text-xs text-[#182230]">
-                        <div>{item.servicePrice || 250} ج.م</div>
+                      <td className="py-3.5 px-4 text-center font-bold text-xs text-foreground">
+                        <div>{item.servicePrice || 250} {t('currency_egp', 'ج.م')}</div>
                         {item.discountApplied > 0 && (
                           <span className="text-[10px] text-rose-500 block">
                             (خصم -{item.discountApplied})
@@ -555,8 +557,8 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
                         <Badge
                           className={`text-[10px] font-bold px-2.5 py-0.5 border-none ${
                             isPaid
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-amber-100 text-amber-800'
+                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                              : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
                           }`}
                         >
                           {isPaid ? 'تم السداد' : 'في انتظار التأكيد'}
@@ -591,7 +593,7 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
                                 queueNumber: item.queue_number
                               })
                             }}
-                            className="h-7 px-2 text-[11px] text-slate-600 hover:text-[#087CF4]"
+                            className="h-7 px-2 text-[11px] text-muted-foreground hover:text-primary"
                             title="عرض وطباعة الفاتورة"
                           >
                             <Eye className="w-3.5 h-3.5 ml-1" />
@@ -604,7 +606,7 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
                                 size="sm"
                                 disabled={isProcessing}
                                 onClick={() => handleConfirmPayment(item)}
-                                className="h-7 text-[11px] bg-[#087CF4] hover:bg-[#0769D1] text-white px-2.5 rounded-lg shadow-2xs"
+                                className="h-7 text-[11px] yalla-gradient-btn text-white px-2.5 rounded-lg shadow-2xs"
                               >
                                 تأكيد
                               </Button>
@@ -618,7 +620,7 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
                                     applyDiscount(item, Number(val))
                                   }
                                 }}
-                                className="h-7 text-[11px] px-2 text-rose-600 border-rose-200 hover:bg-rose-50 rounded-lg"
+                                className="h-7 text-[11px] px-2 text-rose-600 dark:text-rose-400 border-rose-500/20 hover:bg-rose-500/10 rounded-lg"
                               >
                                 خصم
                               </Button>
@@ -635,10 +637,10 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
         </div>
       </div>
 
-      {/* Invoice Modal for Selected Transaction (Staff View: has 80mm thermal print & PDF) */}
+      {/* Invoice Modal for Selected Transaction */}
       {selectedInvoice && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+          <div className="bg-card border border-border text-foreground rounded-3xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
             <InvoiceView
               invoice={selectedInvoice}
               isPatientView={false}
@@ -648,8 +650,8 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
         </div>
       )}
 
-      {/* TASK 12: Standardized Copyright Footer */}
-      <footer className="text-center text-xs text-slate-400 pt-6 border-t border-slate-100">
+      {/* Standardized Copyright Footer */}
+      <footer className="text-center text-xs text-muted-foreground pt-6 border-t border-border">
         جميع الحقوق محفوظة YallaCodeX 2026
       </footer>
     </div>

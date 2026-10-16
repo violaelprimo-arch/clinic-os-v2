@@ -20,11 +20,15 @@ import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { formatCairo12Hour } from '@/lib/queue-calculator'
 import { InvoiceView } from '@/components/clinic/InvoiceView'
 import { NotificationCenter } from '@/components/clinic/NotificationCenter'
+import { ThemeToggle } from '@/components/common/ThemeToggle'
+import { LanguageToggle } from '@/components/common/LanguageToggle'
+import { useLanguage } from '@/context/LanguageContext'
 import { toast } from 'sonner'
 
 export default function TrackPatientPage({ params }: { params: Promise<{ slug: string; appointmentId: string }> }) {
   const resolvedParams = use(params)
   const { slug, appointmentId } = resolvedParams
+  const { dir, t, isRtl } = useLanguage()
 
   const [appointment, setAppointment] = useState<any>(null)
   const [allQueueAppts, setAllQueueAppts] = useState<any[]>([])
@@ -133,23 +137,23 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#F6F8FB] flex flex-col items-center justify-center p-4" dir="rtl">
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 text-foreground" dir={dir}>
         <ClinicLogo size="md" variant="light" />
-        <p className="text-xs text-slate-400 font-bold mt-3">جاري مزامنة الدور المباشر...</p>
+        <p className="text-xs text-muted-foreground font-bold mt-3">{t('syncing_queue', 'جاري مزامنة الدور المباشر...')}</p>
       </div>
     )
   }
 
   if (!appointment) {
     return (
-      <div className="min-h-screen bg-[#F6F8FB] flex items-center justify-center p-4" dir="rtl">
-        <div className="medical-card p-8 text-center max-w-sm w-full space-y-4">
-          <AlertCircle className="w-12 h-12 text-rose-500 mx-auto" />
-          <h2 className="text-lg font-bold text-[#182230]">لم يتم العثور على تذكرة الحجز</h2>
+      <div className="min-h-screen bg-background flex items-center justify-center p-4 text-foreground" dir={dir}>
+        <div className="yalla-card p-8 text-center max-w-sm w-full space-y-4">
+          <AlertCircle className="w-12 h-12 text-destructive mx-auto" />
+          <h2 className="text-lg font-bold text-foreground">{t('booking_not_found', 'لم يتم العثور على تذكرة الحجز')}</h2>
           <div className="pt-2">
             <a href={`/clinic/${slug}`} className="block w-full">
-              <Button variant="outline" className="w-full text-xs font-bold rounded-xl">
-                العودة لرئيسية العيادة
+              <Button variant="outline" className="w-full text-xs font-bold rounded-xl border-border">
+                {t('back_to_clinic', 'العودة لرئيسية العيادة')}
               </Button>
             </a>
           </div>
@@ -168,26 +172,34 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
   const totalWaitMins = Math.max(0, liveQueue.aheadCount * avgVisitMins)
 
   const formatWaitText = (mins: number) => {
-    if (mins <= 0) return 'خلال دقائق معدودة'
-    if (mins < 60) return `حوالي ${mins} دقيقة`
+    if (mins <= 0) return isRtl ? 'خلال دقائق معدودة' : 'In a few minutes'
+    if (mins < 60) return isRtl ? `حوالي ${mins} دقيقة` : `Around ${mins} mins`
     const h = Math.floor(mins / 60)
     const m = mins % 60
-    return m > 0 ? `حوالي ${h} ساعة و ${m} دقيقة` : `حوالي ${h} ساعة`
+    return isRtl
+      ? (m > 0 ? `حوالي ${h} ساعة و ${m} دقيقة` : `حوالي ${h} ساعة`)
+      : (m > 0 ? `Around ${h} hr ${m} mins` : `Around ${h} hr`)
   }
 
   const estimatedDurationText = formatWaitText(totalWaitMins)
   const expectedClockTime = formatEstimatedTime(totalWaitMins)
 
   return (
-    <div className="min-h-screen bg-[#F6F8FB] dark:bg-[#0A131F] flex flex-col items-center justify-center p-4 font-sans text-[#182230] dark:text-slate-100 transition-colors" dir="rtl">
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 font-sans text-foreground transition-colors" dir={dir}>
       
+      {/* Top Floating Controls */}
+      <div className="w-full max-w-md flex justify-end gap-2 mb-3">
+        <LanguageToggle />
+        <ThemeToggle />
+      </div>
+
       {/* Container Card */}
-      <div className="w-full max-w-md bg-white border border-[#E5EAF0] shadow-2xl rounded-3xl p-6 sm:p-8 space-y-6">
+      <div className="w-full max-w-md bg-card border border-border shadow-2xl rounded-3xl p-6 sm:p-8 space-y-6 text-card-foreground">
         
         {/* Brand Top Header */}
-        <div className="relative text-center space-y-2 border-b border-[#E5EAF0] pb-5">
+        <div className="relative text-center space-y-2 border-b border-border pb-5">
           {appointment.phone && (
-            <div className="absolute left-0 top-0">
+            <div className={`absolute ${isRtl ? 'left-0' : 'right-0'} top-0`}>
               <NotificationCenter
                 recipientTarget={appointment.phone}
                 recipientLabel={appointment.patientName}
@@ -197,15 +209,15 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
           )}
           <ClinicLogo size="md" variant="light" />
           <div className="pt-2">
-            <h1 className="text-lg font-black text-[#182230]">
-              {clinic?.clinicName || 'العيادة'}
+            <h1 className="text-lg font-black text-foreground">
+              {clinic?.clinicName || t('clinic', 'العيادة')}
             </h1>
-            <p className="text-xs text-slate-400">
-              مرحباً {appointment.patientName} • شاشة متابعة الدور المباشرة
+            <p className="text-xs text-muted-foreground">
+              {t('welcome', 'مرحباً')} {appointment.patientName} • {t('live_queue_screen', 'شاشة متابعة الدور المباشرة')}
             </p>
             {appointment.branchName && (
-              <span className="inline-block mt-1 text-[11px] font-bold text-[#087CF4] bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100">
-                فرع {appointment.branchName}
+              <span className="inline-block mt-1 text-[11px] font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-full border border-primary/20">
+                {t('branch', 'فرع')} {appointment.branchName}
               </span>
             )}
           </div>
@@ -213,54 +225,54 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
 
         {/* Live Status Content Rendering */}
         {isCompleted ? (
-          <div className="p-6 rounded-3xl bg-emerald-50 border border-emerald-200 text-center space-y-3">
-            <CheckCircle2 className="w-14 h-14 text-emerald-600 mx-auto" />
-            <h3 className="text-xl font-black text-emerald-800">تم الكشف بنجاح!</h3>
-            <p className="text-xs text-emerald-700 font-medium">
-              نتمنى لك دوام الصحة والعافية ونتشرف دائماً بخدمتك.
+          <div className="p-6 rounded-3xl bg-emerald-500/10 border border-emerald-500/20 text-center space-y-3">
+            <CheckCircle2 className="w-14 h-14 text-emerald-600 dark:text-emerald-400 mx-auto" />
+            <h3 className="text-xl font-black text-emerald-700 dark:text-emerald-400">{t('exam_completed_success', 'تم الكشف بنجاح!')}</h3>
+            <p className="text-xs text-muted-foreground font-medium">
+              {t('wishing_good_health', 'نتمنى لك دوام الصحة والعافية ونتشرف دائماً بخدمتك.')}
             </p>
           </div>
         ) : isCurrentTurn ? (
-          <div className="p-6 rounded-3xl bg-blue-50 border-2 border-[#087CF4] text-center space-y-3 animate-pulse">
-            <div className="w-14 h-14 rounded-full bg-[#087CF4] text-white flex items-center justify-center mx-auto text-2xl font-black shadow-lg shadow-[#087CF4]/30">
+          <div className="p-6 rounded-3xl bg-primary/10 border-2 border-primary text-center space-y-3 animate-pulse">
+            <div className="w-14 h-14 rounded-full bg-primary text-white flex items-center justify-center mx-auto text-2xl font-black shadow-lg shadow-primary/30">
               #{appointment.queue_number}
             </div>
-            <h3 className="text-xl font-black text-[#087CF4]">دورك الآن!</h3>
-            <p className="text-xs text-blue-800 font-bold">
-              يرجى التوجه إلى غرفة الكشف مباشرة لمقابلة الطبيب.
+            <h3 className="text-xl font-black text-primary">{t('your_turn_now', 'دورك الآن!')}</h3>
+            <p className="text-xs text-foreground font-bold">
+              {t('proceed_to_room', 'يرجى التوجه إلى غرفة الكشف مباشرة لمقابلة الطبيب.')}
             </p>
           </div>
         ) : isCancelled ? (
-          <div className="p-6 rounded-3xl bg-rose-50 border border-rose-200 text-center space-y-2">
-            <AlertCircle className="w-12 h-12 text-rose-500 mx-auto" />
-            <h3 className="text-lg font-black text-rose-800">تم إلغاء هذا الحجز</h3>
-            <p className="text-xs text-rose-600">يرجى التواصل مع العيادة إذا كنت بحاجة لإعادة الحجز.</p>
+          <div className="p-6 rounded-3xl bg-rose-500/10 border border-rose-500/20 text-center space-y-2">
+            <AlertCircle className="w-12 h-12 text-rose-600 dark:text-rose-400 mx-auto" />
+            <h3 className="text-lg font-black text-rose-700 dark:text-rose-400">{t('booking_cancelled', 'تم إلغاء هذا الحجز')}</h3>
+            <p className="text-xs text-muted-foreground">{t('booking_cancelled_desc', 'يرجى التواصل مع العيادة إذا كنت بحاجة لإعادة الحجز.')}</p>
           </div>
         ) : isSkippedOrNoShow ? (
-          <div className="p-6 rounded-3xl bg-amber-50 border border-amber-200 text-center space-y-2">
-            <Clock className="w-12 h-12 text-amber-600 mx-auto" />
-            <h3 className="text-lg font-black text-amber-800">تم تخطي الموعد</h3>
-            <p className="text-xs text-amber-700 font-medium">
-              نظراً لعدم الحضور عند استدعاء الدور، يرجى مراجعة موظف الاستقبال لإعادة ترتيب دخولك.
+          <div className="p-6 rounded-3xl bg-amber-500/10 border border-amber-500/20 text-center space-y-2">
+            <Clock className="w-12 h-12 text-amber-600 dark:text-amber-400 mx-auto" />
+            <h3 className="text-lg font-black text-amber-700 dark:text-amber-400">{t('turn_skipped', 'تم تخطي الموعد')}</h3>
+            <p className="text-xs text-muted-foreground font-medium">
+              {t('skipped_desc', 'نظراً لعدم الحضور عند استدعاء الدور، يرجى مراجعة موظف الاستقبال لإعادة ترتيب دخولك.')}
             </p>
           </div>
         ) : (
           <div className="space-y-4">
             {/* Big Queue Card */}
-            <div className="bg-[#F8FAFC] dark:bg-[#0E2342] border border-[#E5EAF0] dark:border-[#254565] rounded-3xl p-6 text-center space-y-2">
-              <span className="text-xs font-bold text-slate-400">رقم تذكرة الحجز</span>
-              <div className="text-6xl font-black text-[#087CF4] tracking-tight">
+            <div className="bg-secondary/40 border border-border rounded-3xl p-6 text-center space-y-2">
+              <span className="text-xs font-bold text-muted-foreground">{t('ticket_number', 'رقم تذكرة الحجز')}</span>
+              <div className="text-6xl font-black text-primary tracking-tight">
                 #{appointment.queue_number}
               </div>
               
               <div className="pt-1 flex flex-wrap items-center justify-center gap-2">
-                <span className="px-3 py-1 rounded-full bg-blue-50 text-[#087CF4] text-xs font-bold border border-blue-100">
-                  ترتيب الدخول الفعلي: #{liveQueue.effectivePosition}
+                <span className="px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold border border-primary/20">
+                  {t('effective_position', 'ترتيب الدخول الفعلي:')} #{liveQueue.effectivePosition}
                 </span>
 
                 {isNextInLine && (
-                  <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-900 text-xs font-black animate-bounce">
-                    ⚡ أنت المريض التالي للدخول
+                  <span className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 text-xs font-black animate-bounce border border-amber-500/30">
+                    ⚡ {t('you_are_next', 'أنت المريض التالي للدخول')}
                   </span>
                 )}
               </div>
@@ -268,73 +280,75 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
 
             {/* In-Progress Doctor Indicator */}
             {liveQueue.currentPatientExamining && (
-              <div className="p-3 rounded-2xl bg-blue-50/70 border border-blue-100 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2 text-blue-800 font-bold">
-                  <Activity className="w-4 h-4 text-[#087CF4] animate-pulse" />
-                  <span>الطبيب مع مريض رقم:</span>
+              <div className="p-3 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2 text-primary font-bold">
+                  <Activity className="w-4 h-4 text-primary animate-pulse" />
+                  <span>{t('doctor_with_patient', 'الطبيب مع مريض رقم:')}</span>
                 </div>
-                <Badge className="bg-[#087CF4] text-white font-mono font-bold text-xs">
+                <Badge className="bg-primary text-white font-mono font-bold text-xs">
                   #{liveQueue.currentPatientExamining.queueNumber}
                 </Badge>
               </div>
             )}
 
             {/* Queue Intelligence Card: Ahead Count, Average Consultation Time & Estimated Entry Time */}
-            <div className="p-5 rounded-3xl bg-gradient-to-br from-blue-50/90 via-white to-cyan-50/40 dark:from-[#07162D] dark:to-[#0E2342] border border-blue-100 dark:border-[#254565] shadow-xs space-y-4">
+            <div className="p-5 rounded-3xl bg-secondary/30 border border-border shadow-xs space-y-4">
               
               {/* Row 1: How many patients ahead */}
-              <div className="flex items-center justify-between pb-3 border-b border-blue-100/70 dark:border-[#254565]">
+              <div className="flex items-center justify-between pb-3 border-b border-border">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-2xl bg-[#087CF4]/10 text-[#087CF4] flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
                     <Users className="w-5 h-5" />
                   </div>
                   <div>
-                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300 block">فاضل كام مريض قدامك</span>
-                    <span className="text-[11px] text-slate-400">في قائمة الانتظار الحالية</span>
+                    <span className="text-xs font-bold text-foreground block">{t('patients_ahead_count', 'فاضل كام مريض قدامك')}</span>
+                    <span className="text-[11px] text-muted-foreground">{t('in_current_queue', 'في قائمة الانتظار الحالية')}</span>
                   </div>
                 </div>
-                <div className="text-left">
-                  <span className="text-3xl font-black text-[#087CF4] font-mono">
+                <div className={isRtl ? 'text-left' : 'text-right'}>
+                  <span className="text-3xl font-black text-primary font-mono">
                     {liveQueue.aheadCount}
                   </span>
-                  <span className="text-xs font-bold text-slate-600 dark:text-slate-300 mr-1.5">
-                    {liveQueue.aheadCount === 1 ? 'مريض فقط' : liveQueue.aheadCount === 2 ? 'مريضان' : 'مرضى'}
+                  <span className={`text-xs font-bold text-muted-foreground ${isRtl ? 'mr-1.5' : 'ml-1.5'}`}>
+                    {isRtl
+                      ? (liveQueue.aheadCount === 1 ? 'مريض فقط' : liveQueue.aheadCount === 2 ? 'مريضان' : 'مرضى')
+                      : (liveQueue.aheadCount === 1 ? 'patient' : 'patients')}
                   </span>
                 </div>
               </div>
 
               {/* Row 2: Average Consultation Time */}
-              <div className="flex items-center justify-between pb-3 border-b border-blue-100/70 dark:border-[#254565] text-xs">
-                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 font-bold">
-                  <Activity className="w-4 h-4 text-[#087CF4]" />
-                  <span>متوسط وقت الكشف:</span>
+              <div className="flex items-center justify-between pb-3 border-b border-border text-xs">
+                <div className="flex items-center gap-2 text-foreground font-bold">
+                  <Activity className="w-4 h-4 text-primary" />
+                  <span>{t('avg_exam_time', 'متوسط وقت الكشف:')}</span>
                 </div>
-                <span className="font-bold text-[#182230] dark:text-slate-100 bg-white dark:bg-[#142D50] px-2.5 py-1 rounded-lg border border-slate-200 dark:border-[#254565] shadow-xs font-mono">
-                  {avgVisitMins} دقيقة / كشف
+                <span className="font-bold text-foreground bg-card px-2.5 py-1 rounded-lg border border-border shadow-xs font-mono">
+                  {avgVisitMins} {t('minutes_per_exam', 'دقيقة / كشف')}
                 </span>
               </div>
 
               {/* Row 3: Estimated Entry Time & Duration (Ahead Count * Average Time) */}
-              <div className="p-3.5 rounded-2xl bg-blue-500/10 dark:bg-blue-500/20 border border-blue-500/20 space-y-1.5">
+              <div className="p-3.5 rounded-2xl bg-primary/10 border border-primary/20 space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-blue-900 dark:text-blue-200">
-                    <Clock className="w-4 h-4 text-[#087CF4] animate-pulse" />
-                    <span>الوقت المتوقع لدخولك:</span>
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                    <Clock className="w-4 h-4 text-primary animate-pulse" />
+                    <span>{t('estimated_entry_time', 'الوقت المتوقع لدخولك:')}</span>
                   </div>
-                  <span className="text-base font-black text-[#087CF4] dark:text-[#02CFF3] font-mono">
+                  <span className="text-base font-black text-primary font-mono">
                     {estimatedDurationText}
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between text-xs text-teal-800/90 dark:text-teal-300/90 pt-1">
-                  <span className="font-medium">الساعة المتوقعة للدخول:</span>
-                  <span className="font-black font-mono bg-white dark:bg-[#101F31] px-2 py-0.5 rounded-md border border-teal-200 dark:border-teal-800/60">
-                    {expectedClockTime} تقريباً
+                <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+                  <span className="font-medium">{t('expected_clock_time', 'الساعة المتوقعة للدخول:')}</span>
+                  <span className="font-black font-mono bg-card text-foreground px-2 py-0.5 rounded-md border border-border">
+                    {expectedClockTime} {t('approx', 'تقريباً')}
                   </span>
                 </div>
 
-                <div className="text-[10.5px] text-slate-400 dark:text-slate-400 pt-1.5 border-t border-teal-500/15 text-center font-mono">
-                  (حساب تقديري: {liveQueue.aheadCount} مرضى × {avgVisitMins} دقيقة = {liveQueue.aheadCount * avgVisitMins} دقيقة)
+                <div className="text-[10.5px] text-muted-foreground pt-1.5 border-t border-border text-center font-mono">
+                  ({t('calculation_label', 'حساب تقديري:')} {liveQueue.aheadCount} {t('patients', 'مرضى')} × {avgVisitMins} {t('minutes', 'دقيقة')} = {liveQueue.aheadCount * avgVisitMins} {t('minutes', 'دقيقة')})
                 </div>
               </div>
 
@@ -342,30 +356,30 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
 
             {/* 5-Turns or less prominent alert banner */}
             {liveQueue.aheadCount <= 5 && liveQueue.aheadCount > 0 && (
-              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold flex items-center gap-3 shadow-xs animate-in fade-in">
-                <Clock className="w-5 h-5 text-amber-600 shrink-0 animate-pulse" />
-                <div className="space-y-0.5 text-right">
-                  <span className="block font-black text-amber-900 text-sm">
-                    تنبيه: اقترب موعد دخولك للكشف (متبقي {liveQueue.aheadCount} {liveQueue.aheadCount === 1 ? 'دور فقط' : 'أدوار'})
+              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs font-bold flex items-center gap-3 shadow-xs animate-in fade-in">
+                <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 animate-pulse" />
+                <div className={`space-y-0.5 ${isRtl ? 'text-right' : 'text-left'}`}>
+                  <span className="block font-black text-sm">
+                    {t('turn_approaching_alert', 'تنبيه: اقترب موعد دخولك للكشف')} ({t('remaining', 'متبقي')} {liveQueue.aheadCount} {liveQueue.aheadCount === 1 ? t('turn_single', 'دور فقط') : t('turns_plural', 'أدوار')})
                   </span>
-                  <span className="text-[11px] font-medium text-amber-700 block">
-                    يرجى التواجد الآن في قاعة انتظار العيادة والاستعداد للدخول مباشرة.
+                  <span className="text-[11px] font-medium block opacity-90">
+                    {t('please_wait_in_hall', 'يرجى التواجد الآن في قاعة انتظار العيادة والاستعداد للدخول مباشرة.')}
                   </span>
                 </div>
               </div>
             )}
 
-            <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs font-semibold flex items-center gap-2">
-              <Clock className="w-4 h-4 text-blue-600 shrink-0" />
-              <span>يتم تحديث هذه الشاشة وإرسال إشعار فوري مع كل دخول مريض لغرفة الكشف.</span>
+            <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 text-primary text-xs font-semibold flex items-center gap-2">
+              <Clock className="w-4 h-4 text-primary shrink-0" />
+              <span>{t('live_update_notice', 'يتم تحديث هذه الشاشة وإرسال إشعار فوري مع كل دخول مريض لغرفة الكشف.')}</span>
             </div>
           </div>
         )}
 
-        {/* Modal for Electronic PDF Invoice (Restricted patient view: NO direct print button) */}
+        {/* Modal for Electronic PDF Invoice */}
         {showInvoiceModal && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-white rounded-3xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+          <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-card text-card-foreground rounded-3xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-border">
               <InvoiceView
                 invoice={{
                   invoiceNumber: appointment.invoiceNumber || `INV-${appointmentId.slice(0, 8)}`,
@@ -396,14 +410,14 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
         )}
 
         {/* Action CTAs */}
-        <div className="space-y-2.5 pt-2 border-t border-[#E5EAF0]">
+        <div className="space-y-2.5 pt-2 border-t border-border">
           {(isCompleted || (appointment.drugs && appointment.drugs.length > 0)) && (
             <a href={`/clinic/${slug}/prescription/${appointmentId}`} className="block w-full">
               <Button
-                className="w-full h-11 text-xs font-bold bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl shadow-xs flex items-center justify-center gap-2"
+                className="w-full h-11 text-xs font-bold bg-primary hover:bg-primary-hover text-white rounded-xl shadow-xs flex items-center justify-center gap-2"
               >
-                <FileText className="w-4 h-4 ml-1.5" />
-                عرض وتحميل الروشتة الطبية الرسمية PDF
+                <FileText className={`w-4 h-4 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
+                {t('view_rx_pdf', 'عرض وتحميل الروشتة الطبية الرسمية PDF')}
               </Button>
             </a>
           )}
@@ -411,17 +425,17 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
           <Button
             variant="outline"
             onClick={() => setShowInvoiceModal(true)}
-            className="w-full h-11 text-xs font-bold border-[#E5EAF0] text-slate-700 hover:bg-slate-50 rounded-xl flex items-center justify-center gap-2"
+            className="w-full h-11 text-xs font-bold border-border text-foreground hover:bg-secondary rounded-xl flex items-center justify-center gap-2"
           >
-            <Receipt className="w-4 h-4 text-[#087CF4]" />
-            عرض وتحميل الفاتورة الإلكترونية PDF
+            <Receipt className="w-4 h-4 text-primary" />
+            {t('view_invoice_pdf', 'عرض وتحميل الفاتورة الإلكترونية PDF')}
           </Button>
 
           {clinic?.mapsLink && (
             <a href={clinic.mapsLink} target="_blank" rel="noreferrer" className="block w-full">
-              <Button className="w-full h-12 text-xs font-black bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl shadow-md shadow-[#087CF4]/20">
-                <Navigation className="w-4 h-4 ml-1.5" />
-                فتح موقع العيادة عبر خرائط جوجل
+              <Button className="w-full h-12 text-xs font-black bg-primary hover:bg-primary-hover text-white rounded-xl shadow-md">
+                <Navigation className={`w-4 h-4 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
+                {t('open_clinic_maps', 'فتح موقع العيادة عبر خرائط جوجل')}
               </Button>
             </a>
           )}
@@ -433,23 +447,23 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
               rel="noreferrer"
               className="block w-full"
             >
-              <Button variant="outline" className="w-full h-11 text-xs font-bold border-[#E5EAF0] text-slate-700 hover:bg-slate-50 rounded-xl">
-                <MessageCircle className="w-4 h-4 ml-1.5 text-emerald-600" />
-                التواصل مع العيادة عبر واتساب
+              <Button variant="outline" className="w-full h-11 text-xs font-bold border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-xl">
+                <MessageCircle className={`w-4 h-4 ${isRtl ? 'ml-1.5' : 'mr-1.5'} text-emerald-500`} />
+                {t('contact_clinic_whatsapp', 'التواصل مع العيادة عبر واتساب')}
               </Button>
             </a>
           )}
           
           <a href={`/clinic/${slug}`} className="block w-full">
-            <Button variant="ghost" className="w-full h-11 text-xs font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl">
-              خروج والعودة للرئيسية
+            <Button variant="ghost" className="w-full h-11 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-secondary rounded-xl">
+              {t('exit_back_to_home', 'خروج والعودة للرئيسية')}
             </Button>
           </a>
         </div>
 
-        {/* TASK 12: Standardized Copyright Footer */}
-        <div className="text-center text-[11px] text-slate-400 border-t border-[#E5EAF0] dark:border-[#1E3A5F] pt-4">
-          جميع الحقوق محفوظة YallaCodeX 2026
+        {/* Standardized Copyright Footer */}
+        <div className="text-center text-[11px] text-muted-foreground border-t border-border pt-4">
+          {t('copyright_text', 'جميع الحقوق محفوظة YallaCodeX 2026')}
         </div>
 
       </div>

@@ -6,15 +6,13 @@ import { usePathname } from 'next/navigation'
 import {
   FileText, Users, DollarSign, Calendar, Settings, Bot,
   LogOut, Receipt, Pill, Bell, Search, ExternalLink, Menu,
-  X, CheckCircle, ChevronLeft, User, Building2, Sparkles
+  X, CheckCircle, ChevronLeft, User, Building2, Sparkles, Clock
 } from 'lucide-react'
 import { db, auth } from '@/lib/firebase'
-import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore'
+import { collection, query, where, onSnapshot } from 'firebase/firestore'
 import { signOut } from 'firebase/auth'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
-import { toast } from 'sonner'
 import { BranchSelector } from '@/components/clinic/BranchSelector'
 import { NotificationCenter } from '@/components/clinic/NotificationCenter'
 import { TechnicalSupportButton } from '@/components/clinic/TechnicalSupportButton'
@@ -61,7 +59,6 @@ export default function AdminLayout({
     return () => window.removeEventListener('open_upgrade_modal', handleOpenModal)
   }, [])
 
-
   const handleSelectBranch = (bId: string) => {
     setSelectedBranchId(bId)
     localStorage.setItem('clinic_selected_branch', bId)
@@ -93,17 +90,17 @@ export default function AdminLayout({
       q,
       (snapshot) => {
         if (!snapshot.empty) {
-            const clinicData = snapshot.docs[0].data();
-            if (clinicData.isActive === false || (clinicData.expirationDate && new Date(clinicData.expirationDate) < new Date())) {
-              window.location.href = `/clinic/${slug}/login?error=subscription_ended`;
-              return;
-            }
-            setClinic({ id: snapshot.docs[0].id, ...clinicData });
-          } else if (slug === 'demo') {
+          const clinicData = snapshot.docs[0].data();
+          if (clinicData.isActive === false || (clinicData.expirationDate && new Date(clinicData.expirationDate) < new Date())) {
+            window.location.href = `/clinic/${slug}/login?error=subscription_ended`;
+            return;
+          }
+          setClinic({ id: snapshot.docs[0].id, ...clinicData });
+        } else if (slug === 'demo') {
           setClinic({
-            clinicName: 'العيادة التخصصية',
-            doctorName: 'الطبيب',
-            specialty: 'استشاري الطب الباطني',
+            clinicName: 'عيادة الأمل التخصصية',
+            doctorName: 'أحمد محمود',
+            specialty: 'استشاري جراحة العظام والمفاصل',
             primaryColor: '#087CF4',
             aiEnabled: true,
             assistantPermissions: ['appointments']
@@ -145,12 +142,19 @@ export default function AdminLayout({
     return Math.ceil((expTime - Date.now()) / (1000 * 3600 * 24))
   }, [clinic?.expirationDate])
 
-  const todayArabic = new Intl.DateTimeFormat('ar-EG', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  }).format(new Date())
+  const localizedDate = useMemo(() => {
+    try {
+      const locale = language === 'ar' ? 'ar-EG' : 'en-US'
+      return new Intl.DateTimeFormat(locale, {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      }).format(new Date())
+    } catch (e) {
+      return new Date().toLocaleDateString()
+    }
+  }, [language])
 
   const assistantPermissions = clinic?.assistantPermissions || ['appointments']
   const primaryColor = clinic?.primaryColor || '#087CF4'
@@ -226,7 +230,7 @@ export default function AdminLayout({
   const isAiEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'ai', activePackage), [clinic, activePackage])
   const isBranchesEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'branches', activePackage), [clinic, activePackage])
 
-  // Route-level lock detector: if doctor navigates directly to a disabled feature URL
+  // Route-level lock detector
   const currentLockedFeature = useMemo<FeatureKey | null>(() => {
     if (!clinic) return null
     if (pathname.includes('/admin/accounts') || pathname.includes('/admin/finance')) {
@@ -249,32 +253,30 @@ export default function AdminLayout({
 
   // Filter based on role, assistant permissions, and package feature locks
   const filteredNav = navItems.filter(item => {
-    // Feature gating
     if ((item.id === 'accounts' || item.id === 'finance') && !isFinanceEnabled) return false
     if (item.id === 'drugs' && !isDrugsEnabled) return false
     if (item.id === 'prescriptions' && !isPrescriptionsEnabled) return false
     if (item.id === 'ai-training' && !isAiEnabled) return false
     if (item.id === 'branches' && !isBranchesEnabled) return false
 
-    // Role and assistant permissions
     if (role === 'doctor') return true
     if (role === 'assistant') return assistantPermissions.includes(item.id)
     return false
   })
 
-  // Quick bottom nav shortcuts for mobile (strictly respecting permissions & safe area)
-  const bottomNavItems: Array<{ id: string; name: string; href?: string; icon: any; isAction?: boolean }> = [
-    { id: 'dashboard', name: 'الرئيسية', href: `/clinic/${slug}/admin`, icon: Calendar },
+  // Quick bottom nav shortcuts for mobile
+  const bottomNavItems = [
+    { id: 'dashboard', name: t('nav_queue', 'الرئيسية'), href: `/clinic/${slug}/admin`, icon: Calendar },
     ...(role === 'doctor' || assistantPermissions.includes('patients')
-      ? [{ id: 'patients', name: 'المرضى', href: `/clinic/${slug}/admin/patients`, icon: Users }]
+      ? [{ id: 'patients', name: t('nav_patients', 'المرضى'), href: `/clinic/${slug}/admin/patients`, icon: Users }]
       : []),
     ...(isPrescriptionsEnabled && (role === 'doctor' || assistantPermissions.includes('prescriptions'))
-      ? [{ id: 'prescriptions', name: 'الروشتات', href: `/clinic/${slug}/admin/prescriptions`, icon: FileText }]
+      ? [{ id: 'prescriptions', name: t('nav_prescriptions', 'الروشتات'), href: `/clinic/${slug}/admin/prescriptions`, icon: FileText }]
       : []),
     ...(isFinanceEnabled && (role === 'doctor' || assistantPermissions.includes('accounts') || assistantPermissions.includes('finance'))
-      ? [{ id: 'accounts', name: 'الحسابات', href: `/clinic/${slug}/admin/accounts`, icon: Receipt }]
+      ? [{ id: 'accounts', name: t('nav_accounts', 'الحسابات'), href: `/clinic/${slug}/admin/accounts`, icon: Receipt }]
       : []),
-    { id: 'more', name: 'المزيد', icon: Menu, isAction: true },
+    { id: 'more', name: t('actions', 'المزيد'), icon: Menu, isAction: true },
   ]
 
   const handleGlobalSearch = (e: React.FormEvent) => {
@@ -285,10 +287,10 @@ export default function AdminLayout({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#F4FAFF] dark:bg-[#07162D] flex flex-col items-center justify-center gap-4 transition-colors" dir={dir}>
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 transition-colors" dir={dir}>
         <ClinicLogo size="lg" variant="auto" />
-        <div className="flex items-center gap-2 text-sm font-bold text-slate-500 dark:text-slate-400">
-          <div className="w-5 h-5 border-2 border-[#087CF4] border-t-transparent rounded-full animate-spin"></div>
+        <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
+          <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
           {t('loading', 'جاري تحميل نظام العيادة...')}
         </div>
       </div>
@@ -296,21 +298,22 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="flex h-screen bg-[#F6F8FB] dark:bg-[#0A131F] font-sans overflow-hidden text-[#182230] dark:text-[#F8FAFC] print:block print:h-auto print:overflow-visible print:bg-white transition-colors duration-200" dir={dir}>
-      {/* Dynamic Primary Color injection */}
+    <div className="flex h-screen bg-background font-sans overflow-hidden text-foreground print:block print:h-auto print:overflow-visible print:bg-white transition-colors duration-200" dir={dir}>
       <DynamicTheme color={primaryColor} />
       <style dangerouslySetInnerHTML={{ __html: `:root { --primary: ${primaryColor}; }` }} />
 
-      {/* 1. DESKTOP SIDEBAR */}
-      <aside className="w-64 bg-[#061A38] text-slate-300 hidden lg:flex flex-col rtl:border-l ltr:border-r border-[#142D50] relative z-30 shrink-0 select-none shadow-2xl print:hidden">
+      {/* =========================================================================
+          1. DESKTOP SIDEBAR (Deep Navy #061A38)
+         ========================================================================= */}
+      <aside className="w-64 bg-[#061A38] text-slate-300 hidden lg:flex flex-col border-e border-[#142D50] relative z-30 shrink-0 select-none shadow-2xl print:hidden">
         {/* Brand Header */}
-        <div className="p-5 border-b border-[#142D50] bg-[#07162D]/90">
+        <div className="p-4 border-b border-[#142D50] bg-[#07162D]/95">
           <Link href={`/clinic/${slug}/admin`} className="flex items-center gap-3">
             <ClinicLogo size="md" variant="dark" />
           </Link>
 
           {/* Doctor Profile Mini Card */}
-          <div className="mt-4 p-3 rounded-2xl bg-[#0E2342] border border-[#254565]">
+          <div className="mt-3 p-3 rounded-2xl bg-[#0E2342] border border-[#254565]">
             <div className="flex items-center gap-3">
               <Avatar className="w-10 h-10 border border-[#087CF4]/40 shadow-sm shrink-0">
                 <AvatarImage src={clinic?.heroImage} alt="Doctor" className="object-cover" />
@@ -318,13 +321,13 @@ export default function AdminLayout({
                   <User className="w-5 h-5" />
                 </AvatarFallback>
               </Avatar>
-              <div className="overflow-hidden flex-1">
-                <h3 className="font-bold text-sm text-white truncate">
+              <div className="overflow-hidden flex-1 text-start">
+                <h3 className="font-bold text-xs text-white truncate">
                   {clinic?.doctorName ? `د. ${clinic.doctorName}` : (clinic?.clinicName || 'العيادة الطبية')}
                 </h3>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span className="text-[11px] text-slate-400 font-medium truncate">
+                  <span className="text-[10px] text-slate-400 font-medium truncate">
                     {role === 'assistant' ? t('assistant', 'مساعد العيادة') : t('certified_doctor', 'طبيب معتمد')}
                   </span>
                 </div>
@@ -335,37 +338,36 @@ export default function AdminLayout({
             <button
               type="button"
               onClick={() => setShowUpgradeModal(true)}
-              className="mt-2.5 w-full py-1.5 px-2.5 rounded-xl bg-gradient-to-r from-[#087CF4]/20 via-[#02CFF3]/15 to-blue-500/10 hover:from-[#087CF4]/30 hover:to-[#02CFF3]/25 border border-[#087CF4]/30 text-[#02CFF3] hover:text-white flex items-center justify-between text-xs font-black transition-all cursor-pointer shadow-xs group"
+              className="mt-2.5 w-full py-1.5 px-2.5 rounded-xl bg-gradient-to-r from-[#087CF4]/20 via-[#02CFF3]/15 to-blue-500/10 hover:from-[#087CF4]/30 hover:to-[#02CFF3]/25 border border-[#087CF4]/30 text-[#02CFF3] hover:text-white flex items-center justify-between text-xs font-bold transition-all cursor-pointer shadow-2xs group"
             >
               <span className="flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-[#02CFF3] group-hover:rotate-12 transition-transform" />
-                {t('upgrade_account', 'ترقية حسابك / الباقات')}
+                {t('upgrade_account', 'ترقية الحساب / الباقات')}
               </span>
               <span className="text-[10px] bg-[#087CF4]/20 text-[#77E7FF] px-1.5 py-0.5 rounded font-mono font-bold">
                 {clinic?.packageName || 'الأساسية'}
               </span>
             </button>
-
           </div>
         </div>
 
         {/* Navigation Links */}
-        <nav className="flex-1 overflow-y-auto p-3 space-y-1.5 py-4">
+        <nav className="flex-1 overflow-y-auto p-3 space-y-1 py-3">
           {filteredNav.map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href
             return (
               <Link key={item.href} href={item.href}>
                 <div
-                  className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all duration-200 cursor-pointer ${
+                  className={`flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer ${
                     isActive
                       ? 'yalla-gradient-btn font-bold shadow-md shadow-[#087CF4]/30'
-                      : 'text-slate-300 hover:text-white hover:bg-[#0E2342] font-medium'
+                      : 'text-slate-300 hover:text-white hover:bg-[#0E2342] font-semibold'
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-white'}`} />
-                    <span className="text-sm tracking-wide">{item.name}</span>
+                    <Icon className={`w-4.5 h-4.5 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                    <span className="text-xs tracking-wide">{item.name}</span>
                   </div>
                   {item.badge && !isActive && (
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#087CF4]/20 text-[#02CFF3] border border-[#087CF4]/30">
@@ -379,7 +381,7 @@ export default function AdminLayout({
         </nav>
 
         {/* Sidebar Footer */}
-        <div className="p-4 border-t border-[#142D50] bg-[#07162D]/90 space-y-2">
+        <div className="p-3 border-t border-[#142D50] bg-[#07162D]/95 space-y-2">
           <div className="flex items-center justify-between px-2 py-1 rounded-xl bg-[#0E2342] border border-[#254565]">
             <span className="text-[10px] font-bold text-slate-300">{language === 'ar' ? 'المظهر واللغة:' : 'Theme & Lang:'}</span>
             <div className="flex items-center gap-1.5">
@@ -391,7 +393,7 @@ export default function AdminLayout({
           <Link
             href={`/clinic/${slug}`}
             target="_blank"
-            className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-[#02CFF3] hover:bg-[#0E2342] transition-colors"
+            className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-[#02CFF3] hover:bg-[#0E2342] transition-colors"
           >
             <span className="flex items-center gap-2">
               <ExternalLink className="w-3.5 h-3.5 text-[#02CFF3]" />
@@ -401,25 +403,27 @@ export default function AdminLayout({
           </Link>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors cursor-pointer"
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />
             {t('logout', 'تسجيل الخروج')}
           </button>
-          <div className="pt-2 text-center text-[10px] text-slate-500 font-medium border-t border-[#142D50]">
-            {t('copyright_notice', 'جميع الحقوق محفوظة © 2026 يلا كلينيك')}
+          <div className="pt-1.5 text-center text-[10px] text-slate-500 font-medium border-t border-[#142D50]">
+            {t('copyright_notice', 'جميع الحقوق محفوظة YallaCodeX 2026')}
           </div>
         </div>
       </aside>
 
-      {/* 2. MOBILE DRAWER OVERLAY */}
+      {/* =========================================================================
+          2. MOBILE DRAWER OVERLAY
+         ========================================================================= */}
       {mobileDrawerOpen && (
         <div
           className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs lg:hidden transition-opacity"
           onClick={() => setMobileDrawerOpen(false)}
         >
           <div
-            className="fixed inset-y-0 rtl:right-0 ltr:left-0 w-72 bg-[#061A38] text-slate-300 shadow-2xl flex flex-col z-50 p-4 border-l border-[#142D50]"
+            className={`fixed inset-y-0 ${isRtl ? 'right-0 border-l' : 'left-0 border-r'} w-72 bg-[#061A38] text-slate-300 shadow-2xl flex flex-col z-50 p-4 border-[#142D50]`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-3 border-b border-[#142D50]">
@@ -436,7 +440,7 @@ export default function AdminLayout({
               </div>
             </div>
 
-            {/* Mobile Doctor Profile Mini Card */}
+            {/* Mobile Doctor Profile */}
             <div className="mt-3 p-2.5 rounded-2xl bg-[#0E2342] border border-[#254565]">
               <div className="flex items-center gap-2.5">
                 <Avatar className="w-9 h-9 border border-[#087CF4]/40 shadow-sm shrink-0">
@@ -445,7 +449,7 @@ export default function AdminLayout({
                     <User className="w-4 h-4" />
                   </AvatarFallback>
                 </Avatar>
-                <div className="overflow-hidden flex-1">
+                <div className="overflow-hidden flex-1 text-start">
                   <h3 className="font-bold text-xs text-white truncate">
                     {clinic?.doctorName ? `د. ${clinic.doctorName}` : (clinic?.clinicName || 'العيادة الطبية')}
                   </h3>
@@ -454,40 +458,24 @@ export default function AdminLayout({
                   </span>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileDrawerOpen(false)
-                  setShowUpgradeModal(true)
-                }}
-                className="mt-2 w-full py-1.5 px-2.5 rounded-xl bg-gradient-to-r from-[#087CF4]/20 via-[#02CFF3]/15 to-blue-500/10 border border-[#087CF4]/30 text-[#02CFF3] flex items-center justify-between text-[11px] font-bold"
-              >
-                <span className="flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5 text-[#02CFF3]" />
-                  {t('upgrade_account', 'ترقية حسابك / الباقات')}
-                </span>
-                <span className="text-[9px] bg-[#087CF4]/20 text-[#77E7FF] px-1 rounded font-mono font-bold">
-                  {clinic?.packageName || 'الأساسية'}
-                </span>
-              </button>
             </div>
 
-            <nav className="flex-1 overflow-y-auto py-4 space-y-1">
+            <nav className="flex-1 overflow-y-auto py-3 space-y-1">
               {filteredNav.map((item) => {
                 const Icon = item.icon
                 const isActive = pathname === item.href
                 return (
                   <Link key={item.href} href={item.href}>
                     <div
-                      className={`flex items-center justify-between px-3.5 py-3 rounded-xl transition-all ${
+                      className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all ${
                         isActive
                           ? 'yalla-gradient-btn font-bold shadow-md shadow-[#087CF4]/30'
                           : 'text-slate-300 hover:text-white hover:bg-[#0E2342]'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <Icon className="w-5 h-5" />
-                        <span className="text-sm font-semibold">{item.name}</span>
+                        <Icon className="w-4.5 h-4.5" />
+                        <span className="text-xs font-bold">{item.name}</span>
                       </div>
                     </div>
                   </Link>
@@ -495,7 +483,7 @@ export default function AdminLayout({
               })}
             </nav>
 
-            <div className="pt-4 border-t border-[#142D50] space-y-2">
+            <div className="pt-3 border-t border-[#142D50] space-y-2">
               <TechnicalSupportButton variant="block" className="bg-[#0E2342] text-slate-300 border-[#254565] hover:bg-[#142D50] hover:text-white" />
               <Link
                 href={`/clinic/${slug}`}
@@ -503,58 +491,57 @@ export default function AdminLayout({
                 className="flex items-center justify-between px-3 py-2 text-xs font-bold text-[#02CFF3] bg-[#0E2342] rounded-xl border border-[#254565]"
               >
                 <span className="flex items-center gap-2">
-                  <ExternalLink className="w-4 h-4" /> {t('patient_booking_page', 'صفحة حجز المرضى')}
+                  <ExternalLink className="w-3.5 h-3.5" /> {t('patient_booking_page', 'صفحة حجز المرضى')}
                 </span>
               </Link>
               <button
                 onClick={handleLogout}
                 className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-rose-400 hover:bg-rose-500/10 rounded-xl"
               >
-                <LogOut className="w-4 h-4" /> {t('logout', 'تسجيل الخروج')}
+                <LogOut className="w-3.5 h-3.5" /> {t('logout', 'تسجيل الخروج')}
               </button>
-              <div className="pt-2 text-center text-[10px] text-slate-500 font-medium border-t border-[#142D50]">
-                {t('copyright_notice', 'جميع الحقوق محفوظة © 2026 يلا كلينيك')}
-              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* 3. MAIN WORKSPACE AREA */}
+      {/* =========================================================================
+          3. MAIN WORKSPACE AREA & TOPBAR
+         ========================================================================= */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden print:h-auto print:overflow-visible print:block">
         {/* Sticky Topbar */}
-        <header className="h-16 bg-white dark:bg-[#0E2342] border-b border-[#DCE9F5] dark:border-[#254565] px-4 md:px-8 flex items-center justify-between gap-4 z-20 shrink-0 print:hidden transition-colors duration-200">
-          {/* Right side: Mobile Menu Button & Search */}
+        <header className="h-16 bg-card border-b border-border px-4 md:px-8 flex items-center justify-between gap-4 z-20 shrink-0 print:hidden transition-colors duration-200">
+          {/* Start side: Mobile Menu Button & Search */}
           <div className="flex items-center gap-3 flex-1 max-w-lg">
             <button
               onClick={() => setMobileDrawerOpen(true)}
-              className="lg:hidden p-2 rounded-xl border border-[#DCE9F5] dark:border-[#254565] text-slate-700 dark:text-slate-200 hover:bg-[#F4FAFF] dark:hover:bg-[#142D50] focus:outline-none"
+              className="lg:hidden p-2 rounded-xl border border-border text-foreground hover:bg-secondary focus:outline-none"
             >
               <Menu className="w-5 h-5" />
             </button>
 
             {/* Quick Search */}
             <form onSubmit={handleGlobalSearch} className="relative w-full max-w-md hidden sm:block">
-              <Search className="w-4 h-4 absolute rtl:right-3.5 ltr:left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search className={`w-4 h-4 absolute ${isRtl ? 'right-3' : 'left-3'} top-1/2 -translate-y-1/2 text-muted-foreground`} />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t('search_patient_placeholder', 'ابحث عن مريض بالاسم أو رقم الهاتف...')}
-                className="w-full h-10 rtl:pr-10 rtl:pl-4 ltr:pl-10 ltr:pr-4 rounded-xl bg-[#F4FAFF] dark:bg-[#07162D] border border-[#DCE9F5] dark:border-[#254565] text-sm text-[#092145] dark:text-[#F3FAFF] placeholder:text-slate-400 focus:bg-white dark:focus:bg-[#0E2342] focus:outline-none focus:ring-2 focus:ring-[#087CF4]/20 focus:border-[#087CF4] transition-all"
+                className={`w-full h-10 ${isRtl ? 'pr-9 pl-4' : 'pl-9 pr-4'} rounded-xl bg-background border border-border text-xs text-foreground placeholder:text-muted-foreground focus:bg-card focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all`}
               />
             </form>
           </div>
 
-          {/* Left side: Date, Clinic Public Link, Notifications, Profile */}
-          <div className="flex items-center gap-2.5 md:gap-4">
+          {/* End side: Date, Branch, Language, Theme, Notifications, Profile */}
+          <div className="flex items-center gap-2 sm:gap-3">
             {/* Branch Selector */}
             <BranchSelector clinic={clinic} selectedBranchId={selectedBranchId} onSelectBranch={handleSelectBranch} />
 
             {/* Realtime Date Badge */}
-            <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#F4FAFF] dark:bg-[#07162D] border border-[#DCE9F5] dark:border-[#254565] text-xs font-semibold text-slate-600 dark:text-slate-300">
-              <Calendar className="w-3.5 h-3.5 text-[#087CF4] dark:text-[#02CFF3]" />
-              <span>{todayArabic}</span>
+            <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-background border border-border text-xs font-bold text-muted-foreground">
+              <Calendar className="w-3.5 h-3.5 text-primary" />
+              <span>{localizedDate}</span>
             </div>
 
             {/* Language Toggle (AR / EN) */}
@@ -567,7 +554,7 @@ export default function AdminLayout({
             <Link
               href={`/clinic/${slug}`}
               target="_blank"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-[#087CF4] dark:text-[#02CFF3] bg-[#EAF4FD] dark:bg-[#142D50] border border-[#087CF4]/20 hover:bg-[#087CF4] hover:text-white transition-all shadow-xs"
+              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-primary bg-secondary border border-primary/20 hover:bg-primary hover:text-white transition-all shadow-2xs"
             >
               <ExternalLink className="w-3.5 h-3.5" />
               {t('booking_page', 'صفحة الحجز')}
@@ -584,38 +571,38 @@ export default function AdminLayout({
             />
 
             {/* User Avatar & Info */}
-            <div className="flex items-center gap-2.5 pl-1">
-              <Avatar className="w-9 h-9 border border-[#E5EAF0]">
+            <div className="flex items-center gap-2.5 ps-1">
+              <Avatar className="w-9 h-9 border border-border">
                 <AvatarImage src={clinic?.heroImage} alt="User" className="object-cover" />
-                <AvatarFallback className="bg-blue-50 text-[#087CF4] dark:bg-blue-900/40 dark:text-[#02CFF3] font-bold text-xs">
+                <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
                   {clinic?.doctorName?.charAt(0) || 'ط'}
                 </AvatarFallback>
               </Avatar>
-              <div className="hidden xl:block text-right">
-                <p className="text-xs font-bold text-[#182230] leading-tight">
+              <div className="hidden xl:block text-start">
+                <p className="text-xs font-bold text-foreground leading-tight">
                   {clinic?.doctorName ? `د. ${clinic.doctorName}` : 'الطبيب المسجل'}
                 </p>
-                <p className="text-[10px] text-slate-400 font-medium">/clinic/{slug}</p>
+                <p className="text-[10px] text-muted-foreground font-mono">/clinic/{slug}</p>
               </div>
             </div>
           </div>
         </header>
 
-        {/* SUBSCRIPTION BANNER */}
+        {/* Expiration Notification if needed */}
         {(() => {
           if (!clinic?.expirationDate) return null;
           const days = daysUntilExpiration;
           if (days === null || days > 7) return null;
           if (days >= 0) {
             return (
-              <div className="bg-rose-500 text-white p-2.5 text-center text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-sm shrink-0">
+              <div className="bg-rose-500 text-white p-2.5 text-center text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-xs shrink-0">
                 <Bell className="w-4 h-4 animate-bounce shrink-0" />
-                <span>تنبيه هام: اشتراك العيادة الخاص بك سينتهي خلال {days} أيام. يرجى التواصل مع الإدارة لتجديد الاشتراك.</span>
+                <span>تنبيه هام: اشتراك العيادة الخاص بك سينتهي خلال {days} أيام. يرجى تجديد الاشتراك.</span>
               </div>
             );
           }
           return (
-            <div className="bg-red-600 text-white p-2.5 text-center text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-sm shrink-0">
+            <div className="bg-red-600 text-white p-2.5 text-center text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-xs shrink-0">
               <Bell className="w-4 h-4" />
               تنبيه: لقد انتهى اشتراك العيادة! قد تتوقف بعض الخدمات، يرجى التجديد فوراً.
             </div>
@@ -623,7 +610,7 @@ export default function AdminLayout({
         })()}
 
         {/* Scrollable Page Body */}
-        <main className="flex-1 overflow-y-auto bg-[#F6F8FB] pb-[calc(5rem+env(safe-area-inset-bottom,0px))] lg:pb-8 relative print:overflow-visible print:bg-white print:p-0">
+        <main className="flex-1 overflow-y-auto bg-background pb-[calc(5rem+env(safe-area-inset-bottom,0px))] lg:pb-8 relative print:overflow-visible print:bg-white print:p-0">
           {currentLockedFeature ? (
             <LockedFeatureScreen
               featureKey={currentLockedFeature}
@@ -635,9 +622,9 @@ export default function AdminLayout({
           )}
         </main>
 
-        {/* 4. MOBILE BOTTOM NAVIGATION (Fixed at bottom for phones) */}
+        {/* Mobile Bottom Nav */}
         <nav 
-          className="lg:hidden fixed bottom-0 inset-x-0 bg-white/95 dark:bg-[#0E2342]/95 backdrop-blur-md border-t border-[#DCE9F5] dark:border-[#254565] px-3 z-40 flex justify-around items-center shadow-lg print:hidden transition-colors"
+          className="lg:hidden fixed bottom-0 inset-x-0 bg-card/95 backdrop-blur-md border-t border-border px-3 z-40 flex justify-around items-center shadow-lg print:hidden transition-colors"
           style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 8px) + 6px)', paddingTop: '6px' }}
         >
           {bottomNavItems.map((item: any) => {
@@ -649,7 +636,7 @@ export default function AdminLayout({
                 <button
                   key={item.id}
                   onClick={() => setMobileDrawerOpen(true)}
-                  className="flex-1 flex flex-col items-center justify-center py-1 text-slate-500 dark:text-slate-400 hover:text-[#087CF4] dark:hover:text-[#02CFF3] font-medium transition-colors"
+                  className="flex-1 flex flex-col items-center justify-center py-1 text-muted-foreground hover:text-primary font-medium transition-colors"
                 >
                   <Icon className="w-5 h-5 mb-0.5" />
                   <span className="text-[10px] font-bold">{item.name}</span>
@@ -661,7 +648,7 @@ export default function AdminLayout({
               <Link key={item.id} href={item.href || '#'} className="flex-1">
                 <div
                   className={`flex flex-col items-center justify-center py-1 transition-all ${
-                    isActive ? 'text-[#087CF4] dark:text-[#02CFF3] font-bold' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-medium'
+                    isActive ? 'text-primary font-bold' : 'text-muted-foreground hover:text-foreground font-medium'
                   }`}
                 >
                   <Icon className={`w-5 h-5 mb-0.5 ${isActive ? 'scale-110' : ''}`} />
