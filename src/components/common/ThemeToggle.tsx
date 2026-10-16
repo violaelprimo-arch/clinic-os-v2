@@ -31,18 +31,14 @@ export function ThemeToggle({ className = '', showLabel = false }: { className?:
     <button
       type="button"
       onClick={toggleTheme}
-      className={`relative inline-flex items-center justify-center gap-2 h-9 px-2.5 rounded-xl transition-all duration-200 cursor-pointer border select-none ${
-        isDark
-          ? 'bg-[#0E2342] border-[#254565] text-amber-300 hover:text-amber-200 hover:border-[#02CFF3]/40 shadow-xs'
-          : 'bg-white border-[#DCE9F5] text-[#092145] hover:text-[#087CF4] hover:border-[#087CF4]/40 shadow-xs'
-      } ${className}`}
+      className={`relative inline-flex items-center justify-center gap-2 h-9 px-2.5 rounded-xl transition-all duration-200 cursor-pointer border select-none bg-card border-border text-foreground hover:border-primary/50 shadow-xs ${className}`}
       title={titleText}
       aria-label="Toggle Theme"
     >
       {isDark ? (
-        <Sun className="w-4 h-4 transition-transform duration-300 hover:rotate-45 text-amber-300" />
+        <Sun className="w-4 h-4 transition-transform duration-300 hover:rotate-45 text-amber-400" />
       ) : (
-        <Moon className="w-4 h-4 transition-transform duration-300 hover:-rotate-12 text-[#087CF4]" />
+        <Moon className="w-4 h-4 transition-transform duration-300 hover:-rotate-12 text-primary" />
       )}
       {showLabel && (
         <span className="text-xs font-bold">

@@ -290,7 +290,7 @@ export function ThermalReceiptModal({
           {/* Thermal Print xp-80 */}
           <Button
             onClick={handlePrint}
-            className="h-9 px-4 bg-[#061A38] hover:bg-[#087CF4] text-white font-bold rounded-xl shadow-md text-xs shrink-0 transition-colors"
+            className="h-9 px-4 yalla-gradient-btn text-white font-bold rounded-xl shadow-md text-xs shrink-0 transition-colors"
           >
             <Printer className="w-4 h-4 ml-1.5" />
             طباعة (80mm)

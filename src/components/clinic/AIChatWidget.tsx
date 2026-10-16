@@ -81,18 +81,18 @@ export function AIChatWidget({ clinic }: { clinic: any }) {
       {/* Floating Chat Modal */}
       {isOpen && (
         <div
-          className="fixed bottom-6 left-6 w-84 sm:w-96 shadow-2xl z-50 bg-white border border-[#E5EAF0] flex flex-col h-[520px] max-h-[85vh] rounded-3xl overflow-hidden font-sans"
+          className="fixed bottom-6 left-6 w-84 sm:w-96 shadow-2xl z-50 bg-card border border-border flex flex-col h-[520px] max-h-[85vh] rounded-3xl overflow-hidden font-sans text-foreground"
           dir="rtl"
         >
           {/* Header */}
-          <div className="bg-[#061A38] text-white px-5 py-4 flex items-center justify-between">
+          <div className="yalla-gradient-btn text-white px-5 py-4 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-[#087CF4] flex items-center justify-center">
+              <div className="w-8 h-8 rounded-xl bg-white/20 text-white flex items-center justify-center">
                 <Bot className="w-5 h-5" />
               </div>
               <div>
                 <h3 className="font-bold text-sm text-white">المساعد الذكي للعيادة</h3>
-                <span className="text-[10px] text-blue-300 font-semibold flex items-center gap-1">
+                <span className="text-[10px] text-white/80 font-semibold flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                   متصل ومتاح للرد فوراً
                 </span>
@@ -101,21 +101,21 @@ export function AIChatWidget({ clinic }: { clinic: any }) {
 
             <button
               onClick={() => setIsOpen(false)}
-              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10"
+              className="p-1 rounded-lg text-white/80 hover:text-white hover:bg-white/10"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* Messages Body */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#F8FAFC]">
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-background">
             {messages.map((m, idx) => (
               <div key={idx} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
                 <div
                   className={`max-w-[85%] rounded-2xl p-3 text-xs leading-relaxed shadow-xs ${
                     m.role === 'user'
-                      ? 'bg-[#087CF4] text-white rounded-tr-none'
-                      : 'bg-white text-[#182230] border border-[#E5EAF0] rounded-tl-none font-medium'
+                      ? 'yalla-gradient-btn text-white rounded-tr-none'
+                      : 'bg-card text-foreground border border-border rounded-tl-none font-medium'
                   }`}
                 >
                   {m.text}
@@ -125,8 +125,8 @@ export function AIChatWidget({ clinic }: { clinic: any }) {
 
             {isLoading && (
               <div className="flex justify-end">
-                <div className="bg-white border border-[#E5EAF0] rounded-2xl rounded-tl-none p-3 shadow-xs flex items-center gap-2 text-xs text-slate-400 font-bold">
-                  <Loader2 className="w-4 h-4 animate-spin text-[#087CF4]" />
+                <div className="bg-card border border-border rounded-2xl rounded-tl-none p-3 shadow-xs flex items-center gap-2 text-xs text-muted-foreground font-bold">
+                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
                   جاري صياغة الإجابة...
                 </div>
               </div>
@@ -135,20 +135,20 @@ export function AIChatWidget({ clinic }: { clinic: any }) {
           </div>
 
           {/* Input Footer */}
-          <div className="p-3 bg-white border-t border-[#E5EAF0]">
+          <div className="p-3 bg-card border-t border-border">
             <form onSubmit={handleSend} className="flex gap-2 relative">
               <Input
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 placeholder="اسألني أي سؤال عن العيادة..."
-                className="h-11 pr-3 pl-11 text-xs bg-[#F6F8FB] border-[#E5EAF0] rounded-xl focus:bg-white"
+                className="h-11 pr-3 pl-11 text-xs bg-secondary/60 border-border rounded-xl focus:bg-card text-foreground"
                 disabled={isLoading}
               />
               <Button
                 type="submit"
                 size="icon"
                 disabled={!input.trim() || isLoading}
-                className="absolute left-1 top-1 w-9 h-9 bg-[#087CF4] hover:bg-[#0769D1] rounded-lg text-white"
+                className="absolute left-1 top-1 w-9 h-9 yalla-gradient-btn text-white rounded-lg"
               >
                 <Send className="w-4 h-4" />
               </Button>

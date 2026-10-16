@@ -617,7 +617,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
             }
           }}
           variant={clinic?.isClinicOpen !== false ? 'destructive' : 'default'}
-          className={`font-bold text-xs h-9.5 px-5 rounded-xl w-full sm:w-auto ${clinic?.isClinicOpen !== false ? '' : 'bg-[#087CF4] hover:bg-[#0662C4] text-white'}`}
+          className={`font-bold text-xs h-9.5 px-5 rounded-xl w-full sm:w-auto ${clinic?.isClinicOpen !== false ? '' : 'yalla-gradient-btn text-white'}`}
           disabled={isProcessing}
         >
           {clinic?.isClinicOpen !== false ? t('close_clinic', 'إغلاق العيادة (إيقاف الحجز)') : t('open_clinic', 'فتح العيادة (بدء الحجز)')}
@@ -704,10 +704,10 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
         <div className="yalla-card p-5 flex items-center justify-between">
           <div>
             <p className="text-xs font-bold text-muted-foreground mb-1">{t('completed_patients', 'تم الكشف')}</p>
-            <h3 className="text-3xl font-black text-[#02CFF3]">{completedPatients.length}</h3>
-            <span className="text-[11px] font-medium text-[#02CFF3]/80 mt-1 inline-block">{t('completed_visits', 'زيارات مكتملة')}</span>
+            <h3 className="text-3xl font-black text-primary dark:text-[#02CFF3]">{completedPatients.length}</h3>
+            <span className="text-[11px] font-medium text-primary/80 dark:text-[#02CFF3]/80 mt-1 inline-block">{t('completed_visits', 'زيارات مكتملة')}</span>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-[#02CFF3]/10 border border-[#02CFF3]/20 flex items-center justify-center text-[#02CFF3]">
+          <div className="w-12 h-12 rounded-2xl bg-primary/10 dark:bg-[#02CFF3]/10 border border-primary/20 dark:border-[#02CFF3]/20 flex items-center justify-center text-primary dark:text-[#02CFF3]">
             <CheckCircle2 className="w-6 h-6" />
           </div>
         </div>

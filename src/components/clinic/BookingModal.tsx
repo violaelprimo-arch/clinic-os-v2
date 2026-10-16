@@ -494,16 +494,16 @@ export function BookingModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* MODAL HEADER */}
-        <div className="p-4 sm:p-6 bg-gradient-to-r from-[#061A38] to-[#0E2342] text-white flex items-center justify-between shrink-0 border-b border-[#254565]">
+        <div className="p-4 sm:p-6 bg-card text-foreground flex items-center justify-between shrink-0 border-b border-border">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/20 text-primary border border-primary/30 flex items-center justify-center font-bold">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-bold">
               <Calendar className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-black text-white">
+              <h2 className="text-base sm:text-lg font-black text-foreground">
                 {successData ? t('booking_success_title', 'تم تسجيل الحجز بنجاح') : t('new_medical_appt', 'حجز موعد طبي جديد')}
               </h2>
-              <p className="text-[11px] text-slate-300">
+              <p className="text-[11px] text-muted-foreground">
                 {clinic?.clinicName || clinic?.doctorName ? `عيادة ${clinic.doctorName || clinic.clinicName}` : t('clinic', 'العيادة الطبية')}
               </p>
             </div>
@@ -511,7 +511,7 @@ export function BookingModal({
 
           <button
             onClick={handleClose}
-            className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+            className="w-9 h-9 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground flex items-center justify-center transition-colors cursor-pointer border border-border"
             title={t('close', 'إغلاق')}
           >
             <X className="w-5 h-5" />

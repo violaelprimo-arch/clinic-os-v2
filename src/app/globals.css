@@ -97,14 +97,14 @@
 
   --radius: 0.875rem;
 
-  --sidebar: #061A38;
-  --sidebar-foreground: #F3FAFF;
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #092145;
   --sidebar-primary: #087CF4;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #0E2342;
-  --sidebar-accent-foreground: #FFFFFF;
-  --sidebar-border: #142D50;
-  --sidebar-ring: #02CFF3;
+  --sidebar-accent: #EAF4FD;
+  --sidebar-accent-foreground: #087CF4;
+  --sidebar-border: #DCE9F5;
+  --sidebar-ring: #087CF4;
 }
 
 .dark {

@@ -25,7 +25,7 @@ export function LanguageToggle({ className = '', variant = 'pill' }: { className
       <button
         type="button"
         onClick={toggleLanguage}
-        className={`relative inline-flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-200 cursor-pointer border bg-white dark:bg-[#0E2342] border-[#DCE9F5] dark:border-[#254565] text-[#092145] dark:text-[#F3FAFF] hover:border-[#087CF4]/50 dark:hover:border-[#02CFF3]/50 hover:text-[#087CF4] dark:hover:text-[#02CFF3] shadow-xs select-none ${className}`}
+        className={`relative inline-flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-200 cursor-pointer border bg-card border-border text-foreground hover:border-primary/50 hover:text-primary shadow-xs select-none ${className}`}
         title={isAr ? 'Switch to English' : 'التحويل للغة العربية'}
         aria-label="Toggle Language"
       >
@@ -38,11 +38,11 @@ export function LanguageToggle({ className = '', variant = 'pill' }: { className
     <button
       type="button"
       onClick={toggleLanguage}
-      className={`inline-flex items-center gap-1.5 h-9 px-2.5 rounded-xl border text-xs font-bold transition-all duration-200 cursor-pointer shadow-xs bg-white dark:bg-[#0E2342] border-[#DCE9F5] dark:border-[#254565] text-[#092145] dark:text-[#F3FAFF] hover:border-[#087CF4]/50 dark:hover:border-[#02CFF3]/50 hover:text-[#087CF4] dark:hover:text-[#02CFF3] select-none ${className}`}
+      className={`inline-flex items-center gap-1.5 h-9 px-2.5 rounded-xl border text-xs font-bold transition-all duration-200 cursor-pointer shadow-xs bg-card border-border text-foreground hover:border-primary/50 hover:text-primary select-none ${className}`}
       title={isAr ? 'Switch to English' : 'التحويل للغة العربية'}
       aria-label="Toggle Language"
     >
-      <Languages className="w-3.5 h-3.5 text-[#087CF4] dark:text-[#02CFF3]" />
+      <Languages className="w-3.5 h-3.5 text-primary" />
       <span className="font-bold">{isAr ? 'English' : 'عربي'}</span>
     </button>
   )

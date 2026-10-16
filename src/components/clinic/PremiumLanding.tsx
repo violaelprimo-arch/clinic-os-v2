@@ -212,8 +212,8 @@ export function PremiumLanding({
 
             <div className="grid lg:grid-cols-12 gap-8 items-center relative z-10">
               
-              {/* Doctor Details (Right side in RTL) */}
-              <div className="lg:col-span-7 space-y-6 text-right">
+              {/* Doctor Details (Start side) */}
+              <div className="lg:col-span-7 space-y-6 text-start">
                 
                 {/* Live Availability Badge */}
                 <motion.div

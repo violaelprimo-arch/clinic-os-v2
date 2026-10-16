@@ -303,31 +303,31 @@ export default function AdminLayout({
       <style dangerouslySetInnerHTML={{ __html: `:root { --primary: ${primaryColor}; }` }} />
 
       {/* =========================================================================
-          1. DESKTOP SIDEBAR (Deep Navy #061A38)
+          1. DESKTOP SIDEBAR (Theme-Aware: Clean White in Light / Deep Navy in Dark)
          ========================================================================= */}
-      <aside className="w-64 bg-[#061A38] text-slate-300 hidden lg:flex flex-col border-e border-[#142D50] relative z-30 shrink-0 select-none shadow-2xl print:hidden">
+      <aside className="w-68 bg-sidebar text-sidebar-foreground hidden lg:flex flex-col border-e border-sidebar-border relative z-30 shrink-0 select-none shadow-sm print:hidden transition-colors duration-200">
         {/* Brand Header */}
-        <div className="p-4 border-b border-[#142D50] bg-[#07162D]/95">
+        <div className="p-4 border-b border-sidebar-border bg-sidebar/95 backdrop-blur-sm">
           <Link href={`/clinic/${slug}/admin`} className="flex items-center gap-3">
-            <ClinicLogo size="md" variant="dark" />
+            <ClinicLogo size="md" variant="auto" />
           </Link>
 
           {/* Doctor Profile Mini Card */}
-          <div className="mt-3 p-3 rounded-2xl bg-[#0E2342] border border-[#254565]">
+          <div className="mt-3 p-3 rounded-2xl bg-secondary/60 dark:bg-card-elevated border border-sidebar-border transition-colors">
             <div className="flex items-center gap-3">
-              <Avatar className="w-10 h-10 border border-[#087CF4]/40 shadow-sm shrink-0">
+              <Avatar className="w-10 h-10 border border-primary/30 shadow-2xs shrink-0">
                 <AvatarImage src={clinic?.heroImage} alt="Doctor" className="object-cover" />
-                <AvatarFallback className="bg-[#087CF4]/20 text-[#02CFF3] font-bold text-sm">
+                <AvatarFallback className="bg-primary/10 text-primary font-bold text-sm">
                   <User className="w-5 h-5" />
                 </AvatarFallback>
               </Avatar>
               <div className="overflow-hidden flex-1 text-start">
-                <h3 className="font-bold text-xs text-white truncate">
+                <h3 className="font-bold text-xs text-foreground truncate">
                   {clinic?.doctorName ? `د. ${clinic.doctorName}` : (clinic?.clinicName || 'العيادة الطبية')}
                 </h3>
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span className="text-[10px] text-slate-400 font-medium truncate">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span className="text-[10px] text-muted-foreground font-medium truncate">
                     {role === 'assistant' ? t('assistant', 'مساعد العيادة') : t('certified_doctor', 'طبيب معتمد')}
                   </span>
                 </div>
@@ -338,13 +338,13 @@ export default function AdminLayout({
             <button
               type="button"
               onClick={() => setShowUpgradeModal(true)}
-              className="mt-2.5 w-full py-1.5 px-2.5 rounded-xl bg-gradient-to-r from-[#087CF4]/20 via-[#02CFF3]/15 to-blue-500/10 hover:from-[#087CF4]/30 hover:to-[#02CFF3]/25 border border-[#087CF4]/30 text-[#02CFF3] hover:text-white flex items-center justify-between text-xs font-bold transition-all cursor-pointer shadow-2xs group"
+              className="mt-2.5 w-full py-1.5 px-2.5 rounded-xl bg-primary/10 hover:bg-primary/15 border border-primary/25 text-primary flex items-center justify-between text-xs font-bold transition-all cursor-pointer shadow-2xs group"
             >
               <span className="flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-[#02CFF3] group-hover:rotate-12 transition-transform" />
+                <Sparkles className="w-3.5 h-3.5 text-primary group-hover:rotate-12 transition-transform" />
                 {t('upgrade_account', 'ترقية الحساب / الباقات')}
               </span>
-              <span className="text-[10px] bg-[#087CF4]/20 text-[#77E7FF] px-1.5 py-0.5 rounded font-mono font-bold">
+              <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded font-mono font-bold">
                 {clinic?.packageName || 'الأساسية'}
               </span>
             </button>
@@ -352,25 +352,25 @@ export default function AdminLayout({
         </div>
 
         {/* Navigation Links */}
-        <nav className="flex-1 overflow-y-auto p-3 space-y-1 py-3">
+        <nav className="flex-1 overflow-y-auto p-3 space-y-1.5 py-3">
           {filteredNav.map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href
             return (
               <Link key={item.href} href={item.href}>
                 <div
-                  className={`flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer ${
+                  className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all duration-200 cursor-pointer ${
                     isActive
-                      ? 'yalla-gradient-btn font-bold shadow-md shadow-[#087CF4]/30'
-                      : 'text-slate-300 hover:text-white hover:bg-[#0E2342] font-semibold'
+                      ? 'yalla-gradient-btn font-bold shadow-md shadow-primary/25'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary/70 dark:hover:bg-card-elevated font-semibold'
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <Icon className={`w-4.5 h-4.5 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                    <Icon className={`w-4.5 h-4.5 ${isActive ? 'text-white' : 'text-primary/70 dark:text-muted-foreground'}`} />
                     <span className="text-xs tracking-wide">{item.name}</span>
                   </div>
                   {item.badge && !isActive && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#087CF4]/20 text-[#02CFF3] border border-[#087CF4]/30">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                       {item.badge}
                     </span>
                   )}
@@ -381,22 +381,22 @@ export default function AdminLayout({
         </nav>
 
         {/* Sidebar Footer */}
-        <div className="p-3 border-t border-[#142D50] bg-[#07162D]/95 space-y-2">
-          <div className="flex items-center justify-between px-2 py-1 rounded-xl bg-[#0E2342] border border-[#254565]">
-            <span className="text-[10px] font-bold text-slate-300">{language === 'ar' ? 'المظهر واللغة:' : 'Theme & Lang:'}</span>
+        <div className="p-3 border-t border-sidebar-border bg-sidebar/95 space-y-2">
+          <div className="flex items-center justify-between px-2 py-1.5 rounded-xl bg-secondary/50 dark:bg-card-elevated border border-sidebar-border">
+            <span className="text-[10px] font-bold text-muted-foreground">{language === 'ar' ? 'المظهر واللغة:' : 'Theme & Lang:'}</span>
             <div className="flex items-center gap-1.5">
               <LanguageToggle variant="icon" />
               <ThemeToggle />
             </div>
           </div>
-          <TechnicalSupportButton variant="block" className="bg-[#0E2342] text-slate-300 border-[#254565] hover:bg-[#142D50] hover:text-white" />
+          <TechnicalSupportButton variant="block" className="bg-secondary/60 dark:bg-card-elevated text-foreground border-sidebar-border hover:bg-secondary hover:text-foreground" />
           <Link
             href="/preview"
             target="_blank"
-            className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-amber-400 hover:text-amber-300 hover:bg-[#0E2342] transition-colors"
+            className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-amber-500 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-secondary/70 dark:hover:bg-card-elevated transition-colors"
           >
             <span className="flex items-center gap-2">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
               {t('canvas_preview', 'معاينة تصميم Canvas')}
             </span>
             <ChevronLeft className="w-3.5 h-3.5 rtl:rotate-0 ltr:rotate-180" />
@@ -404,22 +404,22 @@ export default function AdminLayout({
           <Link
             href={`/clinic/${slug}`}
             target="_blank"
-            className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-[#02CFF3] hover:bg-[#0E2342] transition-colors"
+            className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-muted-foreground hover:text-primary hover:bg-secondary/70 dark:hover:bg-card-elevated transition-colors"
           >
             <span className="flex items-center gap-2">
-              <ExternalLink className="w-3.5 h-3.5 text-[#02CFF3]" />
+              <ExternalLink className="w-3.5 h-3.5 text-primary" />
               {t('patient_booking_page', 'صفحة الحجز للمرضى')}
             </span>
             <ChevronLeft className="w-3.5 h-3.5 rtl:rotate-0 ltr:rotate-180" />
           </Link>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors cursor-pointer"
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />
             {t('logout', 'تسجيل الخروج')}
           </button>
-          <div className="pt-1.5 text-center text-[10px] text-slate-500 font-medium border-t border-[#142D50]">
+          <div className="pt-1.5 text-center text-[10px] text-muted-foreground/80 font-medium border-t border-sidebar-border">
             {t('copyright_notice', 'جميع الحقوق محفوظة YallaCodeX 2026')}
           </div>
         </div>
@@ -434,17 +434,17 @@ export default function AdminLayout({
           onClick={() => setMobileDrawerOpen(false)}
         >
           <div
-            className={`fixed inset-y-0 ${isRtl ? 'right-0 border-l' : 'left-0 border-r'} w-72 bg-[#061A38] text-slate-300 shadow-2xl flex flex-col z-50 p-4 border-[#142D50]`}
+            className={`fixed inset-y-0 ${isRtl ? 'right-0 border-l' : 'left-0 border-r'} w-72 bg-sidebar text-sidebar-foreground shadow-2xl flex flex-col z-50 p-4 border-sidebar-border`}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between pb-3 border-b border-[#142D50]">
-              <ClinicLogo size="md" variant="dark" />
+            <div className="flex items-center justify-between pb-3 border-b border-sidebar-border">
+              <ClinicLogo size="md" variant="auto" />
               <div className="flex items-center gap-1.5">
                 <LanguageToggle variant="icon" />
                 <ThemeToggle />
                 <button
                   onClick={() => setMobileDrawerOpen(false)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10"
+                  className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -452,19 +452,19 @@ export default function AdminLayout({
             </div>
 
             {/* Mobile Doctor Profile */}
-            <div className="mt-3 p-2.5 rounded-2xl bg-[#0E2342] border border-[#254565]">
+            <div className="mt-3 p-2.5 rounded-2xl bg-secondary/60 dark:bg-card-elevated border border-sidebar-border">
               <div className="flex items-center gap-2.5">
-                <Avatar className="w-9 h-9 border border-[#087CF4]/40 shadow-sm shrink-0">
+                <Avatar className="w-9 h-9 border border-primary/30 shadow-2xs shrink-0">
                   <AvatarImage src={clinic?.heroImage} alt="Doctor" className="object-cover" />
-                  <AvatarFallback className="bg-[#087CF4]/20 text-[#02CFF3] font-bold text-xs">
+                  <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
                     <User className="w-4 h-4" />
                   </AvatarFallback>
                 </Avatar>
                 <div className="overflow-hidden flex-1 text-start">
-                  <h3 className="font-bold text-xs text-white truncate">
+                  <h3 className="font-bold text-xs text-foreground truncate">
                     {clinic?.doctorName ? `د. ${clinic.doctorName}` : (clinic?.clinicName || 'العيادة الطبية')}
                   </h3>
-                  <span className="text-[10px] text-slate-400 font-medium block truncate">
+                  <span className="text-[10px] text-muted-foreground font-medium block truncate">
                     {role === 'assistant' ? t('assistant', 'مساعد العيادة') : t('certified_doctor', 'طبيب معتمد')}
                   </span>
                 </div>
@@ -480,8 +480,8 @@ export default function AdminLayout({
                     <div
                       className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all ${
                         isActive
-                          ? 'yalla-gradient-btn font-bold shadow-md shadow-[#087CF4]/30'
-                          : 'text-slate-300 hover:text-white hover:bg-[#0E2342]'
+                          ? 'yalla-gradient-btn font-bold shadow-md shadow-primary/25'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-secondary/70 dark:hover:bg-card-elevated'
                       }`}
                     >
                       <div className="flex items-center gap-3">
@@ -494,12 +494,12 @@ export default function AdminLayout({
               })}
             </nav>
 
-            <div className="pt-3 border-t border-[#142D50] space-y-2">
-              <TechnicalSupportButton variant="block" className="bg-[#0E2342] text-slate-300 border-[#254565] hover:bg-[#142D50] hover:text-white" />
+            <div className="pt-3 border-t border-sidebar-border space-y-2">
+              <TechnicalSupportButton variant="block" className="bg-secondary/60 dark:bg-card-elevated text-foreground border-sidebar-border hover:bg-secondary" />
               <Link
                 href={`/clinic/${slug}`}
                 target="_blank"
-                className="flex items-center justify-between px-3 py-2 text-xs font-bold text-[#02CFF3] bg-[#0E2342] rounded-xl border border-[#254565]"
+                className="flex items-center justify-between px-3 py-2 text-xs font-bold text-primary bg-secondary/80 dark:bg-card-elevated rounded-xl border border-sidebar-border"
               >
                 <span className="flex items-center gap-2">
                   <ExternalLink className="w-3.5 h-3.5" /> {t('patient_booking_page', 'صفحة حجز المرضى')}
@@ -507,7 +507,7 @@ export default function AdminLayout({
               </Link>
               <button
                 onClick={handleLogout}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-rose-400 hover:bg-rose-500/10 rounded-xl"
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-destructive hover:bg-destructive/10 rounded-xl"
               >
                 <LogOut className="w-3.5 h-3.5" /> {t('logout', 'تسجيل الخروج')}
               </button>

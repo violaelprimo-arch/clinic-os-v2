@@ -16,15 +16,14 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
       <div className="relative">
         <Input
           type={showPassword ? "text" : "password"}
-          className={cn("pl-10 text-right", className)}
+          className={cn("pe-10 text-start", className)}
           ref={ref}
           {...props}
-          dir="rtl"
         />
         <button
           type="button"
           onClick={() => setShowPassword(!showPassword)}
-          className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 hover:text-gray-700"
+          className="absolute inset-y-0 end-0 pe-3 flex items-center text-muted-foreground hover:text-foreground cursor-pointer"
           tabIndex={-1}
         >
           {showPassword ? (

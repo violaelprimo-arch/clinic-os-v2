@@ -1374,13 +1374,13 @@ export default function OwnerDashboard() {
       </div>
 
       {/* 3. Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-[#DCE9F5] dark:border-[#254565] pb-2 overflow-x-auto no-scrollbar">
+      <div className="flex items-center gap-2 border-b border-border pb-2 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setActiveTab('clinics')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'clinics'
-              ? 'bg-[#061A38] text-white shadow-md'
-              : 'text-slate-500 hover:text-[#092145] dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#0E2342]'
+              ? 'yalla-gradient-btn text-white shadow-md'
+              : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
           }`}
         >
           <Building className="w-4 h-4" />
@@ -1391,8 +1391,8 @@ export default function OwnerDashboard() {
           onClick={() => setActiveTab('doctors')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'doctors'
-              ? 'bg-[#087CF4] text-white shadow-md'
-              : 'text-slate-500 hover:text-[#092145] dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#0E2342]'
+              ? 'yalla-gradient-btn text-white shadow-md'
+              : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
           }`}
         >
           <Users className="w-4 h-4" />
@@ -1403,8 +1403,8 @@ export default function OwnerDashboard() {
           onClick={() => setActiveTab('packages')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'packages'
-              ? 'bg-amber-600 text-white shadow-md'
-              : 'text-slate-500 hover:text-[#092145] dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#0E2342]'
+              ? 'yalla-gradient-btn text-white shadow-md'
+              : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
           }`}
         >
           <Package className="w-4 h-4" />
@@ -1422,7 +1422,7 @@ export default function OwnerDashboard() {
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'add'
               ? 'yalla-gradient-btn text-white shadow-md'
-              : 'text-slate-500 hover:text-[#092145] dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#0E2342]'
+              : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
           }`}
         >
           <Edit className="w-4 h-4" />
@@ -1433,8 +1433,8 @@ export default function OwnerDashboard() {
           onClick={() => setActiveTab('settings')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'settings'
-              ? 'bg-purple-600 text-white shadow-md'
-              : 'text-slate-500 hover:text-[#182230] hover:bg-slate-100'
+              ? 'yalla-gradient-btn text-white shadow-md'
+              : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
           }`}
         >
           <Bot className="w-4 h-4" />
@@ -4138,12 +4138,12 @@ export default function OwnerDashboard() {
           onClick={() => setPreviewTemplateModal(null)}
         >
           <div
-            className="bg-white dark:bg-[#0E2342] rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl border border-[#DCE9F5] dark:border-[#254565]"
+            className="bg-card rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl border border-border"
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between pb-3 border-b border-[#DCE9F5] dark:border-[#254565]">
-              <h3 className="font-black text-sm text-[#092145] dark:text-[#F3FAFF] flex items-center gap-2">
-                <FileSignature className="w-4 h-4 text-[#087CF4]" />
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <h3 className="font-black text-sm text-foreground flex items-center gap-2">
+                <FileSignature className="w-4 h-4 text-primary" />
                 معاينة تصميم ورقة الروشتة المعتمد للعيادة
               </h3>
               <button

@@ -60,14 +60,14 @@ export function PwaInstallPrompt() {
   return (
     <>
       {/* Floating or Top Install Banner on Mobile */}
-      <div className="fixed bottom-16 sm:bottom-4 left-3 right-3 sm:left-auto sm:right-4 z-40 max-w-sm bg-[#061A38] text-white p-3 rounded-2xl shadow-2xl border border-[#1E3A5F] flex items-center justify-between gap-3 animate-in slide-in-from-bottom-5" dir="rtl">
+      <div className="fixed bottom-16 sm:bottom-4 left-3 right-3 sm:left-auto sm:right-4 z-40 max-w-sm bg-card text-foreground p-3 rounded-2xl shadow-2xl border border-border flex items-center justify-between gap-3 animate-in slide-in-from-bottom-5" dir="rtl">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-[#087CF4] text-white flex items-center justify-center shrink-0 shadow-xs">
+          <div className="w-9 h-9 rounded-xl yalla-gradient-btn text-white flex items-center justify-center shrink-0 shadow-xs">
             <Download className="w-5 h-5" />
           </div>
           <div className="min-w-0">
             <p className="text-xs font-black truncate">تطبيق Yalla Clinic الطبي</p>
-            <p className="text-[10px] text-slate-300 truncate">تثبيت التطبيق على شاشتك الرئيسية</p>
+            <p className="text-[10px] text-muted-foreground truncate">تثبيت التطبيق على شاشتك الرئيسية</p>
           </div>
         </div>
 
@@ -75,13 +75,13 @@ export function PwaInstallPrompt() {
           <Button
             size="sm"
             onClick={handleInstallClick}
-            className="h-8 px-3 text-[11px] font-bold bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl shadow-xs cursor-pointer"
+            className="h-8 px-3 text-[11px] font-bold yalla-gradient-btn text-white rounded-xl shadow-xs cursor-pointer"
           >
             تثبيت
           </Button>
           <button
             onClick={handleDismiss}
-            className="text-slate-400 hover:text-white p-1 rounded-lg"
+            className="text-muted-foreground hover:text-foreground p-1 rounded-lg"
           >
             <X className="w-4 h-4" />
           </button>
