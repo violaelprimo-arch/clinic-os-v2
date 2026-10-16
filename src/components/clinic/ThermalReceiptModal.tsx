@@ -10,8 +10,8 @@ import {
   printHtmlViaIframe,
   generateThermalReceiptHtml
 } from '@/lib/printService'
-import { shareDocumentOrImage } from '@/lib/whatsappShare'
-import { downloadElementAsPdf, downloadElementAsImage, renderElementToImageBlob } from '@/lib/pdfGenerator'
+import { shareDocumentOrImage, sharePdfDocument } from '@/lib/whatsappShare'
+import { downloadElementAsPdf, downloadElementAsImage, renderElementToImageBlob, renderElementToPdfBlob } from '@/lib/pdfGenerator'
 import { useLanguage } from '@/context/LanguageContext'
 import { toast } from 'sonner'
 
@@ -74,38 +74,47 @@ export function ThermalReceiptModal({
 
   const handleSendWhatsApp = async () => {
     if (!data.patientPhone) {
-      toast.error(isRtl ? 'رقم هاتف المريض غير مسجل' : 'Patient phone number is not available')
+      toast.error(isRtl ? 'رقم هاتف المريض غير مسجل في الفاتورة' : 'Patient phone number is not available in receipt')
       return
     }
+    if (!receiptRef.current) return
 
     setIsProcessing(true)
+    const toastId = toast.loading(isRtl ? 'جاري تجهيز ملف الفاتورة PDF للمريض...' : 'Preparing invoice PDF for sharing...')
     try {
-      toast.info(isRtl ? 'جاري تجهيز صورة الفاتورة ومشاركتها...' : 'Preparing invoice image for sharing...')
-      let blob: Blob | null = null
+      const cleanFileName = `Receipt_${data.invoiceNumber || 'receipt'}.pdf`
 
-      if (receiptRef.current) {
-        const res = await renderElementToImageBlob(receiptRef.current, { scale: 2.5 })
-        blob = res.blob
-      }
+      // 1. Generate real thermal PDF blob
+      const { blob: pdfBlob } = await renderElementToPdfBlob(receiptRef.current, {
+        fileName: cleanFileName,
+        format: 'thermal',
+        orientation: 'portrait',
+        scale: 2.5
+      })
+
+      // 2. Generate image blob for clipboard (instant Ctrl+V on desktop)
+      let imgBlob: Blob | undefined
+      try {
+        const imgRes = await renderElementToImageBlob(receiptRef.current, { scale: 2.5 })
+        imgBlob = imgRes.blob
+      } catch {}
 
       const msg = isRtl
-        ? `مرحباً ${data.patientName}،\nفاتورتك من عيادة ${data.clinicName} ${data.branchName ? `(فرع ${data.branchName})` : ''}:\n- رقم الفاتورة: ${data.invoiceNumber}\n- الخدمة: ${data.serviceName}\n- المبلغ المطلوب: ${data.netPrice} ج.م\n- حالة الدفع: ${data.paymentStatus === 'paid' ? 'مدفوع ومؤكد' : 'في انتظار التأكيد'}\nنتمنى لكم دوام الصحة والعافية.`
-        : `Hello ${data.patientName},\nYour invoice from ${data.clinicName} ${data.branchName ? `(Branch ${data.branchName})` : ''}:\n- Invoice No: ${data.invoiceNumber}\n- Service: ${data.serviceName}\n- Amount: ${data.netPrice} EGP\n- Payment: ${data.paymentStatus === 'paid' ? 'Paid & Confirmed' : 'Pending Confirmation'}\nWishing you good health.`
+        ? `مرحباً ${data.patientName}،\nفاتورتك من عيادة ${data.clinicName} ${data.branchName ? `(فرع ${data.branchName})` : ''}:\n- رقم الفاتورة: #${data.invoiceNumber}\n- الخدمة: ${data.serviceName}\n- المبلغ المطلوب: ${data.netPrice} ج.م\n- حالة الدفع: ${data.paymentStatus === 'paid' ? 'مدفوع ومؤكد' : 'في انتظار التأكيد'}\n📄 مرفق ملف الفاتورة PDF.\nنتمنى لكم دوام الصحة والعافية.`
+        : `Hello ${data.patientName},\nYour invoice from ${data.clinicName} ${data.branchName ? `(Branch ${data.branchName})` : ''}:\n- Invoice No: #${data.invoiceNumber}\n- Service: ${data.serviceName}\n- Amount: ${data.netPrice} EGP\n- Payment: ${data.paymentStatus === 'paid' ? 'Paid & Confirmed' : 'Pending Confirmation'}\n📄 Attached PDF receipt.\nWishing you good health.`
 
-      if (blob) {
-        await shareDocumentOrImage({
-          blob,
-          fileName: `Invoice_${data.patientName}_${data.invoiceNumber || 'receipt'}.png`,
-          fileType: 'image',
-          recipientPhone: data.patientPhone,
-          messageText: msg,
-          documentTitle: isRtl ? 'فاتورة الكشف' : 'Medical Invoice'
-        })
-      } else {
-        // Fallback text
-        window.open(`https://wa.me/2${data.patientPhone}?text=${encodeURIComponent(msg)}`, '_blank')
-      }
+      toast.dismiss(toastId)
+
+      await sharePdfDocument({
+        pdfBlob,
+        fileName: cleanFileName,
+        recipientPhone: data.patientPhone,
+        messageText: msg,
+        documentTitle: isRtl ? 'فاتورة الكشف' : 'Medical Invoice',
+        imageBlobForClipboard: imgBlob
+      })
     } catch (err) {
+      toast.dismiss(toastId)
       console.error(err)
       toast.error(isRtl ? 'تعذر إرسال الفاتورة عبر واتساب' : 'Failed to share invoice via WhatsApp')
     } finally {
@@ -257,17 +266,17 @@ export function ThermalReceiptModal({
         {/* Action Buttons Toolbar */}
         <div className="p-3 sm:p-4 border-t border-border flex flex-wrap items-center justify-between gap-2 bg-card">
           <div className="flex items-center gap-1.5 flex-wrap">
-            {/* WhatsApp Share as Image */}
+            {/* WhatsApp Share as PDF */}
             <Button
               variant="outline"
               size="sm"
               onClick={handleSendWhatsApp}
               disabled={isProcessing}
-              className="h-9 px-3 text-xs font-bold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 rounded-xl"
-              title={isRtl ? 'مشاركة صورة الفاتورة عبر واتساب' : 'Share receipt image on WhatsApp'}
+              className="h-9 px-3 text-xs font-bold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 rounded-xl cursor-pointer"
+              title={isRtl ? 'إرسال الفاتورة PDF عبر واتساب لرقم المريض المسجل' : 'Send receipt PDF on WhatsApp to registered patient phone'}
             >
               {isProcessing ? <Loader2 className={`w-3.5 h-3.5 animate-spin ${isRtl ? 'ml-1' : 'mr-1'}`} /> : <Share2 className={`w-3.5 h-3.5 ${isRtl ? 'ml-1' : 'mr-1'}`} />}
-              {t('send_whatsapp_btn', isRtl ? 'واتساب' : 'WhatsApp')}
+              {t('send_whatsapp_pdf_btn', isRtl ? 'واتساب (PDF)' : 'WhatsApp (PDF)')}
             </Button>
 
             {/* Download as Image */}

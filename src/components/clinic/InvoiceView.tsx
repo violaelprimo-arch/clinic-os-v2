@@ -6,8 +6,8 @@ import { Badge } from '@/components/ui/badge'
 import { Printer, Download, Receipt, CheckCircle2, Clock, MapPin, Phone, Building, Share2, MessageCircle, Image as ImageIcon } from 'lucide-react'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { printHtmlViaIframe, generateThermalReceiptHtml } from '@/lib/printService'
-import { downloadElementAsPdf, downloadElementAsImage, renderElementToImageBlob } from '@/lib/pdfGenerator'
-import { shareDocumentOrImage } from '@/lib/whatsappShare'
+import { downloadElementAsPdf, downloadElementAsImage, renderElementToImageBlob, renderElementToPdfBlob } from '@/lib/pdfGenerator'
+import { shareDocumentOrImage, sharePdfDocument } from '@/lib/whatsappShare'
 import { useLanguage } from '@/context/LanguageContext'
 import { toast } from 'sonner'
 
@@ -114,32 +114,50 @@ export function InvoiceView({
     }
   }
 
-  // WhatsApp Share with Image (Desktop clipboard + auto download + wa.me)
+  // WhatsApp Share with real PDF (Mobile WebShare attaches PDF; Desktop opens patient chat & downloads PDF + Ctrl+V image)
   const handleShareWhatsApp = async () => {
-    if (!invoice.patientPhone) return toast.error(isRtl ? 'رقم هاتف المريض غير مسجل' : 'Patient phone number not found')
+    if (!invoice.patientPhone) return toast.error(isRtl ? 'رقم هاتف المريض غير مسجل في الفاتورة' : 'Patient phone number not found in invoice')
     if (!printableRef.current) return
-    setIsGeneratingImage(true)
+    setIsGeneratingPdf(true)
+    const toastId = toast.loading(isRtl ? 'جاري تجهيز ملف الفاتورة PDF للمريض...' : 'Preparing invoice PDF for sharing...')
     try {
-      toast.info(isRtl ? 'جاري تجهيز صورة الفاتورة للمشاركة...' : 'Preparing invoice image for sharing...')
-      const { blob } = await renderElementToImageBlob(printableRef.current, { scale: 2.5 })
+      const cleanFileName = `Invoice_${invoice.invoiceNumber || 'receipt'}.pdf`
+
+      // 1. Generate real high-res PDF blob
+      const { blob: pdfBlob } = await renderElementToPdfBlob(printableRef.current, {
+        fileName: cleanFileName,
+        format: 'a4',
+        orientation: 'portrait',
+        scale: 2.5
+      })
+
+      // 2. Generate image blob for clipboard (instant Ctrl+V on desktop)
+      let imgBlob: Blob | undefined
+      try {
+        const imgRes = await renderElementToImageBlob(printableRef.current, { scale: 2.5 })
+        imgBlob = imgRes.blob
+      } catch {}
 
       const msg = isRtl
-        ? `مرحباً ${invoice.patientName}،\nفاتورتك من عيادة ${invoice.clinicName} ${invoice.branchName ? `(فرع ${invoice.branchName})` : ''}:\n- رقم الفاتورة: ${invoice.invoiceNumber}\n- الخدمة: ${invoice.serviceName}\n- المبلغ الصافي: ${invoice.netTotal} ج.م\n- حالة الدفع: ${invoice.paymentStatus === 'paid' ? 'مدفوع ومؤكد' : 'في انتظار التأكيد'}\nنتمنى لكم دوام الصحة والعافية.`
-        : `Hello ${invoice.patientName},\nYour invoice from ${invoice.clinicName} ${invoice.branchName ? `(Branch ${invoice.branchName})` : ''}:\n- Invoice No: ${invoice.invoiceNumber}\n- Service: ${invoice.serviceName}\n- Net Total: ${invoice.netTotal} EGP\n- Payment: ${invoice.paymentStatus === 'paid' ? 'Paid & Confirmed' : 'Pending Confirmation'}\nWishing you good health.`
+        ? `مرحباً ${invoice.patientName}،\nفاتورتك الطبية الرسمية من عيادة ${invoice.clinicName} ${invoice.branchName ? `(فرع ${invoice.branchName})` : ''}:\n- رقم الفاتورة: #${invoice.invoiceNumber}\n- الخدمة: ${invoice.serviceName}\n- المبلغ الصافي: ${invoice.netTotal} ج.م\n- حالة الدفع: ${invoice.paymentStatus === 'paid' ? 'مدفوع ومؤكد' : 'في انتظار التأكيد'}\n📄 مرفق ملف الفاتورة الرسمي PDF.\nنتمنى لكم دوام الصحة والعافية.`
+        : `Hello ${invoice.patientName},\nYour official medical invoice from ${invoice.clinicName} ${invoice.branchName ? `(Branch ${invoice.branchName})` : ''}:\n- Invoice No: #${invoice.invoiceNumber}\n- Service: ${invoice.serviceName}\n- Net Total: ${invoice.netTotal} EGP\n- Payment: ${invoice.paymentStatus === 'paid' ? 'Paid & Confirmed' : 'Pending Confirmation'}\n📄 Attached official PDF invoice.\nWishing you good health.`
 
-      await shareDocumentOrImage({
-        blob,
-        fileName: `Invoice_${invoice.invoiceNumber}.png`,
-        fileType: 'image',
+      toast.dismiss(toastId)
+
+      await sharePdfDocument({
+        pdfBlob,
+        fileName: cleanFileName,
         recipientPhone: invoice.patientPhone,
         messageText: msg,
-        documentTitle: isRtl ? 'فاتورة الكشف' : 'Medical Invoice'
+        documentTitle: isRtl ? 'فاتورة الكشف' : 'Medical Invoice',
+        imageBlobForClipboard: imgBlob
       })
     } catch (e) {
+      toast.dismiss(toastId)
       console.error(e)
       toast.error(isRtl ? 'تعذر مشاركة الفاتورة عبر واتساب' : 'Failed to share invoice via WhatsApp')
     } finally {
-      setIsGeneratingImage(false)
+      setIsGeneratingPdf(false)
     }
   }
 
@@ -165,16 +183,18 @@ export function InvoiceView({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* WhatsApp Share as Image */}
+          {/* WhatsApp Share as PDF */}
           <Button
             size="sm"
             onClick={handleShareWhatsApp}
-            disabled={isGeneratingImage}
-            className="h-9 px-3 text-xs font-bold bg-[#25D366] hover:bg-[#128C7E] text-white rounded-xl shadow-xs flex items-center gap-1.5"
-            title={isRtl ? 'مشاركة الفاتورة عبر واتساب كصورة' : 'Share invoice as image via WhatsApp'}
+            disabled={isGeneratingPdf}
+            className="h-9 px-3 text-xs font-bold bg-[#25D366] hover:bg-[#128C7E] text-white rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
+            title={isRtl ? 'إرسال الفاتورة PDF إلى واتساب المريض المسجل' : 'Send invoice PDF to registered patient on WhatsApp'}
           >
             <MessageCircle className={`w-4 h-4 ${isRtl ? 'ml-1' : 'mr-1'}`} />
-            {isGeneratingImage ? (isRtl ? 'جاري التجهيز...' : 'Preparing...') : t('send_whatsapp_btn', isRtl ? 'إرسال واتساب' : 'Send WhatsApp')}
+            {isGeneratingPdf
+              ? (isRtl ? 'جاري تجهيز PDF...' : 'Preparing PDF...')
+              : t('send_whatsapp_pdf_btn', isRtl ? 'إرسال واتساب (PDF)' : 'Send WhatsApp (PDF)')}
           </Button>
 
           {/* Download as Image */}

@@ -5,7 +5,14 @@ import { toast } from 'sonner'
  * e.g., '01012345678' -> '201012345678'
  */
 export function formatEgyptianPhoneForWhatsApp(phone: string): string {
-  let cleaned = String(phone || '').replace(/[^0-9]/g, '')
+  let cleaned = String(phone || '')
+  // Normalize Arabic and Persian digits to standard ASCII 0-9
+  const arDigits = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩']
+  const faDigits = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹']
+  for (let i = 0; i < 10; i++) {
+    cleaned = cleaned.replace(new RegExp(arDigits[i], 'g'), String(i)).replace(new RegExp(faDigits[i], 'g'), String(i))
+  }
+  cleaned = cleaned.replace(/[^0-9]/g, '')
   if (cleaned.startsWith('002')) {
     cleaned = cleaned.substring(2)
   }
@@ -259,11 +266,11 @@ export async function shareDocumentOrImage({
     document.body.removeChild(a)
     setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 30000)
 
-    toast.success(`تم فتح محادثة المريض (${recipientPhone}) وتنزيل ملف PDF! اسحب الملف للشات أو اضغط (Ctrl + V) لإرسال صورة الروشتة 🚀`, {
+    toast.success(`تم فتح محادثة المريض (${recipientPhone}) وتنزيل ملف PDF (${resolvedFileName})! اسحب الملف للشات أو اضغط (Ctrl + V) لإرسال صورة ${documentTitle} 🚀`, {
       duration: 8000
     })
   } else {
-    toast.success(`تم فتح محادثة المريض (${recipientPhone}) ببيانات الروشتة كاملة! 🚀`, {
+    toast.success(`تم فتح محادثة المريض (${recipientPhone}) ببيانات ${documentTitle} كاملة! 🚀`, {
       duration: 6000
     })
   }
