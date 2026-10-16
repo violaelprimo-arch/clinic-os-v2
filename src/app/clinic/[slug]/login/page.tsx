@@ -256,7 +256,7 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
           {/* Top Header */}
           <div className="space-y-4">
             <div className="flex lg:hidden justify-center pb-2">
-              <ClinicLogo size="md" variant="light" />
+              <ClinicLogo size="md" variant="auto" />
             </div>
 
             <div className={`space-y-1.5 ${isRtl ? 'text-right' : 'text-left'}`}>

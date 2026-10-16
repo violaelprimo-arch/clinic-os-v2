@@ -1,7 +1,6 @@
 'use client'
 
 import React from 'react'
-import { useTheme } from '@/context/ThemeContext'
 
 interface ClinicLogoProps {
   className?: string
@@ -20,22 +19,11 @@ export function ClinicLogo({
   subtitle = 'نظام العيادات الذكي',
   iconOnly = false
 }: ClinicLogoProps) {
-  let activeTheme = 'light'
-  try {
-    const themeCtx = useTheme()
-    activeTheme = themeCtx.theme
-  } catch (e) {
-    // If rendered outside ThemeProvider
-    activeTheme = 'light'
-  }
-
-  const effectiveVariant = variant === 'auto' ? activeTheme : variant
-
-  // Height classes for full logo image
+  // Height classes for full logo image (normalized PNGs have equal 271px height and identical padding)
   const heightClasses = {
-    sm: 'h-7 sm:h-8',
+    sm: 'h-8 sm:h-8.5',
     md: 'h-9 sm:h-10',
-    lg: 'h-11 sm:h-13',
+    lg: 'h-11 sm:h-12',
     xl: 'h-14 sm:h-16'
   }
 
@@ -47,15 +35,7 @@ export function ClinicLogo({
     xl: 'w-16 h-16'
   }
 
-  // Official brand assets:
-  // Primary Logo for Light Background: /brand/yalla-clinic/logo-light-bg.png
-  // Logo for Dark Background: /brand/yalla-clinic/logo-dark-bg.png
-  // Application Icon: /brand/yalla-clinic/app-icon.png
-  const logoSrc =
-    effectiveVariant === 'dark'
-      ? '/brand/yalla-clinic/logo-dark-bg.png'
-      : '/brand/yalla-clinic/logo-light-bg.png'
-
+  // Application Icon
   if (iconOnly) {
     return (
       <div className={`inline-flex items-center shrink-0 ${className}`}>
@@ -68,19 +48,49 @@ export function ClinicLogo({
     )
   }
 
+  const commonImgClass = `${heightClasses[size]} w-auto max-w-[220px] sm:max-w-none object-contain drop-shadow-sm transition-opacity duration-200`
+
   return (
     <div className={`inline-flex flex-col items-start select-none ${className}`} dir="ltr">
       <div className="flex items-center">
-        <img
-          src={logoSrc}
-          alt="Yalla Clinic"
-          className={`${heightClasses[size]} w-auto max-w-[220px] sm:max-w-none object-contain drop-shadow-sm`}
-        />
+        {variant === 'auto' ? (
+          <>
+            {/* Light Mode Logo (Visible in light mode, hidden in dark mode via CSS) */}
+            <img
+              src="/brand/yalla-clinic/logo-light-bg.png"
+              alt="Yalla Clinic"
+              className={`${commonImgClass} logo-light-mode`}
+            />
+            {/* Dark Mode Logo (Visible in dark mode, hidden in light mode via CSS) */}
+            <img
+              src="/brand/yalla-clinic/logo-dark-bg.png"
+              alt="Yalla Clinic"
+              className={`${commonImgClass} logo-dark-mode`}
+            />
+          </>
+        ) : variant === 'dark' ? (
+          <img
+            src="/brand/yalla-clinic/logo-dark-bg.png"
+            alt="Yalla Clinic"
+            className={commonImgClass}
+          />
+        ) : (
+          <img
+            src="/brand/yalla-clinic/logo-light-bg.png"
+            alt="Yalla Clinic"
+            className={commonImgClass}
+          />
+        )}
       </div>
+
       {showSubtitle && (
         <span
           className={`text-[10px] font-bold mt-0.5 ${
-            effectiveVariant === 'dark' ? 'text-[#02CFF3]' : 'text-[#087CF4]'
+            variant === 'dark'
+              ? 'text-[#02CFF3]'
+              : variant === 'light'
+              ? 'text-[#087CF4]'
+              : 'text-[#087CF4] dark:text-[#02CFF3]'
           }`}
           dir="rtl"
         >

@@ -245,7 +245,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
       >
         <div className="text-center mb-6 space-y-2">
           <Link href={`/clinic/${slug}`} className="inline-block">
-            <ClinicLogo size="md" variant="light" />
+            <ClinicLogo size="md" variant="auto" />
           </Link>
           <div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold border border-primary/20 mt-2">

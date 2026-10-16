@@ -129,7 +129,7 @@ export function PremiumLanding({
           <div className="flex justify-between items-center h-18">
             {/* Brand Logo & Doctor Snippet */}
             <div className="flex items-center gap-3">
-              <ClinicLogo size="sm" variant="light" showSubtitle={false} />
+              <ClinicLogo size="sm" variant="auto" showSubtitle={false} />
               <div className="hidden sm:block rtl:border-r ltr:border-l border-border rtl:pr-3 ltr:pl-3">
                 <h1 className="text-sm font-black text-foreground">
                   {clinic?.clinicName || `${isRtl ? 'عيادة' : 'Clinic'} ${clinic?.doctorTitle || (isRtl ? 'د.' : 'Dr.')} ${isRtl ? 'الطبيب' : 'Physician'}`}
@@ -683,7 +683,7 @@ export function PremiumLanding({
           <div className="grid md:grid-cols-4 gap-8 pb-8 border-b border-border">
             {/* Col 1: Clinic Info */}
             <div className="md:col-span-2 space-y-3">
-              <ClinicLogo size="sm" variant="light" />
+              <ClinicLogo size="sm" variant="auto" />
               <p className="text-xs text-muted-foreground max-w-sm leading-relaxed">
                 {clinic?.clinicName || 'العيادة'} — {t('clinic_footer_desc', 'رعاية صحية متكاملة مدعومة بأحدث التقنيات الطبية ونظام إدارة ذكي للأدوار والروشتات.')}
               </p>

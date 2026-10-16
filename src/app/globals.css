@@ -346,6 +346,25 @@ html[dir="ltr"], [dir="ltr"] {
   animation: shimmerWave 2s infinite ease-in-out;
 }
 
+/* =========================================================================
+   YALLA CLINIC LOGO LIGHT/DARK MODE DYNAMIC SWITCHING
+   ========================================================================= */
+.logo-dark-mode {
+  display: none !important;
+}
+.logo-light-mode {
+  display: block !important;
+}
+
+.dark .logo-light-mode,
+html.dark .logo-light-mode {
+  display: none !important;
+}
+
+.dark .logo-dark-mode,
+html.dark .logo-dark-mode {
+  display: block !important;
+}
 
 /* Strict Clean Print Media (Zero Clutter on Paper / XP-80C) */
 @media print {

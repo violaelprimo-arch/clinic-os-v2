@@ -192,7 +192,7 @@ export default function UpdatePassword({ params }: { params: Promise<{ slug: str
         
         {/* Header */}
         <div className="text-center space-y-3">
-          <ClinicLogo size="md" variant="light" />
+          <ClinicLogo size="md" variant="auto" />
           <div>
             <h1 className="text-xl font-black text-foreground">
               {isRtl ? 'استعادة كلمة المرور (OTP)' : 'Reset Password (OTP)'}

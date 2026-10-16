@@ -201,7 +201,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
   if (loading || !patientData) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4" dir={dir}>
-        <ClinicLogo size="lg" variant="light" />
+        <ClinicLogo size="lg" variant="auto" />
         <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
           <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
           {t('loading_medical_profile', 'جاري تحميل ملفك الطبي...')}
@@ -217,7 +217,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href={`/clinic/${slug}`}>
-              <ClinicLogo size="sm" variant="light" showSubtitle={false} />
+              <ClinicLogo size="sm" variant="auto" showSubtitle={false} />
             </Link>
             <div className="hidden sm:block rtl:border-r ltr:border-l border-border rtl:pr-3 ltr:pl-3">
               <span className="font-black text-sm text-foreground">{t('patient_portal', 'بوابة المريض الإلكترونية')}</span>

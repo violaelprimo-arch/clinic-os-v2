@@ -140,7 +140,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 text-foreground" dir={dir}>
-        <ClinicLogo size="md" variant="light" />
+        <ClinicLogo size="md" variant="auto" />
         <p className="text-xs text-muted-foreground font-bold mt-3">{t('syncing_queue', 'جاري مزامنة الدور المباشر...')}</p>
       </div>
     )
@@ -209,7 +209,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
               />
             </div>
           )}
-          <ClinicLogo size="md" variant="light" />
+          <ClinicLogo size="md" variant="auto" />
           <div className="pt-2">
             <h1 className="text-lg font-black text-foreground">
               {clinic?.clinicName || t('clinic', 'العيادة')}
