@@ -79,7 +79,7 @@ export default function PatientProfilePage({
     try {
       const pName = patientData?.name || appt?.patientName || 'المريض'
       const pAge = patientData?.age || appt?.age || patientData?.dob || appt?.dob || ''
-      const directRxUrl = getClinicUrl(slug, `/prescription/${appt.id}`)
+      const cleanFileName = generateCleanRxFileName(pName, appt.date, 'pdf')
 
       const message = formatPrescriptionWhatsAppMessage({
         clinicName: clinic?.clinicName || 'العيادة الطبية',
@@ -89,29 +89,39 @@ export default function PatientProfilePage({
         patientAge: pAge,
         date: appt.date,
         diagnosis: appt.diagnosis,
-        drugs: appt.drugs || [],
-        directRxUrl
+        drugs: appt.drugs || []
+        // Strictly NO links
       })
 
-      // 1. Open WhatsApp instantly & synchronously (No popup blocker!)
-      openManualWhatsAppChat({
-        phone,
-        message
-      })
-
-      toast.success('تم فتح محادثة المريض مع تفاصيل الروشتة والأدوية! 🚀', { duration: 5000 })
-
-      // 2. In background: copy high-res image to clipboard for Ctrl+V pasting
       const rxElement = document.getElementById(`rx-sheet-${appt.id}`)
-      if (rxElement && typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
-        renderElementToImageBlob(rxElement, { scale: 2.5 }).then(async ({ blob }) => {
-          try {
-            await navigator.clipboard.write([
-              new ClipboardItem({ 'image/png': blob })
-            ])
-            toast.info('تم نسخ صورة الروشتة للحافظة! يمكنك ضغط (Ctrl + V) داخل الشات للصق الصورة أيضاً 📋')
-          } catch (e) {}
-        }).catch(() => {})
+      if (rxElement) {
+        const { blob: pdfBlob } = await renderElementToPdfBlob(rxElement, {
+          fileName: cleanFileName,
+          format: 'a4',
+          orientation: 'portrait',
+          scale: 2.5
+        })
+
+        let imgBlob: Blob | undefined
+        try {
+          const imgRes = await renderElementToImageBlob(rxElement, { scale: 2.5 })
+          imgBlob = imgRes.blob
+        } catch {}
+
+        await sharePdfDocument({
+          pdfBlob,
+          fileName: cleanFileName,
+          recipientPhone: phone,
+          messageText: message,
+          documentTitle: `روشتة ${pName}`,
+          imageBlobForClipboard: imgBlob
+        })
+      } else {
+        openManualWhatsAppChat({
+          phone,
+          message
+        })
+        toast.success('تم فتح محادثة المريض مع تفاصيل الروشتة والأدوية! 🚀', { duration: 5000 })
       }
     } catch (err) {
       console.error(err)

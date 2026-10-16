@@ -243,71 +243,62 @@ export function A4Prescription({
           )}
 
           {/* =========================================================================
-              2. PATIENT METADATA STRIP (Vector Structured Grid)
+              2. PATIENT METADATA STRIP (Vector Structured Header)
              ========================================================================= */}
           <div
             className={`mb-3.5 rounded-xl border transition-all ${
               templateMode === 'custom' && !showHeaderFooter
                 ? 'bg-transparent border-transparent'
-                : 'bg-slate-50/90 border-slate-200/80 shadow-xs'
+                : 'bg-gradient-to-r from-slate-50/90 via-white to-slate-50/90 border-slate-200/90 shadow-2xs'
             }`}
           >
-            <div className={`grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-2.5 ${isA5 ? 'text-[10px]' : 'text-xs'}`}>
-              {/* Patient Name */}
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-lg bg-blue-100/70 text-blue-700 flex items-center justify-center shrink-0">
-                  <User className="w-3.5 h-3.5" />
+            <div className={`p-2.5 sm:p-3 flex flex-wrap items-center justify-between gap-2.5 ${isA5 ? 'text-xs' : 'text-sm'}`}>
+              {/* Patient Name - Wide, Bold, & Dominant */}
+              <div className="flex items-center gap-2.5 min-w-[200px] flex-1">
+                <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <User className="w-4 h-4" />
                 </div>
-                <div className="overflow-hidden">
-                  <span className="text-[10px] text-slate-400 font-semibold block leading-tight">
-                    {language === 'en' ? 'Patient:' : 'المريض:'}
+                <div className="flex flex-col">
+                  <span className="text-[10px] sm:text-[11px] text-slate-400 font-bold block leading-none mb-0.5">
+                    {language === 'en' ? 'Patient Name:' : 'اسم المريض:'}
                   </span>
-                  <strong className="text-slate-900 font-black block text-[11px] sm:text-xs leading-normal">
+                  <span className="text-slate-900 font-black text-xs sm:text-sm md:text-base leading-tight tracking-normal block">
                     {patientName || (language === 'en' ? 'Patient' : 'المريض')}
-                  </strong>
+                  </span>
                 </div>
               </div>
 
-              {/* Age */}
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-lg bg-emerald-100/70 text-emerald-700 flex items-center justify-center shrink-0">
-                  <Calendar className="w-3.5 h-3.5" />
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 font-semibold block leading-tight">
+              {/* Badges: Age, Date, Rx Number */}
+              <div className="flex items-center flex-wrap gap-2 shrink-0">
+                {/* Age */}
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50/90 border border-emerald-200/80 text-emerald-900">
+                  <Calendar className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="text-[10px] sm:text-[11px] text-emerald-700 font-bold">
                     {language === 'en' ? 'Age:' : 'السن:'}
                   </span>
-                  <strong className="text-slate-900 font-black text-[11px] sm:text-xs">
+                  <strong className="text-[11px] sm:text-xs font-black">
                     {age ? `${age} ${language === 'en' ? 'yrs' : 'سنة'}` : '—'}
                   </strong>
                 </div>
-              </div>
 
-              {/* Date */}
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-lg bg-purple-100/70 text-purple-700 flex items-center justify-center shrink-0">
-                  <Clock className="w-3.5 h-3.5" />
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 font-semibold block leading-tight">
+                {/* Date */}
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-50/90 border border-purple-200/80 text-purple-900">
+                  <Clock className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                  <span className="text-[10px] sm:text-[11px] text-purple-700 font-bold">
                     {language === 'en' ? 'Date:' : 'التاريخ:'}
                   </span>
-                  <strong className="text-slate-900 font-mono text-[11px] sm:text-xs" dir="ltr">
+                  <strong className="text-[11px] sm:text-xs font-black font-mono" dir="ltr">
                     {date}
                   </strong>
                 </div>
-              </div>
 
-              {/* Rx Number */}
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-lg bg-amber-100/70 text-amber-700 flex items-center justify-center shrink-0">
-                  <FileText className="w-3.5 h-3.5" />
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 font-semibold block leading-tight">
+                {/* Rx Number */}
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50/90 border border-amber-200/80 text-amber-900">
+                  <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span className="text-[10px] sm:text-[11px] text-amber-700 font-bold">
                     {language === 'en' ? 'Rx #:' : 'رقم الروشتة:'}
                   </span>
-                  <strong className="text-slate-900 font-mono text-[11px] sm:text-xs" dir="ltr">
+                  <strong className="text-[11px] sm:text-xs font-black font-mono" dir="ltr">
                     #{prescriptionNumber || '1042'}
                   </strong>
                 </div>
@@ -316,12 +307,12 @@ export function A4Prescription({
 
             {/* Diagnosis (if present) */}
             {diagnosis && (
-              <div className="border-t border-slate-200/80 px-3 py-1.5 flex items-center gap-2 bg-blue-50/50 rounded-b-xl">
-                <Stethoscope className="w-3.5 h-3.5 text-primary shrink-0" />
-                <span className="text-[10.5px] font-bold text-primary">
+              <div className="border-t border-slate-200/80 px-3.5 py-1.5 flex items-center gap-2 bg-blue-50/50 rounded-b-xl">
+                <Stethoscope className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                <span className="text-[10.5px] font-bold text-blue-700 shrink-0">
                   {language === 'en' ? 'Clinical Diagnosis:' : 'التشخيص الطبي:'}
                 </span>
-                <span className="text-[11px] font-extrabold text-slate-900">
+                <span className="text-[11px] sm:text-xs font-black text-slate-900">
                   {diagnosis}
                 </span>
               </div>

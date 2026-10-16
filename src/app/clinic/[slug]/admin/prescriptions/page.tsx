@@ -233,14 +233,9 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     }
   }
 
-  // Instant WhatsApp sharing: Direct chat opening (no popup blocker) + full Rx details + background image clipboard copy + ZERO DOWNLOAD!
-  const handleShareWhatsAppRx = (modeOverride?: 'auto' | 'app' | 'web') => {
+  // Real PDF WhatsApp sharing: Generates PDF, NO web links, native WebShare on mobile, auto-download + Ctrl+V image on desktop
+  const handleShareWhatsAppRx = async (modeOverride?: 'auto' | 'app' | 'web') => {
     if (!patientPhone) return toast.error('يرجى إدخال رقم هاتف المريض أولاً')
-
-    const apptId = searchParams?.get('appointmentId') || appointmentId
-    const directRxUrl = apptId
-      ? getClinicUrl(slug, `/prescription/${apptId}`)
-      : getClinicUrl(slug, '/patient')
 
     const message = formatPrescriptionWhatsAppMessage({
       clinicName: clinic?.clinicName || 'العيادة الطبية',
@@ -252,39 +247,61 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       rxNumber: 1042,
       diagnosis,
       instructions,
-      drugs: drugs.filter(d => d.name && d.name.trim() !== ''),
-      directRxUrl
+      drugs: drugs.filter(d => d.name && d.name.trim() !== '')
+      // Strictly NO directRxUrl sent, zero web links!
     })
 
     const targetMode = modeOverride || whatsappTarget || 'auto'
+    const cleanFileName = generateCleanRxFileName(patientName, dateStr, 'pdf')
 
-    // 1. Open WhatsApp synchronously in 0ms! (Bypasses popup blocker completely)
-    openManualWhatsAppChat({
-      phone: patientPhone,
-      message,
-      target: targetMode
-    })
-
-    toast.success(`تم فتح محادثة المريض (${patientPhone}) بتفاصيل الروشتة والأدوية! 🚀`, {
-      duration: 5000
-    })
-
-    // 2. In background: Render image and copy to clipboard for optional Ctrl+V pasting (NO FILE DOWNLOAD!)
-    if (sheetRef.current && typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
-      renderElementToImageBlob(sheetRef.current, { scale: 2.5 }).then(async ({ blob }) => {
-        try {
-          await navigator.clipboard.write([
-            new ClipboardItem({ 'image/png': blob })
-          ])
-          toast.info('تم نسخ صورة الروشتة للحافظة! يمكنك ضغط (Ctrl + V) داخل الشات للصق الصورة أيضاً 📋', {
-            duration: 7000
-          })
-        } catch (err) {
-          console.warn('Clipboard write fallback error:', err)
-        }
-      }).catch(err => {
-        console.warn('Render error:', err)
+    if (!sheetRef.current) {
+      openManualWhatsAppChat({
+        phone: patientPhone,
+        message,
+        target: targetMode
       })
+      toast.success(`تم فتح محادثة المريض (${patientPhone}) ببيانات الروشتة والأدوية! 🚀`)
+      return
+    }
+
+    const toastId = toast.loading('جاري إنشاء ملف الروشتة PDF وتجهيز الإرسال...')
+    try {
+      // 1. Generate real high-res PDF blob
+      const { blob: pdfBlob } = await renderElementToPdfBlob(sheetRef.current, {
+        fileName: cleanFileName,
+        format: pageSize === 'a5' ? 'a5' : 'a4',
+        orientation: 'portrait',
+        scale: 2.5
+      })
+
+      // 2. Generate image blob for instant clipboard paste
+      let imgBlob: Blob | undefined
+      try {
+        const imgRes = await renderElementToImageBlob(sheetRef.current, { scale: 2.5 })
+        imgBlob = imgRes.blob
+      } catch {}
+
+      toast.dismiss(toastId)
+
+      // 3. Share PDF (handles native mobile WebShare or desktop download + clipboard)
+      await sharePdfDocument({
+        pdfBlob,
+        fileName: cleanFileName,
+        recipientPhone: patientPhone,
+        messageText: message,
+        documentTitle: `روشتة ${patientName || 'المريض'}`,
+        imageBlobForClipboard: imgBlob,
+        target: targetMode
+      })
+    } catch (err) {
+      toast.dismiss(toastId)
+      console.error('Error generating PDF for WhatsApp:', err)
+      openManualWhatsAppChat({
+        phone: patientPhone,
+        message,
+        target: targetMode
+      })
+      toast.success(`تم فتح محادثة المريض (${patientPhone}) ببيانات الروشتة كاملة!`)
     }
   }
 

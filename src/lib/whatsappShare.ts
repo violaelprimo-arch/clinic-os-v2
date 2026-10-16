@@ -109,7 +109,8 @@ export function openManualWhatsAppChat({
 /**
  * Formats a rich, professional e-prescription WhatsApp message.
  * Directly puts the entire prescription content (diagnosis, all medications with dosages,
- * duration, instructions, and certified official online link) right into the WhatsApp chat.
+ * duration, instructions) right into the WhatsApp chat.
+ * Strictly adheres to ZERO WEB LINKS as requested.
  */
 export function formatPrescriptionWhatsAppMessage({
   clinicName,
@@ -121,8 +122,7 @@ export function formatPrescriptionWhatsAppMessage({
   rxNumber,
   diagnosis,
   instructions,
-  drugs,
-  directRxUrl
+  drugs
 }: {
   clinicName?: string
   doctorName?: string
@@ -134,11 +134,11 @@ export function formatPrescriptionWhatsAppMessage({
   diagnosis?: string
   instructions?: string
   drugs?: Array<{ name: string; dose?: string; duration?: string; notes?: string }>
-  directRxUrl?: string
+  directRxUrl?: string // Kept for backwards type compatibility, but NEVER included in message text!
 }): string {
   const parts: string[] = []
 
-  parts.push(`🌿 *الروشتة الطبية الإلكترونية الرسمية*`)
+  parts.push(`🌿 *الروشتة الطبية الرسمية*`)
   if (clinicName) parts.push(`🏥 *العيادة:* ${clinicName}`)
   if (doctorName) parts.push(`👨‍⚕️ *الطبيب:* د. ${doctorName}${specialty ? ` (${specialty})` : ''}`)
   
@@ -169,11 +169,9 @@ export function formatPrescriptionWhatsAppMessage({
     parts.push(`\n📝 *تعليمات وإرشادات الطبيب:*\n${instructions.trim()}`)
   }
 
-  if (directRxUrl) {
-    parts.push(`\n🔗 *رابط استعراض وتحميل الروشتة الأصلية المعتمدة:*\n${directRxUrl}`)
-  }
-
-  parts.push(`\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`)
+  // Purely state that official PDF is attached (NO LINKS!)
+  parts.push(`\n📄 *مرفق ملف الروشتة الطبية الرسمية (PDF)*`)
+  parts.push(`نتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`)
 
   return parts.join('\n')
 }
@@ -181,9 +179,9 @@ export function formatPrescriptionWhatsAppMessage({
 /**
  * Handles professional sharing of documents and images (Prescriptions, Invoices, Reports).
  * - Opens WhatsApp chat directly targeting the recipient's phone number.
- * - Places full details inside the chat text.
- * - Copies high-res image to clipboard for instant (Ctrl + V) pasting in WhatsApp chat.
- * - Does NOT trigger browser file download unless downloadFile is explicitly set to true.
+ * - Places full details inside the chat text (NO WEB LINKS).
+ * - Tries native OS WebShare with file attachment where supported (mobile).
+ * - On desktop: downloads the clean PDF file & copies image to clipboard for Ctrl+V paste.
  */
 export async function shareDocumentOrImage({
   blob,
@@ -193,7 +191,7 @@ export async function shareDocumentOrImage({
   messageText,
   documentTitle = 'المستند',
   imageBlobForClipboard,
-  downloadFile = false,
+  downloadFile = true,
   target = 'auto'
 }: {
   blob?: Blob
@@ -206,45 +204,68 @@ export async function shareDocumentOrImage({
   downloadFile?: boolean
   target?: 'auto' | 'app' | 'web'
 }): Promise<void> {
-  // 1. Open WhatsApp directly targeting the patient's phone number (SYNCHRONOUS CALL)
+  const mimeType = fileType === 'pdf' ? 'application/pdf' : 'image/png'
+  const resolvedFileName = fileName || (fileType === 'pdf' ? 'Document.pdf' : 'Document.png')
+
+  // 1. Try Native WebShare Level 2 (files support on mobile/supported OS)
+  if (blob && typeof navigator !== 'undefined' && navigator.canShare) {
+    try {
+      const testFile = new File([blob], resolvedFileName, { type: mimeType })
+      if (navigator.canShare({ files: [testFile] })) {
+        await navigator.share({
+          files: [testFile],
+          title: documentTitle,
+          text: messageText
+        })
+        toast.success(`تم إرسال ملف ${documentTitle} عبر واتساب بنجاح! 🚀`)
+        return
+      }
+    } catch (shareErr: any) {
+      if (shareErr.name === 'AbortError') {
+        // User cancelled native dialog, no action needed
+        return
+      }
+      console.warn('Native share failed or unaccepted, falling back to desktop flow:', shareErr)
+    }
+  }
+
+  // 2. Desktop Flow: Open WhatsApp directly targeting recipient's phone (0ms popup-free)
   openManualWhatsAppChat({
     phone: recipientPhone,
     message: messageText,
     target
   })
 
-  // 2. Desktop WhatsApp Web/App clipboard auto-copy:
+  // 3. Desktop Clipboard auto-copy (for Ctrl + V instant image send)
   const clipBlob = imageBlobForClipboard || (fileType === 'image' ? blob : null)
   if (clipBlob && typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
     try {
       await navigator.clipboard.write([
         new ClipboardItem({ 'image/png': clipBlob })
       ])
-      toast.success('تم فتح المحادثة ونسخ صورة الروشتة! اضغط (Ctrl + V) في الشات لإرسال الصورة أيضاً 🚀', {
-        duration: 8000
-      })
     } catch (err) {
-      console.warn('Clipboard write fallback/failed:', err)
-      toast.success(`تم فتح محادثة المريض (${recipientPhone}) ببيانات الروشتة كاملة!`, {
-        duration: 6000
-      })
+      console.warn('Clipboard write fallback:', err)
     }
-  } else {
-    toast.success(`تم فتح محادثة المريض (${recipientPhone}) ببيانات الروشتة كاملة!`, {
-      duration: 6000
-    })
   }
 
-  // 3. ONLY download file if explicitly requested
-  if (downloadFile && blob && fileName) {
+  // 4. Download file so user has the PDF ready to attach/drag in WhatsApp Desktop / Web
+  if (downloadFile && blob) {
     const downloadUrl = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = downloadUrl
-    a.download = fileName
+    a.download = resolvedFileName
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
     setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 30000)
+
+    toast.success(`تم فتح محادثة المريض (${recipientPhone}) وتنزيل ملف PDF! اسحب الملف للشات أو اضغط (Ctrl + V) لإرسال صورة الروشتة 🚀`, {
+      duration: 8000
+    })
+  } else {
+    toast.success(`تم فتح محادثة المريض (${recipientPhone}) ببيانات الروشتة كاملة! 🚀`, {
+      duration: 6000
+    })
   }
 }
 
@@ -257,6 +278,8 @@ export async function sharePdfDocument(params: {
   recipientPhone: string
   messageText: string
   documentTitle?: string
+  imageBlobForClipboard?: Blob
+  target?: 'auto' | 'app' | 'web'
 }): Promise<void> {
   return shareDocumentOrImage({
     blob: params.pdfBlob,
@@ -264,7 +287,10 @@ export async function sharePdfDocument(params: {
     fileType: 'pdf',
     recipientPhone: params.recipientPhone,
     messageText: params.messageText,
-    documentTitle: params.documentTitle
+    documentTitle: params.documentTitle,
+    imageBlobForClipboard: params.imageBlobForClipboard,
+    downloadFile: true,
+    target: params.target || 'auto'
   })
 }
 

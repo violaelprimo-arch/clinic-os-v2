@@ -156,9 +156,8 @@ export default function PublicPrescriptionPage({
     }
   }
 
-  // WhatsApp Share with Image (and clipboard copy / no download)
+  // WhatsApp Share with real PDF (no links)
   const handleShareWhatsApp = async () => {
-    const currentUrl = getClinicUrl(slug, `/prescription/${appointmentId}`)
     const message = formatPrescriptionWhatsAppMessage({
       clinicName: clinic?.clinicName || (isRtl ? 'العيادة الطبية' : 'Medical Clinic'),
       doctorName: clinic?.doctorName,
@@ -168,28 +167,57 @@ export default function PublicPrescriptionPage({
       date: rxDate,
       diagnosis: rxDiagnosis,
       instructions: prescription?.instructions,
-      drugs: rxDrugs,
-      directRxUrl: currentUrl
+      drugs: rxDrugs
+      // Strictly NO links
     })
 
-    // 1. Open WhatsApp synchronously in 0ms (no popup blocker, NO download!)
-    openManualWhatsAppChat({
-      phone: patientPhone,
-      message
-    })
+    const cleanFileName = generateCleanRxFileName(patientName, rxDate, 'pdf')
 
-    toast.success(isRtl ? 'تم فتح محادثة المريض مع تفاصيل الروشتة والأدوية! 🚀' : 'Opened WhatsApp chat with full prescription details! 🚀')
+    if (!printSheetRef.current) {
+      openManualWhatsAppChat({
+        phone: patientPhone,
+        message
+      })
+      toast.success(isRtl ? 'تم فتح محادثة المريض مع تفاصيل الروشتة والأدوية! 🚀' : 'Opened WhatsApp chat with prescription details! 🚀')
+      return
+    }
 
-    // 2. Background clipboard copy for Ctrl+V pasting
-    if (printSheetRef.current && typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
-      renderElementToImageBlob(printSheetRef.current, { scale: 2.5 }).then(async ({ blob }) => {
-        try {
-          await navigator.clipboard.write([
-            new ClipboardItem({ 'image/png': blob })
-          ])
-          toast.info(isRtl ? 'تم نسخ صورة الروشتة للحافظة! يمكنك ضغط (Ctrl + V) داخل الشات للصق الصورة أيضاً 📋' : 'Copied Rx image to clipboard! Press Ctrl+V to paste in chat.')
-        } catch (e) {}
-      }).catch(() => {})
+    setIsSharing(true)
+    const toastId = toast.loading(isRtl ? 'جاري تجهيز ملف الروشتة PDF...' : 'Preparing Rx PDF document...')
+    try {
+      const { blob: pdfBlob } = await renderElementToPdfBlob(printSheetRef.current, {
+        fileName: cleanFileName,
+        format: 'a4',
+        orientation: 'portrait',
+        scale: 2.5
+      })
+
+      let imgBlob: Blob | undefined
+      try {
+        const imgRes = await renderElementToImageBlob(printSheetRef.current, { scale: 2.5 })
+        imgBlob = imgRes.blob
+      } catch {}
+
+      toast.dismiss(toastId)
+
+      await sharePdfDocument({
+        pdfBlob,
+        fileName: cleanFileName,
+        recipientPhone: patientPhone,
+        messageText: message,
+        documentTitle: `روشتة ${patientName}`,
+        imageBlobForClipboard: imgBlob
+      })
+    } catch (e) {
+      toast.dismiss(toastId)
+      console.error(e)
+      openManualWhatsAppChat({
+        phone: patientPhone,
+        message
+      })
+      toast.success(isRtl ? 'تم فتح محادثة المريض مع تفاصيل الروشتة! 🚀' : 'Opened WhatsApp chat with prescription!')
+    } finally {
+      setIsSharing(false)
     }
   }
 
