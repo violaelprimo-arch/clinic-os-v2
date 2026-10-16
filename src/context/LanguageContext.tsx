@@ -54,7 +54,6 @@ const translations: Record<Language, Record<string, string>> = {
     'upgrade_account': 'ترقية الحساب / الباقات',
     'technical_support': 'تواصل مع الدعم الفني',
     'patient_booking_page': 'صفحة حجز المرضى',
-    'canvas_preview': 'معاينة تصميم Canvas',
     'logout': 'تسجيل الخروج',
 
     // Common Buttons & Actions
@@ -298,7 +297,6 @@ const translations: Record<Language, Record<string, string>> = {
     'upgrade_account': 'Upgrade / Packages',
     'technical_support': 'Contact Support',
     'patient_booking_page': 'Patient Booking Page',
-    'canvas_preview': 'Canvas Interactive Preview',
     'logout': 'Sign Out',
 
     // Common Buttons & Actions

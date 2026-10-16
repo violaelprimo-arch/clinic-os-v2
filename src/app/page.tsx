@@ -24,19 +24,13 @@ export default function Home() {
         <div className="flex items-center gap-3">
           <ThemeToggle />
           <LanguageToggle />
-          <Link href="/preview">
-            <Button className="h-10 px-4 text-xs font-black yalla-gradient-btn text-white rounded-xl shadow-xs">
-              <Sparkles className="w-3.5 h-3.5 ml-1.5" />
-              معاينة تصميم Canvas الجديد
-            </Button>
-          </Link>
           <Link href="/clinic/demo">
             <Button variant="outline" className="h-10 text-xs font-bold border-border text-foreground rounded-xl">
               صفحة العيادة للمرضى
             </Button>
           </Link>
           <Link href="/clinic/demo/login">
-            <Button variant="ghost" className="h-10 px-4 text-xs font-bold text-foreground border border-border rounded-xl">
+            <Button className="h-10 px-5 text-xs font-black yalla-gradient-btn text-white rounded-xl shadow-xs">
               دخول العيادة
             </Button>
           </Link>
@@ -64,22 +58,15 @@ export default function Home() {
 
           {/* Action CTAs */}
           <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
-            <Link href="/preview">
-              <Button className="h-14 px-8 text-base font-black yalla-gradient-btn text-white rounded-2xl shadow-xl hover:scale-105 transition-all">
-                <Sparkles className="w-5 h-5 ml-2" />
-                معاينة تصميم Canvas التفاعلي الجديد
-              </Button>
-            </Link>
-
             <Link href="/clinic/demo/admin">
-              <Button variant="outline" className="h-14 px-8 text-base font-bold border-border text-foreground hover:bg-muted/40 rounded-2xl bg-card shadow-xs hover:scale-105 transition-all">
-                <Stethoscope className="w-5 h-5 ml-2 text-primary" />
-                لوحة تحكم الطبيب والعيادة
+              <Button className="h-14 px-8 text-base font-black yalla-gradient-btn text-white rounded-2xl shadow-xl hover:scale-105 transition-all">
+                <Stethoscope className="w-5 h-5 ml-2" />
+                تجربة لوحة تحكم الطبيب والعيادة
               </Button>
             </Link>
 
             <Link href="/clinic/demo">
-              <Button variant="ghost" className="h-14 px-6 text-base font-bold border border-border text-foreground hover:bg-muted/40 rounded-2xl bg-card shadow-xs hover:scale-105 transition-all">
+              <Button variant="outline" className="h-14 px-8 text-base font-bold border-border text-foreground hover:bg-muted/40 rounded-2xl bg-card shadow-xs hover:scale-105 transition-all">
                 <Calendar className="w-5 h-5 ml-2 text-primary" />
                 حجز مريض ومتابعة الدور
               </Button>
