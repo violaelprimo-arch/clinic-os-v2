@@ -305,7 +305,7 @@ export default function AdminLayout({
       {/* =========================================================================
           1. DESKTOP SIDEBAR (Theme-Aware: Clean White in Light / Deep Navy in Dark)
          ========================================================================= */}
-      <aside className="w-68 bg-sidebar text-sidebar-foreground hidden lg:flex flex-col border-e border-sidebar-border relative z-30 shrink-0 select-none shadow-sm print:hidden transition-colors duration-200">
+      <aside className="w-68 bg-sidebar/95 backdrop-blur-md text-sidebar-foreground hidden lg:flex flex-col border-e border-sidebar-border relative z-30 shrink-0 select-none shadow-sm print:hidden transition-colors duration-200">
         {/* Brand Header */}
         <div className="p-4 border-b border-sidebar-border bg-sidebar/95 backdrop-blur-sm">
           <Link href={`/clinic/${slug}/admin`} className="flex items-center gap-3">
@@ -313,11 +313,11 @@ export default function AdminLayout({
           </Link>
 
           {/* Doctor Profile Mini Card */}
-          <div className="mt-3 p-3 rounded-2xl bg-secondary/60 dark:bg-card-elevated border border-sidebar-border transition-colors">
+          <div className="mt-3 p-3 rounded-2xl bg-secondary/40 dark:bg-card-elevated border border-sidebar-border shadow-2xs transition-colors">
             <div className="flex items-center gap-3">
-              <Avatar className="w-10 h-10 border border-primary/30 shadow-2xs shrink-0">
-                <AvatarImage src={clinic?.heroImage} alt="Doctor" className="object-cover" />
-                <AvatarFallback className="bg-primary/10 text-primary font-bold text-sm">
+              <Avatar className="w-10 h-10 rounded-2xl border-2 border-primary/25 shadow-2xs shrink-0">
+                <AvatarImage src={clinic?.heroImage} alt="Doctor" className="object-cover rounded-2xl" />
+                <AvatarFallback className="bg-primary/10 text-primary font-bold text-sm rounded-2xl">
                   <User className="w-5 h-5" />
                 </AvatarFallback>
               </Avatar>
@@ -338,7 +338,7 @@ export default function AdminLayout({
             <button
               type="button"
               onClick={() => setShowUpgradeModal(true)}
-              className="mt-2.5 w-full py-1.5 px-2.5 rounded-xl bg-primary/10 hover:bg-primary/15 border border-primary/25 text-primary flex items-center justify-between text-xs font-bold transition-all cursor-pointer shadow-2xs group"
+              className="mt-2.5 w-full py-1.5 px-2.5 rounded-xl bg-gradient-to-r from-primary/15 via-primary/10 to-primary/5 hover:from-primary/20 hover:to-primary/10 border border-primary/25 text-primary flex items-center justify-between text-xs font-bold transition-all cursor-pointer shadow-2xs group"
             >
               <span className="flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-primary group-hover:rotate-12 transition-transform" />
@@ -510,7 +510,7 @@ export default function AdminLayout({
          ========================================================================= */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden print:h-auto print:overflow-visible print:block">
         {/* Sticky Topbar */}
-        <header className="h-16 bg-card border-b border-border px-4 md:px-8 flex items-center justify-between gap-4 z-20 shrink-0 print:hidden transition-colors duration-200">
+        <header className="h-16 bg-card/80 backdrop-blur-md border-b border-border/80 px-4 md:px-8 flex items-center justify-between gap-4 z-20 shrink-0 print:hidden transition-colors duration-200">
           {/* Start side: Mobile Menu Button & Search */}
           <div className="flex items-center gap-3 flex-1 max-w-lg">
             <button
@@ -528,7 +528,7 @@ export default function AdminLayout({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t('search_patient_placeholder', 'ابحث عن مريض بالاسم أو رقم الهاتف...')}
-                className={`w-full h-10 ${isRtl ? 'pr-9 pl-4' : 'pl-9 pr-4'} rounded-xl bg-background border border-border text-xs text-foreground placeholder:text-muted-foreground focus:bg-card focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all`}
+                className={`w-full h-10 ${isRtl ? 'pr-9 pl-4' : 'pl-9 pr-4'} rounded-xl bg-secondary/50 hover:bg-secondary/70 focus:bg-background border border-border/70 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all`}
               />
             </form>
           </div>

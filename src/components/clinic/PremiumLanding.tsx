@@ -204,11 +204,11 @@ export function PremiumLanding({
             initial={{ opacity: 0, y: 25 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-            className="yalla-card bg-gradient-to-br from-[#061A38] via-[#0E2342] to-[#07162D] text-white rounded-3xl p-6 sm:p-12 relative overflow-hidden shadow-2xl border border-white/10"
+            className="yalla-card bg-gradient-to-br from-[#061A38] via-[#0E2342] to-[#07162D] text-white rounded-3xl p-6 sm:p-12 relative overflow-hidden shadow-2xl shadow-primary/15 border border-white/20"
           >
             {/* Ambient Background Glows */}
-            <div className="absolute top-0 right-0 w-96 h-96 bg-[#087CF4]/20 rounded-full blur-3xl pointer-events-none"></div>
-            <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#02CFF3]/20 rounded-full blur-3xl pointer-events-none"></div>
+            <div className="absolute top-0 right-0 w-96 h-96 bg-[#087CF4]/25 rounded-full blur-3xl pointer-events-none"></div>
+            <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#00F0FF]/20 rounded-full blur-3xl pointer-events-none"></div>
 
             <div className="grid lg:grid-cols-12 gap-8 items-center relative z-10">
               
@@ -220,7 +220,7 @@ export function PremiumLanding({
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.2 }}
-                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold"
+                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/35 text-xs font-bold shadow-xs"
                 >
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                   {t('clinic_available_today', 'العيادة متاحة للحجز واستقبال المرضى اليوم')}
@@ -249,7 +249,7 @@ export function PremiumLanding({
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.5 }}
-                  className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-xl"
+                  className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-xl font-medium"
                 >
                   {clinic?.heroSubtitle ||
                     (isRtl
@@ -270,7 +270,7 @@ export function PremiumLanding({
                   </div>
 
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
-                    <UserCheck className="w-4 h-4 text-primary" />
+                    <UserCheck className="w-4 h-4 text-cyan-400" />
                     <span>{clinic?.badge1Value || `+1,200 ${t('cases_treated', 'حالة تم علاجها')}`}</span>
                   </div>
                 </motion.div>
@@ -285,10 +285,10 @@ export function PremiumLanding({
                   {/* Button 1: Book Appointment */}
                   <motion.button
                     type="button"
-                    whileHover={{ scale: 1.04, y: -2 }}
+                    whileHover={{ scale: 1.03, y: -1 }}
                     whileTap={{ scale: 0.96 }}
                     onClick={() => handleOpenBookingModal()}
-                    className="h-12 px-7 w-full sm:w-auto justify-center text-xs sm:text-sm font-black bg-primary hover:bg-primary-hover text-white rounded-xl shadow-lg shadow-primary/35 flex items-center gap-2 cursor-pointer transition-all"
+                    className="h-12 px-8 w-full sm:w-auto justify-center text-xs sm:text-sm font-black yalla-gradient-btn text-white rounded-xl shadow-lg shadow-primary/35 flex items-center gap-2 cursor-pointer transition-all"
                   >
                     <Calendar className="w-4 h-4 mx-1 text-white" />
                     {t('book_now_btn', 'احجز موعدك الآن')}
@@ -297,27 +297,27 @@ export function PremiumLanding({
                   {/* Button 2: Track Queue */}
                   <motion.button
                     type="button"
-                    whileHover={{ scale: 1.04, y: -2 }}
+                    whileHover={{ scale: 1.03, y: -1 }}
                     whileTap={{ scale: 0.96 }}
                     onClick={() => {
                       setSearchError('')
                       setTrackModalOpen(true)
                     }}
-                    className="h-12 px-6 w-full sm:w-auto justify-center text-xs sm:text-sm font-black bg-white hover:bg-slate-100 text-[#0B1F33] rounded-xl shadow-md shadow-black/15 flex items-center gap-2 cursor-pointer transition-all border border-white"
+                    className="h-12 px-7 w-full sm:w-auto justify-center text-xs sm:text-sm font-black bg-white/10 hover:bg-white/20 text-white border border-white/25 backdrop-blur-md rounded-xl shadow-md flex items-center gap-2 cursor-pointer transition-all"
                   >
-                    <Clock className="w-4 h-4 mx-1 text-primary" />
-                    {t('track_live_turn', 'تتبع دورك مباشرة')}
+                    <Clock className="w-4 h-4 mx-1 text-cyan-300" />
+                    {t('track_live_turn', 'تتبع دورك في الدور المباشر')}
                   </motion.button>
 
                   {/* Button 3: Patient Portal */}
                   <Link href={`/clinic/${clinic?.slug}/patient/login`} className="w-full sm:w-auto">
                     <motion.button
                       type="button"
-                      whileHover={{ scale: 1.04, y: -2 }}
+                      whileHover={{ scale: 1.03, y: -1 }}
                       whileTap={{ scale: 0.96 }}
-                      className="h-12 px-6 w-full sm:w-auto justify-center text-xs sm:text-sm font-bold bg-[#132B45] hover:bg-[#1a385a] text-teal-200 border border-teal-500/40 rounded-xl shadow-sm flex items-center gap-2 cursor-pointer transition-all"
+                      className="h-12 px-6 w-full sm:w-auto justify-center text-xs sm:text-sm font-bold bg-[#132B45]/80 hover:bg-[#1a385a] text-teal-200 border border-teal-500/40 rounded-xl shadow-sm flex items-center gap-2 cursor-pointer transition-all"
                     >
-                      <UserCheck className="w-4 h-4 mx-1 text-primary" />
+                      <UserCheck className="w-4 h-4 mx-1 text-cyan-400" />
                       {t('patient_portal_btn', 'بوابة المريض (كشوفاتك السابقة)')}
                     </motion.button>
                   </Link>
@@ -330,7 +330,7 @@ export function PremiumLanding({
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.8, delay: 0.2 }}
-                  className="relative w-64 h-80 sm:w-72 sm:h-96 rounded-3xl overflow-hidden shadow-2xl border-4 border-white/20 group"
+                  className="relative w-64 h-80 sm:w-72 sm:h-96 rounded-3xl overflow-hidden shadow-2xl border-4 border-white/25 group"
                 >
                   <img
                     src={
@@ -340,7 +340,7 @@ export function PremiumLanding({
                     alt="Doctor"
                     className="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#0B1F33]/80 via-transparent to-transparent"></div>
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0B1F33]/85 via-transparent to-transparent"></div>
                   
                   {/* Floating Verified Badge */}
                   <motion.div
@@ -374,14 +374,14 @@ export function PremiumLanding({
               return (
                 <div
                   key={idx}
-                  className="yalla-card p-4 flex items-center gap-3 bg-card border-border hover:border-primary/40 transition-colors"
+                  className="yalla-card p-4 sm:p-5 flex items-center gap-3.5 bg-card border-border hover:border-primary/50 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 rounded-2xl group relative overflow-hidden shadow-xs"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-primary/15 to-primary/5 border border-primary/20 text-primary flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300 shadow-2xs">
                     <Icon className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-xs text-foreground">{feature.title}</h4>
-                    <p className="text-[10px] text-muted-foreground font-medium">{feature.desc}</p>
+                    <h4 className="font-extrabold text-xs text-foreground">{feature.title}</h4>
+                    <p className="text-[10px] text-muted-foreground font-medium mt-0.5">{feature.desc}</p>
                   </div>
                 </div>
               )

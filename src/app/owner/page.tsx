@@ -1325,8 +1325,9 @@ export default function OwnerDashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         
         {/* Card 1: Total Clinics */}
-        <div className="yalla-card p-5 border border-border rounded-2xl flex items-center gap-4 shadow-xs">
-          <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+        <div className="yalla-card p-5 border border-border/80 rounded-2xl flex items-center gap-4 shadow-xs relative overflow-hidden group hover:border-primary/40 hover:-translate-y-0.5 transition-all duration-300">
+          <div className="absolute -top-10 -left-10 w-24 h-24 bg-primary/10 rounded-full blur-2xl pointer-events-none group-hover:bg-primary/20 transition-colors" />
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 text-primary border border-primary/20 flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
             <Building className="w-6 h-6" />
           </div>
           <div>
@@ -1336,8 +1337,9 @@ export default function OwnerDashboard() {
         </div>
 
         {/* Card 2: Active Clinics */}
-        <div className="yalla-card p-5 border border-border rounded-2xl flex items-center gap-4 shadow-xs">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+        <div className="yalla-card p-5 border border-border/80 rounded-2xl flex items-center gap-4 shadow-xs relative overflow-hidden group hover:border-emerald-500/40 hover:-translate-y-0.5 transition-all duration-300">
+          <div className="absolute -top-10 -left-10 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none group-hover:bg-emerald-500/20 transition-colors" />
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
             <CheckCircle2 className="w-6 h-6" />
           </div>
           <div>
@@ -1347,8 +1349,9 @@ export default function OwnerDashboard() {
         </div>
 
         {/* Card 3: AI Chatbot Enabled */}
-        <div className="yalla-card p-5 border border-border rounded-2xl flex items-center gap-4 shadow-xs">
-          <div className="w-12 h-12 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+        <div className="yalla-card p-5 border border-border/80 rounded-2xl flex items-center gap-4 shadow-xs relative overflow-hidden group hover:border-purple-500/40 hover:-translate-y-0.5 transition-all duration-300">
+          <div className="absolute -top-10 -left-10 w-24 h-24 bg-purple-500/10 rounded-full blur-2xl pointer-events-none group-hover:bg-purple-500/20 transition-colors" />
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500/20 to-purple-500/5 text-purple-600 dark:text-purple-400 border border-purple-500/20 flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
             <Bot className="w-6 h-6" />
           </div>
           <div>
@@ -1361,26 +1364,27 @@ export default function OwnerDashboard() {
         </div>
 
         {/* Card 4: Custom Prescription Template */}
-        <div className="yalla-card p-5 border border-border rounded-2xl flex items-center gap-4 shadow-xs">
-          <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+        <div className="yalla-card p-5 border border-border/80 rounded-2xl flex items-center gap-4 shadow-xs relative overflow-hidden group hover:border-cyan-500/40 hover:-translate-y-0.5 transition-all duration-300">
+          <div className="absolute -top-10 -left-10 w-24 h-24 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none group-hover:bg-cyan-500/20 transition-colors" />
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-cyan-500/5 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20 flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
             <FileSignature className="w-6 h-6" />
           </div>
           <div>
             <span className="text-[11px] font-bold text-muted-foreground block">قوالب روشتات مخصصة</span>
-            <span className="text-2xl font-black text-primary font-mono">{customTemplateCount}</span>
+            <span className="text-2xl font-black text-cyan-600 dark:text-cyan-400 font-mono">{customTemplateCount}</span>
           </div>
         </div>
 
       </div>
 
       {/* 3. Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-border pb-2 overflow-x-auto no-scrollbar">
+      <div className="p-1.5 rounded-2xl bg-card/80 backdrop-blur-md border border-border/80 shadow-xs flex items-center gap-1.5 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setActiveTab('clinics')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'clinics'
               ? 'yalla-gradient-btn text-white shadow-md'
-              : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+              : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60'
           }`}
         >
           <Building className="w-4 h-4" />
@@ -1392,7 +1396,7 @@ export default function OwnerDashboard() {
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'doctors'
               ? 'yalla-gradient-btn text-white shadow-md'
-              : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+              : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60'
           }`}
         >
           <Users className="w-4 h-4" />
@@ -1404,7 +1408,7 @@ export default function OwnerDashboard() {
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'packages'
               ? 'yalla-gradient-btn text-white shadow-md'
-              : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+              : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60'
           }`}
         >
           <Package className="w-4 h-4" />
@@ -1422,7 +1426,7 @@ export default function OwnerDashboard() {
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'add'
               ? 'yalla-gradient-btn text-white shadow-md'
-              : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+              : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60'
           }`}
         >
           <Edit className="w-4 h-4" />
@@ -1434,7 +1438,7 @@ export default function OwnerDashboard() {
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'settings'
               ? 'yalla-gradient-btn text-white shadow-md'
-              : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+              : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60'
           }`}
         >
           <Bot className="w-4 h-4" />
@@ -1443,7 +1447,7 @@ export default function OwnerDashboard() {
 
         <button
           onClick={handleExportBackup}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer bg-slate-800 hover:bg-slate-900 text-white shadow-md mr-auto whitespace-nowrap"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer bg-secondary/80 hover:bg-secondary text-foreground border border-border shadow-2xs mr-auto whitespace-nowrap"
         >
           <Download className="w-4 h-4" />
           <span>نسخة احتياطية (JSON)</span>
@@ -1513,10 +1517,10 @@ export default function OwnerDashboard() {
                     <th className="py-4 px-4 text-center">الإجراءات</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#E5EAF0]">
+                <tbody className="divide-y divide-border">
                   {filteredClinics.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-slate-400">
+                      <td colSpan={7} className="py-12 text-center text-muted-foreground">
                         {clinics.length === 0 ? 'لا توجد عيادات مسجلة حتى الآن.' : 'لا توجد نتائج تطابق بحثك.'}
                       </td>
                     </tr>
@@ -1525,16 +1529,16 @@ export default function OwnerDashboard() {
                       const hasAi = c.aiEnabled !== false
                       const hasCustomTemplate = !!c.prescriptionTemplateUrl
                       return (
-                        <tr key={c.id} className="hover:bg-slate-50/80 transition-colors">
+                        <tr key={c.id} className="hover:bg-muted/40 transition-colors">
                           
                           {/* Clinic Name & Doctor */}
                           <td className="py-4 px-4">
                             <div className="space-y-0.5">
-                              <h4 className="font-black text-sm text-[#182230]">{c.clinicName}</h4>
-                              <p className="text-slate-500 font-semibold text-[11px]">
+                              <h4 className="font-black text-sm text-foreground">{c.clinicName}</h4>
+                              <p className="text-muted-foreground font-semibold text-[11px]">
                                 {c.doctorName ? `د. ${c.doctorName}` : 'طبيب العيادة'}
                               </p>
-                              <div className="flex items-center gap-2 pt-1 font-mono text-[10px] text-slate-400">
+                              <div className="flex items-center gap-2 pt-1 font-mono text-[10px] text-muted-foreground/80">
                                 <span>واتساب: {c.clinicPhone || '—'}</span>
                                 {c.doctorPhone && <span>• شخصي: {c.doctorPhone}</span>}
                               </div>
@@ -1544,7 +1548,7 @@ export default function OwnerDashboard() {
                           {/* Quick Platform Links */}
                           <td className="py-4 px-4 space-y-2">
                             {/* Official Subdomain Badge with Copy */}
-                            <div className="flex items-center justify-between gap-1 bg-teal-50 border border-teal-200 rounded-lg px-2 py-1 text-[11px] font-mono font-bold text-teal-800" dir="ltr">
+                            <div className="flex items-center justify-between gap-1 bg-teal-500/10 border border-teal-500/20 rounded-xl px-2.5 py-1 text-[11px] font-mono font-bold text-teal-700 dark:text-teal-300" dir="ltr">
                               <span className="truncate max-w-[170px]">{c.slug}.yalla-clinic.com</span>
                               <button
                                 type="button"
@@ -1552,7 +1556,7 @@ export default function OwnerDashboard() {
                                   navigator.clipboard.writeText(`https://${c.slug}.yalla-clinic.com`)
                                   toast.success('تم نسخ رابط العيادة المباشر!')
                                 }}
-                                className="p-0.5 hover:text-teal-950 text-teal-600 rounded transition-colors cursor-pointer shrink-0"
+                                className="p-0.5 hover:text-teal-900 dark:hover:text-teal-100 text-teal-600 dark:text-teal-400 rounded transition-colors cursor-pointer shrink-0"
                                 title="نسخ الرابط المباشر"
                               >
                                 <Copy className="w-3 h-3" />
@@ -1564,29 +1568,29 @@ export default function OwnerDashboard() {
                                 href={`https://${c.slug}.yalla-clinic.com`}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex items-center gap-1 text-[#087CF4] font-bold hover:underline"
+                                className="inline-flex items-center gap-1 text-primary font-bold hover:underline"
                                 title="فتح صفحة الحجز المباشرة"
                               >
                                 <span>الحجز</span>
                                 <ExternalLink className="w-2.5 h-2.5" />
                               </a>
-                              <span className="text-slate-300">•</span>
+                              <span className="text-muted-foreground/30">•</span>
                               <a
                                 href={`https://${c.slug}.yalla-clinic.com/patient`}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex items-center gap-1 text-[#02CFF3] font-bold hover:underline"
+                                className="inline-flex items-center gap-1 text-cyan-600 dark:text-cyan-400 font-bold hover:underline"
                                 title="فتح بوابة المرضى"
                               >
                                 <span>المرضى</span>
                                 <ExternalLink className="w-2.5 h-2.5" />
                               </a>
-                              <span className="text-slate-300">•</span>
+                              <span className="text-muted-foreground/30">•</span>
                               <a
                                 href={`https://${c.slug}.yalla-clinic.com/admin`}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex items-center gap-1 text-slate-700 font-bold hover:underline"
+                                className="inline-flex items-center gap-1 text-foreground hover:text-primary font-bold hover:underline"
                                 title="فتح لوحة تحكم الطبيب"
                               >
                                 <span>اللوحة</span>
@@ -1603,16 +1607,16 @@ export default function OwnerDashboard() {
                                 onClick={() => toggleClinicAi(c.id, hasAi)}
                                 className={`px-3 py-1.5 rounded-xl font-black text-[11px] transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs ${
                                   hasAi
-                                    ? 'bg-purple-600 text-white hover:bg-purple-700'
-                                    : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                                    ? 'bg-purple-600 text-white hover:bg-purple-700 shadow-purple-500/25 shadow-xs'
+                                    : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
                                 }`}
                                 title="اضغط لتبديل حالة الذكاء الاصطناعي لهذه العيادة فوراً"
                               >
-                                <Power className={`w-3.5 h-3.5 ${hasAi ? 'text-white' : 'text-slate-400'}`} />
+                                <Power className={`w-3.5 h-3.5 ${hasAi ? 'text-white' : 'text-muted-foreground'}`} />
                                 <span>{hasAi ? 'AI شغال (اضغط للقفل)' : 'AI مغلق (اضغط للتشغيل)'}</span>
                               </button>
                               
-                              <span className={`text-[10px] font-bold ${hasAi ? 'text-purple-600' : 'text-slate-400'}`}>
+                              <span className={`text-[10px] font-bold ${hasAi ? 'text-purple-600 dark:text-purple-400' : 'text-muted-foreground'}`}>
                                 {hasAi ? 'ظاهر بالعيادة والموقع ✓' : 'مخفي تماماً من العيادة ✗'}
                               </span>
                             </div>
@@ -1622,21 +1626,21 @@ export default function OwnerDashboard() {
                           <td className="py-4 px-4 text-center">
                             {hasCustomTemplate ? (
                               <div className="flex flex-col items-center gap-1">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#087CF4]/10 text-[#087CF4] border border-[#087CF4]/20 text-[10px] font-bold">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 text-[10px] font-bold">
                                   <FileSignature className="w-3 h-3" />
                                   <span>تصميم مخصص</span>
                                 </span>
                                 <button
                                   type="button"
                                   onClick={() => setPreviewTemplateModal(c.prescriptionTemplateUrl)}
-                                  className="text-[10px] font-bold text-[#087CF4] hover:underline flex items-center gap-0.5 cursor-pointer"
+                                  className="text-[10px] font-bold text-primary hover:underline flex items-center gap-0.5 cursor-pointer"
                                 >
                                   <Eye className="w-3 h-3" />
                                   <span>معاينة القالب</span>
                                 </button>
                               </div>
                             ) : (
-                              <span className="text-[11px] text-slate-400 font-medium">قالب قياسي A4</span>
+                              <span className="text-[11px] text-muted-foreground font-medium">قالب قياسي A4</span>
                             )}
                           </td>
 
@@ -1645,13 +1649,13 @@ export default function OwnerDashboard() {
                             <div className="flex flex-col items-center gap-1">
                               <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
                                 c.branchesEnabled !== false
-                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                  : 'bg-slate-100 text-slate-500 border-slate-200'
+                                  ? 'bg-primary/10 text-primary border-primary/20'
+                                  : 'bg-secondary text-muted-foreground border-border'
                               }`}>
                                 {c.branchesEnabled !== false ? `مفعلة (${c.maxBranches || 1} فروع)` : 'معطلة (فرع واحد)'}
                               </span>
                               {c.branchCreationAllowed === false && (
-                                <span className="text-[9px] text-amber-600 font-bold">إنشاء الفروع مقفل</span>
+                                <span className="text-[9px] text-amber-600 dark:text-amber-400 font-bold">إنشاء الفروع مقفل</span>
                               )}
                             </div>
                           </td>
@@ -1664,14 +1668,14 @@ export default function OwnerDashboard() {
                                 onClick={() => toggleStatus(c.id, c.isActive !== false)}
                                 className={`px-2.5 py-1 rounded-full text-[10px] font-bold cursor-pointer transition-colors ${
                                   c.isActive !== false
-                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
-                                    : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
+                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20'
+                                    : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 hover:bg-rose-500/20'
                                 }`}
                               >
                                 {c.isActive !== false ? '● نشطة ومفعلة' : '○ موقوفة مؤقتاً'}
                               </button>
                               {c.expirationDate && (
-                                <span className="text-[10px] text-slate-400 font-mono">
+                                <span className="text-[10px] text-muted-foreground font-mono">
                                   ينتهي: {c.expirationDate}
                                 </span>
                               )}
@@ -1685,7 +1689,7 @@ export default function OwnerDashboard() {
                                 size="sm"
                                 variant="outline"
                                 onClick={() => handleEdit(c)}
-                                className="h-8 px-2.5 text-xs font-bold text-blue-600 border-blue-200 hover:bg-blue-50 rounded-xl"
+                                className="h-8 px-2.5 text-xs font-bold text-primary border-primary/25 hover:bg-primary/10 rounded-xl"
                               >
                                 <Edit className="w-3.5 h-3.5 ml-1" />
                                 تعديل
@@ -1694,7 +1698,7 @@ export default function OwnerDashboard() {
                                 size="icon"
                                 variant="ghost"
                                 onClick={() => deleteClinic(c.id)}
-                                className="h-8 w-8 text-rose-500 hover:bg-rose-50 hover:text-rose-700 rounded-xl"
+                                className="h-8 w-8 text-rose-500 hover:bg-rose-500/10 hover:text-rose-600 rounded-xl"
                                 title="حذف العيادة"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />

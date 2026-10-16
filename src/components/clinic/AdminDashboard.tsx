@@ -580,16 +580,25 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto" dir={dir}>
       
       {/* Clinic Status Toggle & Active Branch Pill */}
-      <div className="yalla-card p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className={`yalla-card p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all duration-300 ${
+        clinic?.isClinicOpen !== false
+          ? 'bg-gradient-to-r from-emerald-500/10 via-card to-card dark:from-emerald-950/25 border-emerald-500/30'
+          : 'bg-gradient-to-r from-rose-500/10 via-card to-card dark:from-rose-950/25 border-rose-500/30'
+      }`}>
         <div className="flex items-center gap-3.5">
-          <div className={`w-3.5 h-3.5 rounded-full shrink-0 ${clinic?.isClinicOpen !== false ? 'bg-emerald-500 shadow-xs shadow-emerald-500/50 animate-pulse' : 'bg-rose-500'}`} />
+          <div className="relative flex items-center justify-center shrink-0">
+            <span className={`w-3.5 h-3.5 rounded-full ${clinic?.isClinicOpen !== false ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+            {clinic?.isClinicOpen !== false && (
+              <span className="absolute w-6 h-6 rounded-full bg-emerald-500/30 animate-ping pointer-events-none" />
+            )}
+          </div>
           <div className="text-start">
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="font-black text-sm text-foreground">
                 {clinic?.isClinicOpen !== false ? t('clinic_online', 'العيادة مفتوحة حالياً (أونلاين)') : t('clinic_offline', 'العيادة مغلقة حالياً (أوفلاين)')}
               </h3>
               {selectedBranchId && selectedBranchId !== 'all' && (
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20 flex items-center gap-1">
+                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-lg bg-primary/10 text-primary border border-primary/20 flex items-center gap-1 shadow-2xs">
                   <Building2 className="w-3 h-3" />
                   {tDynamic(selectedBranchId)}
                 </span>
@@ -617,7 +626,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
             }
           }}
           variant={clinic?.isClinicOpen !== false ? 'destructive' : 'default'}
-          className={`font-bold text-xs h-9.5 px-5 rounded-xl w-full sm:w-auto ${clinic?.isClinicOpen !== false ? '' : 'yalla-gradient-btn text-white'}`}
+          className={`font-bold text-xs h-10 px-5 rounded-xl w-full sm:w-auto shadow-sm transition-transform active:scale-95 ${clinic?.isClinicOpen !== false ? '' : 'yalla-gradient-btn text-white'}`}
           disabled={isProcessing}
         >
           {clinic?.isClinicOpen !== false ? t('close_clinic', 'إغلاق العيادة (إيقاف الحجز)') : t('open_clinic', 'فتح العيادة (بدء الحجز)')}
@@ -625,7 +634,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
       </div>
 
       {/* Date Filter & Dynamic Consultation Average Duration Bar */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between p-3.5 sm:p-4 bg-secondary/40 border border-border rounded-2xl gap-3">
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between p-3.5 sm:p-4 bg-secondary/40 border border-border rounded-2xl gap-3 shadow-2xs">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
             <Calendar className="w-4 h-4 text-primary" />
@@ -663,7 +672,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
           <div className="text-start">
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] font-bold text-muted-foreground">{t('average_exam_time', 'متوسط وقت الكشف التقديري')}:</span>
-              <span className="text-xs font-black text-primary font-mono bg-primary/10 px-2 py-0.5 rounded border border-primary/20">
+              <span className="text-xs font-black text-primary font-mono bg-primary/10 px-2 py-0.5 rounded-md border border-primary/20">
                 ~ {dynamicAverageVisitTime} {t('min', 'دقيقة')}
               </span>
             </div>
@@ -675,54 +684,86 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
       </div>
 
       {/* TOP STATS CARDS */}
-      <div className={`grid grid-cols-2 ${isFinanceEnabled ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-4`}>
+      <div className={`grid grid-cols-2 ${isFinanceEnabled ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-4 sm:gap-5`}>
         {/* Card 1: Total Bookings */}
-        <div className="yalla-card p-5 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold text-muted-foreground mb-1">{t('today_bookings', 'إجمالي الحجوزات')}</p>
-            <h3 className="text-3xl font-black text-foreground">{bookings.length}</h3>
-            <span className="text-[11px] font-medium text-muted-foreground mt-1 inline-block">{t('registered_today', 'حجز مسجل اليوم')}</span>
+        <div className="yalla-card p-5 sm:p-6 flex items-center justify-between relative overflow-hidden group hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-primary/10 rounded-full blur-2xl pointer-events-none group-hover:scale-150 transition-transform duration-500" />
+          <div className="relative z-10">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+              <p className="text-xs font-bold text-muted-foreground">{t('today_bookings', 'إجمالي الحجوزات')}</p>
+            </div>
+            <h3 className="text-3xl sm:text-4xl font-black text-foreground tracking-tight">{bookings.length}</h3>
+            <div className="flex items-center gap-1.5 mt-2">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
+                {t('registered_today', 'حجز مسجل اليوم')}
+              </span>
+            </div>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+          <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/25 flex items-center justify-center text-primary shadow-sm shadow-primary/15 group-hover:scale-110 transition-transform duration-300 shrink-0">
             <Calendar className="w-6 h-6" />
           </div>
         </div>
 
         {/* Card 2: Waiting */}
-        <div className="yalla-card p-5 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold text-muted-foreground mb-1">{t('waiting_patients', 'في الانتظار')}</p>
-            <h3 className="text-3xl font-black text-amber-500">{waitingPatients.length}</h3>
-            <span className="text-[11px] font-medium text-amber-500/80 mt-1 inline-block">{t('waiting_to_enter', 'بانتظار الدخول')}</span>
+        <div className="yalla-card p-5 sm:p-6 flex items-center justify-between relative overflow-hidden group hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl pointer-events-none group-hover:scale-150 transition-transform duration-500" />
+          <div className="relative z-10">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+              <p className="text-xs font-bold text-muted-foreground">{t('waiting_patients', 'في الانتظار')}</p>
+            </div>
+            <h3 className="text-3xl sm:text-4xl font-black text-amber-500 tracking-tight">{waitingPatients.length}</h3>
+            <div className="flex items-center gap-1.5 mt-2">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                {t('waiting_to_enter', 'بانتظار الدخول')}
+              </span>
+            </div>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500">
+          <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-500/5 border border-amber-500/25 flex items-center justify-center text-amber-500 shadow-sm shadow-amber-500/15 group-hover:scale-110 transition-transform duration-300 shrink-0">
             <Clock className="w-6 h-6" />
           </div>
         </div>
 
         {/* Card 3: Completed */}
-        <div className="yalla-card p-5 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold text-muted-foreground mb-1">{t('completed_patients', 'تم الكشف')}</p>
-            <h3 className="text-3xl font-black text-primary dark:text-[#02CFF3]">{completedPatients.length}</h3>
-            <span className="text-[11px] font-medium text-primary/80 dark:text-[#02CFF3]/80 mt-1 inline-block">{t('completed_visits', 'زيارات مكتملة')}</span>
+        <div className="yalla-card p-5 sm:p-6 flex items-center justify-between relative overflow-hidden group hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none group-hover:scale-150 transition-transform duration-500" />
+          <div className="relative z-10">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              <p className="text-xs font-bold text-muted-foreground">{t('completed_patients', 'تم الكشف')}</p>
+            </div>
+            <h3 className="text-3xl sm:text-4xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">{completedPatients.length}</h3>
+            <div className="flex items-center gap-1.5 mt-2">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                {t('completed_visits', 'زيارات مكتملة')}
+              </span>
+            </div>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-primary/10 dark:bg-[#02CFF3]/10 border border-primary/20 dark:border-[#02CFF3]/20 flex items-center justify-center text-primary dark:text-[#02CFF3]">
+          <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 border border-emerald-500/25 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shadow-sm shadow-emerald-500/15 group-hover:scale-110 transition-transform duration-300 shrink-0">
             <CheckCircle2 className="w-6 h-6" />
           </div>
         </div>
 
         {/* Card 4: Total Revenue (Only when finance is enabled) */}
         {isFinanceEnabled && (
-          <div className="yalla-card p-5 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold text-muted-foreground mb-1">{t('total_revenue', 'إجمالي الإيرادات')}</p>
-              <h3 className="text-3xl font-black text-emerald-500">
-                {totalRevenue.toLocaleString()} <span className="text-sm font-bold text-muted-foreground">{t('currency_egp', 'ج.م')}</span>
+          <div className="yalla-card p-5 sm:p-6 flex items-center justify-between relative overflow-hidden group hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none group-hover:scale-150 transition-transform duration-500" />
+            <div className="relative z-10">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
+                <p className="text-xs font-bold text-muted-foreground">{t('total_revenue', 'إجمالي الإيرادات')}</p>
+              </div>
+              <h3 className="text-3xl sm:text-4xl font-black text-foreground tracking-tight">
+                {totalRevenue.toLocaleString()} <span className="text-sm font-bold text-cyan-600 dark:text-cyan-400">{t('currency_egp', 'ج.م')}</span>
               </h3>
-              <span className="text-[11px] font-medium text-emerald-500/80 mt-1 inline-block">{t('collected_today', 'تحصيل اليوم')}</span>
+              <div className="flex items-center gap-1.5 mt-2">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20">
+                  {t('collected_today', 'تحصيل اليوم')}
+                </span>
+              </div>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500">
+            <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-cyan-500/5 border border-cyan-500/25 flex items-center justify-center text-cyan-600 dark:text-cyan-400 shadow-sm shadow-cyan-500/15 group-hover:scale-110 transition-transform duration-300 shrink-0">
               <DollarSign className="w-6 h-6" />
             </div>
           </div>
@@ -921,16 +962,19 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                   {t('loading', 'جاري التحميل...')}
                 </div>
               ) : filteredBookings.length === 0 ? (
-                <div className="py-16 text-center text-muted-foreground space-y-3">
-                  <div className="w-16 h-16 rounded-3xl bg-secondary flex items-center justify-center mx-auto text-muted-foreground">
-                    <Calendar className="w-8 h-8" />
+                <div className="py-20 px-4 text-center space-y-4">
+                  <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-primary/15 to-primary/5 border border-primary/25 text-primary flex items-center justify-center mx-auto shadow-md shadow-primary/10">
+                    <Calendar className="w-9 h-9 text-primary" />
                   </div>
-                  <h4 className="font-bold text-base text-foreground">{t('no_bookings_today', 'لا توجد حجوزات مسجلة اليوم')}</h4>
-                  <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                    {t('no_bookings_desc', 'يمكن للمرضى حجز المواعيد عبر رابط العيادة المباشر، أو يمكنك إضافة موعد يدوي.')}
-                  </p>
+                  <div className="space-y-1">
+                    <h4 className="font-black text-lg text-foreground tracking-tight">{t('no_bookings_today', 'لا توجد حجوزات مسجلة اليوم')}</h4>
+                    <p className="text-xs text-muted-foreground max-w-md mx-auto leading-relaxed">
+                      {t('no_bookings_desc', 'يمكن للمرضى حجز المواعيد عبر رابط العيادة المباشر، أو يمكنك إضافة موعد يدوي.')}
+                    </p>
+                  </div>
                   <Link href={`/clinic/${clinic.slug}`} target="_blank">
-                    <Button variant="outline" size="sm" className="mt-2 text-xs font-bold border-primary text-primary hover:bg-primary/10 rounded-xl">
+                    <Button className="yalla-gradient-btn text-white h-10 px-6 font-black text-xs rounded-xl shadow-md cursor-pointer active:scale-95 transition-all mt-2">
+                      <ExternalLink className={`w-3.5 h-3.5 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
                       {t('open_booking_page', 'فتح صفحة الحجز')}
                     </Button>
                   </Link>
@@ -1304,39 +1348,44 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
         <div className="lg:col-span-4 space-y-4">
           
           {/* Panel 1: Current Patient (المريض الحالي) */}
-          <div className="yalla-card border-t-4 border-t-primary p-5 space-y-4 relative overflow-hidden">
-            <div className="flex items-center justify-between pb-3 border-b border-border">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-primary animate-ping"></span>
-                <h3 className="font-bold text-sm text-foreground">{t('current_patient', 'المريض الحالي')}</h3>
+          <div className="yalla-card p-5 sm:p-6 space-y-5 relative overflow-hidden border-t-4 border-t-primary shadow-md">
+            <div className="flex items-center justify-between pb-3.5 border-b border-border">
+              <div className="flex items-center gap-2.5">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
+                </span>
+                <h3 className="font-black text-sm text-foreground">{t('current_patient', 'المريض الحالي')}</h3>
               </div>
-              <Badge className="bg-primary/10 text-primary border-primary/20 font-bold text-xs">{t('inside_now', 'بالداخل الآن')}</Badge>
+              <Badge className="bg-primary/10 text-primary border-primary/25 font-bold text-xs px-2.5 py-0.5">{t('inside_now', 'بالداخل الآن')}</Badge>
             </div>
 
             {currentPatient ? (
               <div className="space-y-4 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-primary/10 border-2 border-primary/30 text-primary flex items-center justify-center mx-auto text-2xl font-black shadow-xs">
+                <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-primary/25 to-primary/5 border-2 border-primary/35 text-primary flex items-center justify-center mx-auto text-3xl font-black shadow-md shadow-primary/20">
                   #{currentPatient.queue_number}
                 </div>
 
                 <div>
-                  <h4 className="text-xl font-black text-foreground">{currentPatient.patientName}</h4>
-                  <p className="text-xs text-muted-foreground font-mono mt-0.5">{currentPatient.phone}</p>
-                  <div className="inline-block mt-2 px-3 py-1 rounded-full bg-secondary border border-border text-xs font-bold text-foreground">
-                    {tDynamic(currentPatient.serviceName)} • {currentPatient.servicePrice} {t('egp', 'ج.م')}
+                  <h4 className="text-xl font-black text-foreground tracking-tight">{currentPatient.patientName}</h4>
+                  <p className="text-xs text-muted-foreground font-mono mt-0.5 font-bold">{currentPatient.phone}</p>
+                  <div className="inline-flex items-center gap-1.5 mt-2.5 px-3.5 py-1 rounded-full bg-secondary/80 border border-border text-xs font-bold text-foreground shadow-2xs">
+                    <span>{tDynamic(currentPatient.serviceName)}</span>
+                    <span>•</span>
+                    <span className="text-primary font-black">{currentPatient.servicePrice} {t('egp', 'ج.م')}</span>
                   </div>
                 </div>
 
                 {currentPatient.startedAt && (
-                  <p className="text-xs font-semibold text-primary bg-primary/10 py-1.5 px-3 rounded-xl">
+                  <p className="text-xs font-bold text-primary bg-primary/10 py-1.5 px-3 rounded-xl border border-primary/20">
                     {t('exam_started_at', 'بدأ الكشف:')} {new Date(currentPatient.startedAt).toLocaleTimeString(language === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 )}
 
                 {/* Actions Grid */}
-                <div className="grid grid-cols-1 gap-2 pt-2">
+                <div className="grid grid-cols-1 gap-2.5 pt-2">
                   <Button
-                    className="yalla-gradient-btn w-full h-11 text-white font-bold rounded-xl shadow-md transition-all text-sm"
+                    className="yalla-gradient-btn w-full h-11 text-white font-black rounded-xl shadow-lg transition-all text-sm active:scale-95 cursor-pointer"
                     onClick={() => handleCompleteExam(currentPatient.id, currentPatient.patientName)}
                     disabled={isProcessing}
                   >
@@ -1348,7 +1397,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-9 text-xs font-bold text-foreground border-border hover:bg-secondary rounded-xl"
+                      className="h-9.5 text-xs font-bold text-foreground border-border hover:bg-secondary rounded-xl transition-all"
                       onClick={() => handleSkipPatient(currentPatient.id)}
                       disabled={isProcessing}
                     >
@@ -1358,7 +1407,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-9 text-xs font-bold text-rose-600 dark:text-rose-400 border-rose-500/30 hover:bg-rose-500/10 rounded-xl"
+                      className="h-9.5 text-xs font-bold text-rose-600 dark:text-rose-400 border-rose-500/30 hover:bg-rose-500/10 rounded-xl transition-all"
                       onClick={() => handleNoShow(currentPatient.id)}
                       disabled={isProcessing}
                     >
@@ -1370,8 +1419,8 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                   {isPrescriptionsEnabled && (
                     <Link href={`/clinic/${clinic.slug}/admin/prescriptions?appointmentId=${currentPatient.id}&patientName=${encodeURIComponent(currentPatient.patientName)}&patientPhone=${encodeURIComponent(currentPatient.phone)}&age=${encodeURIComponent(currentPatient.age || currentPatient.dob || '')}`}>
                       <Button
-                        variant="ghost"
-                        className="w-full h-9 text-xs font-bold text-primary hover:bg-primary/10 rounded-xl mt-1"
+                        variant="outline"
+                        className="w-full h-9.5 text-xs font-bold text-primary border-primary/25 hover:bg-primary/10 rounded-xl mt-1 transition-all"
                       >
                         <FileSignature className={`w-4 h-4 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
                         {t('issue_rx_now', 'إصدار روشتة للمريض الآن')}
@@ -1381,15 +1430,18 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                 </div>
               </div>
             ) : (
-              <div className="py-8 text-center space-y-3">
-                <div className="w-12 h-12 rounded-2xl bg-secondary flex items-center justify-center mx-auto text-muted-foreground">
-                  <UserCheck className="w-6 h-6" />
+              <div className="py-8 text-center space-y-3.5">
+                <div className="w-14 h-14 rounded-3xl bg-secondary/80 border border-border flex items-center justify-center mx-auto text-muted-foreground shadow-2xs">
+                  <UserCheck className="w-7 h-7 text-muted-foreground/60" />
                 </div>
-                <p className="text-xs font-bold text-muted-foreground">{t('no_patient_inside', 'لا يوجد مريض داخل غرفة الكشف حالياً')}</p>
+                <div>
+                  <p className="text-xs font-bold text-foreground">{t('no_patient_inside', 'لا يوجد مريض داخل غرفة الكشف حالياً')}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">{t('ready_to_admit', 'الغرفة شاغرة وجاهزة لاستقبال الحالة التالية')}</p>
+                </div>
                 {nextPatient && (
                   <Button
                     size="sm"
-                    className="bg-primary hover:bg-primary-hover text-white font-bold rounded-xl"
+                    className="yalla-gradient-btn text-white font-black rounded-xl h-10 px-5 shadow-sm text-xs cursor-pointer active:scale-95"
                     onClick={() => handleStartExam(nextPatient)}
                     disabled={isProcessing}
                   >
@@ -1401,41 +1453,41 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
           </div>
 
           {/* Panel 2: Next Patient (المريض التالي) */}
-          <div className="yalla-card border-t-4 border-t-cyan-500 p-5 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-border">
+          <div className="yalla-card p-5 sm:p-6 space-y-4 border-t-4 border-t-amber-500 shadow-md">
+            <div className="flex items-center justify-between pb-3.5 border-b border-border">
               <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-cyan-500" />
-                <h3 className="font-bold text-sm text-foreground">{t('next_patient', 'المريض التالي في الدور')}</h3>
+                <Clock className="w-4 h-4 text-amber-500" />
+                <h3 className="font-black text-sm text-foreground">{t('next_patient', 'المريض التالي في الدور')}</h3>
               </div>
-              <Badge className="bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20 font-bold text-xs">{t('waiting', 'في الانتظار')}</Badge>
+              <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25 font-bold text-xs px-2.5 py-0.5">{t('waiting', 'في الانتظار')}</Badge>
             </div>
 
             {nextPatient ? (
               <div className="space-y-4 text-center">
-                <div className="flex items-center justify-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400 flex items-center justify-center text-xl font-black">
+                <div className="flex items-center justify-center gap-3.5 p-3 rounded-2xl bg-secondary/50 border border-border">
+                  <div className="w-13 h-13 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 flex items-center justify-center text-xl font-black shrink-0 shadow-2xs">
                     #{nextPatient.queue_number}
                   </div>
                   <div className={isRtl ? 'text-right' : 'text-left'}>
                     <h4 className="font-black text-base text-foreground">{nextPatient.patientName}</h4>
-                    <p className="text-xs text-muted-foreground font-mono">{nextPatient.phone}</p>
-                    <span className="text-[11px] font-semibold text-cyan-600 dark:text-cyan-400">{tDynamic(nextPatient.serviceName)}</span>
+                    <p className="text-xs text-muted-foreground font-mono font-bold">{nextPatient.phone}</p>
+                    <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 inline-block mt-0.5">{tDynamic(nextPatient.serviceName)}</span>
                   </div>
                 </div>
 
                 <Button
-                  className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl shadow-md shadow-emerald-600/20 text-base"
+                  className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl shadow-md shadow-emerald-600/25 text-sm transition-all active:scale-95 cursor-pointer"
                   onClick={() => handleStartExam(nextPatient)}
                   disabled={isProcessing}
                 >
                   {t('patient_entry', 'دخول المريض')}
-                  {isRtl ? <ArrowLeft className="w-5 h-5 mr-2" /> : <ArrowRight className="w-5 h-5 ml-2" />}
+                  {isRtl ? <ArrowLeft className="w-4 h-4 mr-2" /> : <ArrowRight className="w-4 h-4 ml-2" />}
                 </Button>
 
                 {isPatientAlertsEnabled && nextPatient.phone && (
                   <button
                     onClick={() => handleManualWhatsApp(nextPatient)}
-                    className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:opacity-80 flex items-center justify-center gap-1.5 mx-auto"
+                    className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:opacity-80 flex items-center justify-center gap-1.5 mx-auto transition-opacity cursor-pointer pt-1"
                   >
                     <MessageCircle className="w-3.5 h-3.5" />
                     {t('whatsapp_call_notice', 'إرسال إشعار استدعاء عبر واتساب')}
@@ -1443,8 +1495,9 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                 )}
               </div>
             ) : (
-              <div className="py-6 text-center text-muted-foreground text-xs">
-                {t('no_more_waiting', 'لا يوجد مرضى آخرين في الانتظار.')}
+              <div className="py-6 text-center text-muted-foreground text-xs space-y-1">
+                <p className="font-bold">{t('no_more_waiting', 'لا يوجد مرضى آخرين في الانتظار.')}</p>
+                <p className="text-[11px] text-muted-foreground/80">{t('queue_cleared', 'تم الانتهاء من جميع الحالات المجدولة حالياً')}</p>
               </div>
             )}
           </div>
