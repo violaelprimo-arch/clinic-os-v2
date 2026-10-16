@@ -1207,6 +1207,13 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
   const safeOffset = typeof data.topOffset === 'number' && data.topOffset <= 60 && data.topOffset >= 0 ? data.topOffset : 25
   const shouldPrintBg = isCustom && data.printBackground !== false
 
+  const doctorName = data.doctorName || 'أحمد عبد العزيز'
+  const doctorTitle = 'د.'
+  const specialty = data.specialty || 'استشاري العيادة الطبية'
+  const degree = data.degreeTitle || data.certificationTitle || 'عضو الجمعية الطبية المصرية'
+  const syndicate = 'نقابة الأطباء'
+  const validDrugs = (data.drugs || []).filter((d) => d.name && d.name.trim())
+
   return `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
@@ -1223,62 +1230,113 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
     }
     @page {
       size: ${isA5 ? 'A5' : 'A4'} portrait;
-      margin: ${isA5 ? '5mm 7mm' : '8mm 12mm'};
+      margin: 0 !important;
     }
     html, body {
-      width: 100%;
-      height: 100%;
-      margin: 0;
-      padding: 0;
+      width: ${isA5 ? '148mm' : '210mm'};
+      height: ${isA5 ? '210mm' : '297mm'};
+      margin: 0 !important;
+      padding: 0 !important;
       background: #ffffff;
-      color: #182230;
+      color: #0f172a;
       font-family: 'Segoe UI', Tahoma, -apple-system, Roboto, 'Cairo', Arial, sans-serif;
       direction: rtl;
       text-align: right;
       overflow: hidden;
     }
     .prescription-sheet {
-      width: 100%;
-      height: 100%;
-      max-height: 100%;
+      position: relative;
+      width: ${isA5 ? '148mm' : '210mm'};
+      height: ${isA5 ? '210mm' : '297mm'};
+      max-height: ${isA5 ? '210mm' : '297mm'};
+      box-sizing: border-box;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
+      padding: ${isA5 ? '8mm 10mm' : '12mm 15mm'};
+      overflow: hidden;
       page-break-inside: avoid !important;
       break-inside: avoid !important;
       page-break-after: avoid !important;
       break-after: avoid !important;
-      box-sizing: border-box;
-      padding: ${isA5 ? '6px 8px' : '10px 14px'};
       ${shouldPrintBg ? `background-image: url('${data.prescriptionTemplateUrl}'); background-size: 100% 100%; background-repeat: no-repeat; background-position: center;` : ''}
       ${isCustom && !showHeaderFooter ? `padding-top: ${safeOffset}%;` : ''}
     }
-    .header {
-      display: ${showHeaderFooter ? 'flex' : 'none'};
-      justify-content: space-between;
-      align-items: flex-start;
-      border-bottom: 2.5px solid ${sColor};
-      padding-bottom: ${isA5 ? '6px' : '10px'};
+
+    /* Vector Corner Brackets */
+    .corner-bracket {
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      opacity: 0.35;
+      pointer-events: none;
+    }
+    .corner-top-right { top: 6mm; right: 6mm; }
+    .corner-top-left { top: 6mm; left: 6mm; }
+    .corner-bottom-right { bottom: 6mm; right: 6mm; }
+    .corner-bottom-left { bottom: 6mm; left: 6mm; }
+
+    /* Central Luxury Medical Watermark */
+    .watermark-container {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.04;
+    }
+
+    .main-body {
+      position: relative;
+      z-index: 10;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    .rx-header {
+      display: ${showHeaderFooter ? 'block' : 'none'};
       margin-bottom: ${isA5 ? '6px' : '10px'};
     }
-    .doctor-name {
-      font-size: ${isA5 ? '14pt' : '18pt'};
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      padding-bottom: 8px;
+    }
+    .doctor-block h1 {
+      font-size: ${isA5 ? '15pt' : '21pt'};
       font-weight: 900;
-      color: #182230;
-      line-height: 1.2;
+      color: #0f172a;
+      line-height: 1.15;
     }
     .doctor-spec {
-      font-size: ${isA5 ? '9pt' : '11pt'};
-      font-weight: bold;
+      font-size: ${isA5 ? '9pt' : '11.5pt'};
+      font-weight: 800;
       color: ${sColor};
       margin-top: 2px;
     }
     .doctor-deg {
-      font-size: ${isA5 ? '7.5pt' : '9pt'};
+      font-size: ${isA5 ? '7pt' : '8.5pt'};
       color: #64748b;
+      font-weight: 600;
       margin-top: 2px;
     }
-    .clinic-logo-box {
+    .caduceus-badge {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      background: ${sColor}15;
+      border: 1px solid ${sColor}30;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto;
+    }
+    .clinic-brand {
       text-align: left;
       direction: ltr;
       display: flex;
@@ -1286,236 +1344,483 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
       align-items: flex-end;
     }
     .clinic-logo {
-      max-height: ${isA5 ? '38px' : '50px'};
-      max-width: 120px;
+      max-height: ${isA5 ? '38px' : '48px'};
+      max-width: 140px;
       object-fit: contain;
       margin-bottom: 2px;
     }
-    .clinic-title {
+    .clinic-name {
       font-size: ${isA5 ? '9pt' : '11pt'};
       font-weight: 900;
-      color: #0f172a;
+      color: #1e293b;
+      direction: rtl;
     }
-    .branch-badge {
-      font-size: ${isA5 ? '7.5pt' : '8.5pt'};
-      color: #64748b;
+    .branch-pill {
+      font-size: ${isA5 ? '7pt' : '8pt'};
       font-weight: bold;
-      margin-top: 1px;
-    }
-    .verification-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 3px;
-      padding: 1px 6px;
-      background: #f0fdf4;
-      border: 1px solid #bbf7d0;
+      color: #475569;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
       border-radius: 4px;
-      color: #166534;
-      font-size: ${isA5 ? '6.5pt' : '7.5pt'};
-      font-weight: bold;
-      margin-top: 3px;
+      padding: 1px 6px;
+      margin-top: 2px;
+      direction: rtl;
     }
 
+    /* Vector Double Divider */
+    .divider-rule {
+      position: relative;
+      height: 2px;
+      background: ${sColor};
+      border-radius: 2px;
+      margin: 4px 0 8px 0;
+    }
+    .divider-diamond {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(45deg);
+      width: 8px;
+      height: 8px;
+      background: #ffffff;
+      border: 1.5px solid ${sColor};
+    }
+
+    /* Patient Metadata Strip */
     .patient-strip {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: ${isCustom && !showHeaderFooter ? 'transparent' : '#f8fafc'};
-      border: ${isCustom && !showHeaderFooter ? 'none' : '1px solid #e2e8f0'};
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
       border-radius: 8px;
-      padding: ${isA5 ? '4px 8px' : '6px 12px'};
-      font-size: ${isA5 ? '8pt' : '9.5pt'};
+      padding: ${isA5 ? '5px 8px' : '8px 12px'};
       margin-bottom: ${isA5 ? '6px' : '10px'};
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      font-size: ${isA5 ? '7.5pt' : '9pt'};
     }
-    .patient-strip strong {
-      color: #0f172a;
-      font-size: ${isA5 ? '9pt' : '10.5pt'};
-    }
-    .label {
+    .patient-cell-label {
+      font-size: ${isA5 ? '6.5pt' : '7.5pt'};
       color: #64748b;
-      font-size: ${isA5 ? '7.5pt' : '8.5pt'};
-      margin-left: 3px;
+      font-weight: bold;
+      display: block;
+      margin-bottom: 1px;
+    }
+    .patient-cell-val {
+      font-size: ${isA5 ? '8.5pt' : '10pt'};
+      font-weight: 900;
+      color: #0f172a;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
-    .rx-title {
-      font-family: Georgia, serif;
-      font-size: ${isA5 ? '20pt' : '26pt'};
+    .diagnosis-strip {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 6px;
+      padding: ${isA5 ? '3px 8px' : '5px 10px'};
+      margin-bottom: ${isA5 ? '6px' : '10px'};
+      font-size: ${isA5 ? '7.5pt' : '9pt'};
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .diagnosis-label {
+      color: ${sColor};
+      font-weight: bold;
+    }
+    .diagnosis-val {
+      font-weight: 900;
+      color: #1e3a8a;
+    }
+
+    /* Rx Symbol */
+    .rx-bar {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 6px;
+      direction: ltr;
+    }
+    .rx-symbol {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: ${isA5 ? '24pt' : '32pt'};
       font-weight: 900;
       color: ${sColor};
-      margin: 2px 0 6px 0;
       line-height: 1;
-      direction: ltr;
-      text-align: left;
+    }
+    .rx-sub {
+      font-size: 7.5pt;
+      font-weight: 900;
+      letter-spacing: 2px;
+      color: #94a3b8;
+      text-transform: uppercase;
+    }
+    .rx-line {
+      flex: 1;
+      border-bottom: 1px dashed #cbd5e1;
+      margin-left: 8px;
     }
 
+    /* Drugs Container & Item */
     .drugs-container {
       flex: 1;
-      min-height: 0;
       display: flex;
       flex-direction: column;
-      gap: ${isA5 ? '4px' : '8px'};
+      gap: ${isA5 ? '6px' : '8px'};
     }
-    .drug-item {
+    .drug-card {
       display: flex;
       align-items: flex-start;
       gap: 8px;
-      padding-bottom: ${isA5 ? '4px' : '6px'};
-      border-bottom: 1px dashed #e2e8f0;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: ${isA5 ? '5px 8px' : '7px 10px'};
+      direction: ltr;
+      text-align: left;
       page-break-inside: avoid !important;
       break-inside: avoid !important;
     }
-    .drug-num {
+    .drug-badge-num {
+      width: ${isA5 ? '18px' : '22px'};
+      height: ${isA5 ? '18px' : '22px'};
+      border-radius: 6px;
+      background: ${sColor};
+      color: #ffffff;
       font-weight: 900;
-      color: ${sColor};
-      font-size: ${isA5 ? '9.5pt' : '11.5pt'};
-      width: 18px;
-      direction: ltr;
-      text-align: left;
+      font-size: ${isA5 ? '8pt' : '9.5pt'};
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      shrink-0;
+      margin-top: 1px;
     }
-    .drug-details {
+    .drug-content {
       flex: 1;
-      text-align: left;
-      direction: ltr;
+      min-width: 0;
     }
-    .drug-name {
+    .drug-name-text {
       font-size: ${isA5 ? '10pt' : '12pt'};
       font-weight: 900;
       color: #0f172a;
       letter-spacing: -0.2px;
     }
-    .drug-instruction {
-      font-size: ${isA5 ? '8pt' : '9.5pt'};
-      color: #334155;
-      font-weight: 600;
-      margin-top: 1px;
+    .drug-pills-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 5px;
+      margin-top: 3px;
       direction: rtl;
       text-align: right;
     }
-    .drug-instruction strong {
-      color: #0d9488;
+    .pill-dosage {
+      font-size: ${isA5 ? '7pt' : '8.5pt'};
+      font-weight: bold;
+      background: #eff6ff;
+      color: #1e40af;
+      border: 1px solid #bfdbfe;
+      border-radius: 4px;
+      padding: 1px 6px;
+    }
+    .pill-duration {
+      font-size: ${isA5 ? '7pt' : '8.5pt'};
+      font-weight: bold;
+      background: #f0fdf4;
+      color: #166534;
+      border: 1px solid #bbf7d0;
+      border-radius: 4px;
+      padding: 1px 6px;
+    }
+    .pill-notes {
+      font-size: ${isA5 ? '7pt' : '8.5pt'};
+      font-weight: normal;
+      font-style: italic;
+      background: #fffbeb;
+      color: #92400e;
+      border: 1px solid #fde68a;
+      border-radius: 4px;
+      padding: 1px 6px;
     }
 
+    /* Ruled guidelines for page balance when medicines are few */
+    .ruled-guidelines {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding-top: 12px;
+      opacity: 0.35;
+    }
+    .ruled-line {
+      width: 100%;
+      border-bottom: 1px dashed #cbd5e1;
+    }
+
+    /* Instructions Box */
     .instructions-box {
-      background: #f0fdfa;
-      border: 1px solid #99f6e4;
-      border-radius: 6px;
-      padding: ${isA5 ? '5px 8px' : '6px 12px'};
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 8px;
+      padding: ${isA5 ? '5px 8px' : '7px 12px'};
       margin-top: 6px;
       font-size: ${isA5 ? '7.5pt' : '9pt'};
-      color: #0f766e;
+      color: #78350f;
       page-break-inside: avoid;
-      break-inside: avoid;
     }
-
-    .footer {
-      display: ${showHeaderFooter ? 'flex' : 'none'};
-      border-top: 2px solid ${sColor};
-      padding-top: ${isA5 ? '6px' : '10px'};
-      margin-top: ${isA5 ? '8px' : '14px'};
-      justify-content: space-between;
-      align-items: flex-end;
-      font-size: ${isA5 ? '7pt' : '8.5pt'};
-      color: #64748b;
-      page-break-inside: avoid;
-      break-inside: avoid;
-    }
-    .clinic-meta {
-      line-height: 1.4;
-    }
-    .copy-note {
-      font-size: ${isA5 ? '6.5pt' : '7.5pt'};
-      color: #94a3b8;
-      margin-top: 2px;
-    }
-    .signature-area {
-      text-align: center;
-      width: ${isA5 ? '100px' : '140px'};
-    }
-    .signature-line {
-      border-bottom: 1.5px solid #000;
-      height: ${isA5 ? '22px' : '32px'};
+    .instructions-title {
+      font-weight: 900;
+      display: block;
       margin-bottom: 2px;
     }
-    .signature-title {
-      font-size: ${isA5 ? '7.5pt' : '9pt'};
-      font-weight: bold;
-      color: #1e293b;
+
+    /* Footer */
+    .rx-footer {
+      display: ${showHeaderFooter ? 'block' : 'none'};
+      border-top: 2px solid ${sColor};
+      padding-top: ${isA5 ? '6px' : '10px'};
+      margin-top: ${isA5 ? '8px' : '12px'};
+      position: relative;
+      z-index: 10;
     }
-    .signature-doctor {
-      font-size: ${isA5 ? '7pt' : '8pt'};
+    .footer-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 12px;
+    }
+    .stamp-signature-area {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .signature-box {
+      text-align: center;
+      width: ${isA5 ? '85px' : '120px'};
+    }
+    .signature-line {
+      border-bottom: 1.5px solid #334155;
+      font-family: Georgia, serif;
+      font-style: italic;
+      font-weight: bold;
+      font-size: ${isA5 ? '8pt' : '10pt'};
+      padding-bottom: 2px;
+      margin-bottom: 2px;
+    }
+    .signature-label {
+      font-size: ${isA5 ? '6.5pt' : '7.5pt'};
+      font-weight: bold;
       color: #64748b;
+    }
+    .verification-box {
+      text-align: center;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 3px 8px;
+    }
+    .verification-label {
+      font-size: ${isA5 ? '7pt' : '8pt'};
+      font-weight: 900;
+      color: #059669;
+    }
+    .verification-id {
+      font-family: monospace;
+      font-size: ${isA5 ? '6.5pt' : '7.5pt'};
+      color: #64748b;
+    }
+    .clinic-meta-box {
+      font-size: ${isA5 ? '7pt' : '8.5pt'};
+      color: #475569;
+      line-height: 1.35;
+      max-width: 200px;
+    }
+    .meta-brand-copy {
+      font-size: ${isA5 ? '6pt' : '7pt'};
+      color: #94a3b8;
+      margin-top: 2px;
     }
   </style>
 </head>
 <body>
   <div class="prescription-sheet">
-    <div>
-      <div class="header">
-        <div>
-          <div class="doctor-name">د. ${data.doctorName || 'الطبيب المعالج'}</div>
-          <div class="doctor-spec">${data.specialty || 'استشاري العيادة الطبية'}</div>
-          <div class="doctor-deg">${data.degreeTitle || data.certificationTitle || 'عضو الجمعية الطبية المصرية'}</div>
-          <div class="verification-pill">✓ روشتة رسمية موثقة إلكترونياً</div>
-        </div>
-        <div class="clinic-logo-box">
-          ${data.logoUrl ? `<img src="${data.logoUrl}" class="clinic-logo" alt="Logo" />` : ''}
-          <div class="clinic-title">${data.clinicName || 'Yalla Clinic'}</div>
-          ${data.branchName ? `<div class="branch-badge">فرع: ${data.branchName}</div>` : ''}
-        </div>
-      </div>
+    
+    <!-- Vector Corner Brackets -->
+    ${showHeaderFooter ? `
+    <svg class="corner-bracket corner-top-right" viewBox="0 0 20 20" fill="none" style="color: ${sColor};">
+      <path d="M18 2h-8M18 2v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+    </svg>
+    <svg class="corner-bracket corner-top-left" viewBox="0 0 20 20" fill="none" style="color: ${sColor};">
+      <path d="M2 2h8M2 2v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+    </svg>
+    <svg class="corner-bracket corner-bottom-right" viewBox="0 0 20 20" fill="none" style="color: ${sColor};">
+      <path d="M18 18h-8M18 18v-8" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+    </svg>
+    <svg class="corner-bracket corner-bottom-left" viewBox="0 0 20 20" fill="none" style="color: ${sColor};">
+      <path d="M2 18h8M2 18v-8" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+    </svg>
+    ` : ''}
 
-      <div class="patient-strip">
-        <div><span class="label">اسم المريض:</span> <strong>${data.patientName || 'المريض'}</strong></div>
-        ${data.patientAge ? `<div><span class="label">السن:</span> <strong>${data.patientAge} سنة</strong></div>` : ''}
-        <div><span class="label">التاريخ:</span> <strong dir="ltr">${data.date}</strong></div>
-        ${data.diagnosis ? `<div><span class="label">التشخيص:</span> <strong>${data.diagnosis}</strong></div>` : ''}
-      </div>
-
-      <div class="rx-title">R/</div>
+    <!-- Central Luxury Medical Watermark Emblem -->
+    <div class="watermark-container">
+      <svg class="${isA5 ? 'w-64 h-64' : 'w-96 h-96'}" viewBox="0 0 400 400" fill="none" style="color: ${sColor}; width: 320px; height: 320px;">
+        <circle cx="200" cy="200" r="185" stroke="currentColor" stroke-width="2" stroke-dasharray="8 6" />
+        <circle cx="200" cy="200" r="160" stroke="currentColor" stroke-width="1.5" />
+        <circle cx="200" cy="200" r="135" stroke="currentColor" stroke-width="1" stroke-dasharray="4 4" />
+        <path d="M200 65v270M65 200h270" stroke="currentColor" stroke-width="10" stroke-linecap="round" />
+        <path d="M165 140c12-30 58-30 70 0s-70 45-70 75 58 45 70 75" stroke="currentColor" stroke-width="4" stroke-linecap="round" />
+        <path d="M235 140c-12-30-58-30-70 0s70 45 70 75-58 45-70 75" stroke="currentColor" stroke-width="4" stroke-linecap="round" />
+        <path d="M110 200h50l14-26 18 52 18-52 14 26h56" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+        <circle cx="200" cy="60" r="10" fill="currentColor" />
+      </svg>
     </div>
 
-    <div class="drugs-container">
-      ${(data.drugs || [])
-        .filter((d) => d.name && d.name.trim())
-        .map(
-          (drug, idx) => `
-          <div class="drug-item">
-            <div class="drug-num">${idx + 1}.</div>
-            <div class="drug-details">
-              <div class="drug-name">${drug.name}</div>
-              <div class="drug-instruction">
-                ${drug.dosage ? `<span>الجرعة: <strong>${drug.dosage}</strong></span>` : ''}
-                ${drug.duration ? ` • <span>المدة: <strong>${drug.duration}</strong></span>` : ''}
-                ${drug.notes ? ` • <span>ملاحظات: ${drug.notes}</span>` : ''}
-              </div>
+    <!-- Main Prescription Body -->
+    <div class="main-body">
+      
+      <!-- 1. Header -->
+      <div class="rx-header">
+        <div class="header-row">
+          <div class="doctor-block">
+            <h1>${doctorTitle} ${doctorName}</h1>
+            <div class="doctor-spec">${specialty}</div>
+            <div class="doctor-deg">${degree} • ${syndicate}</div>
+          </div>
+
+          <div class="caduceus-badge">
+            <svg style="width: 24px; height: 24px; color: ${sColor};" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2v20M2 12h20" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+              <path d="M7 8c2-3 8-3 10 0s-10 5-10 8 8 3 10 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" opacity="0.85" />
+            </svg>
+          </div>
+
+          <div class="clinic-brand">
+            ${data.logoUrl ? `<img src="${data.logoUrl}" class="clinic-logo" alt="Logo" />` : ''}
+            <div class="clinic-name">${data.clinicName || 'Yalla Clinic'}</div>
+            ${data.branchName ? `<div class="branch-pill">فرع: ${data.branchName}</div>` : ''}
+          </div>
+        </div>
+
+        <div class="divider-rule">
+          <div class="divider-diamond"></div>
+        </div>
+      </div>
+
+      <!-- 2. Patient Meta Strip -->
+      <div class="patient-strip">
+        <div>
+          <span class="patient-cell-label">اسم المريض:</span>
+          <span class="patient-cell-val">${data.patientName || 'المريض'}</span>
+        </div>
+        <div>
+          <span class="patient-cell-label">السن:</span>
+          <span class="patient-cell-val">${data.patientAge ? `${data.patientAge} سنة` : '—'}</span>
+        </div>
+        <div>
+          <span class="patient-cell-label">التاريخ:</span>
+          <span class="patient-cell-val" dir="ltr">${data.date}</span>
+        </div>
+        <div>
+          <span class="patient-cell-label">رقم الروشتة:</span>
+          <span class="patient-cell-val" dir="ltr">#${data.fileNumber || '1042'}</span>
+        </div>
+      </div>
+
+      <!-- Diagnosis (if present) -->
+      ${data.diagnosis ? `
+      <div class="diagnosis-strip">
+        <span class="diagnosis-label">التشخيص الطبي:</span>
+        <span class="diagnosis-val">${data.diagnosis}</span>
+      </div>
+      ` : ''}
+
+      <!-- 3. Rx Section -->
+      <div class="rx-bar">
+        <span class="rx-symbol">℞</span>
+        <span class="rx-sub">Prescription</span>
+        <div class="rx-line"></div>
+      </div>
+
+      <!-- Medicines List (Cohesive Unified Left-Aligned Latin with RTL Dosage) -->
+      <div class="drugs-container">
+        ${validDrugs.length === 0 ? `
+          <div style="padding: 30px; text-align: center; color: #94a3b8; border: 1px dashed #cbd5e1; border-radius: 8px;">
+            لم يتم تسجيل أدوية بالروشتة بعد
+          </div>
+        ` : validDrugs.map((drug, idx) => `
+          <div class="drug-card">
+            <div class="drug-badge-num">${idx + 1}</div>
+            <div class="drug-content">
+              <div class="drug-name-text">${drug.name}</div>
+              ${(drug.dosage || drug.duration || drug.notes) ? `
+                <div class="drug-pills-row">
+                  ${drug.dosage ? `<span class="pill-dosage">الجرعة: ${drug.dosage}</span>` : ''}
+                  ${drug.duration ? `<span class="pill-duration">المدة: ${drug.duration}</span>` : ''}
+                  ${drug.notes ? `<span class="pill-notes">(${drug.notes})</span>` : ''}
+                </div>
+              ` : ''}
             </div>
           </div>
-        `
-        )
-        .join('')}
+        `).join('')}
 
-      ${
-        data.instructions
-          ? `<div class="instructions-box">
-              <strong>إرشادات الطبيب:</strong> ${data.instructions}
-            </div>`
-          : ''
-      }
-    </div>
-
-    <div class="footer">
-      <div class="clinic-meta">
-        <div>${data.clinicAddress || 'العنوان: مسجل بالعيادة'}</div>
-        <div>هاتف: ${data.clinicPhone || 'مسجل بالعيادة'}</div>
-        <div class="copy-note">تم استخراج الروشتة إلكترونياً عبر Yalla Clinic • جميع الحقوق محفوظة YallaCodeX 2026</div>
+        <!-- Page Balance Guidelines -->
+        ${validDrugs.length > 0 && validDrugs.length < 4 ? `
+          <div class="ruled-guidelines">
+            <div class="ruled-line"></div>
+            <div class="ruled-line"></div>
+          </div>
+        ` : ''}
       </div>
 
-      <div class="signature-area">
-        <div class="signature-line"></div>
-        <div class="signature-title">توقيع وختم الطبيب</div>
-        <div class="signature-doctor">د. ${data.doctorName || ''}</div>
+      <!-- 4. Clinical Instructions Box -->
+      ${data.instructions ? `
+      <div class="instructions-box">
+        <strong class="instructions-title">إرشادات وتعليمات الطبيب:</strong>
+        <div>${data.instructions}</div>
+      </div>
+      ` : ''}
+
+    </div>
+
+    <!-- 5. Footer -->
+    <div class="rx-footer">
+      <div class="footer-row">
+        
+        <!-- Doctor Signature and Circular Stamp -->
+        <div class="stamp-signature-area">
+          <svg style="width: 72px; height: 72px; color: ${sColor}; transform: rotate(-5deg); shrink: 0;" viewBox="0 0 160 160">
+            <circle cx="80" cy="80" r="74" fill="none" stroke="currentColor" stroke-width="2.5" stroke-dasharray="5 3" opacity="0.8" />
+            <circle cx="80" cy="80" r="66" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.85" />
+            <circle cx="80" cy="80" r="14" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4" />
+            <path d="M74 80l4 4 8-10" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" />
+            <text x="80" y="34" text-anchor="middle" font-size="8.5" font-weight="900" fill="currentColor" letter-spacing="0.5">عيادة طبية معتمدة</text>
+            <text x="80" y="60" text-anchor="middle" font-size="9.5" font-weight="900" fill="currentColor">${doctorTitle} ${doctorName}</text>
+            <text x="80" y="106" text-anchor="middle" font-size="7.5" font-weight="bold" fill="currentColor">${specialty}</text>
+            <text x="80" y="136" text-anchor="middle" font-size="7.5" font-weight="900" fill="currentColor" letter-spacing="1">OFFICIAL MEDICAL SEAL</text>
+          </svg>
+
+          <div class="signature-box">
+            <div class="signature-line">${doctorTitle} ${doctorName}</div>
+            <div class="signature-label">توقيع وختم الطبيب</div>
+          </div>
+        </div>
+
+        <!-- Electronic Verification Badge -->
+        <div class="verification-box">
+          <div class="verification-label">✓ روشتة موثقة إلكترونياً</div>
+          <div class="verification-id">ID: RX-${data.fileNumber || '1042'}-${data.date.replace(/-/g, '')}</div>
+        </div>
+
+        <!-- Clinic Contacts -->
+        <div class="clinic-meta-box">
+          <div>${data.clinicAddress || 'العنوان: مسجل بالعيادة'}</div>
+          <div dir="ltr">تليفون: ${data.clinicPhone || 'مسجل بالعيادة'}</div>
+          <div class="meta-brand-copy">نظام تشغيل العيادات الذكي • Yalla Clinic 2026</div>
+        </div>
+
       </div>
     </div>
+
   </div>
 </body>
 </html>`
