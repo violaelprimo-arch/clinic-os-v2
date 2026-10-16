@@ -48,7 +48,7 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
           } else {
             setMessages([{
               role: 'model',
-              text: 'مرحباً دكتور. أنا المساعد الذكي الخاص بعيادتك. يمكنك تزويدي هنا بأي معلومات أو تعليمات ترغب أن أتعلمها للرد على استفسارات المرضى (مثل أوقات الكشف، الأسعار، الإجازات، أو تعليمات الزيارة).'
+              text: t('ai_welcome_initial')
             }])
           }
         }
@@ -97,7 +97,7 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
         await updateDoc(doc(db, 'clinics', clinicId), { aiKnowledge: finalMessages })
       }
     } catch (err) {
-      toast.error('حدث خطأ أثناء التواصل مع نموذج الذكاء الاصطناعي')
+      toast.error(t('ai_error_model'))
     } finally {
       setIsLoading(false)
     }
@@ -105,15 +105,15 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
 
   const handleClearMemory = async () => {
     if (!clinicId) return
-    if (!confirm('هل أنت متأكد من رغبتك في مسح ذاكرة المساعد الذكي؟')) return
+    if (!confirm(t('ai_confirm_clear'))) return
 
     const initial = [{
       role: 'model' as const,
-      text: 'تم مسح ذاكرتي بنجاح. أنا جاهز لاستقبال معلومات وتوجيهات جديدة.'
+      text: t('ai_cleared_msg')
     }]
     setMessages(initial)
     await updateDoc(doc(db, 'clinics', clinicId), { aiKnowledge: initial })
-    toast.success('تم مسح ذاكرة المساعد الذكي')
+    toast.success(t('ai_cleared_toast'))
   }
 
   return (
@@ -124,10 +124,10 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
         <div>
           <h1 className="text-2xl font-black text-foreground flex items-center gap-2">
             <Bot className="w-6 h-6 text-primary" />
-            تدريب المساعد الذكي للعيادة
+            {t('ai_training_title')}
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            تحدث مع المساعد كما تتحدث مع سكرتير العيادة، وسيتعلم الرد على استفسارات المرضى تلقائياً
+            {t('ai_training_subtitle')}
           </p>
         </div>
 
@@ -137,8 +137,8 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
           onClick={handleClearMemory}
           className="h-9 text-xs font-bold text-rose-600 dark:text-rose-400 border-rose-500/20 hover:bg-rose-500/10 rounded-xl"
         >
-          <Trash2 className="w-3.5 h-3.5 ml-1" />
-          مسح الذاكرة
+          <Trash2 className="w-3.5 h-3.5 mx-1" />
+          {t('clear_memory')}
         </Button>
       </div>
 
@@ -150,24 +150,24 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
               <Bot className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-foreground">رصيد استهلاك المساعد الذكي (AI Responses Quota)</h3>
+              <h3 className="font-bold text-sm text-foreground">{t('ai_quota_title')}</h3>
               <p className="text-xs text-muted-foreground">
-                إجمالي ردود المساعد الذكي المتاحة لمرضى العيادة خلال فترة الاشتراك الحالي
+                {t('ai_quota_desc')}
               </p>
             </div>
           </div>
 
-          <div className="text-left">
+          <div className="text-start">
             <div className="flex items-baseline gap-1 font-mono font-black" dir="ltr">
               <span className={`text-xl ${aiResponsesCount >= aiResponsesLimit ? 'text-rose-600 dark:text-rose-400' : 'text-primary'}`}>
                 {aiResponsesCount}
               </span>
-              <span className="text-xs text-muted-foreground">/ {aiResponsesLimit} رد</span>
+              <span className="text-xs text-muted-foreground">/ {aiResponsesLimit} {t('responses_unit')}</span>
             </div>
-            <span className="text-[10px] text-muted-foreground font-bold block text-right">
+            <span className="text-[10px] text-muted-foreground font-bold block text-start">
               {aiResponsesCount >= aiResponsesLimit
-                ? 'تم استهلاك الرصيد بالكامل'
-                : `متبقي ${Math.max(0, aiResponsesLimit - aiResponsesCount)} رد`}
+                ? t('responses_consumed_full')
+                : `${t('responses_remaining')} ${Math.max(0, aiResponsesLimit - aiResponsesCount)} ${t('responses_unit')}`}
             </span>
           </div>
         </div>
@@ -191,7 +191,7 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
           <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-700 dark:text-rose-400 text-xs font-semibold flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
-              <span>لقد انتهت الردود المخصصة للباقة! تم إيقاف البوت مؤقتاً لحين شحن الرصيد أو ترقية الباقة.</span>
+              <span>{t('ai_quota_exhausted_alert')}</span>
             </div>
           </div>
         )}
@@ -202,14 +202,14 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
           <div className="flex items-center gap-2.5">
             <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
             <div>
-              <span className="font-bold block text-foreground">خدمة المساعد الذكي معطلة حالياً عن العيادة:</span>
-              <span className="text-muted-foreground">لن يظهر الشات للمرضى حتى تقوم بإعادة تفعيله من الإعدادات.</span>
+              <span className="font-bold block text-foreground">{t('ai_disabled_in_clinic')}</span>
+              <span className="text-muted-foreground">{t('ai_disabled_hint')}</span>
             </div>
           </div>
           <Link href={`/clinic/${slug}/admin/settings`}>
             <Button size="sm" variant="outline" className="h-8 text-xs font-bold rounded-lg border-border">
-              الانتقال للإعدادات
-              <ArrowLeft className="w-3.5 h-3.5 mr-1" />
+              {t('go_to_settings')}
+              <ArrowLeft className="w-3.5 h-3.5 mx-1 rtl:rotate-0 ltr:rotate-180" />
             </Button>
           </Link>
         </div>
@@ -219,8 +219,8 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
         <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-semibold flex items-start gap-3">
           <Info className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
           <div>
-            <span className="font-bold block mb-0.5">ملاحظة بشأن مفتاح الذكاء الاصطناعي:</span>
-            <span>لم يتم تعيين مفتاح API مباشر لهذه العيادة. يمكنك تدريب وحفظ الذاكرة، ولكن لردود حية للمرضى تأكد من ضبط المفتاح من لوحة المالك.</span>
+            <span className="font-bold block mb-0.5">{t('ai_api_key_note')}</span>
+            <span>{t('ai_api_key_desc')}</span>
           </div>
         </div>
       )}
@@ -258,7 +258,7 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
             <div className="flex justify-end">
               <div className="bg-card border border-border rounded-2xl rounded-tl-none p-3 shadow-xs flex items-center gap-2 text-xs text-muted-foreground font-bold">
                 <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                جاري استيعاب وتطبيق التعليمات...
+                {t('ai_learning_loader')}
               </div>
             </div>
           )}
@@ -271,7 +271,7 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
             <Input
               value={input}
               onChange={e => setInput(e.target.value)}
-              placeholder="اكتب تعليمات جديدة للذكاء الاصطناعي (مثال: مواعيد العيادة تبدأ يومياً من الساعة 5 مساءً)..."
+              placeholder={t('ai_input_placeholder')}
               className="h-12 text-xs sm:text-sm rounded-xl bg-background border-border"
             />
             <Button
@@ -279,8 +279,8 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
               disabled={!input.trim() || isLoading}
               className="h-12 px-6 font-bold yalla-gradient-btn text-white rounded-xl shadow-xs"
             >
-              <Send className="w-4 h-4 ml-1.5" />
-              إرسال
+              <Send className="w-4 h-4 mx-1.5 rtl:rotate-0 ltr:rotate-180" />
+              {t('send')}
             </Button>
           </form>
         </div>

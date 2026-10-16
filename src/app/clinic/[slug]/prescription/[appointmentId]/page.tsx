@@ -15,6 +15,9 @@ import { downloadElementAsPdf, renderElementToPdfBlob, downloadElementAsImage, r
 import { printHtmlViaIframe, generateA4PrescriptionHtml } from '@/lib/printService'
 import { shareDocumentOrImage, sharePdfDocument } from '@/lib/whatsappShare'
 import { getClinicUrl } from '@/lib/clinic-url'
+import { LanguageToggle } from '@/components/common/LanguageToggle'
+import { ThemeToggle } from '@/components/common/ThemeToggle'
+import { useLanguage } from '@/context/LanguageContext'
 import { toast } from 'sonner'
 
 export default function PublicPrescriptionPage({
@@ -24,6 +27,7 @@ export default function PublicPrescriptionPage({
 }) {
   const resolvedParams = use(params)
   const { slug, appointmentId } = resolvedParams
+  const { t, isRtl, dir } = useLanguage()
 
   const [clinic, setClinic] = useState<any>(null)
   const [appointment, setAppointment] = useState<any>(null)
@@ -79,7 +83,7 @@ export default function PublicPrescriptionPage({
     fetchData()
   }, [slug, appointmentId])
 
-  const patientName = prescription?.patientName || appointment?.patientName || 'المريض'
+  const patientName = prescription?.patientName || appointment?.patientName || (isRtl ? 'المريض' : 'Patient')
   const patientAge = prescription?.age || appointment?.age || appointment?.dob || ''
   const rxDate = prescription?.date || appointment?.date || new Date().toISOString().split('T')[0]
   const rxDiagnosis = prescription?.diagnosis || appointment?.diagnosis || ''
@@ -89,8 +93,8 @@ export default function PublicPrescriptionPage({
   // Isolated A4 Printing
   const handlePrint = () => {
     const html = generateA4PrescriptionHtml({
-      clinicName: clinic?.clinicName || 'العيادة الطبية',
-      doctorName: clinic?.doctorName || 'طبيب العيادة',
+      clinicName: clinic?.clinicName || (isRtl ? 'العيادة الطبية' : 'Medical Clinic'),
+      doctorName: clinic?.doctorName || (isRtl ? 'طبيب العيادة' : 'Clinic Physician'),
       specialty: clinic?.specialty,
       certificationTitle: clinic?.certificationTitle,
       clinicPhone: clinic?.clinicPhone,
@@ -119,13 +123,13 @@ export default function PublicPrescriptionPage({
     try {
       await downloadElementAsPdf(
         printSheetRef.current,
-        `روشتة_${patientName}_${rxDate}.pdf`,
+        `Rx_${patientName}_${rxDate}.pdf`,
         { format: 'a4', orientation: 'portrait' }
       )
-      toast.success('تم تحميل ملف الروشتة PDF بنجاح')
+      toast.success(isRtl ? 'تم تحميل ملف الروشتة PDF بنجاح' : 'Prescription downloaded as PDF')
     } catch (e) {
       console.error(e)
-      toast.error('حدث خطأ أثناء تحميل الروشتة')
+      toast.error(isRtl ? 'حدث خطأ أثناء تحميل الروشتة' : 'Error downloading prescription PDF')
     } finally {
       setIsDownloading(false)
     }
@@ -138,13 +142,13 @@ export default function PublicPrescriptionPage({
     try {
       await downloadElementAsImage(
         printSheetRef.current,
-        `روشتة_${patientName}_${rxDate}.png`,
+        `Rx_${patientName}_${rxDate}.png`,
         { scale: 2.5 }
       )
-      toast.success('تم تنزيل الروشتة كصورة PNG بنجاح')
+      toast.success(isRtl ? 'تم تنزيل الروشتة كصورة PNG بنجاح' : 'Prescription downloaded as PNG')
     } catch (e) {
       console.error(e)
-      toast.error('حدث خطأ أثناء تحميل صورة الروشتة')
+      toast.error(isRtl ? 'حدث خطأ أثناء تحميل صورة الروشتة' : 'Error downloading prescription image')
     } finally {
       setIsDownloadingImage(false)
     }
@@ -155,12 +159,14 @@ export default function PublicPrescriptionPage({
     if (!printSheetRef.current) return
     setIsSharing(true)
     try {
-      toast.info('جاري إعداد صورة الروشتة...')
+      toast.info(isRtl ? 'جاري إعداد صورة الروشتة...' : 'Preparing prescription image...')
       const { blob } = await renderElementToImageBlob(printSheetRef.current, { scale: 2.5 })
 
-      const fileName = `روشتة_${patientName}_${rxDate}.png`
+      const fileName = `Rx_${patientName}_${rxDate}.png`
       const currentUrl = getClinicUrl(slug, `/prescription/${appointmentId}`)
-      const message = `الروشتة الطبية الإلكترونية 📄\nعيادة: ${clinic?.clinicName || 'العيادة الطبية'}\nالطبيب: د. ${clinic?.doctorName || ''}\nالمريض: ${patientName}\nالتاريخ: ${rxDate}\n\n🔗 يمكنك استعراض وتحميل الروشتة الرسمية بتصميم العيادة عبر الرابط المباشر:\n${currentUrl}\n\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`
+      const message = isRtl
+        ? `الروشتة الطبية الإلكترونية 📄\nعيادة: ${clinic?.clinicName || 'العيادة الطبية'}\nالطبيب: د. ${clinic?.doctorName || ''}\nالمريض: ${patientName}\nالتاريخ: ${rxDate}\n\n🔗 يمكنك استعراض وتحميل الروشتة الرسمية بتصميم العيادة عبر الرابط المباشر:\n${currentUrl}\n\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`
+        : `Official E-Prescription 📄\nClinic: ${clinic?.clinicName || 'Clinic'}\nDoctor: Dr. ${clinic?.doctorName || ''}\nPatient: ${patientName}\nDate: ${rxDate}\n\n🔗 Access and download your official Rx via:\n${currentUrl}\n\nWishing you good health and a speedy recovery! 🌿`
 
       await shareDocumentOrImage({
         blob,
@@ -168,11 +174,11 @@ export default function PublicPrescriptionPage({
         fileType: 'image',
         recipientPhone: patientPhone,
         messageText: message,
-        documentTitle: 'الروشتة الطبية'
+        documentTitle: isRtl ? 'الروشتة الطبية' : 'Medical Prescription'
       })
     } catch (e) {
       console.error(e)
-      toast.error('تعذر مشاركة الروشتة')
+      toast.error(isRtl ? 'تعذر مشاركة الروشتة' : 'Failed to share prescription')
     } finally {
       setIsSharing(false)
     }
@@ -180,10 +186,12 @@ export default function PublicPrescriptionPage({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#F6F8FB] flex items-center justify-center p-4" dir="rtl">
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4" dir={dir}>
         <div className="text-center space-y-3">
-          <Loader2 className="w-10 h-10 animate-spin text-[#087CF4] mx-auto" />
-          <p className="text-xs font-bold text-slate-500">جاري تحميل بيانات الروشتة الطبية...</p>
+          <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto" />
+          <p className="text-xs font-bold text-muted-foreground">
+            {t('loading_rx_data', isRtl ? 'جاري تحميل بيانات الروشتة الطبية...' : 'Loading medical prescription...')}
+          </p>
         </div>
       </div>
     )
@@ -191,16 +199,18 @@ export default function PublicPrescriptionPage({
 
   if (!appointment && !prescription) {
     return (
-      <div className="min-h-screen bg-[#F6F8FB] flex items-center justify-center p-4" dir="rtl">
-        <div className="bg-white rounded-3xl p-8 max-w-md w-full text-center space-y-4 shadow-sm border border-slate-200">
-          <AlertCircle className="w-12 h-12 text-rose-500 mx-auto" />
-          <h2 className="text-lg font-black text-slate-800">الروشتة غير متوفرة</h2>
-          <p className="text-xs text-slate-500">
-            لم نتمكن من العثور على بيانات هذه الروشتة أو قد تم حذف الحجز.
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4" dir={dir}>
+        <div className="bg-card rounded-3xl p-8 max-w-md w-full text-center space-y-4 shadow-sm border border-border">
+          <AlertCircle className="w-12 h-12 text-destructive mx-auto" />
+          <h2 className="text-lg font-black text-foreground">
+            {t('rx_not_available', isRtl ? 'الروشتة غير متوفرة' : 'Prescription Not Available')}
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            {t('rx_not_found_desc', isRtl ? 'لم نتمكن من العثور على بيانات هذه الروشتة أو قد تم حذف الحجز.' : 'Could not find records for this prescription or booking was removed.')}
           </p>
           <Link href={`/clinic/${slug}`}>
-            <Button className="w-full bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl text-xs font-bold">
-              العودة إلى العيادة
+            <Button className="w-full yalla-gradient-btn text-white rounded-xl text-xs font-bold">
+              {t('back_to_clinic', isRtl ? 'العودة إلى العيادة' : 'Back to Clinic')}
             </Button>
           </Link>
         </div>
@@ -209,29 +219,40 @@ export default function PublicPrescriptionPage({
   }
 
   return (
-    <div className="min-h-screen bg-[#F6F8FB] text-[#182230] font-sans py-6 px-3 sm:px-6" dir="rtl">
+    <div className="min-h-screen bg-background text-foreground font-sans py-6 px-3 sm:px-6 transition-colors" dir={dir}>
       <div className="max-w-4xl mx-auto space-y-6">
 
+        {/* Top Floating Controls */}
+        <div className="flex items-center justify-between">
+          <Link
+            href={`/clinic/${slug}`}
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowRight className="w-4 h-4 rtl:rotate-0 ltr:rotate-180" />
+            <span>{t('back_to_clinic', isRtl ? 'العودة للعيادة' : 'Back to Clinic')}</span>
+          </Link>
+
+          <div className="flex items-center gap-2">
+            <LanguageToggle />
+            <ThemeToggle />
+          </div>
+        </div>
+
         {/* Top Control Bar */}
-        <div className="bg-white p-4 rounded-3xl border border-[#E5EAF0] shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="bg-card p-4 rounded-3xl border border-border shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Link
-              href={`/clinic/${slug}`}
-              className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 transition-colors"
-              title="العودة لصفحة العيادة"
-            >
-              <ArrowRight className="w-5 h-5" />
-            </Link>
             <div>
               <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-[#087CF4]" />
-                <h1 className="text-sm font-black text-[#182230]">الروشتة الطبية الرسمية</h1>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-[#087CF4] border border-blue-100">
-                  معتمدة
+                <FileText className="w-4 h-4 text-primary" />
+                <h1 className="text-sm font-black text-foreground">
+                  {t('official_medical_rx', isRtl ? 'الروشتة الطبية الرسمية' : 'Official Medical Prescription')}
+                </h1>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                  {t('approved_tag', isRtl ? 'معتمدة' : 'Verified')}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                المريض: <strong className="text-slate-700">{patientName}</strong> • {rxDate}
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {t('patient_label', isRtl ? 'المريض:' : 'Patient:')} <strong className="text-foreground">{patientName}</strong> • {rxDate}
               </p>
             </div>
           </div>
@@ -242,30 +263,30 @@ export default function PublicPrescriptionPage({
               onClick={handleDownloadImage}
               disabled={isDownloadingImage}
               variant="outline"
-              className="flex-1 sm:flex-none h-10 px-3.5 text-xs font-bold border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl shadow-xs cursor-pointer"
+              className="flex-1 sm:flex-none h-10 px-3.5 text-xs font-bold border-border text-foreground hover:bg-muted/40 rounded-xl shadow-xs cursor-pointer"
             >
-              <ImageIcon className="w-4 h-4 ml-1.5" />
-              {isDownloadingImage ? 'جاري التحميل...' : 'تحميل صورة'}
+              <ImageIcon className={`w-4 h-4 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
+              {isDownloadingImage ? (isRtl ? 'جاري التحميل...' : 'Downloading...') : t('download_img', isRtl ? 'تحميل صورة' : 'Download Image')}
             </Button>
 
             {/* Download PDF Button */}
             <Button
               onClick={handleDownload}
               disabled={isDownloading}
-              className="flex-1 sm:flex-none h-10 px-4 text-xs font-bold bg-[#087CF4] hover:bg-[#0769D1] text-white rounded-xl shadow-xs cursor-pointer"
+              className="flex-1 sm:flex-none h-10 px-4 text-xs font-bold yalla-gradient-btn text-white rounded-xl shadow-xs cursor-pointer"
             >
-              <Download className="w-4 h-4 ml-1.5" />
-              {isDownloading ? 'جاري التحميل...' : 'تحميل PDF'}
+              <Download className={`w-4 h-4 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
+              {isDownloading ? (isRtl ? 'جاري التحميل...' : 'Downloading...') : t('download_pdf', isRtl ? 'تحميل PDF' : 'Download PDF')}
             </Button>
 
             {/* Print A4 Button */}
             <Button
               onClick={handlePrint}
               variant="outline"
-              className="flex-1 sm:flex-none h-10 px-4 text-xs font-bold border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl cursor-pointer"
+              className="flex-1 sm:flex-none h-10 px-4 text-xs font-bold border-border text-foreground hover:bg-muted/40 rounded-xl cursor-pointer"
             >
-              <Printer className="w-4 h-4 ml-1.5" />
-              طباعة A4
+              <Printer className={`w-4 h-4 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
+              {t('print_a4', isRtl ? 'طباعة A4' : 'Print A4')}
             </Button>
 
             {/* WhatsApp Share Button */}
@@ -274,15 +295,15 @@ export default function PublicPrescriptionPage({
               disabled={isSharing}
               className="flex-1 sm:flex-none h-10 px-4 text-xs font-bold bg-[#25D366] hover:bg-[#128C7E] text-white rounded-xl shadow-xs cursor-pointer"
             >
-              <MessageCircle className="w-4 h-4 ml-1.5" />
-              {isSharing ? 'جاري المشاركة...' : 'مشاركة عبر واتساب'}
+              <MessageCircle className={`w-4 h-4 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
+              {isSharing ? (isRtl ? 'جاري المشاركة...' : 'Sharing...') : t('send_whatsapp_btn', isRtl ? 'مشاركة عبر واتساب' : 'Share via WhatsApp')}
             </Button>
           </div>
         </div>
 
         {/* Prescription Sheet Container */}
-        <div className="bg-white rounded-3xl p-2 sm:p-6 border border-[#E5EAF0] shadow-sm overflow-x-auto flex justify-center">
-          <div ref={printSheetRef} className="w-full max-w-[210mm] bg-white">
+        <div className="bg-card rounded-3xl p-2 sm:p-6 border border-border shadow-sm overflow-x-auto flex justify-center">
+          <div ref={printSheetRef} className="w-full max-w-[210mm] bg-white text-slate-900 rounded-2xl overflow-hidden shadow-xs">
             <A4Prescription
               clinic={clinic}
               patientName={patientName}
@@ -299,11 +320,11 @@ export default function PublicPrescriptionPage({
         {/* Bottom Standard Footer */}
         <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">
           <div>
-            جميع الحقوق محفوظة YallaCodeX 2026
+            {t('copyright_text', 'جميع الحقوق محفوظة YallaCodeX 2026')}
           </div>
           <div className="flex items-center gap-3">
             <Link href={`/clinic/${slug}`} className="hover:text-primary transition-colors">
-              {clinic?.clinicName || 'صفحة العيادة'}
+              {clinic?.clinicName || (isRtl ? 'صفحة العيادة' : 'Clinic Page')}
             </Link>
           </div>
         </div>

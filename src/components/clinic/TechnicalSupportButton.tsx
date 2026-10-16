@@ -16,6 +16,8 @@ export interface SupportNumber {
   isActive?: boolean
 }
 
+import { useLanguage } from '@/context/LanguageContext'
+
 export function TechnicalSupportButton({
   variant = 'compact',
   className = ''
@@ -23,6 +25,7 @@ export function TechnicalSupportButton({
   variant?: 'compact' | 'pill' | 'block' | 'floating'
   className?: string
 }) {
+  const { t } = useLanguage()
   const [supportNumbers, setSupportNumbers] = useState<SupportNumber[]>([])
   const [isOpen, setIsOpen] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -73,27 +76,27 @@ export function TechnicalSupportButton({
           type="button"
           className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 hover:bg-blue-50 hover:text-[#087CF4] border border-slate-200 transition-all ${className}`}
         >
-          <Headphones className="w-3.5 h-3.5 text-[#087CF4]" />
-          <span>تواصل مع الدعم الفني</span>
+          <Headphones className="w-3.5 h-3.5 text-primary" />
+          <span>{t('technical_support', 'تواصل مع الدعم الفني')}</span>
         </button>
       ) : variant === 'block' ? (
         <Button
           onClick={handleClick}
           variant="outline"
           type="button"
-          className={`w-full h-11 text-xs font-bold border-[#E5EAF0] text-slate-700 hover:bg-blue-50 hover:text-[#087CF4] rounded-xl flex items-center justify-center gap-2 ${className}`}
+          className={`w-full h-11 text-xs font-bold border-border text-foreground hover:bg-secondary rounded-xl flex items-center justify-center gap-2 ${className}`}
         >
-          <Headphones className="w-4 h-4 text-[#087CF4]" />
-          <span>تواصل مع الدعم الفني</span>
+          <Headphones className="w-4 h-4 text-primary" />
+          <span>{t('technical_support', 'تواصل مع الدعم الفني')}</span>
         </Button>
       ) : (
         <button
           onClick={handleClick}
           type="button"
-          className={`inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-[#087CF4] transition-colors ${className}`}
+          className={`inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-primary transition-colors ${className}`}
         >
-          <Headphones className="w-3.5 h-3.5 text-[#087CF4]" />
-          <span>تواصل مع الدعم الفني</span>
+          <Headphones className="w-3.5 h-3.5 text-primary" />
+          <span>{t('technical_support', 'تواصل مع الدعم الفني')}</span>
         </button>
       )}
 

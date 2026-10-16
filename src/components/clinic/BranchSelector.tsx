@@ -59,7 +59,7 @@ export function BranchSelector({
           <span className="text-xs text-foreground font-black truncate max-w-[130px] block">
             {selectedBranchId === 'all'
               ? `${t('all_branches', 'جميع الفروع')} (${branches.length})`
-              : currentBranch?.name || t('main_branch', 'الفرع الرئيسي')}
+              : (currentBranch?.name === 'الفرع الرئيسي' || !currentBranch?.name ? t('main_branch', 'الفرع الرئيسي') : currentBranch.name)}
           </span>
         </div>
         <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />

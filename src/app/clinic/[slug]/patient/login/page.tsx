@@ -21,7 +21,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
   const router = useRouter()
-  const { t, dir } = useLanguage()
+  const { t, dir, isRtl } = useLanguage()
 
   const [isRegistering, setIsRegistering] = useState(false)
   const [name, setName] = useState('')
@@ -43,7 +43,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
       const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
       const cSnap = await getDocs(cQ)
       if (cSnap.empty) {
-        toast.error('العيادة غير موجودة')
+        toast.error(isRtl ? 'العيادة غير موجودة' : 'Clinic not found')
         setIsLoading(false)
         return
       }
@@ -53,40 +53,40 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
       if (isRegistering) {
         // Validation for registration
         if (!name.trim()) {
-          toast.error('يرجى إدخال الاسم بالكامل')
+          toast.error(isRtl ? 'يرجى إدخال الاسم بالكامل' : 'Please enter full name')
           setIsLoading(false)
           return
         }
 
         if (!cleanPhone) {
-          toast.error('يرجى إدخال رقم الهاتف المحمول')
+          toast.error(isRtl ? 'يرجى إدخال رقم الهاتف المحمول' : 'Please enter mobile phone number')
           setIsLoading(false)
           return
         }
 
         // Mandatory age validation
         if (!age.trim()) {
-          toast.error('السن إجباري لإنشاء الملف الطبي والروشتة')
+          toast.error(isRtl ? 'السن إجباري لإنشاء الملف الطبي والروشتة' : 'Age is required for medical file and Rx')
           setIsLoading(false)
           return
         }
 
         const ageNum = parseInt(age.trim(), 10)
         if (isNaN(ageNum) || ageNum <= 0 || ageNum > 125) {
-          toast.error('يرجى إدخال سن صحيح (بين 1 و 120 سنة)')
+          toast.error(isRtl ? 'يرجى إدخال سن صحيح (بين 1 و 120 سنة)' : 'Please enter a valid age (1-120)')
           setIsLoading(false)
           return
         }
 
         // Mandatory password validation
         if (!password || password.length < 4) {
-          toast.error('يرجى إدخال كلمة مرور مكونة من 4 خانات على الأقل')
+          toast.error(isRtl ? 'يرجى إدخال كلمة مرور مكونة من 4 خانات على الأقل' : 'Please enter a password with at least 4 characters')
           setIsLoading(false)
           return
         }
 
         if (password !== confirmPassword) {
-          toast.error('كلمة المرور وتأكيد كلمة المرور غير متطابقتين')
+          toast.error(isRtl ? 'كلمة المرور وتأكيد كلمة المرور غير متطابقتين' : 'Passwords do not match')
           setIsLoading(false)
           return
         }
@@ -99,7 +99,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
         )
         const checkSnap = await getDocs(checkQ)
         if (!checkSnap.empty) {
-          toast.error('رقم الهاتف مسجل بالفعل. يرجى تسجيل الدخول باستخدام كلمة المرور.')
+          toast.error(isRtl ? 'رقم الهاتف مسجل بالفعل. يرجى تسجيل الدخول باستخدام كلمة المرور.' : 'Phone number is already registered. Please sign in.')
           setIsRegistering(false)
           setIsLoading(false)
           return
@@ -114,7 +114,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
           password: password,
           createdAt: new Date().toISOString()
         })
-        toast.success('تم إنشاء حسابك الطبي بنجاح!')
+        toast.success(isRtl ? 'تم إنشاء حسابك الطبي بنجاح!' : 'Medical account created successfully!')
 
         // Auto login
         localStorage.setItem(
@@ -130,13 +130,13 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
       } else {
         // Login mode
         if (!cleanPhone) {
-          toast.error('يرجى إدخال رقم الهاتف المحمول')
+          toast.error(isRtl ? 'يرجى إدخال رقم الهاتف المحمول' : 'Please enter mobile phone number')
           setIsLoading(false)
           return
         }
 
         if (!password) {
-          toast.error('يرجى إدخال كلمة المرور')
+          toast.error(isRtl ? 'يرجى إدخال كلمة المرور' : 'Please enter password')
           setIsLoading(false)
           return
         }
@@ -162,19 +162,19 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
             const firstAppt = apptSnap.docs[0].data()
             await addDoc(collection(db, 'patient_accounts'), {
               clinic_id: clinicId,
-              name: firstAppt.patientName || 'المريض',
+              name: firstAppt.patientName || (isRtl ? 'المريض' : 'Patient'),
               phone: cleanPhone,
               age: firstAppt.age || '',
               password: password,
               createdAt: new Date().toISOString()
             })
 
-            toast.success('تم تفعيل حسابك الطبي وتعيين كلمة المرور بنجاح')
+            toast.success(isRtl ? 'تم تفعيل حسابك الطبي وتعيين كلمة المرور بنجاح' : 'Medical account activated successfully')
             localStorage.setItem(
               'patient_auth',
               JSON.stringify({
                 phone: cleanPhone,
-                name: firstAppt.patientName || 'المريض',
+                name: firstAppt.patientName || (isRtl ? 'المريض' : 'Patient'),
                 age: firstAppt.age || '',
                 clinic_id: clinicId
               })
@@ -183,7 +183,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
             return
           }
 
-          toast.error('رقم الهاتف غير مسجل في هذه العيادة. يرجى إنشاء حساب جديد.')
+          toast.error(isRtl ? 'رقم الهاتف غير مسجل في هذه العيادة. يرجى إنشاء حساب جديد.' : 'Phone number is not registered. Please create a new account.')
           setIsLoading(false)
           return
         }
@@ -194,7 +194,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
         // Verify password
         if (userData.password) {
           if (userData.password !== password) {
-            toast.error('كلمة المرور غير صحيحة')
+            toast.error(isRtl ? 'كلمة المرور غير صحيحة' : 'Incorrect password')
             setIsLoading(false)
             return
           }
@@ -205,7 +205,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
           })
         }
 
-        toast.success('تم تسجيل الدخول بنجاح')
+        toast.success(isRtl ? 'تم تسجيل الدخول بنجاح' : 'Signed in successfully')
         localStorage.setItem(
           'patient_auth',
           JSON.stringify({
@@ -219,7 +219,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
       }
     } catch (err) {
       console.error(err)
-      toast.error('حدث خطأ في الاتصال بالخادم')
+      toast.error(isRtl ? 'حدث خطأ في الاتصال بالخادم' : 'Server connection error')
     } finally {
       setIsLoading(false)
     }
@@ -228,10 +228,10 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
   return (
     <div className="min-h-screen flex items-center justify-center bg-background font-sans relative p-4 text-foreground" dir={dir}>
       {/* Floating Back Button */}
-      <Link href={`/clinic/${slug}`} className="absolute top-6 right-6 z-50">
+      <Link href={`/clinic/${slug}`} className="absolute top-6 rtl:right-6 ltr:left-6 z-50">
         <Button variant="outline" className="rounded-xl shadow-xs bg-card text-xs font-bold text-foreground hover:text-primary hover:bg-muted/40 border-border h-9 px-4">
-          <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
-          العودة للعيادة
+          <ArrowRight className="w-3.5 h-3.5 rtl:ml-1.5 ltr:mr-1.5 rtl:rotate-0 ltr:rotate-180" />
+          {t('return_to_clinic', 'العودة للعيادة')}
         </Button>
       </Link>
 
@@ -250,11 +250,11 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
           <div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold border border-primary/20 mt-2">
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>بوابة المريض المعتمدة</span>
+              <span>{t('patient_portal_verified', 'بوابة المريض المعتمدة')}</span>
             </div>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            تابع تاريخك الطبي وكشوفاتك وروشتاتك السابقة برقم هاتفك وكلمة المرور
+            {t('patient_login_desc', 'تابع تاريخك الطبي وكشوفاتك وروشتاتك السابقة برقم هاتفك وكلمة المرور')}
           </p>
         </div>
 
@@ -270,7 +270,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
                 !isRegistering ? 'bg-card text-primary shadow-xs' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              تسجيل الدخول
+              {t('sign_in', 'تسجيل الدخول')}
             </button>
             <button
               type="button"
@@ -279,7 +279,7 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
                 isRegistering ? 'bg-card text-primary shadow-xs' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              مريض جديد (حساب جديد)
+              {t('new_patient_account', 'مريض جديد (حساب جديد)')}
             </button>
           </div>
 
@@ -289,16 +289,16 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
                 {/* Full Name */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-bold text-muted-foreground">
-                    الاسم بالكامل <span className="text-rose-500">*</span>
+                    {t('full_name_label', 'الاسم بالكامل')} <span className="text-rose-500">*</span>
                   </Label>
                   <div className="relative">
-                    <User className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <User className="absolute rtl:right-3.5 ltr:left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input 
                       required 
                       value={name} 
                       onChange={e => setName(e.target.value)} 
-                      placeholder="اكتب اسمك الثلاثي" 
-                      className="pr-10 h-11 text-xs bg-background rounded-xl border-border"
+                      placeholder={t('enter_triple_name', 'اكتب اسمك الثلاثي')} 
+                      className="rtl:pr-10 ltr:pl-10 h-11 text-xs bg-background rounded-xl border-border"
                     />
                   </div>
                 </div>
@@ -307,14 +307,14 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <Label className="text-xs font-bold text-muted-foreground">
-                      السن (بالسنوات) <span className="text-rose-500">*</span>
+                      {t('age_years_label', 'السن (بالسنوات)')} <span className="text-rose-500">*</span>
                     </Label>
                     <span className="text-[10px] font-black text-rose-600 dark:text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20">
-                      إجباري للروشتة
+                      {t('mandatory_for_rx', 'إجباري للروشتة')}
                     </span>
                   </div>
                   <div className="relative">
-                    <Calendar className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Calendar className="absolute rtl:right-3.5 ltr:left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input 
                       required 
                       type="number"
@@ -322,8 +322,8 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
                       max={120}
                       value={age} 
                       onChange={e => setAge(e.target.value)} 
-                      placeholder="مثال: 28" 
-                      className="pr-10 h-11 text-xs bg-background rounded-xl border-border text-right font-mono"
+                      placeholder="28" 
+                      className="rtl:pr-10 ltr:pl-10 h-11 text-xs bg-background rounded-xl border-border text-start font-mono"
                     />
                   </div>
                 </div>
@@ -333,17 +333,17 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
             {/* Phone Number */}
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-muted-foreground">
-                رقم التليفون المحمول <span className="text-rose-500">*</span>
+                {t('mobile_phone_label', 'رقم التليفون المحمول')} <span className="text-rose-500">*</span>
               </Label>
               <div className="relative">
-                <Phone className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Phone className="absolute rtl:right-3.5 ltr:left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input 
                   required 
                   type="tel"
                   value={phone} 
                   onChange={e => setPhone(e.target.value)} 
                   placeholder="01xxxxxxxxx" 
-                  className="pr-10 h-11 text-xs bg-background rounded-xl border-border text-left font-mono"
+                  className="rtl:pr-10 ltr:pl-10 h-11 text-xs bg-background rounded-xl border-border text-start font-mono"
                   dir="ltr"
                 />
               </div>
@@ -352,23 +352,23 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
             {/* Password */}
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-muted-foreground">
-                كلمة المرور <span className="text-rose-500">*</span>
+                {t('password_label', 'كلمة المرور')} <span className="text-rose-500">*</span>
               </Label>
               <div className="relative">
-                <Lock className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Lock className="absolute rtl:right-3.5 ltr:left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input 
                   required 
                   type={showPassword ? 'text' : 'password'}
                   value={password} 
                   onChange={e => setPassword(e.target.value)} 
-                  placeholder={isRegistering ? 'اكتب كلمة مرور قوية (4 خانات فأكثر)' : 'أدخل كلمة المرور'} 
-                  className="pr-10 pl-10 h-11 text-xs bg-background rounded-xl border-border text-left font-mono"
+                  placeholder={isRegistering ? t('strong_password_hint', 'اكتب كلمة مرور قوية (4 خانات فأكثر)') : t('password_label', 'أدخل كلمة المرور')} 
+                  className="rtl:pr-10 rtl:pl-10 ltr:pl-10 ltr:pr-10 h-11 text-xs bg-background rounded-xl border-border text-start font-mono"
                   dir="ltr"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                  className="absolute rtl:left-3.5 ltr:right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -379,23 +379,23 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
             {isRegistering && (
               <div className="space-y-1.5">
                 <Label className="text-xs font-bold text-muted-foreground">
-                  تأكيد كلمة المرور <span className="text-rose-500">*</span>
+                  {t('confirm_password_label', 'تأكيد كلمة المرور')} <span className="text-rose-500">*</span>
                 </Label>
                 <div className="relative">
-                  <Lock className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Lock className="absolute rtl:right-3.5 ltr:left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input 
                     required 
                     type={showConfirmPassword ? 'text' : 'password'}
                     value={confirmPassword} 
                     onChange={e => setConfirmPassword(e.target.value)} 
-                    placeholder="أعد كتابة كلمة المرور للتأكيد" 
-                    className="pr-10 pl-10 h-11 text-xs bg-background rounded-xl border-border text-left font-mono"
+                    placeholder={t('retype_password', 'أعد كتابة كلمة المرور للتأكيد')} 
+                    className="rtl:pr-10 rtl:pl-10 ltr:pl-10 ltr:pr-10 h-11 text-xs bg-background rounded-xl border-border text-start font-mono"
                     dir="ltr"
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                    className="absolute rtl:left-3.5 ltr:right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
                   >
                     {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -411,10 +411,10 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
               {isLoading ? (
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>جاري التحقق...</span>
+                  <span>{isRtl ? 'جاري التحقق...' : 'Verifying...'}</span>
                 </div>
               ) : (
-                isRegistering ? 'إنشاء حساب والدخول' : 'تسجيل الدخول للملف الطبي'
+                isRegistering ? t('create_account_and_enter', 'إنشاء حساب والدخول') : t('sign_in_medical_profile', 'تسجيل الدخول للملف الطبي')
               )}
             </Button>
           </form>
@@ -429,13 +429,13 @@ export default function PatientLogin({ params }: { params: Promise<{ slug: strin
               }}
               className="text-xs text-primary font-bold hover:underline cursor-pointer"
             >
-              {isRegistering ? 'لديك ملف مسجل بالفعل؟ سجل دخولك الآن' : 'أول زيارة للعيادة؟ أنشئ حسابك الطبي في ثوانٍ'}
+              {isRegistering ? t('already_registered_prompt', 'لديك ملف مسجل بالفعل؟ سجل دخولك الآن') : t('first_visit_prompt', 'أول زيارة للعيادة؟ أنشئ حسابك الطبي في ثوانٍ')}
             </button>
           </div>
         </div>
 
         <div className="mt-6 text-center text-xs text-muted-foreground">
-          جميع الحقوق محفوظة YallaCodeX 2026
+          {t('copyright_text', 'جميع الحقوق محفوظة YallaCodeX 2026')}
         </div>
       </motion.div>
     </div>

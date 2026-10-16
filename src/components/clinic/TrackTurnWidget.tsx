@@ -7,8 +7,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Activity, Search, Info } from 'lucide-react'
+import { useLanguage } from '@/context/LanguageContext'
 
 export function TrackTurnWidget({ clinicId }: { clinicId: string }) {
+  const { t, isRtl, dir } = useLanguage()
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<{
@@ -55,14 +57,17 @@ export function TrackTurnWidget({ clinicId }: { clinicId: string }) {
       )
 
       if (!myAppt) {
-        setResult({ found: false, message: 'لم يتم العثور على حجز بهذا الرقم أو الاسم اليوم.' })
+        setResult({
+          found: false,
+          message: isRtl ? 'لم يتم العثور على حجز بهذا الرقم أو الاسم اليوم.' : 'No appointment found with this phone or name today.'
+        })
       } else {
         if (myAppt.status === 'completed') {
           setResult({ 
             found: true, 
             status: 'completed', 
             myTurn: myAppt.queue_number,
-            message: 'تم الكشف بالفعل، شكراً لزيارتك!' 
+            message: isRtl ? 'تم الكشف بالفعل، شكراً لزيارتك!' : 'Exam completed already. Thank you for visiting!' 
           })
         } else if (myAppt.status === 'waiting') {
           const remaining = myAppt.queue_number - currentTurn
@@ -72,60 +77,66 @@ export function TrackTurnWidget({ clinicId }: { clinicId: string }) {
             myTurn: myAppt.queue_number,
             currentTurn,
             remaining: remaining > 0 ? remaining : 0,
-            message: remaining === 0 ? 'دورك الآن! تفضل بالدخول' : `باقي ${remaining} أدوار`
+            message: remaining === 0
+              ? (isRtl ? 'دورك الآن! تفضل بالدخول' : 'It is your turn now! Please enter.')
+              : (isRtl ? `باقي ${remaining} أدوار` : `${remaining} turn(s) ahead`)
           })
         }
       }
 
     } catch (err) {
       console.error(err)
-      setResult({ found: false, message: 'حدث خطأ أثناء البحث' })
+      setResult({
+        found: false,
+        message: isRtl ? 'حدث خطأ أثناء البحث' : 'An error occurred during search'
+      })
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <Card className="shadow-2xl border-t-4 border-t-blue-500 backdrop-blur-sm bg-white/90 w-full max-w-lg mx-auto mt-8">
+    <Card dir={dir} className="shadow-2xl border-t-4 border-t-primary backdrop-blur-sm bg-card text-card-foreground w-full max-w-lg mx-auto mt-8 border-border">
       <CardHeader className="text-center">
         <CardTitle className="text-2xl font-bold flex justify-center items-center gap-2">
-          <Activity className="text-blue-500 w-6 h-6" /> متابعة الدور
+          <Activity className="text-primary w-6 h-6" /> {t('track_turn_title', isRtl ? 'متابعة الدور' : 'Track Turn')}
         </CardTitle>
-        <CardDescription>أدخل رقم الهاتف أو الاسم لمعرفة دورك الحالي</CardDescription>
+        <CardDescription>
+          {t('track_turn_desc', isRtl ? 'أدخل رقم الهاتف أو الاسم لمعرفة دورك الحالي' : 'Enter phone number or name to find your current turn')}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSearch} className="flex gap-2 mb-6">
-          <Button type="submit" disabled={loading} className="bg-blue-600 hover:bg-blue-700 text-white shrink-0">
-            {loading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Search className="w-5 h-5" />}
-          </Button>
           <Input 
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            placeholder="رقم الموبايل أو الاسم..."
-            className="text-right flex-1"
-            dir="rtl"
+            placeholder={isRtl ? 'رقم الموبايل أو الاسم...' : 'Phone number or patient name...'}
+            className={`${isRtl ? 'text-right' : 'text-left'} flex-1`}
           />
+          <Button type="submit" disabled={loading} className="yalla-gradient-btn text-white shrink-0">
+            {loading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Search className="w-5 h-5" />}
+          </Button>
         </form>
 
         {result && (
-          <div className={`p-4 rounded-xl border ${result.found ? (result.status === 'waiting' && result.remaining === 0 ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200') : 'bg-red-50 border-red-200'}`}>
+          <div className={`p-4 rounded-xl border ${result.found ? (result.status === 'waiting' && result.remaining === 0 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-800 dark:text-emerald-300' : 'bg-primary/10 border-primary/20 text-primary') : 'bg-destructive/10 border-destructive/20'}`}>
             {!result.found ? (
-              <p className="text-red-600 font-bold text-center flex items-center justify-center gap-2">
+              <p className="text-destructive font-bold text-center flex items-center justify-center gap-2 text-xs">
                 <Info className="w-5 h-5" /> {result.message}
               </p>
             ) : (
               <div className="text-center space-y-4">
-                <div className="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm">
-                  <div className="text-slate-500 font-bold">دورك</div>
-                  <div className="text-3xl font-black text-blue-600">{result.myTurn}</div>
+                <div className="flex justify-between items-center bg-card p-3 rounded-lg shadow-sm border border-border">
+                  <div className="text-muted-foreground font-bold text-xs">{isRtl ? 'دورك' : 'Your Turn'}</div>
+                  <div className="text-3xl font-black text-primary font-mono">#{result.myTurn}</div>
                 </div>
                 {result.status === 'waiting' && result.remaining !== undefined && result.remaining > 0 && (
-                  <div className="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm">
-                    <div className="text-slate-500 font-bold">الدور الحالي (بِالداخل)</div>
-                    <div className="text-2xl font-black text-slate-800">{result.currentTurn}</div>
+                  <div className="flex justify-between items-center bg-card p-3 rounded-lg shadow-sm border border-border">
+                    <div className="text-muted-foreground font-bold text-xs">{isRtl ? 'الدور الحالي (بِالداخل)' : 'Current Turn (Inside)'}</div>
+                    <div className="text-2xl font-black text-foreground font-mono">#{result.currentTurn}</div>
                   </div>
                 )}
-                <div className={`text-lg font-bold p-2 rounded-lg ${result.status === 'waiting' && result.remaining === 0 ? 'bg-green-500 text-white animate-pulse' : 'text-blue-800'}`}>
+                <div className={`text-base font-bold p-2.5 rounded-xl ${result.status === 'waiting' && result.remaining === 0 ? 'bg-emerald-500 text-white animate-pulse' : 'text-primary'}`}>
                   {result.message}
                 </div>
               </div>

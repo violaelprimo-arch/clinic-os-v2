@@ -213,10 +213,15 @@ export function BookingForm({
   const availableDays = useMemo(() => {
     const list: { iso: string; label: string; formattedDate: string }[] = []
     const dayNamesAr = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
+    const dayNamesEn = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
     const dayKeys = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
     const monthNamesAr = [
       'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
       'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+    ]
+    const monthNamesEn = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     ]
 
     const branchSchedule = selectedBranch?.weeklySchedule || clinic?.weeklySchedule || []
@@ -234,7 +239,7 @@ export function BookingForm({
 
       const dayIndex = d.getDay()
       const dayKey = dayKeys[dayIndex]
-      const dayNameAr = dayNamesAr[dayIndex]
+      const dayName = isRtl ? dayNamesAr[dayIndex] : dayNamesEn[dayIndex]
 
       // Check weeklySchedule: if branch is closed on this day, SKIP
       if (branchSchedule && branchSchedule.length > 0) {
@@ -250,11 +255,12 @@ export function BookingForm({
         continue
       }
 
-      let label = dayNameAr
-      if (i === 0) label = 'اليوم'
-      else if (i === 1) label = 'غداً'
+      let label = dayName
+      if (i === 0) label = isRtl ? 'اليوم' : 'Today'
+      else if (i === 1) label = isRtl ? 'غداً' : 'Tomorrow'
 
-      const formattedDate = `${d.getDate()} ${monthNamesAr[d.getMonth()]}`
+      const monthName = isRtl ? monthNamesAr[d.getMonth()] : monthNamesEn[d.getMonth()]
+      const formattedDate = isRtl ? `${d.getDate()} ${monthName}` : `${monthName} ${d.getDate()}`
 
       list.push({ iso, label, formattedDate })
 
@@ -263,7 +269,7 @@ export function BookingForm({
     }
 
     return list
-  }, [selectedBranch, clinic?.weeklySchedule, clinic?.maxDailyBookings, dailyBookingCounts])
+  }, [selectedBranch, clinic?.weeklySchedule, clinic?.maxDailyBookings, dailyBookingCounts, isRtl])
 
   const [selectedDate, setSelectedDate] = useState<string>('')
 
@@ -295,12 +301,12 @@ export function BookingForm({
     const file = e.target.files?.[0]
     if (file) {
       if (file.size > 4 * 1024 * 1024) {
-        return toast.error('حجم الصورة كبير، يرجى اختيار صورة أقل من 4 ميجابايت')
+        return toast.error(isRtl ? 'حجم الصورة كبير، يرجى اختيار صورة أقل من 4 ميجابايت' : 'Image is too large, maximum size is 4MB')
       }
       const reader = new FileReader()
       reader.onload = () => {
         setTransferProofUrl(reader.result as string)
-        toast.success('تم إرفاق إيصال التحويل بنجاح!')
+        toast.success(isRtl ? 'تم إرفاق إيصال التحويل بنجاح!' : 'Receipt attached successfully!')
       }
       reader.readAsDataURL(file)
     }
@@ -308,11 +314,11 @@ export function BookingForm({
 
   // Step 1 Validation
   const handleNextStep1 = () => {
-    if (!selectedBranch) return toast.error('يرجى اختيار فرع العيادة أولاً')
-    if (!name.trim()) return toast.error('يرجى إدخال اسم المريض')
-    if (!phone.trim() || phone.length < 10) return toast.error('يرجى إدخال رقم هاتف صحيح')
-    if (!age.trim()) return toast.error('يرجى إدخال السن')
-    if (!selectedDate) return toast.error('يرجى اختيار يوم الحجز')
+    if (!selectedBranch) return toast.error(isRtl ? 'يرجى اختيار فرع العيادة أولاً' : 'Please select a branch first')
+    if (!name.trim()) return toast.error(isRtl ? 'يرجى إدخال اسم المريض' : 'Please enter patient full name')
+    if (!phone.trim() || phone.length < 10) return toast.error(isRtl ? 'يرجى إدخال رقم هاتف صحيح' : 'Please enter a valid phone number')
+    if (!age.trim()) return toast.error(isRtl ? 'يرجى إدخال السن' : 'Please enter patient age')
+    if (!selectedDate) return toast.error(isRtl ? 'يرجى اختيار يوم الحجز' : 'Please select a booking date')
 
     setStep(2)
   }
@@ -325,7 +331,7 @@ export function BookingForm({
   // Final Booking Submit
   const handleBooking = async () => {
     if (paymentMethod !== 'cash' && !transferNumber.trim()) {
-      return toast.error('يرجى كتابة رقم الهاتف أو المعاملة المحول منها لتأكيد الحجز')
+      return toast.error(isRtl ? 'يرجى كتابة رقم الهاتف أو المعاملة المحول منها لتأكيد الحجز' : 'Please provide sender phone number or transaction reference')
     }
 
     setIsBooking(true)
@@ -560,11 +566,11 @@ export function BookingForm({
           <div className="space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
-                <h3 className="font-bold text-base text-[#182230] flex items-center gap-1.5">
-                  <Building2 className="w-4 h-4 text-[#087CF4]" />
-                  اختار الفرع الأنسب ليك
+                <h3 className="font-bold text-base text-foreground flex items-center gap-1.5">
+                  <Building2 className="w-4 h-4 text-primary" />
+                  {t('available_branches_nearest', 'اختار الفرع الأنسب ليك')}
                 </h3>
-                <p className="text-[11px] text-slate-400">حدد فرع العيادة الأقرب لك لحجز دورك به</p>
+                <p className="text-[11px] text-muted-foreground">{t('select_branch_desc', 'حدد فرع العيادة الأقرب لك لحجز دورك به')}</p>
               </div>
 
               {/* Geolocation Button */}
@@ -574,15 +580,15 @@ export function BookingForm({
                 size="sm"
                 onClick={handleFindNearestBranch}
                 disabled={isLocating}
-                className="h-8 text-[11px] font-bold text-teal-700 border-teal-200 bg-teal-50 hover:bg-teal-100 rounded-xl shrink-0"
+                className="h-8 text-[11px] font-bold text-primary border-primary/20 bg-primary/10 hover:bg-primary/20 rounded-xl shrink-0"
               >
-                <Navigation className={`w-3.5 h-3.5 ml-1 ${isLocating ? 'animate-spin' : ''}`} />
-                {isLocating ? 'جاري الحساب...' : 'اعرف أقرب فرع ليك'}
+                <Navigation className={`w-3.5 h-3.5 mx-1 ${isLocating ? 'animate-spin' : ''}`} />
+                {isLocating ? t('locating_calculating', 'جاري الحساب...') : t('find_nearest_branch', 'اعرف أقرب فرع ليك')}
               </Button>
             </div>
 
             {locationError && (
-              <p className="text-[11px] text-amber-700 bg-amber-50 p-2 rounded-lg">{locationError}</p>
+              <p className="text-[11px] text-amber-700 bg-amber-500/10 p-2 rounded-lg">{locationError}</p>
             )}
 
             {/* Manual Area Filter if multiple areas exist */}
@@ -592,10 +598,10 @@ export function BookingForm({
                   type="button"
                   onClick={() => setAreaFilter('ALL')}
                   className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all ${
-                    areaFilter === 'ALL' ? 'bg-[#0B1F33] text-white' : 'bg-slate-100 text-slate-600'
+                    areaFilter === 'ALL' ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'
                   }`}
                 >
-                  الكل
+                  {t('all_filter', 'الكل')}
                 </button>
                 {uniqueAreas.map((area) => (
                   <button
@@ -603,7 +609,7 @@ export function BookingForm({
                     type="button"
                     onClick={() => setAreaFilter(area)}
                     className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all ${
-                      areaFilter === area ? 'bg-[#087CF4] text-white' : 'bg-slate-100 text-slate-600'
+                      areaFilter === area ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'
                     }`}
                   >
                     {area}
@@ -623,34 +629,34 @@ export function BookingForm({
                     onClick={() => b.isOpen && setSelectedBranchId(b.id)}
                     className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex items-start justify-between gap-3 ${
                       isSelected
-                        ? 'border-[#087CF4] bg-teal-50/40 shadow-xs ring-2 ring-[#087CF4]/20'
+                        ? 'border-primary bg-primary/5 shadow-xs ring-2 ring-primary/20'
                         : b.isOpen
-                        ? 'border-[#E5EAF0] hover:border-slate-300 bg-white'
-                        : 'border-slate-200 bg-slate-50 opacity-60 cursor-not-allowed'
+                        ? 'border-border hover:border-primary/40 bg-card text-card-foreground'
+                        : 'border-border/60 bg-muted/40 opacity-60 cursor-not-allowed text-muted-foreground'
                     }`}
                   >
                     <div className="space-y-1 flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className={`w-2.5 h-2.5 rounded-full ${b.isOpen ? 'bg-emerald-500' : 'bg-rose-400'}`} />
-                        <h4 className="font-black text-xs sm:text-sm text-[#182230] truncate">{b.name}</h4>
+                        <h4 className="font-black text-xs sm:text-sm text-foreground truncate">{b.name}</h4>
                         {distance && distance < 900 && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            ~ {distance} كم
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-mono" dir="ltr">
+                            ~ {distance} {t('distance_km', 'كم تقريباً')}
                           </span>
                         )}
                       </div>
-                      <p className="text-[11px] text-slate-500 truncate flex items-center gap-1">
-                        <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                      <p className="text-[11px] text-muted-foreground truncate flex items-center gap-1">
+                        <MapPin className="w-3 h-3 text-muted-foreground shrink-0" />
                         <span>{b.area || b.city} • {b.address}</span>
                       </p>
-                      <p className="text-[10px] text-slate-400">هاتف: {b.phone}</p>
+                      <p className="text-[10px] text-muted-foreground">{t('phone_prefix', 'هاتف:')} <span dir="ltr">{b.phone}</span></p>
                     </div>
 
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                        b.isOpen ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+                        b.isOpen ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
                       }`}>
-                        {b.isOpen ? 'متاح' : 'مغلق'}
+                        {b.isOpen ? t('branch_available', 'متاح') : t('branch_closed', 'مغلق')}
                       </span>
                       {b.mapsLink && (
                         <a
@@ -658,9 +664,9 @@ export function BookingForm({
                           target="_blank"
                           rel="noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="text-[10px] font-bold text-[#087CF4] hover:underline flex items-center gap-0.5"
+                          className="text-[10px] font-bold text-primary hover:underline flex items-center gap-0.5"
                         >
-                          <span>الخريطة</span>
+                          <span>{t('view_map', 'الخريطة')}</span>
                           <ExternalLink className="w-2.5 h-2.5" />
                         </a>
                       )}

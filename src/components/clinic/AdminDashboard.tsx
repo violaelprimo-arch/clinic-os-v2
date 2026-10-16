@@ -27,7 +27,7 @@ import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 import { useLanguage } from '@/context/LanguageContext'
 
 export function AdminDashboard({ clinic }: { clinic: any }) {
-  const { t, language, dir, isRtl } = useLanguage()
+  const { t, tDynamic, language, dir, isRtl } = useLanguage()
   const isFinanceEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'finance'), [clinic])
   const isPrescriptionsEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'prescriptions'), [clinic])
   const isPatientAlertsEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'patientAlerts'), [clinic])
@@ -572,7 +572,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
       case 'no_show':
         return <Badge className="bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30 font-bold px-3 py-1">{t('no_show', 'لم يحضر')}</Badge>
       default:
-        return <Badge variant="outline">{status}</Badge>
+        return <Badge variant="outline">{tDynamic(status)}</Badge>
     }
   }
 
@@ -591,7 +591,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
               {selectedBranchId && selectedBranchId !== 'all' && (
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20 flex items-center gap-1">
                   <Building2 className="w-3 h-3" />
-                  {selectedBranchId}
+                  {tDynamic(selectedBranchId)}
                 </span>
               )}
             </div>
@@ -609,7 +609,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                 isClinicOpen: clinic?.isClinicOpen === false ? true : false,
                 updatedAt: new Date().toISOString()
               })
-              toast.success(clinic?.isClinicOpen === false ? 'تم فتح العيادة وتفعيل الحجوزات' : 'تم إغلاق العيادة وإيقاف الحجوزات')
+              toast.success(clinic?.isClinicOpen === false ? t('open_clinic', 'تم فتح العيادة وتفعيل الحجوزات') : t('close_clinic', 'تم إغلاق العيادة وإيقاف الحجوزات'))
             } catch (err) {
               toast.error('حدث خطأ')
             } finally {
@@ -668,7 +668,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
               </span>
             </div>
             <p className="text-[9.5px] text-muted-foreground font-medium">
-              محسوب تلقائياً وتراكمياً من الكشوفات المكتملة
+              {t('avg_calculated_desc', 'محسوب تلقائياً وتراكمياً من الكشوفات المكتملة')}
             </p>
           </div>
         </div>
@@ -747,7 +747,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  يرجى مراجعة إشعار التحويل وصورة الإيصال وتأكيد الاستلام. التأكيد لا يغير ترتيب دور المريض.
+                  {t('pending_payment_desc', 'يرجى مراجعة إشعار التحويل وصورة الإيصال وتأكيد الاستلام. التأكيد لا يغير ترتيب دور المريض.')}
                 </p>
               </div>
             </div>
@@ -769,7 +769,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-sm text-foreground">{p.patientName}</span>
                         <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-secondary text-foreground">
-                          {p.serviceName}
+                          {tDynamic(p.serviceName)}
                         </span>
                         <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
                           {p.servicePrice} {t('currency_egp', 'ج.م')}
@@ -783,11 +783,11 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                       <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
                         <span className="font-mono">{p.phone}</span>
                         <span className="font-semibold text-amber-600 dark:text-amber-400">
-                          طريقة التحويل: {p.paymentMethod === 'instapay' ? 'InstaPay' : 'محفظة إلكترونية'}
+                          {t('transfer_method', 'طريقة التحويل')}: {p.paymentMethod === 'instapay' ? 'InstaPay' : tDynamic('محفظة إلكترونية')}
                         </span>
                         {p.transferNumber && (
                           <span className="font-mono bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 text-amber-700 dark:text-amber-300 font-bold">
-                            رقم المحول منه: {p.transferNumber}
+                            {t('sender_number', 'رقم المحول منه')}: {p.transferNumber}
                           </span>
                         )}
                       </div>
@@ -804,7 +804,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                         className="h-8 px-2.5 text-xs font-bold text-primary border-primary/20 hover:bg-primary/10 rounded-xl"
                       >
                         <Eye className="w-3.5 h-3.5 ml-1 rtl:ml-1 ltr:mr-1" />
-                        صورة الإشعار
+                        {t('receipt_proof_img', 'صورة الإشعار')}
                       </Button>
                     )}
 
@@ -816,7 +816,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                       className="h-8 px-3 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs"
                     >
                       <Check className="w-3.5 h-3.5 ml-1 rtl:ml-1 ltr:mr-1" />
-                      تأكيد الاستلام
+                      {t('confirm_receipt', 'تأكيد الاستلام')}
                     </Button>
 
                     {/* Reject Payment Button */}
@@ -828,7 +828,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                       className="h-8 px-2.5 text-xs font-bold text-rose-600 border-rose-500/20 hover:bg-rose-500/10 rounded-xl"
                     >
                       <X className="w-3.5 h-3.5 ml-1 rtl:ml-1 ltr:mr-1" />
-                      رفض
+                      {t('reject', 'رفض')}
                     </Button>
 
                     {/* Print Thermal Receipt */}
@@ -848,7 +848,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                       variant="outline"
                       onClick={() => handleManualWhatsAppPayment(p)}
                       className="h-8 px-2 text-xs font-bold text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/10 rounded-xl"
-                      title="إرسال تأكيد الاستلام عبر واتساب"
+                      title={t('send_receipt_whatsapp', 'إرسال تأكيد الاستلام عبر واتساب')}
                     >
                       <MessageCircle className="w-3.5 h-3.5" />
                     </Button>
@@ -898,13 +898,13 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                   >
                     <option value="ALL">{t('all_services', 'كل الخدمات')}</option>
                     {clinic?.services?.map((s: any) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
+                      <option key={s.id} value={s.id}>{tDynamic(s.name)}</option>
                     ))}
                     {!clinic?.services?.length && (
                       <>
-                        <option value="كشف عادي">كشف عادي</option>
-                        <option value="استشارة">استشارة</option>
-                        <option value="كشف مستعجل">كشف مستعجل</option>
+                        <option value="كشف عادي">{t('regular_exam', 'كشف عادي')}</option>
+                        <option value="استشارة">{t('consultation', 'استشارة')}</option>
+                        <option value="كشف مستعجل">{t('urgent_exam', 'كشف مستعجل')}</option>
                       </>
                     )}
                   </select>
@@ -973,7 +973,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                                 <h3 className="font-bold text-sm text-foreground truncate">{b.patientName}</h3>
                                 <div className="flex items-center gap-1.5 mt-0.5">
                                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
-                                    {b.serviceName || 'كشف'}
+                                    {tDynamic(b.serviceName) || t('consultation', 'كشف')}
                                   </span>
                                   {b.servicePrice !== undefined && (
                                     <span className="text-[10px] font-bold text-muted-foreground">
@@ -1161,7 +1161,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                                 <h3 className="font-bold text-sm text-foreground truncate">{b.patientName}</h3>
                                 {/* Service Pill */}
                                 <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
-                                  {b.serviceName || 'كشف'}
+                                  {tDynamic(b.serviceName) || t('consultation', 'كشف')}
                                 </span>
                                 {b.servicePrice !== undefined && (
                                   <span className="text-[11px] font-bold text-muted-foreground">
@@ -1181,8 +1181,8 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                                 )}
                                 {b.paymentMethod && b.paymentMethod !== 'cash' && (
                                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20 inline-flex items-center gap-1 font-mono">
-                                    <span>{b.paymentMethod === 'instapay' ? 'انستاباي' : 'محفظة'}:</span>
-                                    <span>{b.transferNumber || 'بانتظار التأكيد'}</span>
+                                    <span>{b.paymentMethod === 'instapay' ? 'InstaPay' : tDynamic('محفظة')}:</span>
+                                    <span>{b.transferNumber || t('waiting_confirmation', 'بانتظار التأكيد')}</span>
                                   </span>
                                 )}
                                 {b.paymentStatus === 'paid' && (
@@ -1323,7 +1323,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                   <h4 className="text-xl font-black text-foreground">{currentPatient.patientName}</h4>
                   <p className="text-xs text-muted-foreground font-mono mt-0.5">{currentPatient.phone}</p>
                   <div className="inline-block mt-2 px-3 py-1 rounded-full bg-secondary border border-border text-xs font-bold text-foreground">
-                    {currentPatient.serviceName} • {currentPatient.servicePrice} {t('egp', 'ج.م')}
+                    {tDynamic(currentPatient.serviceName)} • {currentPatient.servicePrice} {t('egp', 'ج.م')}
                   </div>
                 </div>
 
@@ -1419,7 +1419,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                   <div className={isRtl ? 'text-right' : 'text-left'}>
                     <h4 className="font-black text-base text-foreground">{nextPatient.patientName}</h4>
                     <p className="text-xs text-muted-foreground font-mono">{nextPatient.phone}</p>
-                    <span className="text-[11px] font-semibold text-cyan-600 dark:text-cyan-400">{nextPatient.serviceName}</span>
+                    <span className="text-[11px] font-semibold text-cyan-600 dark:text-cyan-400">{tDynamic(nextPatient.serviceName)}</span>
                   </div>
                 </div>
 
@@ -1523,7 +1523,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                             : 'bg-secondary text-foreground border-border hover:bg-secondary/80'
                         }`}
                       >
-                        {svc.name}
+                        {tDynamic(svc.name)}
                       </button>
                     )
                   })}

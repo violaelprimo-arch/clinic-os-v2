@@ -14,6 +14,7 @@ import {
   playNotificationSound
 } from '@/lib/notificationService'
 import { Button } from '@/components/ui/button'
+import { useLanguage } from '@/context/LanguageContext'
 import { toast } from 'sonner'
 
 export function NotificationCenter({
@@ -31,6 +32,7 @@ export function NotificationCenter({
   recipientLabel?: string
   recipientType?: 'staff' | 'patient'
 }) {
+  const { t, isRtl, dir, language } = useLanguage()
   const [notifications, setNotifications] = useState<ClinicNotification[]>([])
   const [isOpen, setIsOpen] = useState(false)
   const [hasPushPermission, setHasPushPermission] = useState(false)
@@ -131,9 +133,9 @@ export function NotificationCenter({
     if (granted) {
       setHasPushPermission(true)
       playNotificationSound('chime')
-      toast.success('تم تفعيل التنبيهات المباشرة والصوتية على هذا الجهاز بنجاح!')
+      toast.success(isRtl ? 'تم تفعيل التنبيهات المباشرة والصوتية على هذا الجهاز بنجاح!' : 'Live push & sound notifications enabled successfully!')
     } else {
-      toast.info('تم رفض إذن التنبيهات أو غير مدعوم في متصفحك')
+      toast.info(isRtl ? 'تم رفض إذن التنبيهات أو غير مدعوم في متصفحك' : 'Notification permission was denied or is not supported')
     }
   }
 
@@ -144,12 +146,12 @@ export function NotificationCenter({
       }
     }
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })))
-    toast.success('تم تحديد جميع الإشعارات كمقروءة')
+    toast.success(isRtl ? 'تم تحديد جميع الإشعارات كمقروءة' : 'All notifications marked as read')
   }
 
   const handleTestSound = () => {
     playNotificationSound('turn_ready')
-    toast.success('تم تشغيل صوت التنبيه التجريبي بنجاح 🔔')
+    toast.success(isRtl ? 'تم تشغيل صوت التنبيه التجريبي بنجاح 🔔' : 'Notification chime played successfully 🔔')
   }
 
   const getNotificationIcon = (type: string) => {
@@ -165,25 +167,25 @@ export function NotificationCenter({
       case 'prescription_ready':
         return <FileText className="w-4 h-4 text-blue-500" />
       case 'new_booking':
-        return <Sparkles className="w-4 h-4 text-[#087CF4]" />
+        return <Sparkles className="w-4 h-4 text-primary" />
       case 'system':
         return <AlertCircle className="w-4 h-4 text-rose-500" />
       default:
-        return <Bell className="w-4 h-4 text-slate-500" />
+        return <Bell className="w-4 h-4 text-muted-foreground" />
     }
   }
 
   return (
-    <div className="relative" dir="rtl">
+    <div className="relative" dir={dir}>
       {/* Bell Trigger Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2.5 rounded-xl border border-[#E5EAF0] text-slate-600 hover:text-[#182230] hover:bg-slate-50 transition-colors cursor-pointer"
-        title="مركز الإشعارات والتنبيهات"
+        className="relative p-2.5 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer"
+        title={t('notifications_center_title', isRtl ? 'مركز الإشعارات والتنبيهات' : 'Notification Center')}
       >
         <Bell className="w-5 h-5" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-rose-500 text-white font-bold text-[10px] w-5 h-5 rounded-full flex items-center justify-center ring-2 ring-white animate-pulse">
+          <span className="absolute -top-1 -right-1 bg-rose-500 text-white font-bold text-[10px] w-5 h-5 rounded-full flex items-center justify-center ring-2 ring-background animate-pulse">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -196,35 +198,35 @@ export function NotificationCenter({
             className="fixed inset-0 z-40 bg-transparent"
             onClick={() => setIsOpen(false)}
           />
-          <div className="absolute left-0 sm:right-auto sm:left-0 mt-2 w-80 sm:w-96 bg-white border border-[#E5EAF0] rounded-2xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-[480px] animate-in fade-in-50">
+          <div className={`absolute ${isRtl ? 'left-0 sm:left-0' : 'right-0 sm:right-0'} mt-2 w-80 sm:w-96 bg-card text-card-foreground border border-border rounded-2xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-[480px] animate-in fade-in-50`}>
             {/* Header */}
-            <div className="p-3.5 border-b border-[#E5EAF0] flex items-center justify-between bg-slate-50">
+            <div className="p-3.5 border-b border-border flex items-center justify-between bg-muted/40">
               <div className="flex items-center gap-2">
-                <Bell className="w-4 h-4 text-[#087CF4]" />
-                <h4 className="font-bold text-xs text-[#182230]">
-                  مركز التنبيهات ({notifications.length})
+                <Bell className="w-4 h-4 text-primary" />
+                <h4 className="font-bold text-xs text-foreground">
+                  {t('notifications_center_title', isRtl ? 'مركز التنبيهات' : 'Notifications')} ({notifications.length})
                 </h4>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleTestSound}
-                  className="text-[10px] font-bold text-slate-500 hover:text-[#087CF4] flex items-center gap-1 cursor-pointer bg-white px-2 py-1 rounded-lg border border-slate-200"
-                  title="تجربة صوت التنبيه"
+                  className="text-[10px] font-bold text-muted-foreground hover:text-primary flex items-center gap-1 cursor-pointer bg-background px-2 py-1 rounded-lg border border-border shadow-2xs"
+                  title={isRtl ? 'تجربة صوت التنبيه' : 'Test sound chime'}
                 >
-                  <Volume2 className="w-3 h-3 text-[#087CF4]" />
-                  <span>صوت</span>
+                  <Volume2 className="w-3 h-3 text-primary" />
+                  <span>{t('sound_test', isRtl ? 'صوت' : 'Sound')}</span>
                 </button>
                 {unreadCount > 0 && (
                   <button
                     onClick={handleMarkAllRead}
-                    className="text-[10px] font-bold text-[#087CF4] hover:underline cursor-pointer"
+                    className="text-[10px] font-bold text-primary hover:underline cursor-pointer"
                   >
-                    تعليم الكل كمقروء
+                    {t('mark_all_read', isRtl ? 'تعليم الكل كمقروء' : 'Mark all read')}
                   </button>
                 )}
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
+                  className="text-muted-foreground hover:text-foreground p-1 rounded-lg cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -233,27 +235,29 @@ export function NotificationCenter({
 
             {/* Browser push permission banner if not granted */}
             {!hasPushPermission && typeof window !== 'undefined' && 'Notification' in window && (
-              <div className="p-2.5 bg-blue-50 border-b border-blue-100 flex items-center justify-between text-xs">
-                <span className="text-[11px] font-semibold text-blue-900">
-                  تفعيل الإشعارات الصوتية والمباشرة
+              <div className="p-2.5 bg-primary/10 border-b border-primary/20 flex items-center justify-between text-xs">
+                <span className="text-[11px] font-semibold text-foreground">
+                  {isRtl ? 'تفعيل الإشعارات الصوتية والمباشرة' : 'Enable live push and sound alerts'}
                 </span>
                 <Button
                   size="sm"
                   onClick={handleEnablePush}
-                  className="h-7 text-[10px] px-2.5 bg-[#087CF4] hover:bg-[#0769D1] text-white font-bold rounded-lg cursor-pointer"
+                  className="h-7 text-[10px] px-2.5 yalla-gradient-btn text-white font-bold rounded-lg cursor-pointer"
                 >
-                  تفعيل التنبيه
+                  {isRtl ? 'تفعيل التنبيه' : 'Enable'}
                 </Button>
               </div>
             )}
 
             {/* List */}
-            <div className="overflow-y-auto divide-y divide-[#E5EAF0] flex-1">
+            <div className="overflow-y-auto divide-y divide-border flex-1">
               {notifications.length === 0 ? (
-                <div className="py-12 text-center text-slate-400 space-y-2">
-                  <Bell className="w-8 h-8 mx-auto text-slate-300 opacity-60" />
-                  <p className="text-xs font-bold text-slate-500">لا توجد تنبيهات حالياً</p>
-                  <p className="text-[10px] text-slate-400">ستصلك التنبيهات الفورية فور حدوث حجز أو حركة دور</p>
+                <div className="py-12 text-center text-muted-foreground space-y-2">
+                  <Bell className="w-8 h-8 mx-auto text-muted-foreground/40" />
+                  <p className="text-xs font-bold text-foreground">{isRtl ? 'لا توجد تنبيهات حالياً' : 'No notifications yet'}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {isRtl ? 'ستصلك التنبيهات الفورية فور حدوث حجز أو حركة دور' : 'Real-time alerts will appear here as bookings or queue progress'}
+                  </p>
                 </div>
               ) : (
                 notifications.map((n) => (
@@ -266,33 +270,33 @@ export function NotificationCenter({
                     }}
                     className={`p-3 transition-colors cursor-pointer flex items-start gap-3 ${
                       n.id === 'owner-broadcast-alert'
-                        ? 'bg-amber-50/80 border-r-4 border-r-amber-500'
+                        ? (isRtl ? 'bg-amber-500/10 border-r-4 border-r-amber-500' : 'bg-amber-500/10 border-l-4 border-l-amber-500')
                         : n.isRead
-                        ? 'bg-white hover:bg-slate-50/80 opacity-80'
-                        : 'bg-blue-50/40 hover:bg-blue-50/70 border-r-4 border-r-[#087CF4]'
+                        ? 'bg-card hover:bg-muted/30 opacity-80'
+                        : (isRtl ? 'bg-primary/5 hover:bg-primary/10 border-r-4 border-r-primary' : 'bg-primary/5 hover:bg-primary/10 border-l-4 border-l-primary')
                     }`}
                   >
-                    <div className="p-2 rounded-xl bg-white border border-[#E5EAF0] shrink-0 mt-0.5 shadow-2xs">
+                    <div className="p-2 rounded-xl bg-background border border-border shrink-0 mt-0.5 shadow-2xs">
                       {getNotificationIcon(n.type)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-1">
-                        <h5 className="font-bold text-xs text-[#182230] truncate flex items-center gap-1.5">
+                        <h5 className="font-bold text-xs text-foreground truncate flex items-center gap-1.5">
                           {n.title}
                           {n.id === 'owner-broadcast-alert' && (
-                            <span className="text-[9px] font-black text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded-md">
-                              إداري
+                            <span className="text-[9px] font-black text-amber-600 bg-amber-500/10 px-1.5 py-0.2 rounded-md border border-amber-500/20">
+                              {isRtl ? 'إداري' : 'Admin'}
                             </span>
                           )}
                         </h5>
-                        <span className="text-[9px] font-medium text-slate-400 shrink-0">
-                          {new Date(n.createdAt).toLocaleTimeString('ar-EG', {
+                        <span className="text-[9px] font-medium text-muted-foreground shrink-0 font-mono">
+                          {new Date(n.createdAt).toLocaleTimeString(language === 'ar' ? 'ar-EG' : 'en-US', {
                             hour: '2-digit',
                             minute: '2-digit'
                           })}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-600 mt-1 leading-relaxed whitespace-pre-wrap">
+                      <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed whitespace-pre-wrap">
                         {n.body}
                       </p>
                     </div>

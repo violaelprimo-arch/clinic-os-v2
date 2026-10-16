@@ -3,6 +3,7 @@
 import React from 'react'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { ShieldCheck, QrCode } from 'lucide-react'
+import { useLanguage } from '@/context/LanguageContext'
 
 export interface A4PrescriptionProps {
   clinic: any
@@ -46,6 +47,7 @@ export function A4Prescription({
   showHeaderFooter = true,
   printBackground = true
 }: A4PrescriptionProps) {
+  const { t, tDynamic, language } = useLanguage()
   const safeOffset = typeof topOffset === 'number' && topOffset <= 60 && topOffset >= 0 ? topOffset : 25
   const pColor = primaryColor || clinic?.primaryColor || '#061A38'
   const sColor = secondaryColor || clinic?.secondaryColor || '#087CF4'
@@ -96,7 +98,7 @@ export function A4Prescription({
         id="patient-a4-print-sheet"
         className={`w-full bg-white relative mx-auto flex flex-col justify-between overflow-hidden shadow-2xl border border-[#E5EAF0] aspect-[1/1.414] ${
           isA5 ? 'max-w-[560px] text-[11px]' : 'max-w-[800px] text-xs'
-        } text-right font-sans transition-all`}
+        } ${language === 'en' ? 'text-left' : 'text-right'} font-sans transition-all`}
         style={{
           ...(templateMode === 'custom' && clinic?.prescriptionTemplateUrl && printBackground
             ? {
@@ -116,7 +118,7 @@ export function A4Prescription({
                 paddingRight: isA5 ? '1.75rem' : '2.5rem'
               })
         }}
-        dir="rtl"
+        dir={language === 'en' ? 'ltr' : 'rtl'}
       >
         <div className="flex-1 flex flex-col">
           {/* Header (Rendered when showHeaderFooter is true, unless background template replaces it) */}
@@ -127,17 +129,17 @@ export function A4Prescription({
             >
               <div className="space-y-0.5">
                 <h2 className={`${isA5 ? 'text-lg' : 'text-2xl'} font-black text-[#182230]`}>
-                  {clinic?.doctorName ? `د. ${clinic.doctorName}` : 'د. الطبيب المعالج'}
+                  {clinic?.doctorName ? (language === 'en' ? `Dr. ${clinic.doctorName}` : `د. ${clinic.doctorName}`) : (language === 'en' ? 'Dr. Attending Physician' : 'د. الطبيب المعالج')}
                 </h2>
                 <p className={`${isA5 ? 'text-xs' : 'text-sm'} font-black`} style={{ color: sColor }}>
-                  {clinic?.specialty || 'استشاري العيادة الطبية'}
+                  {tDynamic(clinic?.specialty) || (language === 'en' ? 'Clinic Medical Consultant' : 'استشاري العيادة الطبية')}
                 </p>
                 <p className={`${isA5 ? 'text-[10px]' : 'text-xs'} text-[#64748B] font-medium`}>
-                  {clinic?.certificationTitle || 'عضو الجمعية الطبية المصرية'} • {clinic?.certificationEntity || 'نقابة الأطباء'}
+                  {clinic?.certificationTitle || (language === 'en' ? 'Member of Egyptian Medical Association' : 'عضو الجمعية الطبية المصرية')} • {clinic?.certificationEntity || (language === 'en' ? 'Physicians Syndicate' : 'نقابة الأطباء')}
                 </p>
               </div>
 
-              <div className="text-left flex flex-col items-end">
+              <div className={`${language === 'en' ? 'text-right' : 'text-left'} flex flex-col ${language === 'en' ? 'items-end' : 'items-end'}`}>
                 {clinic?.logoUrl ? (
                   <img src={clinic.logoUrl} alt="Logo" crossOrigin="anonymous" className={`${isA5 ? 'max-h-9' : 'max-h-12'} object-contain mb-1`} />
                 ) : (
@@ -148,7 +150,7 @@ export function A4Prescription({
                 </span>
                 {branchName && (
                   <span className="text-[10px] font-bold text-[#94A3B8]">
-                    فرع: {branchName}
+                    {language === 'en' ? 'Branch: ' : 'فرع: '}{tDynamic(branchName)}
                   </span>
                 )}
               </div>
@@ -166,25 +168,25 @@ export function A4Prescription({
             }`}
           >
             <div className="flex items-center gap-1.5">
-              <span className="text-[#94A3B8] font-semibold">المريض:</span>
-              <span className="text-[#182230] font-black">{patientName || 'المريض'}</span>
+              <span className="text-[#94A3B8] font-semibold">{language === 'en' ? 'Patient:' : 'المريض:'}</span>
+              <span className="text-[#182230] font-black">{patientName || (language === 'en' ? 'Patient' : 'المريض')}</span>
             </div>
 
             {age && (
               <div className="flex items-center gap-1.5">
-                <span className="text-[#94A3B8] font-semibold">السن:</span>
-                <span className="text-[#182230] font-black">{age} سنة</span>
+                <span className="text-[#94A3B8] font-semibold">{language === 'en' ? 'Age:' : 'السن:'}</span>
+                <span className="text-[#182230] font-black">{age} {language === 'en' ? 'yrs' : 'سنة'}</span>
               </div>
             )}
 
             <div className="flex items-center gap-1.5">
-              <span className="text-[#94A3B8] font-semibold">التاريخ:</span>
+              <span className="text-[#94A3B8] font-semibold">{language === 'en' ? 'Date:' : 'التاريخ:'}</span>
               <span className="text-[#182230] font-mono" dir="ltr">{date}</span>
             </div>
 
             {prescriptionNumber && (
               <div className="flex items-center gap-1.5">
-                <span className="text-[#94A3B8] font-semibold">رقم الروشتة:</span>
+                <span className="text-[#94A3B8] font-semibold">{language === 'en' ? 'Rx #:' : 'رقم الروشتة:'}</span>
                 <span className="text-[#182230] font-mono" dir="ltr">#{prescriptionNumber}</span>
               </div>
             )}
@@ -193,7 +195,7 @@ export function A4Prescription({
           {/* Diagnosis (if present) */}
           {diagnosis && (
             <div className={`mb-3 ${isA5 ? 'text-[10px]' : 'text-xs'} font-bold px-3 py-1.5 bg-[#F0F7FF] rounded-lg border border-[#D0E2FF] flex items-center gap-2`}>
-              <span className="text-[#087CF4]">التشخيص الطبي:</span>
+              <span className="text-[#087CF4]">{language === 'en' ? 'Clinical Diagnosis:' : 'التشخيص الطبي:'}</span>
               <span className="text-[#182230]">{diagnosis}</span>
             </div>
           )}
@@ -227,12 +229,12 @@ export function A4Prescription({
                     <div className={`flex flex-wrap items-center gap-x-3 gap-y-0.5 ${isA5 ? 'text-[10px]' : 'text-xs'}`}>
                       {drug.dosage && (
                         <span className="font-bold text-[#087CF4]">
-                          الجرعة: {drug.dosage}
+                          {language === 'en' ? 'Dosage: ' : 'الجرعة: '}{drug.dosage}
                         </span>
                       )}
                       {drug.duration && (
                         <span className="text-[#64748B] font-medium">
-                          المدة: {drug.duration}
+                          {language === 'en' ? 'Duration: ' : 'المدة: '}{drug.duration}
                         </span>
                       )}
                       {drug.notes && (
@@ -248,8 +250,8 @@ export function A4Prescription({
 
           {/* Doctor Clinical Instructions */}
           {instructions && (
-            <div className={`mt-3 p-2.5 bg-[#F8FAFC] rounded-xl border border-[#E2E8F0] ${isA5 ? 'text-[10px]' : 'text-xs'} text-right leading-relaxed`}>
-              <strong className="text-[#334155] block mb-0.5">تعليمات هامة للمريض:</strong>
+            <div className={`mt-3 p-2.5 bg-[#F8FAFC] rounded-xl border border-[#E2E8F0] ${isA5 ? 'text-[10px]' : 'text-xs'} ${language === 'en' ? 'text-left' : 'text-right'} leading-relaxed`}>
+              <strong className="text-[#334155] block mb-0.5">{language === 'en' ? 'Important Patient Instructions:' : 'تعليمات هامة للمريض:'}</strong>
               <p className="text-[#475569]">{instructions}</p>
             </div>
           )}
@@ -266,23 +268,23 @@ export function A4Prescription({
             {/* Doctor Signature & Stamp */}
             <div className="text-center">
               <div className={`${isA5 ? 'w-28' : 'w-36'} border-b-2 border-[#CBD5E1] pb-1 italic font-serif text-[#475569] ${isA5 ? 'text-xs' : 'text-sm'}`}>
-                {clinic?.doctorName ? `د. ${clinic.doctorName}` : 'د. الطبيب'}
+                {clinic?.doctorName ? (language === 'en' ? `Dr. ${clinic.doctorName}` : `د. ${clinic.doctorName}`) : (language === 'en' ? 'Dr. Physician' : 'د. الطبيب')}
               </div>
-              <span className="text-[9px] text-[#94A3B8] font-bold block mt-1">توقيع وختم الطبيب</span>
+              <span className="text-[9px] text-[#94A3B8] font-bold block mt-1">{language === 'en' ? "Doctor's Signature & Stamp" : 'توقيع وختم الطبيب'}</span>
             </div>
 
             {/* Verification Badge */}
             <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-[10px] text-[#475569]">
               <ShieldCheck className="w-4 h-4 text-[#059669] shrink-0" />
-              <span>روشتة رسمية موثقة إلكترونياً</span>
+              <span>{language === 'en' ? 'Electronically Certified Prescription' : 'روشتة رسمية موثقة إلكترونياً'}</span>
             </div>
 
             {/* Clinic Address & Contacts */}
-            <div className="text-right space-y-0.5 text-[10px]">
-              <p>{clinic?.clinicAddress || 'العنوان: مسجل بالعيادة'}</p>
-              <p dir="ltr">هاتف: {clinic?.clinicPhone || clinic?.phones?.[0] || 'مسجل بالعيادة'}</p>
+            <div className={`${language === 'en' ? 'text-left' : 'text-right'} space-y-0.5 text-[10px]`}>
+              <p>{clinic?.clinicAddress || (language === 'en' ? 'Address: Registered at clinic' : 'العنوان: مسجل بالعيادة')}</p>
+              <p dir="ltr">{language === 'en' ? 'Phone: ' : 'هاتف: '}{clinic?.clinicPhone || clinic?.phones?.[0] || (language === 'en' ? 'Registered at clinic' : 'مسجل بالعيادة')}</p>
               <p className="text-[9px] text-[#94A3B8] pt-0.5">
-                جميع الحقوق محفوظة YallaCodeX 2026
+                {language === 'en' ? 'All rights reserved YallaCodeX 2026' : 'جميع الحقوق محفوظة YallaCodeX 2026'}
               </p>
             </div>
           </div>

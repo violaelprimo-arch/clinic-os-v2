@@ -46,7 +46,7 @@ export function PremiumLanding({
   services: any[]
 }) {
   const router = useRouter()
-  const { dir, t } = useLanguage()
+  const { dir, t, isRtl } = useLanguage()
   const primaryColor = clinic?.primaryColor || '#087CF4'
 
   const [bookingModalOpen, setBookingModalOpen] = useState(false)
@@ -58,17 +58,17 @@ export function PremiumLanding({
   const [preselectedServiceId, setPreselectedServiceId] = useState<string | null>(null)
 
   const defaultServices = services.length > 0 ? services : [
-    { id: '1', name: 'كشف عادي', price: 250, desc: 'كشف طبي شامل مع تشخيص دقيق', duration: 'حوالي 15 دقيقة' },
-    { id: '2', name: 'استشارة', price: 150, desc: 'استشارة تخصصية ومراجعة تحاليل', duration: 'حوالي 10 دقائق' },
-    { id: '3', name: 'كشف مستعجل', price: 400, desc: 'أولوية فورية في الدور والدخول', duration: 'كشف فوري مباشر' },
-    { id: '4', name: 'متابعة', price: 100, desc: 'متابعة لحالة سابقة وتعديل الجرعات', duration: 'حوالي 10 دقائق' },
+    { id: '1', name: isRtl ? 'كشف عادي' : 'Standard Consultation', price: 250, desc: isRtl ? 'كشف طبي شامل مع تشخيص دقيق' : 'Comprehensive diagnostic examination', duration: isRtl ? 'حوالي 15 دقيقة' : 'Approx 15 mins' },
+    { id: '2', name: isRtl ? 'استشارة' : 'Specialist Consultation', price: 150, desc: isRtl ? 'استشارة تخصصية ومراجعة تحاليل' : 'Specialist consultation and lab review', duration: isRtl ? 'حوالي 10 دقائق' : 'Approx 10 mins' },
+    { id: '3', name: isRtl ? 'كشف مستعجل' : 'Urgent Consultation', price: 400, desc: isRtl ? 'أولوية فورية في الدور والدخول' : 'Immediate queue priority entry', duration: isRtl ? 'كشف فوري مباشر' : 'Immediate entry' },
+    { id: '4', name: isRtl ? 'متابعة' : 'Follow-up', price: 100, desc: isRtl ? 'متابعة لحالة سابقة وتعديل الجرعات' : 'Follow-up and dosage adjustments', duration: isRtl ? 'حوالي 10 دقائق' : 'Approx 10 mins' },
   ]
 
   const isOnlineBookingEnabled = isClinicFeatureEnabled(clinic, 'onlineBooking') && clinic?.allowOnlineBooking !== false
 
   const handleOpenBookingModal = (serviceId?: string) => {
     if (!isOnlineBookingEnabled) {
-      toast.info(`الحجز الإلكتروني المباشر غير متاح حالياً لهذه العيادة. يرجى التواصل هاتفياً لتسجيل موعدك عبر الرقم: ${clinic?.clinicPhone || clinic?.doctorPhone || 'أرقام العيادة'}`)
+      toast.info(isRtl ? `الحجز الإلكتروني المباشر غير متاح حالياً لهذه العيادة. يرجى التواصل هاتفياً لتسجيل موعدك عبر الرقم: ${clinic?.clinicPhone || clinic?.doctorPhone || 'أرقام العيادة'}` : `Online booking is unavailable. Please call the clinic to book: ${clinic?.clinicPhone || clinic?.doctorPhone || 'Clinic phones'}`)
       return
     }
     if (serviceId) setModalServiceId(serviceId)
@@ -86,7 +86,7 @@ export function PremiumLanding({
   const handleTrackQueueSearch = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!trackPhone.trim()) {
-      toast.error('يرجى إدخال رقم الهاتف المسجل بالحجز')
+      toast.error(isRtl ? 'يرجى إدخال رقم الهاتف المسجل بالحجز' : 'Please enter your registered booking phone number')
       return
     }
 
@@ -101,19 +101,19 @@ export function PremiumLanding({
       )
       const snap = await getDocs(q)
       if (snap.empty) {
-        setSearchError('لم يتم العثور على حجز نشط بهذا الرقم في العيادة اليوم.')
+        setSearchError(isRtl ? 'لم يتم العثور على حجز نشط بهذا الرقم في العيادة اليوم.' : 'No active booking found for this phone number today.')
       } else {
         const sorted = snap.docs
           .map(d => ({ id: d.id, ...d.data() } as any))
           .sort((a, b) => new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime())
         const targetAppt = sorted.find(a => a.status === 'waiting' || a.status === 'in_progress') || sorted[0]
-        toast.success(`تم العثور على حجزك (دور رقم ${targetAppt.queue_number || '1'})`)
+        toast.success(isRtl ? `تم العثور على حجزك (دور رقم ${targetAppt.queue_number || '1'})` : `Booking found (Queue Ticket #${targetAppt.queue_number || '1'})`)
         setTrackModalOpen(false)
         router.push(`/clinic/${clinic?.slug}/track/${targetAppt.id}`)
       }
     } catch (err) {
       console.error(err)
-      toast.error('حدث خطأ أثناء الاستعلام، يرجى المحاولة ثانيةً')
+      toast.error(isRtl ? 'حدث خطأ أثناء الاستعلام، يرجى المحاولة ثانيةً' : 'An error occurred during inquiry, please try again')
     } finally {
       setIsSearchingQueue(false)
     }
@@ -132,10 +132,10 @@ export function PremiumLanding({
               <ClinicLogo size="sm" variant="light" showSubtitle={false} />
               <div className="hidden sm:block rtl:border-r ltr:border-l border-border rtl:pr-3 ltr:pl-3">
                 <h1 className="text-sm font-black text-foreground">
-                  {clinic?.clinicName || `عيادة ${clinic?.doctorTitle || 'د.'} الطبيب`}
+                  {clinic?.clinicName || `${isRtl ? 'عيادة' : 'Clinic'} ${clinic?.doctorTitle || (isRtl ? 'د.' : 'Dr.')} ${isRtl ? 'الطبيب' : 'Physician'}`}
                 </h1>
                 <p className="text-[10px] font-bold text-primary">
-                  {clinic?.doctorName ? `${clinic?.doctorTitle || 'د.'} ${clinic.doctorName}` : (clinic?.specialty || 'استشاري الطب الباطني')}
+                  {clinic?.doctorName ? `${clinic?.doctorTitle || (isRtl ? 'د.' : 'Dr.')} ${clinic.doctorName}` : (clinic?.specialty || (isRtl ? 'استشاري الطب الباطني' : 'Consultant Physician'))}
                 </p>
               </div>
             </div>
@@ -223,7 +223,7 @@ export function PremiumLanding({
                   className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold"
                 >
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  العيادة متاحة للحجز واستقبال المرضى اليوم
+                  {t('clinic_available_today', 'العيادة متاحة للحجز واستقبال المرضى اليوم')}
                 </motion.div>
 
                 <div className="space-y-2">
@@ -233,7 +233,7 @@ export function PremiumLanding({
                     transition={{ delay: 0.3 }}
                     className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight"
                   >
-                    {clinic?.doctorName ? `${clinic?.doctorTitle || 'د.'} ${clinic.doctorName}` : `${clinic?.doctorTitle || 'د.'} الطبيب`}
+                    {clinic?.doctorName ? `${clinic?.doctorTitle || (isRtl ? 'د.' : 'Dr.')} ${clinic.doctorName}` : `${clinic?.doctorTitle || (isRtl ? 'د.' : 'Dr.')} ${isRtl ? 'الطبيب' : 'Physician'}`}
                   </motion.h1>
                   <motion.p
                     initial={{ opacity: 0, y: 15 }}
@@ -241,7 +241,7 @@ export function PremiumLanding({
                     transition={{ delay: 0.4 }}
                     className="text-base sm:text-lg text-teal-300 font-bold"
                   >
-                    {clinic?.specialty || 'استشاري الطب المتخصص وعلاج الحالات المتقدمة'}
+                    {clinic?.specialty || (isRtl ? 'استشاري الطب المتخصص وعلاج الحالات المتقدمة' : 'Consultant Physician & Advanced Care')}
                   </motion.p>
                 </div>
 
@@ -252,7 +252,9 @@ export function PremiumLanding({
                   className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-xl"
                 >
                   {clinic?.heroSubtitle ||
-                    'نقدم لك ولأسرتك رعاية طبية متكاملة بأحدث المعايير السريرية مع نظام إلكتروني ذكي لتنظيم الأدوار ومتابعة حالتك بدون انتظار طويل.'}
+                    (isRtl
+                      ? 'نقدم لك ولأسرتك رعاية طبية متكاملة بأحدث المعايير السريرية مع نظام إلكتروني ذكي لتنظيم الأدوار ومتابعة حالتك بدون انتظار طويل.'
+                      : 'Delivering holistic healthcare to you and your family with clinical excellence and smart queue management.')}
                 </motion.p>
 
                 {/* Rating & Patients stats */}
@@ -264,12 +266,12 @@ export function PremiumLanding({
                 >
                   <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 backdrop-blur-xs text-xs font-bold text-amber-300 border border-white/10 shadow-xs">
                     <Star className="w-4 h-4 fill-amber-300 text-amber-300" />
-                    <span>{clinic?.badge2Value ? `${clinic.badge2Value} (تقييم موثق)` : '4.9 (140 تقييم موثق)'}</span>
+                    <span>{clinic?.badge2Value ? `${clinic.badge2Value} (${t('verified_rating', 'تقييم موثق')})` : `4.9 (140 ${t('verified_rating', 'تقييم موثق')})`}</span>
                   </div>
 
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
-                    <UserCheck className="w-4 h-4 text-[#087CF4]" />
-                    <span>{clinic?.badge1Value || '+1,200 حالة تم علاجها'}</span>
+                    <UserCheck className="w-4 h-4 text-primary" />
+                    <span>{clinic?.badge1Value || `+1,200 ${t('cases_treated', 'حالة تم علاجها')}`}</span>
                   </div>
                 </motion.div>
 
@@ -286,13 +288,13 @@ export function PremiumLanding({
                     whileHover={{ scale: 1.04, y: -2 }}
                     whileTap={{ scale: 0.96 }}
                     onClick={() => handleOpenBookingModal()}
-                    className="h-12 px-7 w-full sm:w-auto justify-center text-xs sm:text-sm font-black bg-[#087CF4] hover:bg-[#0662C4] text-white rounded-xl shadow-lg shadow-[#087CF4]/35 flex items-center gap-2 cursor-pointer transition-all"
+                    className="h-12 px-7 w-full sm:w-auto justify-center text-xs sm:text-sm font-black bg-primary hover:bg-primary-hover text-white rounded-xl shadow-lg shadow-primary/35 flex items-center gap-2 cursor-pointer transition-all"
                   >
-                    <Calendar className="w-4 h-4 ml-1 text-white" />
-                    احجز موعدك الآن
+                    <Calendar className="w-4 h-4 mx-1 text-white" />
+                    {t('book_now_btn', 'احجز موعدك الآن')}
                   </motion.button>
 
-                  {/* Button 2: Track Queue (High contrast, pure white background with dark navy text) */}
+                  {/* Button 2: Track Queue */}
                   <motion.button
                     type="button"
                     whileHover={{ scale: 1.04, y: -2 }}
@@ -303,8 +305,8 @@ export function PremiumLanding({
                     }}
                     className="h-12 px-6 w-full sm:w-auto justify-center text-xs sm:text-sm font-black bg-white hover:bg-slate-100 text-[#0B1F33] rounded-xl shadow-md shadow-black/15 flex items-center gap-2 cursor-pointer transition-all border border-white"
                   >
-                    <Clock className="w-4 h-4 ml-1 text-[#087CF4]" />
-                    تتبع دورك مباشرة
+                    <Clock className="w-4 h-4 mx-1 text-primary" />
+                    {t('track_live_turn', 'تتبع دورك مباشرة')}
                   </motion.button>
 
                   {/* Button 3: Patient Portal */}
@@ -315,8 +317,8 @@ export function PremiumLanding({
                       whileTap={{ scale: 0.96 }}
                       className="h-12 px-6 w-full sm:w-auto justify-center text-xs sm:text-sm font-bold bg-[#132B45] hover:bg-[#1a385a] text-teal-200 border border-teal-500/40 rounded-xl shadow-sm flex items-center gap-2 cursor-pointer transition-all"
                     >
-                      <UserCheck className="w-4 h-4 ml-1 text-[#087CF4]" />
-                      بوابة المريض (كشوفاتك السابقة)
+                      <UserCheck className="w-4 h-4 mx-1 text-primary" />
+                      {t('patient_portal_btn', 'بوابة المريض (كشوفاتك السابقة)')}
                     </motion.button>
                   </Link>
                 </motion.div>
@@ -350,8 +352,8 @@ export function PremiumLanding({
                       <ShieldCheck className="w-5 h-5" />
                     </div>
                     <div>
-                      <p className="text-xs font-black text-foreground">{clinic?.certificationTitle || 'طبيب معتمد رسمياً'}</p>
-                      <p className="text-[10px] text-muted-foreground font-semibold">{clinic?.certificationEntity || 'نقابة الأطباء المصرية'}</p>
+                      <p className="text-xs font-black text-foreground">{clinic?.certificationTitle || (isRtl ? 'طبيب معتمد رسمياً' : 'Certified Physician')}</p>
+                      <p className="text-[10px] text-muted-foreground font-semibold">{clinic?.certificationEntity || (isRtl ? 'نقابة الأطباء المصرية' : 'Medical Syndicate')}</p>
                     </div>
                   </motion.div>
                 </motion.div>
@@ -363,10 +365,10 @@ export function PremiumLanding({
           {/* 3. Feature Highlights Pills Row */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-6">
             {[
-              { icon: Activity, title: 'متابعة مستمرة', desc: 'تواصل دائم لحالتك' },
-              { icon: Award, title: 'أحدث الأجهزة', desc: 'دقة تشخيصية عالية' },
-              { icon: HeartPulse, title: 'رعاية متكاملة', desc: 'خدمات طبية شاملة' },
-              { icon: ShieldCheck, title: 'خبرة طبية عالية', desc: 'أعلى المعايير السريرية' },
+              { icon: Activity, title: t('continuous_care', 'متابعة مستمرة'), desc: t('continuous_care_desc', 'تواصل دائم لحالتك') },
+              { icon: Award, title: t('modern_devices', 'أحدث الأجهزة'), desc: t('modern_devices_desc', 'دقة تشخيصية عالية') },
+              { icon: HeartPulse, title: t('integrated_care', 'رعاية متكاملة'), desc: t('integrated_care_desc', 'خدمات طبية شاملة') },
+              { icon: ShieldCheck, title: t('clinical_excellence', 'خبرة طبية عالية'), desc: t('clinical_excellence_desc', 'أعلى المعايير السريرية') },
             ].map((feature, idx) => {
               const Icon = feature.icon
               return (
@@ -394,10 +396,10 @@ export function PremiumLanding({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
           <div className="text-center space-y-2 max-w-xl mx-auto">
             <h2 className="text-2xl sm:text-3xl font-black text-foreground">
-              الخدمات الطبية المتاحة
+              {t('available_medical_services', 'الخدمات الطبية المتاحة')}
             </h2>
             <p className="text-xs sm:text-sm text-muted-foreground">
-              اختر الخدمة الطبية المناسبة واطلع على الأسعار المعتمدة مع إمكانية الحجز الفوري
+              {t('services_subtitle', 'اختر الخدمة الطبية المناسبة واطلع على الأسعار المعتمدة مع إمكانية الحجز الفوري')}
             </p>
           </div>
 
@@ -411,23 +413,23 @@ export function PremiumLanding({
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary">
-                      {service.duration || '15 دقيقة'}
+                      {service.duration || (isRtl ? '15 دقيقة' : '15 mins')}
                     </span>
                     <Stethoscope className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
                   </div>
 
                   <h3 className="font-black text-base text-foreground">{service.name}</h3>
                   <p className="text-xs text-muted-foreground leading-relaxed min-h-[36px]">
-                    {service.desc || 'خدمة طبية شاملة بالعيادة مع تشخيص متكامل'}
+                    {service.desc || (isRtl ? 'خدمة طبية شاملة بالعيادة مع تشخيص متكامل' : 'Comprehensive clinical examination')}
                   </p>
                 </div>
 
                 <div className={`pt-3 border-t border-border flex items-center ${clinic?.showPrices === false ? 'justify-end' : 'justify-between'}`}>
                   {clinic?.showPrices !== false && (
                     <div>
-                      <span className="text-[10px] font-bold text-muted-foreground block">التكلفة</span>
-                      <span className="text-lg font-black text-primary">
-                        {service.price} <span className="text-xs font-bold text-muted-foreground">ج.م</span>
+                      <span className="text-[10px] font-bold text-muted-foreground block">{t('cost_label', 'التكلفة')}</span>
+                      <span className="text-lg font-black text-primary font-mono" dir="ltr">
+                        {Number(service.price).toLocaleString(isRtl ? 'ar-EG' : 'en-US')} <span className="text-xs font-bold text-muted-foreground">{t('egp', 'ج.م')}</span>
                       </span>
                     </div>
                   )}
@@ -437,7 +439,7 @@ export function PremiumLanding({
                     onClick={() => handleSelectService(service.id)}
                     className="h-9 px-4 text-xs font-bold bg-primary hover:bg-primary-hover text-white rounded-xl shadow-xs cursor-pointer transition-all hover:scale-105 active:scale-95"
                   >
-                    احجز الآن
+                    {t('book_now_service', 'احجز الآن')}
                   </Button>
                 </div>
               </div>

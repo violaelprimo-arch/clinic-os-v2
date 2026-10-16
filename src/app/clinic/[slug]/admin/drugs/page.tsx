@@ -23,7 +23,7 @@ import { useLanguage } from '@/context/LanguageContext'
 export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
-  const { t, language, isRtl, dir } = useLanguage()
+  const { t, tDynamic, language, isRtl, dir } = useLanguage()
 
   // Load massive DB + daily updates using global hook
   const { drugs: apiDrugs, loading: isApiLoading, refresh: refreshDrugs } = useEgyptianDrugs()
@@ -351,12 +351,12 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
                       onChange={e => setNewDrug({...newDrug, form: e.target.value as any})}
                       className="w-full h-10 px-3 rounded-xl border border-input text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
                     >
-                      <option value="أقراص">أقراص</option>
-                      <option value="كبسولات">كبسولات</option>
-                      <option value="شراب">شراب</option>
-                      <option value="حقن">حقن</option>
-                      <option value="مرهم / دهان">مرهم / دهان</option>
-                      <option value="نقط">نقط</option>
+                      <option value="أقراص">{language === 'en' ? 'Tablets' : 'أقراص'}</option>
+                      <option value="كبسولات">{language === 'en' ? 'Capsules' : 'كبسولات'}</option>
+                      <option value="شراب">{language === 'en' ? 'Syrup' : 'شراب'}</option>
+                      <option value="حقن">{language === 'en' ? 'Injections' : 'حقن'}</option>
+                      <option value="مرهم / دهان">{language === 'en' ? 'Ointment / Cream' : 'مرهم / دهان'}</option>
+                      <option value="نقط">{language === 'en' ? 'Drops' : 'نقط'}</option>
                     </select>
                   </div>
                 </div>
@@ -407,7 +407,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
             <Input
               value={search}
               onChange={e => { setSearch(e.target.value); setCurrentPage(1); }}
-              placeholder={isRtl ? "ابحث باسم الدواء أو المادة الفعالة أو الشركة..." : "Search by drug, ingredient, or company..."}
+              placeholder={isRtl ? "ابحث باسم الدواء أو المادة الفعالة أو الشركة..." : "Search by drug, active ingredient, or company..."}
               className={`${isRtl ? 'pr-10' : 'pl-10'} h-10 text-sm bg-background border border-input rounded-xl text-foreground focus:ring-2 focus:ring-primary`}
             />
           </div>
@@ -435,7 +435,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
             >
               <option value="ALL">{t('all_forms', 'كل الأشكال')}</option>
               {forms.map(f => (
-                <option key={f} value={f}>{f}</option>
+                <option key={f} value={f}>{tDynamic(f)}</option>
               ))}
             </select>
           </div>
@@ -464,12 +464,12 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
         {isApiLoading ? (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-background/80 backdrop-blur-xs">
             <Loader2 className="w-8 h-8 text-primary animate-spin" />
-            <p className="mt-4 text-sm font-bold text-muted-foreground">جاري تحميل بيانات الأدوية والأسعار...</p>
+            <p className="mt-4 text-sm font-bold text-muted-foreground">{language === 'en' ? 'Loading drug directory and price database...' : 'جاري تحميل بيانات الأدوية والأسعار...'}</p>
           </div>
         ) : null}
 
         <div className="overflow-x-auto">
-          <table className="w-full text-right text-sm">
+          <table className={`w-full ${isRtl ? 'text-right' : 'text-left'} text-sm`}>
             <thead className="bg-secondary/60 border-b border-border text-muted-foreground text-xs font-bold select-none">
               <tr>
                 <th className="py-3.5 px-3 text-center w-12">{t('favorites', 'المفضلة')}</th>
@@ -478,7 +478,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
                 <th className="py-3.5 px-4">{t('manufacturer', 'الشركة')}</th>
                 <th className="py-3.5 px-4">{t('dosage_form', 'الشكل')}</th>
                 <th className="py-3.5 px-4 text-center">{t('price', 'السعر')}</th>
-                <th className="py-3.5 px-4 text-center">الإجراءات</th>
+                <th className="py-3.5 px-4 text-center">{t('actions', 'الإجراءات')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -531,7 +531,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
                       {/* Form */}
                       <td className="py-3.5 px-4">
                         <span className="inline-block text-[11px] font-semibold px-2 py-0.5 rounded-md bg-primary/10 text-primary">
-                          {drug.form}
+                          {tDynamic(drug.form)}
                         </span>
                       </td>
 
@@ -549,8 +549,8 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
                               </span>
                             )}
                             {drug.oldPrice && Number(drug.oldPrice) !== Number(drug.price) && (
-                              <span className="line-through text-muted-foreground/60 text-[10px]" title="السعر السابق">
-                                {drug.oldPrice} ج.م
+                              <span className="line-through text-muted-foreground/60 text-[10px]" title={language === 'en' ? 'Previous Price' : 'السعر السابق'}>
+                                {drug.oldPrice} {t('currency_egp', 'ج.م')}
                               </span>
                             )}
                           </div>
@@ -569,9 +569,9 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
                             <Button
                               size="sm"
                               variant="outline"
-                              className="h-8 px-2.5 text-[11px] font-bold text-primary border-border hover:bg-primary/10 rounded-xl cursor-pointer"
+                              className="h-8 px-2.5 text-[11px] font-bold text-primary border-border hover:bg-primary/10 rounded-xl cursor-pointer gap-1.5"
                             >
-                              <FileSignature className="w-3.5 h-3.5 ml-1" />
+                              <FileSignature className="w-3.5 h-3.5" />
                               {t('add_to_prescription', 'إضافة للروشتة')}
                             </Button>
                           </Link>
@@ -584,7 +584,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
                             }}
                             disabled={isSyncing}
                             className="p-1.5 rounded-lg border border-border hover:border-amber-400 hover:bg-amber-500/10 text-muted-foreground hover:text-amber-500 transition-colors cursor-pointer"
-                            title="تحديث سعر هذا الدواء فورياً"
+                            title={language === 'en' ? 'Sync this drug price instantly' : 'تحديث سعر هذا الدواء فورياً'}
                           >
                             <RefreshCw className={`w-3.5 h-3.5 ${syncingDrugName === drug.name && isSyncing ? 'animate-spin text-amber-500' : ''}`} />
                           </button>
@@ -601,7 +601,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
         {/* Desktop Table Pagination Footer */}
         <div className="p-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground bg-secondary/30">
           <div>
-            عرض {paginated.length} من أصل {filtered.length} دواء
+            {t('showing_count', 'عرض')} {paginated.length} {t('out_of', 'من أصل')} {filtered.length} {t('drugs_unit', 'دواء')}
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -616,7 +616,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
             </Button>
 
             <div className="flex items-center px-4 font-semibold text-foreground bg-card border border-border rounded-xl h-8">
-              صفحة {currentPage} من {totalPages}
+              {t('page', 'صفحة')} {currentPage} {t('of_pages', 'من')} {totalPages}
             </div>
 
             <Button
@@ -637,7 +637,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
         {isApiLoading ? (
           <div className="p-8 text-center bg-card rounded-2xl border border-border">
             <Loader2 className="w-7 h-7 text-primary animate-spin mx-auto" />
-            <p className="mt-2 text-xs font-bold text-muted-foreground">جاري تحميل بيانات الأدوية...</p>
+            <p className="mt-2 text-xs font-bold text-muted-foreground">{language === 'en' ? 'Loading drug directory...' : 'جاري تحميل بيانات الأدوية...'}</p>
           </div>
         ) : paginated.length === 0 ? (
           <div className="p-8 text-center bg-card rounded-2xl border border-border text-muted-foreground text-xs">
@@ -669,7 +669,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
                 </div>
 
                 <div className="flex items-center justify-between text-xs pt-1 border-t border-border">
-                  <span className="text-muted-foreground text-[11px]">{drug.company} • {drug.form}</span>
+                  <span className="text-muted-foreground text-[11px]">{drug.company} • {tDynamic(drug.form)}</span>
                   <div>
                     {drug.price && Number(drug.price) > 0 ? (
                       <span className="font-black text-emerald-600 dark:text-emerald-400">
@@ -688,10 +688,10 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
                   >
                     <Button
                       size="sm"
-                      className="w-full h-8 text-[11px] font-bold yalla-gradient-btn rounded-xl"
+                      className="w-full h-8 text-[11px] font-bold yalla-gradient-btn rounded-xl gap-1.5"
                     >
-                      <FileSignature className="w-3.5 h-3.5 ml-1" />
-                      إضافة للروشتة
+                      <FileSignature className="w-3.5 h-3.5" />
+                      {t('add_to_prescription', 'إضافة للروشتة')}
                     </Button>
                   </Link>
                   <Button
@@ -747,19 +747,19 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
             <div className="space-y-3 py-3 text-xs">
               <div className="p-3.5 rounded-2xl bg-secondary/50 border border-border space-y-2">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">المادة الفعالة:</span>
+                  <span className="text-muted-foreground">{t('active_ingredient', 'المادة الفعالة')}:</span>
                   <span className="font-bold text-foreground font-mono">{selectedDrug.activeIngredient}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">الشركة المصنعة:</span>
+                  <span className="text-muted-foreground">{t('manufacturer', 'الشركة المصنعة')}:</span>
                   <span className="font-bold text-foreground">{selectedDrug.company}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">الشكل الدوائي:</span>
-                  <span className="font-bold text-primary">{selectedDrug.form}</span>
+                  <span className="text-muted-foreground">{t('dosage_form', 'الشكل الدوائي')}:</span>
+                  <span className="font-bold text-primary">{tDynamic(selectedDrug.form)}</span>
                 </div>
                 <div className="flex justify-between items-center pt-2 border-t border-border">
-                  <span className="text-muted-foreground">السعر المعتمد:</span>
+                  <span className="text-muted-foreground">{t('current_price', 'السعر المعتمد')}:</span>
                   <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">
                     {selectedDrug.price && Number(selectedDrug.price) > 0
                       ? `${selectedDrug.price} ${t('currency_egp', 'ج.م')}`
@@ -768,7 +768,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
                 </div>
                 {selectedDrug.lastMarketUpdate && (
                   <div className="flex justify-between text-[11px] text-muted-foreground pt-1">
-                    <span>تاريخ آخر تحديث:</span>
+                    <span>{t('last_updated_on', 'تاريخ آخر تحديث')}:</span>
                     <span>{selectedDrug.lastMarketUpdate}</span>
                   </div>
                 )}
@@ -779,9 +779,9 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
                   href={`/clinic/${slug}/admin/prescriptions?drug=${encodeURIComponent(selectedDrug.name)}`}
                   className="flex-1"
                 >
-                  <Button className="w-full yalla-gradient-btn font-bold h-10 rounded-xl text-xs">
-                    <FileSignature className="w-4 h-4 ml-1" />
-                    استخدام في روشتة
+                  <Button className="w-full yalla-gradient-btn font-bold h-10 rounded-xl text-xs gap-1.5">
+                    <FileSignature className="w-4 h-4" />
+                    {t('add_to_prescription', 'استخدام في روشتة')}
                   </Button>
                 </Link>
                 <Button
@@ -789,7 +789,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
                   onClick={() => setSelectedDrug(null)}
                   className="h-10 px-4 text-xs font-bold rounded-xl border-border"
                 >
-                  إغلاق
+                  {t('close', 'إغلاق')}
                 </Button>
               </div>
             </div>

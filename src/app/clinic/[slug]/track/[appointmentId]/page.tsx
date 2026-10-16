@@ -116,7 +116,9 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
       ) {
         playNotificationSound('chime')
         toast.info(
-          `🔔 دخل الآن المريض رقم #${currentExaminingNum} لغرفة الكشف. دورك رقم #${appointment.queue_number} (متبقي أمامك ${liveQueue.aheadCount} مرضى).`
+          isRtl
+            ? `🔔 دخل الآن المريض رقم #${currentExaminingNum} لغرفة الكشف. دورك رقم #${appointment.queue_number} (متبقي أمامك ${liveQueue.aheadCount} مرضى).`
+            : `🔔 Patient #${currentExaminingNum} has entered the exam room. Your turn is #${appointment.queue_number} (${liveQueue.aheadCount} ahead).`
         )
       }
       prevExaminingRef.current = currentExaminingNum || null
@@ -384,7 +386,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
                 invoice={{
                   invoiceNumber: appointment.invoiceNumber || `INV-${appointmentId.slice(0, 8)}`,
                   queueNumber: appointment.queue_number,
-                  clinicName: clinic?.clinicName || 'العيادة',
+                  clinicName: clinic?.clinicName || (isRtl ? 'العيادة' : 'Clinic'),
                   doctorName: clinic?.doctorName,
                   branchName: appointment.branchName,
                   clinicAddress: clinic?.clinicAddress,
@@ -393,7 +395,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
                   patientPhone: appointment.phone,
                   date: appointment.date,
                   cairoTime: formatCairo12Hour(new Date(appointment.createdAt || Date.now())),
-                  serviceName: appointment.serviceName || 'كشف',
+                  serviceName: appointment.serviceName || t('consultation_type_exam', 'كشف'),
                   servicePrice: appointment.servicePrice || 0,
                   discount: appointment.discountApplied || 0,
                   netTotal: appointment.servicePrice || 0,

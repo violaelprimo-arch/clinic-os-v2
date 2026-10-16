@@ -30,7 +30,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
   const searchParams = useSearchParams()
-  const { t, dir } = useLanguage()
+  const { t, tDynamic, dir, isRtl, language } = useLanguage()
 
   const [appointmentId, setAppointmentId] = useState(searchParams?.get('appointmentId') || '')
   const [patientName, setPatientName] = useState(searchParams?.get('patientName') || '')
@@ -364,10 +364,10 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
         <div>
           <h1 className="text-2xl font-black text-foreground flex items-center gap-2">
             <FileSignature className="w-6 h-6 text-primary" />
-            {t('nav_prescriptions', 'إصدار روشتة طبية (A4 Premium)')}
+            {t('issue_rx_title', 'إصدار روشتة طبية (A4 Premium)')}
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            تعبئة بيانات الكشف والأدوية مع معاينة فورية وتصدير PDF أصلي
+            {t('issue_rx_desc', 'تعبئة بيانات الكشف والأدوية مع معاينة فورية وتصدير PDF أصلي')}
           </p>
         </div>
 
@@ -378,10 +378,10 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             disabled={isSharingPdf}
             variant="outline"
             className="h-10 text-xs font-bold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 rounded-xl"
-            title="مشاركة الروشتة كصورة ونسخها للحافظة للصق الفوري Ctrl+V في واتساب ويب"
+            title="WhatsApp Image"
           >
             <MessageCircle className="w-4 h-4 ml-1.5" />
-            {isSharingPdf ? 'جاري المشاركة...' : 'إرسال صورة واتساب'}
+            {isSharingPdf ? t('saving', 'جاري المشاركة...') : t('send_whatsapp_img', 'إرسال صورة واتساب')}
           </Button>
 
           {/* Manual WhatsApp Share with Real PDF */}
@@ -390,10 +390,10 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             disabled={isSharingPdf}
             variant="outline"
             className="h-10 text-xs font-bold text-emerald-700 dark:text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/10 rounded-xl"
-            title="مشاركة الروشتة كملف PDF رسمي"
+            title="WhatsApp PDF"
           >
             <FileText className="w-4 h-4 ml-1.5" />
-            {isSharingPdf ? 'جاري المشاركة...' : 'إرسال PDF واتساب'}
+            {isSharingPdf ? t('saving', 'جاري المشاركة...') : t('send_whatsapp_pdf', 'إرسال PDF واتساب')}
           </Button>
 
           {/* Real Image Download */}
@@ -402,10 +402,10 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             disabled={isDownloadingImage}
             variant="outline"
             className="h-10 text-xs font-bold border-border text-foreground hover:bg-secondary rounded-xl"
-            title="تحميل الروشتة كصورة عالية الجودة PNG"
+            title="Download PNG"
           >
             <ImageIcon className="w-4 h-4 ml-1.5" />
-            {isDownloadingImage ? 'جاري التحميل...' : 'تحميل صورة'}
+            {isDownloadingImage ? t('loading', 'جاري التحميل...') : t('download_img', 'تحميل صورة')}
           </Button>
 
           {/* Real PDF Download */}
@@ -414,10 +414,10 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             disabled={isDownloadingPdf}
             variant="outline"
             className="h-10 text-xs font-bold border-border text-foreground hover:bg-secondary rounded-xl"
-            title="تحميل الروشتة كملف PDF"
+            title="Download PDF"
           >
             <Download className="w-4 h-4 ml-1.5" />
-            {isDownloadingPdf ? 'جاري التحميل...' : 'تحميل PDF'}
+            {isDownloadingPdf ? t('loading', 'جاري التحميل...') : t('download_pdf', 'تحميل PDF')}
           </Button>
 
           {/* Clean Isolated Print */}
@@ -427,7 +427,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             className="h-10 text-xs font-bold border-primary text-primary hover:bg-primary/10 rounded-xl"
           >
             <Printer className="w-4 h-4 ml-1.5" />
-            طباعة {pageSize.toUpperCase()}
+            {t('print_size', 'طباعة')} {pageSize.toUpperCase()}
           </Button>
 
           <Button
@@ -435,7 +435,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             disabled={isSaving}
             className="h-10 px-5 text-xs font-bold yalla-gradient-btn text-white rounded-xl shadow-md"
           >
-            {isSaving ? 'جاري الحفظ...' : 'اعتماد وحفظ بالملف'}
+            {isSaving ? t('saving', 'جاري الحفظ...') : t('save_rx_to_file', 'اعتماد وحفظ بالملف')}
           </Button>
         </div>
       </div>
@@ -451,7 +451,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             <div className="flex items-center justify-between pb-3 border-b border-border">
               <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
                 <UserIcon className="w-4 h-4 text-primary" />
-                بيانات المريض والزيارة
+                {t('patient_visit_info', 'بيانات المريض والزيارة')}
               </h3>
 
               {todayPatients.length > 0 && (
@@ -469,10 +469,10 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                     }
                   }}
                 >
-                  <option value="">-- اختر من كشوفات اليوم --</option>
+                  <option value="">{t('select_from_today_patients', '-- اختر من كشوفات اليوم --')}</option>
                   {todayPatients.map(p => (
                     <option key={p.id} value={p.id}>
-                      #{p.queue_number} - {p.patientName} {p.branchName ? `(${p.branchName})` : ''}
+                      #{p.queue_number} - {p.patientName} {p.branchName ? `(${tDynamic(p.branchName)})` : ''}
                     </option>
                   ))}
                 </select>
@@ -481,53 +481,53 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
 
             <div className="grid sm:grid-cols-3 gap-3">
               <div className="sm:col-span-1 space-y-1">
-                <Label className="text-xs font-bold text-muted-foreground">اسم المريض</Label>
+                <Label className="text-xs font-bold text-muted-foreground">{t('patient_name', 'اسم المريض')}</Label>
                 <Input
                   value={patientName}
                   onChange={e => setPatientName(e.target.value)}
-                  placeholder="اسم المريض"
+                  placeholder={t('patient_name', 'اسم المريض')}
                   className="h-10 text-xs rounded-xl bg-background border-border text-foreground"
                 />
               </div>
 
               <div className="sm:col-span-1 space-y-1">
-                <Label className="text-xs font-bold text-muted-foreground">رقم الهاتف</Label>
+                <Label className="text-xs font-bold text-muted-foreground">{t('phone', 'رقم الهاتف')}</Label>
                 <Input
                   value={patientPhone}
                   onChange={e => setPatientPhone(e.target.value)}
                   placeholder="01xxxxxxxxx"
-                  className="h-10 text-xs font-mono text-right rounded-xl bg-background border-border text-foreground"
+                  className="h-10 text-xs font-mono rounded-xl bg-background border-border text-foreground"
                   dir="ltr"
                 />
               </div>
 
               <div className="sm:col-span-1 space-y-1">
-                <Label className="text-xs font-bold text-muted-foreground">السن</Label>
+                <Label className="text-xs font-bold text-muted-foreground">{t('patient_age', 'السن')}</Label>
                 <Input
                   value={age}
                   onChange={e => setAge(e.target.value)}
-                  placeholder="مثال: 32 سنة"
+                  placeholder={language === 'en' ? 'e.g., 32 years' : 'مثال: 32 سنة'}
                   className="h-10 text-xs rounded-xl bg-background border-border text-foreground"
                 />
               </div>
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs font-bold text-muted-foreground">التشخيص الطبي</Label>
+              <Label className="text-xs font-bold text-muted-foreground">{t('clinical_diagnosis', 'التشخيص الطبي')}</Label>
               <Input
                 value={diagnosis}
                 onChange={e => setDiagnosis(e.target.value)}
-                placeholder="التشخيص الإكلينيكي للحالة"
+                placeholder={t('diagnosis_placeholder', 'التشخيص الإكلينيكي للحالة')}
                 className="h-10 text-xs rounded-xl bg-background border-border text-foreground"
               />
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs font-bold text-muted-foreground">تعليمات وإرشادات الطبيب للمريض</Label>
+              <Label className="text-xs font-bold text-muted-foreground">{t('doctor_instructions', 'تعليمات وإرشادات الطبيب للمريض')}</Label>
               <Input
                 value={instructions}
                 onChange={e => setInstructions(e.target.value)}
-                placeholder="مثال: شرب سوائل دافئة، الراحة التامة، العودة للاستشارة بعد أسبوع"
+                placeholder={t('doctor_instructions_placeholder', 'مثال: شرب سوائل دافئة، الراحة التامة، العودة للاستشارة بعد أسبوع')}
                 className="h-10 text-xs rounded-xl bg-background border-border text-foreground"
               />
             </div>
@@ -538,16 +538,16 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             <div className="flex items-center justify-between pb-3 border-b border-border">
               <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
                 <FileText className="w-4 h-4 text-primary" />
-                الأدوية والعلاج المطلوب (Rx)
+                {t('rx_medications', 'الأدوية والعلاج المطلوب (Rx)')}
               </h3>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => addDrug()}
-                className="h-8 text-xs font-bold border-primary text-primary hover:bg-primary/10 rounded-lg"
+                className="h-8 text-xs font-bold border-primary text-primary hover:bg-primary/10 rounded-lg gap-1.5"
               >
-                <Plus className="w-3.5 h-3.5 ml-1" />
-                إضافة دواء جديد
+                <Plus className="w-3.5 h-3.5" />
+                {t('add_new_drug', 'إضافة دواء جديد')}
               </Button>
             </div>
 
@@ -555,12 +555,12 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             {isDrugsDbEnabled ? (
               <>
                 <div className="space-y-1.5">
-                  <span className="text-[11px] font-bold text-muted-foreground">الأدوية الأكثر تكراراً:</span>
+                  <span className="text-[11px] font-bold text-muted-foreground">{t('most_frequent_drugs', 'الأدوية الأكثر تكراراً:')}</span>
                   <div className="flex flex-wrap gap-1.5">
                     {favoriteDrugs.map((fav, i) => (
                       <button
                         key={i}
-                        onClick={() => addDrug(fav, 'قرص كل 12 ساعة', 'لمدة 5 أيام')}
+                        onClick={() => addDrug(fav, language === 'en' ? '1 tablet q12h' : 'قرص كل 12 ساعة', language === 'en' ? 'for 5 days' : 'لمدة 5 أيام')}
                         className="px-2.5 py-1 text-[11px] font-bold bg-secondary hover:bg-primary/10 text-foreground hover:text-primary rounded-lg transition-colors cursor-pointer"
                       >
                         + {fav}
@@ -571,23 +571,23 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
 
                 {/* Drug Search Input */}
                 <div className="relative">
-                  <Search className="w-4 h-4 absolute right-3 top-3 text-muted-foreground" />
+                  <Search className="w-4 h-4 absolute end-3 top-3 text-muted-foreground pointer-events-none" />
                   <Input
                     value={drugSearch}
                     onChange={e => setDrugSearch(e.target.value)}
-                    placeholder="ابحث في قاعدة الأدوية المصرية..."
-                    className="h-10 pr-9 text-xs rounded-xl bg-background border-border text-foreground"
+                    placeholder={t('search_egyptian_drugs', 'ابحث في قاعدة الأدوية المصرية...')}
+                    className="h-10 pe-9 text-xs rounded-xl bg-background border-border text-foreground"
                   />
                   {filteredSearchDrugs.length > 0 && (
-                    <div className="absolute top-full right-0 w-full mt-1 bg-card border border-border shadow-xl rounded-xl z-50 overflow-hidden divide-y divide-border">
+                    <div className="absolute top-full start-0 w-full mt-1 bg-card border border-border shadow-xl rounded-xl z-50 overflow-hidden divide-y divide-border">
                       {filteredSearchDrugs.map((d, idx) => (
                         <button
                           key={idx}
                           onClick={() => {
-                            addDrug(d, 'قرص كل 12 ساعة', 'لمدة 5 أيام')
+                            addDrug(d, language === 'en' ? '1 tablet q12h' : 'قرص كل 12 ساعة', language === 'en' ? 'for 5 days' : 'لمدة 5 أيام')
                             setDrugSearch('')
                           }}
-                          className="w-full text-right p-2.5 text-xs font-bold text-foreground hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer"
+                          className="w-full text-start p-2.5 text-xs font-bold text-foreground hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer"
                         >
                           + {d}
                         </button>
@@ -599,7 +599,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             ) : (
               <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-800 dark:text-amber-400 flex items-center gap-2">
                 <Lock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                <span>دليل وقاعدة الأدوية المصرية غير مفعلة في باقة اشتراكك الحالية. يمكنك كتابة أسماء الأدوية والجرعات يدوياً بالأسفل.</span>
+                <span>{language === 'en' ? 'Egyptian Drug Database is not activated on your current subscription plan. You can type medication names and dosages manually below.' : 'دليل وقاعدة الأدوية المصرية غير مفعلة في باقة اشتراكك الحالية. يمكنك كتابة أسماء الأدوية والجرعات يدوياً بالأسفل.'}</span>
               </div>
             )}
 
@@ -611,10 +611,11 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                   className="p-3.5 rounded-xl border border-border bg-secondary/30 space-y-2.5"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-muted-foreground">دواء #{index + 1}</span>
+                    <span className="text-xs font-black text-muted-foreground">{t('drug_num', 'دواء')} #{index + 1}</span>
                     <button
                       onClick={() => removeDrug(drug.id)}
                       className="text-muted-foreground hover:text-rose-500 transition-colors cursor-pointer"
+                      title={t('delete', 'حذف')}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -625,7 +626,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                       <Input
                         value={drug.name}
                         onChange={e => updateDrug(drug.id, 'name', e.target.value)}
-                        placeholder="اسم الدواء التجاري"
+                        placeholder={t('trade_drug_name', 'اسم الدواء التجاري')}
                         className="h-9 text-xs rounded-lg bg-background border-border text-foreground"
                       />
                     </div>
@@ -633,7 +634,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                       <Input
                         value={drug.dosage}
                         onChange={e => updateDrug(drug.id, 'dosage', e.target.value)}
-                        placeholder="الجرعة (مثال: قرص كل 12 ساعة)"
+                        placeholder={t('dosage_label', 'الجرعة (مثال: قرص كل 12 ساعة)')}
                         className="h-9 text-xs rounded-lg bg-background border-border text-foreground"
                       />
                     </div>
@@ -641,7 +642,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                       <Input
                         value={drug.duration}
                         onChange={e => updateDrug(drug.id, 'duration', e.target.value)}
-                        placeholder="المدة (مثال: 5 أيام)"
+                        placeholder={t('duration_label', 'المدة (مثال: 5 أيام)')}
                         className="h-9 text-xs rounded-lg bg-background border-border text-foreground"
                       />
                     </div>
@@ -655,11 +656,11 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           <div className="yalla-card p-4 space-y-3 border border-border">
             <h4 className="font-bold text-xs text-foreground flex items-center gap-1.5">
               <Palette className="w-4 h-4 text-primary" />
-              تخصيص ألوان وتصميم الروشتة (Live Color Accents)
+              {t('rx_color_customizer', 'تخصيص ألوان وتصميم الروشتة (Live Color Accents)')}
             </h4>
             <div className="grid grid-cols-2 gap-4 text-xs">
               <div>
-                <Label className="text-[11px] font-bold text-muted-foreground block mb-1">اللون الرئيسي للترويسة</Label>
+                <Label className="text-[11px] font-bold text-muted-foreground block mb-1">{t('primary_header_color', 'اللون الرئيسي للترويسة')}</Label>
                 <div className="flex items-center gap-2">
                   <input
                     type="color"
@@ -671,7 +672,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                 </div>
               </div>
               <div>
-                <Label className="text-[11px] font-bold text-muted-foreground block mb-1">اللون الثانوي والخطوط</Label>
+                <Label className="text-[11px] font-bold text-muted-foreground block mb-1">{t('secondary_color', 'اللون الثانوي والخطوط')}</Label>
                 <div className="flex items-center gap-2">
                   <input
                     type="color"
@@ -693,7 +694,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           <div className="p-3.5 yalla-card rounded-2xl border border-border space-y-3 shadow-2xs">
             {/* Row 1: Option A vs Option B */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-border">
-              <span className="text-xs font-black text-foreground">قالب الروشتة:</span>
+              <span className="text-xs font-black text-foreground">{t('rx_template', 'قالب الروشتة:')}</span>
               <div className="flex items-center gap-1.5 bg-secondary p-1 rounded-xl">
                 <button
                   type="button"
@@ -704,14 +705,14 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  Option B (النموذج الفاخر)
+                  {t('template_luxury_b', 'Option B (النموذج الفاخر)')}
                 </button>
                 {isCustomTemplateEnabled ? (
                   <button
                     type="button"
                     onClick={() => {
                       if (!clinic?.prescriptionTemplateUrl) {
-                        toast.info('لم يتم رفع تصميم روشتة مخصص لهذه العيادة من لوحة المالك بعد')
+                        toast.info(language === 'en' ? 'No custom prescription design uploaded for this clinic yet from Owner Dashboard' : 'لم يتم رفع تصميم روشتة مخصص لهذه العيادة من لوحة المالك بعد')
                       } else {
                         setTemplateMode('custom')
                       }
@@ -722,19 +723,19 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                         : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
-                    Option A (تصميم العيادة) {clinic?.prescriptionTemplateUrl && '✓'}
+                    {t('template_clinic_a', 'Option A (تصميم العيادة)')} {clinic?.prescriptionTemplateUrl && '✓'}
                   </button>
                 ) : (
                   <button
                     type="button"
                     onClick={() => {
-                      toast.error('ميزة قالب الروشتة المخصص (Option A) مقفولة في باقة اشتراكك الحالية. يرجى الترقية لتفعيلها.')
+                      toast.error(language === 'en' ? 'Custom template (Option A) is locked in your plan. Please upgrade to unlock.' : 'ميزة قالب الروشتة المخصص (Option A) مقفولة في باقة اشتراكك الحالية. يرجى الترقية لتفعيلها.')
                     }}
                     className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-not-allowed opacity-60 flex items-center gap-1 text-muted-foreground bg-secondary/50"
-                    title="ميزة مقفولة في باقتك الحالية"
+                    title={language === 'en' ? 'Feature locked on your plan' : 'ميزة مقفولة في باقتك الحالية'}
                   >
                     <Lock className="w-3 h-3 text-amber-600" />
-                    Option A (مقفول)
+                    {language === 'en' ? 'Option A (Locked)' : 'Option A (مقفول)'}
                   </button>
                 )}
               </div>
@@ -742,7 +743,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
 
             {/* Row 2: Paper Size A4 vs A5 */}
             <div className="flex items-center justify-between text-xs pb-2.5 border-b border-border">
-              <span className="font-bold text-foreground">مقاس الورق:</span>
+              <span className="font-bold text-foreground">{t('paper_size', 'مقاس الورق:')}</span>
               <div className="flex items-center gap-1.5 bg-secondary p-1 rounded-lg">
                 <button
                   type="button"
@@ -753,7 +754,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  A4 (ورق كامل)
+                  {t('paper_a4', 'A4 (ورق كامل)')}
                 </button>
                 <button
                   type="button"
@@ -764,7 +765,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  A5 (نصف ورقة)
+                  {t('paper_a5', 'A5 (نصف ورقة)')}
                 </button>
               </div>
             </div>
@@ -778,7 +779,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                   onChange={(e) => setShowHeaderFooter(e.target.checked)}
                   className="rounded text-primary focus:ring-primary"
                 />
-                <span>إظهار الترويسة والفوتر (تعطيل للورق الجاهز)</span>
+                <span>{t('show_header_footer', 'إظهار الترويسة والفوتر (تعطيل للورق الجاهز)')}</span>
               </label>
 
               {templateMode === 'custom' && (
@@ -789,7 +790,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                     onChange={(e) => setPrintBackground(e.target.checked)}
                     className="rounded text-primary focus:ring-primary"
                   />
-                  <span>طباعة صورة الخلفية (تفعيل للـ PDF)</span>
+                  <span>{t('print_bg_image', 'طباعة صورة الخلفية (تفعيل للـ PDF)')}</span>
                 </label>
               )}
             </div>
@@ -797,7 +798,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             {/* Custom Template Top Offset Slider */}
             {templateMode === 'custom' && clinic?.prescriptionTemplateUrl && (
               <div className="pt-2 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
-                <span className="font-medium text-[11px]">إزاحة البداية من أعلى:</span>
+                <span className="font-medium text-[11px]">{t('top_offset', 'إزاحة البداية من أعلى:')}</span>
                 <div className="flex items-center gap-2">
                   <input
                     type="range"
@@ -818,7 +819,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           <div ref={sheetRef} className="overflow-hidden rounded-2xl shadow-xl border border-border">
             <A4Prescription
               clinic={clinic}
-              patientName={patientName || 'اسم المريض'}
+              patientName={patientName || t('patient_name', 'اسم المريض')}
               age={age ? String(age) : ''}
               date={dateStr}
               diagnosis={diagnosis}

@@ -33,6 +33,7 @@ import { openManualWhatsAppChat } from '@/lib/whatsappShare'
 import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
 import { updateDoc, doc } from 'firebase/firestore'
+import { useLanguage } from '@/context/LanguageContext'
 
 export interface PackageItem {
   id?: string
@@ -203,6 +204,7 @@ export function SubscriptionUpgradeModal({
   packages = [],
   supportPhone = '01551007018'
 }: SubscriptionUpgradeModalProps) {
+  const { t, isRtl, dir } = useLanguage()
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'monthly' | 'yearly'>('all')
   const activePackages = packages && packages.length > 0 ? packages : DEFAULT_PACKAGES
 
@@ -216,7 +218,6 @@ export function SubscriptionUpgradeModal({
     if (daysLeft < 0) isExpired = true
   }
 
-
   // AI Usage
   const aiLimit = Number(clinic?.aiResponsesLimit ?? 100)
   const aiCount = Number(clinic?.aiResponsesCount ?? 0)
@@ -229,20 +230,21 @@ export function SubscriptionUpgradeModal({
     const cat = (p.category || '').toLowerCase()
     const name = (p.name || '').toLowerCase()
     if (selectedCategory === 'monthly') {
-      return period.includes('شهر') || cat.includes('شهر') || (!period.includes('سنو') && !cat.includes('سنو'))
+      return period.includes('شهر') || cat.includes('شهر') || period.includes('month') || (!period.includes('سنو') && !cat.includes('سنو') && !period.includes('year'))
     }
     if (selectedCategory === 'yearly') {
-      return period.includes('سنو') || cat.includes('سنو') || name.includes('سنو')
+      return period.includes('سنو') || cat.includes('سنو') || name.includes('سنو') || period.includes('year') || cat.includes('annual')
     }
     return true
   })
 
   const handleRequestUpgrade = (pkg: PackageItem) => {
     const discountInfo = pkg.originalPrice && Number(pkg.originalPrice) > Number(pkg.price)
-      ? ` (عرض خاص: ${pkg.price} بدل ${pkg.originalPrice} ج.م)`
+      ? (isRtl ? ` (عرض خاص: ${pkg.price} بدل ${pkg.originalPrice} ج.م)` : ` (Special offer: ${pkg.price} instead of ${pkg.originalPrice} EGP)`)
       : ''
 
-    const msg = `مرحباً، أرغب في ترقية / تجديد اشتراك عيادتي عبر منصة Yalla Clinic:
+    const msg = isRtl
+      ? `مرحباً، أرغب في ترقية / تجديد اشتراك عيادتي عبر منصة Yalla Clinic:
 - العيادة: ${clinic?.clinicName || 'العيادة الطبية'}
 - الطبيب: د. ${clinic?.doctorName || ''}
 - الباقة المطلوبة: ${pkg.name}${discountInfo}
@@ -250,6 +252,14 @@ export function SubscriptionUpgradeModal({
 - كود العيادة (Slug): ${clinic?.slug || ''}
 
 يرجى تزويدي بطرق الدفع الإلكتروني المتاحة (انستا باي / فودافون كاش / بنك) لتأكيد التفعيل فورا. شكرا!`
+      : `Hello, I would like to upgrade / renew my clinic subscription on Yalla Clinic:
+- Clinic: ${clinic?.clinicName || 'Clinic'}
+- Doctor: Dr. ${clinic?.doctorName || ''}
+- Selected Package: ${pkg.name}${discountInfo}
+- Price: ${pkg.price} EGP / ${pkg.period || 'monthly'}
+- Clinic Slug: ${clinic?.slug || ''}
+
+Please provide available payment methods to confirm activation. Thank you!`
 
     openManualWhatsAppChat({
       phone: supportPhone,
@@ -259,19 +269,19 @@ export function SubscriptionUpgradeModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="w-[96vw] max-w-5xl max-h-[92vh] overflow-y-auto p-5 sm:p-7 bg-white rounded-3xl" dir="rtl">
-        <DialogHeader className="text-right space-y-1.5 pb-3 border-b border-slate-100">
+      <DialogContent className="w-[96vw] max-w-5xl max-h-[92vh] overflow-y-auto p-5 sm:p-7 bg-card text-card-foreground rounded-3xl border border-border" dir={dir}>
+        <DialogHeader className={`${isRtl ? 'text-right' : 'text-left'} space-y-1.5 pb-3 border-b border-border`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-teal-500 text-white flex items-center justify-center shadow-md shadow-amber-500/20">
                 <Sparkles className="w-5 h-5" />
               </div>
               <div>
-                <DialogTitle className="text-xl font-black text-[#182230]">
-                  ترقية الحساب وباقات اشتراك Yalla Clinic
+                <DialogTitle className="text-xl font-black text-foreground">
+                  {isRtl ? 'ترقية الحساب وباقات اشتراك Yalla Clinic' : 'Account Upgrade & Subscription Packages'}
                 </DialogTitle>
-                <DialogDescription className="text-xs text-slate-500">
-                  اختر الباقة المناسبة لتوسيع إمكانيات عيادتك وزيادة رصيد الذكاء الاصطناعي والفروع
+                <DialogDescription className="text-xs text-muted-foreground">
+                  {isRtl ? 'اختر الباقة المناسبة لتوسيع إمكانيات عيادتك وزيادة رصيد الذكاء الاصطناعي والفروع' : 'Choose the best plan to expand your clinic capabilities, branches, and AI quota'}
                 </DialogDescription>
               </div>
             </div>
@@ -282,24 +292,26 @@ export function SubscriptionUpgradeModal({
         <div className="my-3 p-4 rounded-2xl bg-gradient-to-r from-slate-900 to-[#0B1F33] text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
           <div className="space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-slate-300 font-bold">الباقة الحالية:</span>
-              <Badge className="bg-[#087CF4] text-white font-black text-xs px-2.5 py-0.5">
-                {clinic?.packageName || 'الباقة الأساسية'}
+              <span className="text-xs text-slate-300 font-bold">
+                {isRtl ? 'الباقة الحالية:' : 'Current Plan:'}
+              </span>
+              <Badge className="bg-primary text-white font-black text-xs px-2.5 py-0.5">
+                {clinic?.packageName || (isRtl ? 'الباقة الأساسية' : 'Standard Plan')}
               </Badge>
               {isExpired ? (
                 <Badge variant="destructive" className="font-bold text-xs">
-                  منتهي الصلاحية
+                  {isRtl ? 'منتهي الصلاحية' : 'Expired'}
                 </Badge>
               ) : (
                 <Badge className="bg-amber-400 text-slate-900 font-black text-xs">
-                  متبقي {daysLeft} يوم
+                  {isRtl ? `متبقي ${daysLeft} يوم` : `${daysLeft} days remaining`}
                 </Badge>
               )}
             </div>
             <p className="text-[11px] text-slate-400 font-medium">
-              تاريخ انتهاء الاشتراك الحالي: <span className="text-white font-mono font-bold" dir="ltr">{clinic?.expirationDate || 'غير محدد'}</span>
+              {isRtl ? 'تاريخ انتهاء الاشتراك الحالي: ' : 'Current expiry date: '}{' '}
+              <span className="text-white font-mono font-bold" dir="ltr">{clinic?.expirationDate || (isRtl ? 'غير محدد' : 'Unspecified')}</span>
             </p>
-
           </div>
 
           {/* AI Quota Meter */}
@@ -307,7 +319,7 @@ export function SubscriptionUpgradeModal({
             <div className="flex items-center justify-between text-xs">
               <span className="text-slate-300 font-bold flex items-center gap-1.5">
                 <Bot className="w-3.5 h-3.5 text-purple-400" />
-                استهلاك الذكاء الاصطناعي:
+                {isRtl ? 'استهلاك الذكاء الاصطناعي:' : 'AI Usage:'}
               </span>
               <span className="font-mono font-bold text-teal-300 text-[11px]" dir="ltr">
                 {aiCount} / {aiLimit}
@@ -320,14 +332,14 @@ export function SubscriptionUpgradeModal({
                     ? 'bg-rose-500'
                     : aiPercent >= 80
                     ? 'bg-amber-400'
-                    : 'bg-[#087CF4]'
+                    : 'bg-primary'
                 }`}
                 style={{ width: `${aiPercent}%` }}
               />
             </div>
             {aiCount >= aiLimit && (
               <span className="text-[10px] text-rose-300 font-bold block">
-                ⚠️ انتهى رصيد الردود! المساعد معطل حالياً.
+                {isRtl ? '⚠️ انتهى رصيد الردود! المساعد معطل حالياً.' : '⚠️ Quota reached! AI assistant paused.'}
               </span>
             )}
           </div>
@@ -335,41 +347,41 @@ export function SubscriptionUpgradeModal({
 
         {/* Category Filter Pills (باقات شهرية - باقات سنوية) */}
         <div className="flex items-center justify-center my-3">
-          <div className="p-1 rounded-2xl bg-slate-100 border border-slate-200 flex items-center gap-1">
+          <div className="p-1 rounded-2xl bg-muted border border-border flex items-center gap-1">
             <button
               type="button"
               onClick={() => setSelectedCategory('all')}
               className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
                 selectedCategory === 'all'
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-900'
+                  ? 'bg-card text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              جميع الباقات ({activePackages.length})
+              {isRtl ? `جميع الباقات (${activePackages.length})` : `All Plans (${activePackages.length})`}
             </button>
             <button
               type="button"
               onClick={() => setSelectedCategory('monthly')}
               className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
                 selectedCategory === 'monthly'
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-900'
+                  ? 'bg-card text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              باقات شهرية
+              {isRtl ? 'باقات شهرية' : 'Monthly Plans'}
             </button>
             <button
               type="button"
               onClick={() => setSelectedCategory('yearly')}
               className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
                 selectedCategory === 'yearly'
-                  ? 'bg-[#087CF4] text-white shadow-sm'
-                  : 'text-slate-500 hover:text-slate-900'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <span>باقات سنوية</span>
+              <span>{isRtl ? 'باقات سنوية' : 'Annual Plans'}</span>
               <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-amber-400 text-slate-900">
-                وفر شهرين 🎁
+                {isRtl ? 'وفر شهرين 🎁' : 'Save 2 Months 🎁'}
               </span>
             </button>
           </div>
@@ -386,8 +398,8 @@ export function SubscriptionUpgradeModal({
                 key={idx}
                 className={`rounded-3xl p-5 sm:p-6 flex flex-col justify-between transition-all duration-300 relative border group ${
                   isPop
-                    ? 'bg-white border-[#087CF4] shadow-xl shadow-blue-500/15 ring-2 ring-[#087CF4]/30'
-                    : 'bg-[#F8FAFC] border-slate-200 hover:border-slate-300 hover:bg-white'
+                    ? 'bg-card border-primary shadow-xl shadow-primary/15 ring-2 ring-primary/30'
+                    : 'bg-card border-border hover:border-border/80'
                 }`}
               >
                 {/* Popular / Recommended Tag */}
@@ -395,70 +407,70 @@ export function SubscriptionUpgradeModal({
                   <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-10 whitespace-nowrap">
                     <span className={`px-3.5 py-1 rounded-full text-[11px] font-black shadow-md flex items-center gap-1.5 ${
                       isPop
-                        ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-[#087CF4] text-white ring-2 ring-white'
+                        ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-primary text-white ring-2 ring-background'
                         : 'bg-slate-800 text-white'
                     }`}>
                       {isPop && <Sparkles className="w-3.5 h-3.5 text-amber-200 animate-spin" />}
-                      <span>{pkg.badge || '⭐ موصى بها للعيادات'}</span>
+                      <span>{pkg.badge || (isRtl ? '⭐ موصى بها للعيادات' : '⭐ Recommended')}</span>
                     </span>
                   </div>
                 )}
 
                 <div>
-                  <div className="pt-2 text-center border-b border-slate-100 pb-4">
+                  <div className="pt-2 text-center border-b border-border pb-4">
                     {renderPackageLogo(pkg)}
-                    <h4 className="text-lg font-black text-[#182230]">{pkg.name}</h4>
+                    <h4 className="text-lg font-black text-foreground">{pkg.name}</h4>
                     {pkg.subtitle && (
-                      <p className="text-[11px] text-slate-500 font-medium mt-1 leading-normal max-w-xs mx-auto">
+                      <p className="text-[11px] text-muted-foreground font-medium mt-1 leading-normal max-w-xs mx-auto">
                         {pkg.subtitle}
                       </p>
                     )}
 
-                    {/* Pricing with Discount Support (بدل كذا) */}
+                    {/* Pricing with Discount Support */}
                     <div className="mt-3 flex flex-col items-center justify-center">
                       {hasDiscount ? (
                         <div className="space-y-1 text-center">
                           <div className="flex items-center justify-center gap-2">
-                            <span className="text-xs text-slate-400 line-through font-mono font-bold">
-                              {pkg.originalPrice} ج.م
+                            <span className="text-xs text-muted-foreground line-through font-mono font-bold">
+                              {pkg.originalPrice} {isRtl ? 'ج.م' : 'EGP'}
                             </span>
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-600 border border-rose-200">
-                              {pkg.discountBadge || `وفر ${Number(pkg.originalPrice) - Number(pkg.price)} ج.م`}
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500/10 text-rose-600 border border-rose-500/20">
+                              {pkg.discountBadge || (isRtl ? `وفر ${Number(pkg.originalPrice) - Number(pkg.price)} ج.م` : `Save ${Number(pkg.originalPrice) - Number(pkg.price)} EGP`)}
                             </span>
                           </div>
                           <div className="flex items-baseline justify-center gap-1">
-                            <span className="text-3xl font-black text-emerald-600 font-mono">{pkg.price}</span>
-                            <span className="text-xs font-bold text-slate-500">ج.م / {pkg.period || 'شهري'}</span>
+                            <span className="text-3xl font-black text-emerald-600 dark:text-emerald-400 font-mono">{pkg.price}</span>
+                            <span className="text-xs font-bold text-muted-foreground">{isRtl ? 'ج.م' : 'EGP'} / {pkg.period || (isRtl ? 'شهري' : 'monthly')}</span>
                           </div>
                         </div>
                       ) : (
                         <div className="flex items-baseline justify-center gap-1">
-                          <span className="text-3xl font-black text-[#087CF4] font-mono">{pkg.price}</span>
-                          <span className="text-xs font-bold text-slate-500">ج.م / {pkg.period || 'شهري'}</span>
+                          <span className="text-3xl font-black text-primary font-mono">{pkg.price}</span>
+                          <span className="text-xs font-bold text-muted-foreground">{isRtl ? 'ج.م' : 'EGP'} / {pkg.period || (isRtl ? 'شهري' : 'monthly')}</span>
                         </div>
                       )}
                     </div>
                   </div>
 
                   {/* Highlights Specs */}
-                  <div className="py-3 space-y-2 border-b border-slate-100 text-xs">
-                    <div className="flex items-center justify-between text-slate-600 font-bold">
+                  <div className="py-3 space-y-2 border-b border-border text-xs">
+                    <div className="flex items-center justify-between text-muted-foreground font-bold">
                       <span className="flex items-center gap-1.5">
-                        <Bot className="w-4 h-4 text-purple-600" />
-                        ردود المساعد الذكي AI:
+                        <Bot className="w-4 h-4 text-purple-500" />
+                        {isRtl ? 'ردود المساعد الذكي AI:' : 'AI Responses:'}
                       </span>
-                      <span className="text-purple-700 font-black font-mono">
-                        {pkg.aiResponsesLimit ? `${pkg.aiResponsesLimit} رد` : 'غير محدود'}
+                      <span className="text-purple-600 dark:text-purple-400 font-black font-mono">
+                        {pkg.aiResponsesLimit ? `${pkg.aiResponsesLimit} ${isRtl ? 'رد' : 'replies'}` : (isRtl ? 'غير محدود' : 'Unlimited')}
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between text-slate-600 font-bold">
+                    <div className="flex items-center justify-between text-muted-foreground font-bold">
                       <span className="flex items-center gap-1.5">
-                        <Building className="w-4 h-4 text-[#2F80ED]" />
-                        الفروع المسموح بها:
+                        <Building className="w-4 h-4 text-primary" />
+                        {isRtl ? 'الفروع المسموح بها:' : 'Allowed Branches:'}
                       </span>
-                      <span className="text-[#2F80ED] font-black font-mono">
-                        {pkg.maxBranches ? `${pkg.maxBranches} فرع` : 'فرع واحد'}
+                      <span className="text-primary font-black font-mono">
+                        {pkg.maxBranches ? `${pkg.maxBranches} ${isRtl ? 'فرع' : 'branch(es)'}` : (isRtl ? 'فرع واحد' : '1 Branch')}
                       </span>
                     </div>
                   </div>
@@ -466,8 +478,8 @@ export function SubscriptionUpgradeModal({
                   {/* Features List */}
                   <ul className="py-3.5 space-y-2 text-xs">
                     {(pkg.features || []).map((feat, fIdx) => (
-                      <li key={fIdx} className="flex items-start gap-2 text-slate-600 leading-snug">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <li key={fIdx} className="flex items-start gap-2 text-muted-foreground leading-snug">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
                         <span>{feat}</span>
                       </li>
                     ))}
@@ -480,12 +492,12 @@ export function SubscriptionUpgradeModal({
                     onClick={() => handleRequestUpgrade(pkg)}
                     className={`w-full h-11 rounded-xl text-xs font-black shadow-md cursor-pointer transition-all ${
                       isPop
-                        ? 'bg-[#087CF4] hover:bg-[#0769D1] text-white shadow-blue-500/20'
-                        : 'bg-slate-900 hover:bg-slate-800 text-white'
+                        ? 'yalla-gradient-btn text-white'
+                        : 'bg-primary/90 hover:bg-primary text-white'
                     }`}
                   >
-                    <MessageSquare className="w-4 h-4 ml-1.5" />
-                    طلب الترقية الآن (واتساب)
+                    <MessageSquare className={`w-4 h-4 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
+                    {isRtl ? 'طلب الترقية الآن (واتساب)' : 'Upgrade via WhatsApp'}
                   </Button>
                 </div>
               </div>
@@ -494,14 +506,14 @@ export function SubscriptionUpgradeModal({
         </div>
 
         {/* Support Help Footer */}
-        <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+        <div className="mt-4 pt-3 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-[#087CF4]" />
-            <span>تفعيل فوري بعد التحويل وإرسال إيصال الدفع</span>
+            <ShieldCheck className="w-4 h-4 text-primary" />
+            <span>{isRtl ? 'تفعيل فوري بعد التحويل وإرسال إيصال الدفع' : 'Instant activation upon transfer and receipt'}</span>
           </div>
-          <div className="flex items-center gap-1 font-bold text-slate-700">
-            <span>للاستفسارات والاشتراكات السنوية:</span>
-            <span className="font-mono text-[#087CF4] font-black" dir="ltr">{supportPhone}</span>
+          <div className="flex items-center gap-1 font-bold text-foreground">
+            <span>{isRtl ? 'للاستفسارات والاشتراكات السنوية:' : 'Inquiries & Annual Billing:'}</span>
+            <span className="font-mono text-primary font-black" dir="ltr">{supportPhone}</span>
           </div>
         </div>
       </DialogContent>

@@ -35,7 +35,7 @@ import { useLanguage } from '@/context/LanguageContext'
 export default function BranchesPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
-  const { t, dir } = useLanguage()
+  const { t, tDynamic, language, dir, isRtl } = useLanguage()
 
   const [clinic, setClinic] = useState<any>(null)
   const [branches, setBranches] = useState<Branch[]>([])
@@ -288,10 +288,10 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
         <div>
           <h1 className="text-2xl font-black text-foreground flex items-center gap-2.5">
             <Building2 className="w-7 h-7 text-primary" />
-            إدارة فروع العيادة
+            {t('branches_management', 'إدارة فروع العيادة')}
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
-            إضافة فروع متعددة للعيادة، تخصيص مواعيد عمل وجدول أسبوعي مستقل لكل فرع، وتجنب تعارض مواعيد الطبيب
+            {language === 'en' ? 'Manage multiple clinic locations, custom operating hours, and avoid physician scheduling conflicts' : 'إضافة فروع متعددة للعيادة، تخصيص مواعيد عمل وجدول أسبوعي مستقل لكل فرع، وتجنب تعارض مواعيد الطبيب'}
           </p>
         </div>
 
@@ -307,17 +307,17 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
             }`}
           >
             {!branchesEnabled
-              ? 'ميزة تعدد الفروع غير مفعلة'
-              : `باقة الفروع: ${activeBranches.length} من ${maxBranches} فروع`}
+              ? (language === 'en' ? 'Multi-branch feature not enabled' : 'ميزة تعدد الفروع غير مفعلة')
+              : (language === 'en' ? `Branch Plan: ${activeBranches.length} of ${maxBranches} branches` : `باقة الفروع: ${activeBranches.length} من ${maxBranches} فروع`)}
           </Badge>
 
           {canAddBranch && (
             <Button
               onClick={openAddModal}
-              className="h-10 px-4 yalla-gradient-btn text-white font-bold rounded-xl shadow-xs text-xs cursor-pointer"
+              className="h-10 px-4 yalla-gradient-btn text-white font-bold rounded-xl shadow-xs text-xs cursor-pointer gap-1.5"
             >
-              <Plus className="w-4 h-4 ml-1.5" />
-              إضافة فرع جديد
+              <Plus className="w-4 h-4" />
+              {t('add_new_branch', 'إضافة فرع جديد')}
             </Button>
           )}
         </div>
@@ -328,7 +328,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
           <div className="flex items-center gap-2">
             <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
             <span>
-              ميزة تعدد الفروع غير مفعلة في اشتراك هذه العيادة. يعمل الفرع الرئيسي حالياً بصورة طبيعية، ولطلب زيادة عدد الفروع يرجى التواصل مع إدارة Yalla Clinic.
+              {language === 'en' ? 'Multi-branch feature is not active on your current subscription. The main branch is operating normally.' : 'ميزة تعدد الفروع غير مفعلة في اشتراك هذه العيادة. يعمل الفرع الرئيسي حالياً بصورة طبيعية، ولطلب زيادة عدد الفروع يرجى التواصل مع إدارة Yalla Clinic.'}
             </span>
           </div>
         </div>
@@ -339,7 +339,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
             <span>
-              تم استهلاك السعة القصوى للفروع المتاحة في باقتكم ({activeBranches.length} من أصل {maxBranches} فروع). لترقية الباقة يرجى التواصل مع إدارة Yalla Clinic.
+              {language === 'en' ? `Maximum branch capacity reached (${activeBranches.length} of ${maxBranches} branches).` : `تم استهلاك السعة القصوى للفروع المتاحة في باقتكم (${activeBranches.length} من أصل ${maxBranches} فروع). لترقية الباقة يرجى التواصل مع إدارة Yalla Clinic.`}
             </span>
           </div>
         </div>
@@ -349,15 +349,15 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
       {isLoading ? (
         <div className="py-20 text-center text-muted-foreground">
           <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-          جاري تحميل الفروع...
+          {language === 'en' ? 'Loading branches...' : 'جاري تحميل الفروع...'}
         </div>
       ) : branches.length === 0 ? (
         <div className="yalla-card p-12 text-center space-y-3">
           <Building2 className="w-12 h-12 text-muted-foreground/40 mx-auto" />
-          <h3 className="font-bold text-base text-foreground">لا توجد فروع مسجلة</h3>
-          <p className="text-xs text-muted-foreground">يمكنك إضافة فروع جديدة لتمكين المرضى من اختيار الفرع الأقرب إليهم.</p>
+          <h3 className="font-bold text-base text-foreground">{language === 'en' ? 'No branches registered' : 'لا توجد فروع مسجلة'}</h3>
+          <p className="text-xs text-muted-foreground">{language === 'en' ? 'Add new branches so patients can book at their nearest clinic location.' : 'يمكنك إضافة فروع جديدة لتمكين المرضى من اختيار الفرع الأقرب إليهم.'}</p>
           <Button onClick={openAddModal} size="sm" className="yalla-gradient-btn text-white rounded-xl">
-            إضافة الفرع الأول
+            {language === 'en' ? 'Add First Branch' : 'إضافة الفرع الأول'}
           </Button>
         </div>
       ) : (
@@ -373,10 +373,10 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
               <div className="flex items-start justify-between gap-2">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <h3 className="font-black text-base text-foreground">{b.name}</h3>
+                    <h3 className="font-black text-base text-foreground">{tDynamic(b.name)}</h3>
                     {b.isMain && (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                        الرئيسي
+                        {language === 'en' ? 'Main' : 'الرئيسي'}
                       </span>
                     )}
                   </div>
@@ -391,46 +391,46 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                     b.isOpen ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
                   }`}
                 >
-                  {b.isOpen ? 'مفتوح للحجز' : 'مغلق مؤقتاً'}
+                  {b.isOpen ? (language === 'en' ? 'Open for booking' : 'مفتوح للحجز') : (language === 'en' ? 'Temporarily closed' : 'مغلق مؤقتاً')}
                 </Badge>
               </div>
 
               {/* Contact info */}
               <div className="p-3 bg-muted/40 rounded-xl space-y-1.5 text-xs text-foreground">
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">الهاتف:</span>
+                  <span className="text-muted-foreground">{t('phone', 'الهاتف')}:</span>
                   <span className="font-mono font-bold">{b.phone}</span>
                 </div>
                 {b.whatsapp && (
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">واتساب:</span>
+                    <span className="text-muted-foreground">WhatsApp:</span>
                     <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{b.whatsapp}</span>
                   </div>
                 )}
                 {b.slotDuration && (
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">مدة الكشف:</span>
-                    <span>{b.slotDuration} دقيقة</span>
+                    <span className="text-muted-foreground">{language === 'en' ? 'Slot Duration:' : 'مدة الكشف:'}</span>
+                    <span>{b.slotDuration} {language === 'en' ? 'mins' : 'دقيقة'}</span>
                   </div>
                 )}
                 {b.maxDailyBookings ? (
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">الحد الأقصى يومياً:</span>
-                    <span>{b.maxDailyBookings} كشف</span>
+                    <span className="text-muted-foreground">{language === 'en' ? 'Daily Maximum:' : 'الحد الأقصى يومياً:'}</span>
+                    <span>{b.maxDailyBookings} {language === 'en' ? 'exams' : 'كشف'}</span>
                   </div>
                 ) : null}
               </div>
 
               {/* Working Days Pill Tags */}
               <div className="space-y-1">
-                <span className="text-[11px] font-bold text-muted-foreground block">أيام العمل المفتوحة:</span>
+                <span className="text-[11px] font-bold text-muted-foreground block">{language === 'en' ? 'Operating Days:' : 'أيام العمل المفتوحة:'}</span>
                 <div className="flex flex-wrap gap-1">
                   {b.weeklySchedule?.filter((d) => d.isOpen).map((d) => (
                     <span
                       key={d.id}
                       className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20"
                     >
-                      {d.day} ({d.start}-{d.end})
+                      {tDynamic(d.day)} ({d.start}-{d.end})
                     </span>
                   ))}
                 </div>
@@ -442,10 +442,10 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                   size="sm"
                   variant="outline"
                   onClick={() => openEditModal(b)}
-                  className="h-8 px-3 text-xs font-bold text-primary border-primary/20 hover:bg-primary/5 rounded-xl"
+                  className="h-8 px-3 text-xs font-bold text-primary border-primary/20 hover:bg-primary/5 rounded-xl gap-1"
                 >
-                  <Edit className="w-3.5 h-3.5 ml-1" />
-                  تعديل
+                  <Edit className="w-3.5 h-3.5" />
+                  {t('edit', 'تعديل')}
                 </Button>
 
                 <div className="flex items-center gap-1.5">
@@ -453,13 +453,13 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                     size="sm"
                     variant="ghost"
                     onClick={() => handleToggleStatus(b.id, b.isOpen)}
-                    className={`h-8 px-2 text-xs font-bold rounded-xl ${
+                    className={`h-8 px-2 text-xs font-bold rounded-xl gap-1 ${
                       b.isOpen ? 'text-amber-600 hover:bg-amber-500/10' : 'text-emerald-600 hover:bg-emerald-500/10'
                     }`}
-                    title={b.isOpen ? 'إيقاف الحجز' : 'فتح الحجز'}
+                    title={b.isOpen ? (language === 'en' ? 'Pause booking' : 'إيقاف الحجز') : (language === 'en' ? 'Open booking' : 'فتح الحجز')}
                   >
-                    <Power className="w-3.5 h-3.5 ml-1" />
-                    {b.isOpen ? 'إيقاف' : 'تفعيل'}
+                    <Power className="w-3.5 h-3.5" />
+                    {b.isOpen ? (language === 'en' ? 'Pause' : 'إيقاف') : (language === 'en' ? 'Activate' : 'تفعيل')}
                   </Button>
 
                   {!b.isMain && (
@@ -468,7 +468,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                       variant="ghost"
                       onClick={() => handleArchiveBranch(b.id, b.isMain)}
                       className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 rounded-xl"
-                      title="أرشفة الفرع"
+                      title={language === 'en' ? 'Archive Branch' : 'أرشفة الفرع'}
                     >
                       <Archive className="w-3.5 h-3.5" />
                     </Button>
@@ -489,12 +489,12 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
               <div className="flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-primary" />
                 <h3 className="font-black text-sm text-foreground">
-                  {editingBranchId ? 'تعديل بيانات الفرع' : 'إضافة فرع جديد للعيادة'}
+                  {editingBranchId ? (language === 'en' ? 'Edit Branch Details' : 'تعديل بيانات الفرع') : (language === 'en' ? 'Add New Clinic Branch' : 'إضافة فرع جديد للعيادة')}
                 </h3>
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-muted-foreground hover:text-foreground p-1.5 rounded-lg transition-colors"
+                className="text-muted-foreground hover:text-foreground p-1.5 rounded-lg transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -507,9 +507,9 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                 <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-1 text-xs text-amber-700 dark:text-amber-400">
                   <div className="flex items-center gap-1.5 font-bold">
                     <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
-                    <span>تنبيه تعارض مواعيد الطبيب بين الفروع:</span>
+                    <span>{language === 'en' ? 'Physician scheduling conflict warning between branches:' : 'تنبيه تعارض مواعيد الطبيب بين الفروع:'}</span>
                   </div>
-                  <ul className="list-disc list-inside space-y-0.5 text-[11px] pr-2">
+                  <ul className="list-disc list-inside space-y-0.5 text-[11px] pe-2">
                     {conflicts.map((c, i) => (
                       <li key={i}>{c}</li>
                     ))}
@@ -519,42 +519,42 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
 
               {/* Section 1: Basic Info */}
               <div className="space-y-3">
-                <h4 className="text-xs font-black text-foreground">بيانات الفرع والعنوان</h4>
+                <h4 className="text-xs font-black text-foreground">{language === 'en' ? 'Branch Details & Address' : 'بيانات الفرع والعنوان'}</h4>
                 <div className="grid sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs font-bold text-muted-foreground">اسم الفرع *</Label>
+                    <Label className="text-xs font-bold text-muted-foreground">{t('branch_name', 'اسم الفرع')} *</Label>
                     <Input
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="مثال: فرع التجمع الخامس"
+                      placeholder={language === 'en' ? 'e.g., Downtown Branch' : 'مثال: فرع التجمع الخامس'}
                       className="h-10 text-xs rounded-xl"
                       required
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <Label className="text-xs font-bold text-muted-foreground">المحافظة / المدينة</Label>
+                    <Label className="text-xs font-bold text-muted-foreground">{t('branch_city', 'المحافظة / المدينة')}</Label>
                     <Input
                       value={governorate}
                       onChange={(e) => setGovernorate(e.target.value)}
-                      placeholder="القاهرة / الجيزة"
+                      placeholder={language === 'en' ? 'Cairo / Giza' : 'القاهرة / الجيزة'}
                       className="h-10 text-xs rounded-xl"
                     />
                   </div>
 
                   <div className="space-y-1 sm:col-span-2">
-                    <Label className="text-xs font-bold text-muted-foreground">العنوان بالتفصيل *</Label>
+                    <Label className="text-xs font-bold text-muted-foreground">{t('branch_address', 'العنوان بالتفصيل')} *</Label>
                     <Input
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
-                      placeholder="الشارع، المبنى، الدور، علامة مميزة"
+                      placeholder={language === 'en' ? 'Street, Building, Floor, Landmark' : 'الشارع، المبنى، الدور، علامة مميزة'}
                       className="h-10 text-xs rounded-xl"
                       required
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <Label className="text-xs font-bold text-muted-foreground">رابط Google Maps</Label>
+                    <Label className="text-xs font-bold text-muted-foreground">{language === 'en' ? 'Google Maps Link' : 'رابط Google Maps'}</Label>
                     <Input
                       value={mapsLink}
                       onChange={(e) => setMapsLink(e.target.value)}
@@ -566,7 +566,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
 
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
-                      <Label className="text-[11px] font-bold text-muted-foreground">Latitude (إحداثي)</Label>
+                      <Label className="text-[11px] font-bold text-muted-foreground">Latitude</Label>
                       <Input
                         value={latitude}
                         onChange={(e) => setLatitude(e.target.value)}
@@ -576,7 +576,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[11px] font-bold text-muted-foreground">Longitude (إحداثي)</Label>
+                      <Label className="text-[11px] font-bold text-muted-foreground">Longitude</Label>
                       <Input
                         value={longitude}
                         onChange={(e) => setLongitude(e.target.value)}
@@ -591,10 +591,10 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
 
               {/* Section 2: Contact & Operating Numbers */}
               <div className="space-y-3 pt-2 border-t border-border">
-                <h4 className="text-xs font-black text-foreground">أرقام التواصل وإعدادات الكشف</h4>
+                <h4 className="text-xs font-black text-foreground">{language === 'en' ? 'Contact & Booking Configuration' : 'أرقام التواصل وإعدادات الكشف'}</h4>
                 <div className="grid sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs font-bold text-muted-foreground">رقم هاتف الفرع *</Label>
+                    <Label className="text-xs font-bold text-muted-foreground">{t('branch_phone', 'رقم هاتف الفرع')} *</Label>
                     <Input
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
@@ -605,7 +605,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs font-bold text-muted-foreground">رقم واتساب الفرع</Label>
+                    <Label className="text-xs font-bold text-muted-foreground">{language === 'en' ? 'Branch WhatsApp' : 'رقم واتساب الفرع'}</Label>
                     <Input
                       value={whatsapp}
                       onChange={(e) => setWhatsapp(e.target.value)}
@@ -615,7 +615,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs font-bold text-muted-foreground">متوسط مدة الكشف (بالدقائق)</Label>
+                    <Label className="text-xs font-bold text-muted-foreground">{language === 'en' ? 'Average Slot Duration (mins)' : 'متوسط مدة الكشف (بالدقائق)'}</Label>
                     <Input
                       type="number"
                       value={slotDuration}
@@ -624,7 +624,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs font-bold text-muted-foreground">الحد الأقصى للحجوزات اليومية (0 = غير محدود)</Label>
+                    <Label className="text-xs font-bold text-muted-foreground">{language === 'en' ? 'Daily Max Bookings (0 = unlimited)' : 'الحد الأقصى للحجوزات اليومية (0 = غير محدود)'}</Label>
                     <Input
                       type="number"
                       value={maxDailyBookings}
@@ -638,8 +638,8 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
               {/* Section 3: Independent Weekly Schedule */}
               <div className="space-y-3 pt-2 border-t border-border">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-black text-foreground">مواعيد عمل الفرع الأسبوعية</h4>
-                  <span className="text-[11px] text-muted-foreground">حدد الأيام وساعات البداية والنهاية</span>
+                  <h4 className="text-xs font-black text-foreground">{language === 'en' ? 'Branch Weekly Working Schedule' : 'مواعيد عمل الفرع الأسبوعية'}</h4>
+                  <span className="text-[11px] text-muted-foreground">{language === 'en' ? 'Set active days and working hours' : 'حدد الأيام وساعات البداية والنهاية'}</span>
                 </div>
 
                 <div className="space-y-2 bg-muted/40 p-3 rounded-2xl border border-border">
@@ -655,28 +655,28 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                           checked={d.isOpen}
                           onCheckedChange={() => handleToggleScheduleDay(index)}
                         />
-                        <span className="text-xs font-bold text-foreground">{d.day}</span>
+                        <span className="text-xs font-bold text-foreground">{tDynamic(d.day)}</span>
                       </div>
 
                       {d.isOpen ? (
                         <div className="flex items-center gap-2 text-xs">
-                          <span className="text-muted-foreground text-[11px]">من:</span>
+                          <span className="text-muted-foreground text-[11px]">{language === 'en' ? 'From:' : 'من:'}</span>
                           <Input
                             type="time"
                             value={d.start}
                             onChange={(e) => handleScheduleTimeChange(index, 'start', e.target.value)}
-                            className="h-8 w-28 text-xs rounded-lg bg-background text-center"
+                            className="h-8 w-28 text-xs rounded-lg bg-background text-center font-mono"
                           />
-                          <span className="text-muted-foreground text-[11px]">إلى:</span>
+                          <span className="text-muted-foreground text-[11px]">{language === 'en' ? 'To:' : 'إلى:'}</span>
                           <Input
                             type="time"
                             value={d.end}
                             onChange={(e) => handleScheduleTimeChange(index, 'end', e.target.value)}
-                            className="h-8 w-28 text-xs rounded-lg bg-background text-center"
+                            className="h-8 w-28 text-xs rounded-lg bg-background text-center font-mono"
                           />
                         </div>
                       ) : (
-                        <span className="text-[11px] font-bold text-muted-foreground">مغلق / إجازة</span>
+                        <span className="text-[11px] font-bold text-muted-foreground">{language === 'en' ? 'Closed / Day Off' : 'مغلق / إجازة'}</span>
                       )}
                     </div>
                   ))}
@@ -691,14 +691,14 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                   onClick={() => setIsModalOpen(false)}
                   className="rounded-xl text-xs font-bold"
                 >
-                  إلغاء
+                  {t('cancel', 'إلغاء')}
                 </Button>
                 <Button
                   type="submit"
                   disabled={isSaving}
                   className="yalla-gradient-btn text-white font-bold rounded-xl text-xs px-6 shadow-xs"
                 >
-                  {isSaving ? 'جاري الحفظ...' : editingBranchId ? 'حفظ التعديلات' : 'إضافة الفرع'}
+                  {isSaving ? t('saving', 'جاري الحفظ...') : editingBranchId ? t('save_changes', 'حفظ التعديلات') : t('add_new_branch', 'إضافة الفرع')}
                 </Button>
               </div>
             </form>

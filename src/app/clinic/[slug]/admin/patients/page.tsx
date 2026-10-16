@@ -24,7 +24,7 @@ import { useLanguage } from '@/context/LanguageContext'
 export default function PatientsPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
-  const { t, dir } = useLanguage()
+  const { t, tDynamic, dir, isRtl } = useLanguage()
   const [clinic, setClinic] = useState<any>(null)
   const [patients, setPatients] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -322,7 +322,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
             {t('nav_patients', 'سجل المرضى')}
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
-            إدارة السجلات الطبية، ملفات المرضى وتصدير السجل بالتاريخ (PDF & Excel)
+            {t('patients_management_desc', 'إدارة السجلات الطبية، ملفات المرضى، وتصدير السجل بالتاريخ (PDF & Excel)')}
           </p>
         </div>
 
@@ -344,7 +344,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
             className="h-10 px-4 border-border text-foreground hover:bg-secondary font-bold rounded-xl text-xs inline-flex items-center cursor-pointer"
           >
             <Printer className="w-4 h-4 ml-1.5 text-primary" />
-            طباعة تقرير المرضى (PDF / A4)
+            {t('print_patients_report', 'طباعة تقرير المرضى (PDF / A4)')}
           </Button>
 
           <Button 
@@ -353,33 +353,39 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
             className="h-10 px-4 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 font-bold rounded-xl transition-all text-xs inline-flex items-center justify-center cursor-pointer"
           >
             <Trash2 className="w-4 h-4 ml-1.5" />
-            مسح جميع المرضى
+            {t('clear_all_patients', 'مسح جميع المرضى')}
           </Button>
           
           {/* Add Patient Modal */}
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger className="h-10 px-4 yalla-gradient-btn text-white font-bold rounded-xl shadow-md transition-all text-xs inline-flex items-center justify-center cursor-pointer">
               <Plus className="w-4 h-4 ml-1.5" />
-              إضافة مريض جديد
+              {t('new_patient_file', 'إضافة مريض جديد +')}
             </DialogTrigger>
             <DialogContent className="sm:max-w-md bg-card border border-border" dir={dir}>
               <DialogHeader>
-                <DialogTitle className="text-lg font-bold text-foreground">إضافة مريض جديد للسجل</DialogTitle>
+                <DialogTitle className="text-lg font-bold text-foreground">
+                  {t('new_patient_title', 'إضافة مريض جديد للسجل')}
+                </DialogTitle>
               </DialogHeader>
               <form onSubmit={handleAddNewPatient} className="space-y-4 pt-2">
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-muted-foreground">اسم المريض الثلاثي</Label>
+                  <Label className="text-xs font-bold text-muted-foreground">
+                    {t('patient_full_name', 'اسم المريض الثلاثي')}
+                  </Label>
                   <Input
                     value={newName}
                     onChange={e => setNewName(e.target.value)}
-                    placeholder="مثال: محمد أحمد علي"
+                    placeholder={t('patient_name_placeholder', 'مثال: محمد أحمد علي')}
                     className="h-10 text-sm rounded-xl bg-background border-border text-foreground"
                     required
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-muted-foreground">رقم الهاتف (واتساب)</Label>
+                  <Label className="text-xs font-bold text-muted-foreground">
+                    {t('patient_phone_whatsapp', 'رقم الهاتف (واتساب)')}
+                  </Label>
                   <Input
                     value={newPhone}
                     onChange={e => setNewPhone(e.target.value)}
@@ -391,7 +397,9 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-bold text-muted-foreground">تاريخ الميلاد</Label>
+                    <Label className="text-xs font-bold text-muted-foreground">
+                      {t('dob', 'تاريخ الميلاد')}
+                    </Label>
                     <Input
                       type="date"
                       value={newDob}
@@ -400,7 +408,9 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-bold text-muted-foreground">العمر</Label>
+                    <Label className="text-xs font-bold text-muted-foreground">
+                      {t('patient_age', 'العمر')}
+                    </Label>
                     <Input
                       type="number"
                       value={newAge}
@@ -413,20 +423,24 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-bold text-muted-foreground">نوع الخدمة</Label>
+                    <Label className="text-xs font-bold text-muted-foreground">
+                      {t('service_type', 'نوع الخدمة')}
+                    </Label>
                     <select
                       value={newService}
                       onChange={e => setNewService(e.target.value)}
                       className="w-full h-10 px-3 rounded-xl border border-border text-xs font-bold text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
                     >
-                      <option value="كشف عادي">كشف عادي</option>
-                      <option value="استشارة">استشارة</option>
-                      <option value="كشف مستعجل">كشف مستعجل</option>
-                      <option value="متابعة">متابعة</option>
+                      <option value="كشف عادي">{t('regular_exam', 'كشف عادي')}</option>
+                      <option value="استشارة">{t('consultation', 'استشارة')}</option>
+                      <option value="كشف مستعجل">{t('urgent_exam', 'كشف مستعجل')}</option>
+                      <option value="متابعة">{t('follow_up', 'متابعة')}</option>
                     </select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-bold text-muted-foreground">القيمة ({t('currency_egp', 'ج.م')})</Label>
+                    <Label className="text-xs font-bold text-muted-foreground">
+                      {t('value_amount', 'القيمة')} ({t('currency_egp', 'ج.م')})
+                    </Label>
                     <Input
                       type="number"
                       value={newPrice}
@@ -442,7 +456,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                     disabled={isAdding}
                     className="flex-1 yalla-gradient-btn text-white font-bold h-10 rounded-xl text-xs"
                   >
-                    {isAdding ? 'جاري الحفظ...' : 'حفظ المريض'}
+                    {isAdding ? t('saving', 'جاري الحفظ...') : t('save_patient', 'حفظ المريض')}
                   </Button>
                   <Button
                     type="button"
@@ -450,7 +464,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                     onClick={() => setIsAddOpen(false)}
                     className="h-10 text-xs font-bold rounded-xl border-border"
                   >
-                    إلغاء
+                    {t('cancel', 'إلغاء')}
                   </Button>
                 </div>
               </form>
@@ -464,7 +478,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs font-bold text-foreground">
             <Calendar className="w-4 h-4 text-primary" />
-            <span>فرز سجل المرضى بالتاريخ (من / إلى):</span>
+            <span>{t('filter_by_date_range', 'فرز سجل المرضى بالتاريخ (من / إلى):')}</span>
           </div>
 
           {/* Quick presets */}
@@ -476,7 +490,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                 !fromDate && !toDate ? 'yalla-gradient-btn text-white shadow-xs' : 'bg-secondary text-foreground hover:bg-secondary/80'
               }`}
             >
-              الكل
+              {t('all_filter', 'الكل')}
             </button>
             <button
               type="button"
@@ -485,28 +499,28 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                 fromDate === todayCairoStr && toDate === todayCairoStr ? 'yalla-gradient-btn text-white shadow-xs' : 'bg-secondary text-foreground hover:bg-secondary/80'
               }`}
             >
-              اليوم
+              {t('today_filter', 'اليوم')}
             </button>
             <button
               type="button"
               onClick={() => setDatePreset('week')}
               className="px-3 py-1 text-xs font-bold rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-colors cursor-pointer"
             >
-              آخر 7 أيام
+              {t('last_7_days', 'آخر 7 أيام')}
             </button>
             <button
               type="button"
               onClick={() => setDatePreset('month')}
               className="px-3 py-1 text-xs font-bold rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-colors cursor-pointer"
             >
-              هذا الشهر
+              {t('this_month', 'هذا الشهر')}
             </button>
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-border items-center">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-muted-foreground shrink-0">من تاريخ:</span>
+            <span className="text-xs font-bold text-muted-foreground shrink-0">{t('from_date', 'من تاريخ:')}</span>
             <Input
               type="date"
               value={fromDate}
@@ -516,7 +530,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-muted-foreground shrink-0">إلى تاريخ:</span>
+            <span className="text-xs font-bold text-muted-foreground shrink-0">{t('to_date', 'إلى تاريخ:')}</span>
             <Input
               type="date"
               value={toDate}
@@ -528,7 +542,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
           {(fromDate || toDate) && (
             <div className="sm:col-span-2 flex items-center justify-end gap-2">
               <span className="text-xs text-primary font-semibold bg-primary/10 px-2.5 py-1 rounded-lg border border-primary/20">
-                مفلتر: {fromDate || 'البداية'} ⬅ {toDate || 'اليوم'} ({filtered.length} مريض)
+                {t('filtered_label', 'مفلتر')}: {fromDate || t('all_filter', 'البداية')} ⬅ {toDate || t('today_filter', 'اليوم')} ({filtered.length} {t('patients_unit', 'مريض')})
               </span>
               <button
                 type="button"
@@ -536,7 +550,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                 className="h-9 px-3 text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
-                إلغاء الفرز
+                {t('clear_filter', 'إلغاء الفرز')}
               </button>
             </div>
           )}
@@ -546,12 +560,12 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
       {/* 2. Search & Filters Bar */}
       <div className="yalla-card p-4 flex flex-col sm:flex-row items-center justify-between gap-3 border border-border">
         <div className="relative w-full sm:w-96">
-          <Search className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Search className={`w-4 h-4 absolute ${isRtl ? 'right-3.5' : 'left-3.5'} top-1/2 -translate-y-1/2 text-muted-foreground`} />
           <Input
             value={search}
             onChange={e => { setSearch(e.target.value); setCurrentPage(1); }}
-            placeholder="ابحث بالاسم أو رقم الهاتف..."
-            className="pr-10 h-10 text-sm bg-background border-border text-foreground rounded-xl"
+            placeholder={t('search_patient_placeholder', 'ابحث بالاسم أو رقم الهاتف...')}
+            className={`${isRtl ? 'pr-10' : 'pl-10'} h-10 text-sm bg-background border-border text-foreground rounded-xl`}
           />
         </div>
 
@@ -561,10 +575,10 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
             onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}
             className="h-10 px-4 rounded-xl border border-border text-xs font-bold text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
           >
-            <option value="ALL">كل الحالات</option>
-            <option value="نشط">نشط</option>
-            <option value="مستعجل">مستعجل</option>
-            <option value="خامل">خامل</option>
+            <option value="ALL">{t('all_statuses', 'كل الحالات')}</option>
+            <option value="نشط">{t('active', 'نشط')}</option>
+            <option value="مستعجل">{t('urgent', 'مستعجل')}</option>
+            <option value="خامل">{t('inactive', 'خامل')}</option>
           </select>
         </div>
       </div>
@@ -572,16 +586,16 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
       {/* 3. Patients Data Table */}
       <div className="yalla-card overflow-hidden border border-border">
         <div className="overflow-x-auto">
-          <table className="w-full text-right text-sm">
+          <table className={`w-full ${isRtl ? 'text-right' : 'text-left'} text-sm`}>
             <thead className="bg-secondary/60 border-b border-border text-muted-foreground text-xs font-bold select-none">
               <tr>
-                <th className="py-3.5 px-4">المريض</th>
-                <th className="py-3.5 px-4">رقم الهاتف</th>
-                <th className="py-3.5 px-4 text-center">عدد الزيارات</th>
-                <th className="py-3.5 px-4">آخر زيارة</th>
-                <th className="py-3.5 px-4">آخر خدمة</th>
-                <th className="py-3.5 px-4 text-center">الحالة</th>
-                <th className="py-3.5 px-4 text-center">إجراء</th>
+                <th className="py-3.5 px-4">{t('patient_col', 'المريض')}</th>
+                <th className="py-3.5 px-4">{t('phone_col', 'رقم الهاتف')}</th>
+                <th className="py-3.5 px-4 text-center">{t('visits_col', 'عدد الزيارات')}</th>
+                <th className="py-3.5 px-4">{t('last_visit_col', 'آخر زيارة')}</th>
+                <th className="py-3.5 px-4">{t('last_service_col', 'آخر خدمة')}</th>
+                <th className="py-3.5 px-4 text-center">{t('status_col', 'الحالة')}</th>
+                <th className="py-3.5 px-4 text-center">{t('action_col', 'إجراء')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -589,13 +603,13 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-muted-foreground">
                     <div className="w-7 h-7 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-                    جاري تحميل سجل المرضى...
+                    {t('loading_patients', 'جاري تحميل سجل المرضى...')}
                   </td>
                 </tr>
               ) : paginatedPatients.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-muted-foreground">
-                    لا يوجد مرضى مطابقين للبحث.
+                    {t('no_matching_patients', 'لا يوجد مرضى مطابقين للبحث.')}
                   </td>
                 </tr>
               ) : (
@@ -643,7 +657,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                       {/* Last Service */}
                       <td className="py-3.5 px-4">
                         <span className="inline-block text-[11px] font-semibold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
-                          {patient.lastService}
+                          {tDynamic(patient.lastService)}
                         </span>
                       </td>
 
@@ -658,7 +672,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                               : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                           }`}
                         >
-                          {patient.status || 'نشط'}
+                          {tDynamic(patient.status || 'نشط')}
                         </Badge>
                       </td>
 
@@ -671,7 +685,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                               variant="outline"
                               className="h-8 px-3 text-xs font-bold text-primary border-border hover:bg-primary/10 rounded-xl"
                             >
-                              ملف المريض
+                              {t('patient_profile_btn', 'ملف المريض')}
                             </Button>
                           </Link>
                           <Button
@@ -679,7 +693,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                             variant="ghost"
                             className="h-8 w-8 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-xl"
                             onClick={() => sendWhatsApp(patient.phone, patient.name)}
-                            title="مراسلة عبر واتساب"
+                            title={t('whatsapp_chat', 'مراسلة عبر واتساب')}
                           >
                             <MessageCircle className="w-4 h-4" />
                           </Button>
@@ -688,7 +702,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                             variant="ghost"
                             className="h-8 w-8 text-rose-500 hover:bg-rose-500/10 rounded-xl transition-colors"
                             onClick={() => handleDeletePatient(patient.phone, patient.name)}
-                            title="حذف المريض"
+                            title={t('delete_patient', 'حذف المريض')}
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -705,7 +719,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
         {/* 4. Table Pagination Footer */}
         <div className="p-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground bg-secondary/30">
           <div>
-            عرض {paginatedPatients.length} من أصل {filtered.length} مريض
+            {t('showing_count', 'عرض')} {paginatedPatients.length} {t('out_of', 'من أصل')} {filtered.length} {t('patients_unit', 'مريض')}
           </div>
 
           <div className="flex items-center gap-1.5">

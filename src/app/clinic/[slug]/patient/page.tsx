@@ -30,7 +30,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
   const router = useRouter()
-  const { t, dir } = useLanguage()
+  const { t, dir, isRtl } = useLanguage()
 
   const [patientData, setPatientData] = useState<{ phone: string; name: string; clinic_id: string; age?: string } | null>(null)
   const [appointments, setAppointments] = useState<any[]>([])
@@ -64,17 +64,17 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
         const cData = cDoc.data()
         setClinic({ id: cDoc.id, ...cData })
         const clinicServices = cData.services || [
-          { id: '1', name: 'كشف عام', price: 250 },
-          { id: '2', name: 'استشارة', price: 100 },
-          { id: '3', name: 'كشف مستعجل', price: 400 }
+          { id: '1', name: isRtl ? 'كشف عام' : 'General Exam', price: 250 },
+          { id: '2', name: isRtl ? 'استشارة' : 'Consultation', price: 100 },
+          { id: '3', name: isRtl ? 'كشف مستعجل' : 'Urgent Exam', price: 400 }
         ]
         setServices(clinicServices)
       } else if (slug === 'demo') {
         setClinic({
           id: 'demo',
-          clinicName: 'العيادة التخصصية',
-          doctorName: 'الطبيب',
-          specialty: 'استشاري الطب المتخصص',
+          clinicName: isRtl ? 'العيادة التخصصية' : 'Specialized Clinic',
+          doctorName: isRtl ? 'الطبيب' : 'Doctor',
+          specialty: isRtl ? 'استشاري الطب المتخصص' : 'Consultant Physician',
           primaryColor: '#087CF4'
         })
       }
@@ -119,7 +119,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
     fetchData()
 
     return () => unsubClinic()
-  }, [slug, router])
+  }, [slug, router, isRtl])
 
   const handleLogout = () => {
     localStorage.removeItem('patient_auth')
@@ -132,13 +132,13 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
     try {
       await downloadElementAsPdf(
         rxModalSheetRef.current,
-        `روشتة_${selectedPrescription.patientName || 'المريض'}_${selectedPrescription.date || 'كشف'}.pdf`,
+        `Rx_${selectedPrescription.patientName || 'patient'}_${selectedPrescription.date || 'visit'}.pdf`,
         { format: 'a4', orientation: 'portrait' }
       )
-      toast.success('تم تحميل الروشتة بصيغة PDF بنجاح')
+      toast.success(isRtl ? 'تم تحميل الروشتة بصيغة PDF بنجاح' : 'Prescription downloaded as PDF')
     } catch (e) {
       console.error(e)
-      toast.error('تعذر تحميل ملف الروشتة')
+      toast.error(isRtl ? 'تعذر تحميل ملف الروشتة' : 'Failed to download prescription PDF')
     } finally {
       setIsDownloadingRx(false)
     }
@@ -150,13 +150,13 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
     try {
       await downloadElementAsImage(
         rxModalSheetRef.current,
-        `روشتة_${selectedPrescription.patientName || 'المريض'}_${selectedPrescription.date || 'كشف'}.png`,
+        `Rx_${selectedPrescription.patientName || 'patient'}_${selectedPrescription.date || 'visit'}.png`,
         { scale: 2.5 }
       )
-      toast.success('تم تنزيل الروشتة كصورة PNG بنجاح')
+      toast.success(isRtl ? 'تم تنزيل الروشتة كصورة PNG بنجاح' : 'Prescription downloaded as PNG')
     } catch (e) {
       console.error(e)
-      toast.error('تعذر تنزيل صورة الروشتة')
+      toast.error(isRtl ? 'تعذر تنزيل صورة الروشتة' : 'Failed to download prescription image')
     } finally {
       setIsDownloadingRxImage(false)
     }
@@ -167,18 +167,20 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
     if (!rxModalSheetRef.current || !selectedPrescription) return
     setIsSharingRx(true)
     try {
-      toast.info('جاري إعداد صورة الروشتة للمشاركة...')
+      toast.info(isRtl ? 'جاري إعداد صورة الروشتة للمشاركة...' : 'Preparing prescription for sharing...')
       const { blob } = await renderElementToImageBlob(rxModalSheetRef.current, { scale: 2.5 })
 
-      const pName = selectedPrescription.patientName || patientData?.name || 'المريض'
+      const pName = selectedPrescription.patientName || patientData?.name || (isRtl ? 'المريض' : 'Patient')
       const rxDate = selectedPrescription.date || new Date().toISOString().split('T')[0]
-      const fileName = `روشتة_${pName}_${rxDate}.png`
+      const fileName = `Rx_${pName}_${rxDate}.png`
       const apptId = selectedPrescription.appointment_id || selectedPrescription.id
       const directRxUrl = apptId
         ? getClinicUrl(slug, `/prescription/${apptId}`)
         : getClinicUrl(slug, '/patient')
 
-      const message = `الروشتة الطبية الإلكترونية 📄\nعيادة: ${clinic?.clinicName || 'العيادة الطبية'}\nالطبيب: د. ${clinic?.doctorName || ''}\nالمريض: ${pName}\nالتاريخ: ${rxDate}\n\n🔗 يمكنك استعراض وتحميل الروشتة الرسمية بتصميم العيادة عبر الرابط المباشر:\n${directRxUrl}\n\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`
+      const message = isRtl
+        ? `الروشتة الطبية الإلكترونية 📄\nعيادة: ${clinic?.clinicName || 'العيادة الطبية'}\nالطبيب: د. ${clinic?.doctorName || ''}\nالمريض: ${pName}\nالتاريخ: ${rxDate}\n\n🔗 يمكنك استعراض وتحميل الروشتة الرسمية بتصميم العيادة عبر الرابط المباشر:\n${directRxUrl}\n\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`
+        : `Official E-Prescription 📄\nClinic: ${clinic?.clinicName || 'Clinic'}\nDoctor: Dr. ${clinic?.doctorName || ''}\nPatient: ${pName}\nDate: ${rxDate}\n\n🔗 Access and download your official Rx via:\n${directRxUrl}\n\nWishing you good health and a speedy recovery! 🌿`
 
       await shareDocumentOrImage({
         blob,
@@ -186,11 +188,11 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
         fileType: 'image',
         recipientPhone: patientData?.phone || '',
         messageText: message,
-        documentTitle: 'الروشتة الطبية'
+        documentTitle: isRtl ? 'الروشتة الطبية' : 'Medical Prescription'
       })
     } catch (e) {
       console.error(e)
-      toast.error('تعذر مشاركة الروشتة')
+      toast.error(isRtl ? 'تعذر مشاركة الروشتة' : 'Failed to share prescription')
     } finally {
       setIsSharingRx(false)
     }
@@ -198,11 +200,11 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
 
   if (loading || !patientData) {
     return (
-      <div className="min-h-screen bg-[#F6F8FB] flex flex-col items-center justify-center gap-4" dir="rtl">
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4" dir={dir}>
         <ClinicLogo size="lg" variant="light" />
-        <div className="flex items-center gap-2 text-sm font-semibold text-slate-500">
-          <div className="w-5 h-5 border-2 border-[#087CF4] border-t-transparent rounded-full animate-spin"></div>
-          جاري تحميل ملفك الطبي...
+        <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+          <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+          {t('loading_medical_profile', 'جاري تحميل ملفك الطبي...')}
         </div>
       </div>
     )
@@ -217,10 +219,10 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
             <Link href={`/clinic/${slug}`}>
               <ClinicLogo size="sm" variant="light" showSubtitle={false} />
             </Link>
-            <div className="hidden sm:block border-r border-border pr-3">
-              <span className="font-black text-sm text-foreground">بوابة المريض الإلكترونية</span>
+            <div className="hidden sm:block rtl:border-r ltr:border-l border-border rtl:pr-3 ltr:pl-3">
+              <span className="font-black text-sm text-foreground">{t('patient_portal', 'بوابة المريض الإلكترونية')}</span>
               <span className="text-[10px] text-muted-foreground block font-medium">
-                {clinic?.clinicName || 'العيادة'}
+                {clinic?.clinicName || (isRtl ? 'العيادة' : 'Clinic')}
               </span>
             </div>
           </div>
@@ -229,15 +231,15 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
             {patientData?.phone && (
               <NotificationCenter
                 recipientTarget={patientData.phone}
-                recipientLabel={patientData.name || 'المريض'}
+                recipientLabel={patientData.name || (isRtl ? 'المريض' : 'Patient')}
                 recipientType="patient"
               />
             )}
 
             <Link href={`/clinic/${slug}`}>
               <Button variant="ghost" size="sm" className="text-xs font-bold text-muted-foreground hover:text-primary">
-                الصفحة الرئيسية
-                <ArrowRight className="w-3.5 h-3.5 mr-1" />
+                {t('home', 'الصفحة الرئيسية')}
+                <ArrowRight className="w-3.5 h-3.5 mx-1 rtl:rotate-0 ltr:rotate-180" />
               </Button>
             </Link>
 
@@ -247,8 +249,8 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
               className="text-xs font-bold text-rose-600 dark:text-rose-400 border-rose-500/20 hover:bg-rose-500/10 rounded-xl"
               onClick={handleLogout}
             >
-              <LogOut className="w-3.5 h-3.5 ml-1.5" />
-              تسجيل الخروج
+              <LogOut className="w-3.5 h-3.5 mx-1.5" />
+              {t('logout', 'تسجيل الخروج')}
             </Button>
           </div>
         </div>
@@ -267,26 +269,26 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
           <div className="relative z-10 space-y-2 flex-1">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 text-xs font-bold">
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>الملف الطبي الشخصي المعتمد</span>
+              <span>{t('patient_portal_verified', 'الملف الطبي الشخصي المعتمد')}</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-white">
-              أهلاً بك، {patientData.name} 👋
+              {t('welcome_back', 'أهلاً بك،')} {patientData.name} 👋
             </h1>
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-xl">
-              يمكنك متابعة رقم دورك اللحظي في العيادة، ومراجعة سجل زياراتك الطبية والروشتات السابقة المصروفة لك.
+              {t('patient_hero_desc', 'يمكنك متابعة رقم دورك اللحظي في العيادة، ومراجعة سجل زياراتك الطبية والروشتات السابقة المصروفة لك.')}
             </p>
           </div>
 
           <div className="relative z-10 shrink-0">
             <Dialog>
               <DialogTrigger className="inline-flex items-center justify-center yalla-gradient-btn text-white font-black text-xs h-11 px-6 rounded-xl shadow-xs cursor-pointer">
-                <Plus className="w-4 h-4 ml-1.5" />
-                حجز كشف جديد بالعيادة
+                <Plus className="w-4 h-4 mx-1.5" />
+                {t('book_new_appointment', 'حجز كشف جديد بالعيادة')}
               </DialogTrigger>
               <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto p-6 rounded-3xl" dir={dir}>
-                <DialogHeader className="text-right">
+                <DialogHeader className="text-start">
                   <DialogTitle className="text-lg font-black text-foreground">
-                    حجز موعد كشف جديد
+                    {t('book_new_exam', 'حجز موعد كشف جديد')}
                   </DialogTitle>
                 </DialogHeader>
                 <BookingForm
@@ -309,19 +311,19 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-black text-foreground flex items-center gap-2">
               <Calendar className="w-5 h-5 text-primary" />
-              سجل الزيارات والروشتات الطبية
+              {t('medical_visits_and_rxs', 'سجل الزيارات والروشتات الطبية')}
             </h2>
             <span className="text-xs font-bold text-muted-foreground">
-              {appointments.length} زيارات مسجلة
+              {appointments.length} {t('registered_visits', 'زيارات مسجلة')}
             </span>
           </div>
 
           {appointments.length === 0 ? (
             <div className="yalla-card p-12 text-center space-y-3">
               <FileText className="w-12 h-12 text-muted-foreground/40 mx-auto" />
-              <h3 className="text-base font-bold text-foreground">لا توجد سجلات طبية سابقة</h3>
+              <h3 className="text-base font-bold text-foreground">{t('no_prior_medical_records', 'لا توجد سجلات طبية سابقة')}</h3>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                عند حجز أول كشف ومقابلة الطبيب، ستظهر تفاصيل الزيارة والروشتة الطبية هنا تلقائياً.
+                {t('records_will_appear_hint', 'عند حجز أول كشف ومقابلة الطبيب، ستظهر تفاصيل الزيارة والروشتة الطبية هنا تلقائياً.')}
               </p>
             </div>
           ) : (
@@ -343,10 +345,10 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="font-black text-sm text-foreground">{appt.serviceName || 'كشف طبي'}</span>
+                          <span className="font-black text-sm text-foreground">{appt.serviceName || t('medical_exam', 'كشف طبي')}</span>
                           {appt.branchName && (
                             <Badge variant="outline" className="text-[10px] text-muted-foreground border-border">
-                              فرع {appt.branchName}
+                              {t('branch', 'فرع')} {appt.branchName}
                             </Badge>
                           )}
                         </div>
@@ -363,7 +365,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
                           onClick={() => {
                             setSelectedInvoice({
                               invoiceNumber: appt.invoiceNumber || `INV-${appt.id.slice(0, 8)}`,
-                              clinicName: clinic?.clinicName || 'العيادة',
+                              clinicName: clinic?.clinicName || (isRtl ? 'العيادة' : 'Clinic'),
                               doctorName: clinic?.doctorName,
                               branchName: appt.branchName,
                               clinicAddress: clinic?.clinicAddress,
@@ -372,7 +374,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
                               patientPhone: appt.phone,
                               date: appt.date,
                               cairoTime: formatCairo12Hour(new Date(appt.createdAt || Date.now())),
-                              serviceName: appt.serviceName || 'كشف',
+                              serviceName: appt.serviceName || t('consultation_type_exam', 'كشف'),
                               servicePrice: appt.servicePrice || 0,
                               discount: appt.discountApplied || 0,
                               netTotal: appt.servicePrice || 0,
@@ -386,7 +388,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
                           className="h-8 text-xs font-bold border-border text-foreground hover:text-primary rounded-xl flex items-center gap-1"
                         >
                           <Receipt className="w-3.5 h-3.5" />
-                          الفاتورة الإلكترونية PDF
+                          {t('electronic_invoice_pdf', 'الفاتورة الإلكترونية PDF')}
                         </Button>
 
                         <span
@@ -396,7 +398,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
                               : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
                           }`}
                         >
-                          {appt.status === 'completed' ? 'تم الكشف الطبي' : 'في قائمة الانتظار'}
+                          {appt.status === 'completed' ? t('exam_completed_status', 'تم الكشف الطبي') : t('in_waiting_queue', 'في قائمة الانتظار')}
                         </span>
                       </div>
                     </div>
@@ -406,9 +408,9 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
                       <div className="p-3.5 rounded-xl bg-primary/5 border border-primary/10 space-y-1">
                         <h4 className="font-bold text-xs text-primary flex items-center gap-1.5">
                           <Activity className="w-3.5 h-3.5" />
-                          تشخيص الطبيب المعالج:
+                          {t('treating_physician_diagnosis', 'تشخيص الطبيب المعالج:')}
                         </h4>
-                        <p className="text-xs text-foreground font-medium whitespace-pre-wrap leading-relaxed pr-5">
+                        <p className="text-xs text-foreground font-medium whitespace-pre-wrap leading-relaxed pe-5">
                           {appt.diagnosis}
                         </p>
                       </div>
@@ -420,12 +422,12 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
                         <div className="flex items-center justify-between">
                           <h4 className="font-bold text-xs text-foreground flex items-center gap-1.5">
                             <FileText className="w-4 h-4 text-primary" />
-                            الروشتة الطبية المعتمدة (Rx)
+                            {t('certified_medical_rx', 'الروشتة الطبية المعتمدة (Rx)')}
                           </h4>
 
                           <div className="flex items-center gap-2">
                             <span className="text-[10px] font-bold text-muted-foreground">
-                              {relatedRx.drugs?.length || 0} أصناف
+                              {relatedRx.drugs?.length || 0} {t('drugs_count', 'أصناف')}
                             </span>
 
                             {/* Real PDF View Button */}
@@ -434,8 +436,8 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
                               onClick={() => setSelectedPrescription(relatedRx)}
                               className="h-7 px-3 text-[11px] font-bold yalla-gradient-btn text-white rounded-lg shadow-2xs flex items-center gap-1"
                             >
-                              <Eye className="w-3 h-3 ml-1" />
-                              عرض وتحميل الروشتة PDF
+                              <Eye className={`w-3 h-3 ${isRtl ? 'ml-1' : 'mr-1'}`} />
+                              {t('view_and_download_rx_pdf', 'عرض وتحميل الروشتة PDF')}
                             </Button>
                           </div>
                         </div>
@@ -460,13 +462,13 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
                             ))}
                           </div>
                         ) : (
-                          <p className="text-xs text-muted-foreground">لا توجد أدوية مسجلة في هذه الروشتة.</p>
+                          <p className="text-xs text-muted-foreground">{t('no_drugs_in_rx', 'لا توجد أدوية مسجلة في هذه الروشتة.')}</p>
                         )}
                       </div>
                     ) : (
                       <div className="text-xs text-muted-foreground flex items-center gap-1.5 px-1">
                         <Clock className="w-3.5 h-3.5" />
-                        <span>لم يتم اعتماد روشتة إلكترونية لهذه الزيارة بعد.</span>
+                        <span>{isRtl ? 'لم يتم اعتماد روشتة إلكترونية لهذه الزيارة بعد.' : 'No electronic prescription has been finalized for this visit yet.'}</span>
                       </div>
                     )}
                   </motion.div>
@@ -498,7 +500,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
               <div className="flex items-center gap-2">
                 <FileText className="w-5 h-5 text-primary" />
                 <h3 className="font-black text-sm text-foreground">
-                  الروشتة الطبية الرسمية المعروضة
+                  {isRtl ? 'الروشتة الطبية الرسمية المعروضة' : 'Official Medical Prescription'}
                 </h3>
               </div>
 
@@ -509,8 +511,8 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
                   disabled={isSharingRx}
                   className="h-9 px-3.5 text-xs font-bold bg-[#25D366] hover:bg-[#128C7E] text-white rounded-xl shadow-xs flex items-center gap-1.5"
                 >
-                  <MessageCircle className="w-4 h-4 ml-1" />
-                  {isSharingRx ? 'جاري المشاركة...' : 'مشاركة واتساب'}
+                  <MessageCircle className={`w-4 h-4 ${isRtl ? 'ml-1' : 'mr-1'}`} />
+                  {isSharingRx ? (isRtl ? 'جاري المشاركة...' : 'Sharing...') : t('send_whatsapp_img', 'مشاركة واتساب')}
                 </Button>
 
                 <Button
@@ -520,8 +522,8 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
                   disabled={isDownloadingRxImage}
                   className="h-9 px-3 text-xs font-bold border-border text-foreground hover:bg-muted/40 rounded-xl shadow-xs flex items-center gap-1.5"
                 >
-                  <ImageIcon className="w-4 h-4 ml-1" />
-                  {isDownloadingRxImage ? 'جاري التحميل...' : 'تحميل صورة'}
+                  <ImageIcon className={`w-4 h-4 ${isRtl ? 'ml-1' : 'mr-1'}`} />
+                  {isDownloadingRxImage ? (isRtl ? 'جاري التحميل...' : 'Downloading...') : t('download_img', 'تحميل صورة')}
                 </Button>
 
                 <Button
@@ -530,8 +532,8 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
                   disabled={isDownloadingRx}
                   className="h-9 px-4 text-xs font-bold yalla-gradient-btn text-white rounded-xl shadow-xs flex items-center gap-1.5"
                 >
-                  <Download className="w-4 h-4 ml-1" />
-                  {isDownloadingRx ? 'جاري التحميل...' : 'تحميل PDF'}
+                  <Download className={`w-4 h-4 ${isRtl ? 'ml-1' : 'mr-1'}`} />
+                  {isDownloadingRx ? (isRtl ? 'جاري التحميل...' : 'Downloading...') : t('download_pdf', 'تحميل PDF')}
                 </Button>
 
                 <Button
@@ -540,7 +542,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
                   onClick={() => setSelectedPrescription(null)}
                   className="h-9 px-3 text-xs font-bold border-border text-foreground rounded-xl"
                 >
-                  إغلاق
+                  {t('close', 'إغلاق')}
                 </Button>
               </div>
             </div>
@@ -568,7 +570,7 @@ export default function PatientDashboard({ params }: { params: Promise<{ slug: s
 
       {/* Standardized Copyright Footer */}
       <footer className="mt-12 text-center text-xs text-muted-foreground space-y-2">
-        <p>جميع الحقوق محفوظة YallaCodeX 2026</p>
+        <p>{t('copyright_text', 'جميع الحقوق محفوظة YallaCodeX 2026')}</p>
       </footer>
     </div>
   )

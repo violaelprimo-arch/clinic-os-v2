@@ -25,7 +25,7 @@ import { useLanguage } from '@/context/LanguageContext'
 export default function FinancePage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
-  const { t, dir } = useLanguage()
+  const { t, tDynamic, language, dir, isRtl } = useLanguage()
 
   const [clinic, setClinic] = useState<any>(null)
   const [branches, setBranches] = useState<any[]>([])
@@ -328,13 +328,13 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
             </h1>
             {selectedBranchId && selectedBranchId !== 'all' && (
               <Badge variant="outline" className="text-primary bg-primary/10 border-primary/20 font-bold">
-                <Building2 className="w-3.5 h-3.5 ml-1" />
-                {branches.find(b => b.id === selectedBranchId)?.name || 'فرع محدد'}
+                <Building2 className={`w-3.5 h-3.5 ${isRtl ? 'ml-1' : 'mr-1'}`} />
+                {tDynamic(branches.find(b => b.id === selectedBranchId)?.name) || (language === 'en' ? 'Selected Branch' : 'فرع محدد')}
               </Badge>
             )}
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
-            متابعة دقيقة للإيرادات اليومية والشهرية، تحليل الفروع، وتوزيع الخدمات وطرق الدفع
+            {language === 'en' ? 'Accurate monitoring of daily and monthly revenue, branch analysis, service breakdown, and payment methods' : 'متابعة دقيقة للإيرادات اليومية والشهرية، تحليل الفروع، وتوزيع الخدمات وطرق الدفع'}
           </p>
         </div>
 
@@ -345,8 +345,8 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
             onClick={handleExportExcel}
             className="h-10 text-xs font-bold border-border text-foreground hover:bg-secondary rounded-xl"
           >
-            <FileSpreadsheet className="w-4 h-4 ml-1.5 text-emerald-500" />
-            {t('export_excel', 'تصدير إكسيل كامل (.xlsx)')}
+            <FileSpreadsheet className={`w-4 h-4 ${isRtl ? 'ml-1.5' : 'mr-1.5'} text-emerald-500`} />
+            {t('export_excel_full', 'تصدير إكسيل كامل (.xlsx)')}
           </Button>
 
           {/* Professional A4 Multi-page Print via Isolated Iframe */}
@@ -354,8 +354,8 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
             onClick={handlePrintFinancialReport}
             className="h-10 text-xs font-bold yalla-gradient-btn rounded-xl shadow-xs"
           >
-            <Printer className="w-4 h-4 ml-1.5" />
-            طباعة تقرير A4 معتمد
+            <Printer className={`w-4 h-4 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
+            {t('print_a4_report', 'طباعة تقرير A4 معتمد')}
           </Button>
         </div>
       </div>
@@ -364,7 +364,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
       <div className="yalla-card p-4 border border-border">
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
           <div className="space-y-1">
-            <Label className="text-xs font-bold text-muted-foreground">من تاريخ</Label>
+            <Label className="text-xs font-bold text-muted-foreground">{t('from_date', 'من تاريخ')}</Label>
             <Input
               type="date"
               value={fromDate}
@@ -374,7 +374,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
           </div>
 
           <div className="space-y-1">
-            <Label className="text-xs font-bold text-muted-foreground">إلى تاريخ</Label>
+            <Label className="text-xs font-bold text-muted-foreground">{t('to_date', 'إلى تاريخ')}</Label>
             <Input
               type="date"
               value={toDate}
@@ -384,15 +384,15 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
           </div>
 
           <div className="space-y-1">
-            <Label className="text-xs font-bold text-muted-foreground">تصفية حسب الفرع</Label>
+            <Label className="text-xs font-bold text-muted-foreground">{t('filter_by_branch', 'تصفية حسب الفرع')}</Label>
             <select
               value={selectedBranchId}
               onChange={e => setSelectedBranchId(e.target.value)}
               className="w-full h-10 px-3 rounded-xl border border-border text-xs font-bold text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
             >
-              <option value="all">جميع الفروع</option>
+              <option value="all">{t('all_branches', 'جميع الفروع')}</option>
               {branches.map(b => (
-                <option key={b.id} value={b.id}>{b.name} {b.isMain ? '(الرئيسي)' : ''}</option>
+                <option key={b.id} value={b.id}>{tDynamic(b.name)} {b.isMain ? (language === 'en' ? '(Main)' : '(الرئيسي)') : ''}</option>
               ))}
             </select>
           </div>
@@ -402,7 +402,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
             disabled={isLoading}
             className="w-full h-10 px-6 font-bold yalla-gradient-btn rounded-xl text-xs"
           >
-            {isLoading ? 'جاري التحميل...' : 'تحديث التقرير'}
+            {isLoading ? t('loading', 'جاري التحميل...') : t('update_report', 'تحديث التقرير')}
           </Button>
         </div>
       </div>
@@ -411,45 +411,45 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Card 1: Total Revenue */}
         <div className="yalla-card p-5 border border-border">
-          <p className="text-xs font-bold text-muted-foreground mb-1">{t('total_revenue', 'إجمالي المبيعات')}</p>
+          <p className="text-xs font-bold text-muted-foreground mb-1">{t('total_sales', 'إجمالي المبيعات')}</p>
           <h3 className="text-2xl font-black text-foreground">
             {totals.revenue.toLocaleString()} <span className="text-sm font-bold text-muted-foreground">{t('currency_egp', 'ج.م')}</span>
           </h3>
-          <span className="text-[11px] font-semibold text-primary mt-1 inline-block">القيمة الإجمالية</span>
+          <span className="text-[11px] font-semibold text-primary mt-1 inline-block">{t('total_value', 'القيمة الإجمالية')}</span>
         </div>
 
         {/* Card 2: Operations Count */}
         <div className="yalla-card p-5 border border-border">
-          <p className="text-xs font-bold text-muted-foreground mb-1">عدد العمليات</p>
+          <p className="text-xs font-bold text-muted-foreground mb-1">{t('operations_count', 'عدد العمليات')}</p>
           <h3 className="text-2xl font-black text-primary">{totals.patients}</h3>
-          <span className="text-[11px] font-semibold text-muted-foreground mt-1 inline-block">زيارة مسجلة</span>
+          <span className="text-[11px] font-semibold text-muted-foreground mt-1 inline-block">{t('registered_visit', 'زيارة مسجلة')}</span>
         </div>
 
         {/* Card 3: Collected */}
         <div className="yalla-card p-5 border border-border">
-          <p className="text-xs font-bold text-muted-foreground mb-1">تم التحصيل</p>
+          <p className="text-xs font-bold text-muted-foreground mb-1">{t('collected', 'تم التحصيل')}</p>
           <h3 className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
             {totals.collected.toLocaleString()} <span className="text-sm font-bold text-muted-foreground">{t('currency_egp', 'ج.م')}</span>
           </h3>
-          <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 mt-1 inline-block">مبالغ مستلمة</span>
+          <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 mt-1 inline-block">{t('received_amounts', 'مبالغ مستلمة')}</span>
         </div>
 
         {/* Card 4: Due */}
         <div className="yalla-card p-5 border border-border">
-          <p className="text-xs font-bold text-muted-foreground mb-1">مستحق / آجل</p>
+          <p className="text-xs font-bold text-muted-foreground mb-1">{t('due_or_deferred', 'مستحق / آجل')}</p>
           <h3 className="text-2xl font-black text-rose-600 dark:text-rose-400">
             {totals.due.toLocaleString()} <span className="text-sm font-bold text-muted-foreground">{t('currency_egp', 'ج.م')}</span>
           </h3>
-          <span className="text-[11px] font-semibold text-rose-500 mt-1 inline-block">بانتظار التحصيل</span>
+          <span className="text-[11px] font-semibold text-rose-500 mt-1 inline-block">{t('due_amounts', 'بانتظار التحصيل')}</span>
         </div>
 
         {/* Card 5: Discounts */}
         <div className="yalla-card p-5 col-span-2 lg:col-span-1 border border-border">
-          <p className="text-xs font-bold text-muted-foreground mb-1">إجمالي الخصومات</p>
+          <p className="text-xs font-bold text-muted-foreground mb-1">{t('total_discounts', 'إجمالي الخصومات')}</p>
           <h3 className="text-2xl font-black text-amber-600 dark:text-amber-400">
             {totals.discounts.toLocaleString()} <span className="text-sm font-bold text-muted-foreground">{t('currency_egp', 'ج.م')}</span>
           </h3>
-          <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 mt-1 inline-block">خصومات ممنوحة</span>
+          <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 mt-1 inline-block">{language === 'en' ? 'Discounts Granted' : 'خصومات ممنوحة'}</span>
         </div>
       </div>
 
@@ -461,10 +461,10 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
           <div className="flex items-center justify-between pb-3 border-b border-border">
             <div className="flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-primary" />
-              <h3 className="font-bold text-sm text-foreground">الإيرادات اليومية حسب أيام الأسبوع</h3>
+              <h3 className="font-bold text-sm text-foreground">{t('daily_breakdown', 'الإيرادات اليومية حسب أيام الأسبوع')}</h3>
             </div>
             <span className="text-xs font-bold text-muted-foreground">
-              متوسط يومي: {Math.round(totals.collected / 7).toLocaleString()} {t('currency_egp', 'ج.م')}
+              {language === 'en' ? 'Daily Average:' : 'متوسط يومي:'} {Math.round(totals.collected / 7).toLocaleString()} {t('currency_egp', 'ج.م')}
             </span>
           </div>
 
@@ -478,7 +478,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
                   style={{ height: `${Math.max(item.pct, 4)}%` }}
                   className="w-full max-w-[36px] bg-primary hover:bg-primary/90 rounded-t-xl transition-all relative group-hover:shadow-md group-hover:shadow-primary/20"
                 ></div>
-                <span className="text-[11px] font-bold text-muted-foreground mt-1">{item.day}</span>
+                <span className="text-[11px] font-bold text-muted-foreground mt-1">{tDynamic(item.day)}</span>
               </div>
             ))}
           </div>
@@ -490,17 +490,17 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
           {/* Card: Payment Methods Breakdown with Amounts */}
           <div className="yalla-card p-5 space-y-3 border border-border">
             <div className="flex items-center justify-between pb-2 border-b border-border">
-              <h3 className="font-bold text-xs text-foreground">طرق الدفع والتحصيل</h3>
-              <span className="text-[10px] font-bold text-muted-foreground">المبلغ والنسبة</span>
+              <h3 className="font-bold text-xs text-foreground">{t('payment_methods_distribution', 'طرق الدفع والتحصيل')}</h3>
+              <span className="text-[10px] font-bold text-muted-foreground">{language === 'en' ? 'Amount & Percentage' : 'المبلغ والنسبة'}</span>
             </div>
 
             <div className="space-y-3 pt-1">
               {paymentsData.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-4">لا توجد بيانات كافية</p>
+                <p className="text-xs text-muted-foreground text-center py-4">{language === 'en' ? 'No data available' : 'لا توجد بيانات كافية'}</p>
               ) : paymentsData.map((p, idx) => (
                 <div key={idx} className="space-y-1">
                   <div className="flex justify-between text-xs font-bold text-foreground">
-                    <span>{p.name}</span>
+                    <span>{tDynamic(p.name)}</span>
                     <span className="text-muted-foreground">
                       {p.amount?.toLocaleString()} {t('currency_egp', 'ج.م')} ({p.pct}%)
                     </span>
@@ -516,17 +516,17 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
           {/* Card: Most Requested Services */}
           <div className="yalla-card p-5 space-y-3 border border-border">
             <div className="flex items-center justify-between pb-2 border-b border-border">
-              <h3 className="font-bold text-xs text-foreground">الخدمات الأكثر طلباً</h3>
-              <span className="text-[10px] font-bold text-muted-foreground">النسبة المئوية</span>
+              <h3 className="font-bold text-xs text-foreground">{t('services_distribution', 'الخدمات الأكثر طلباً')}</h3>
+              <span className="text-[10px] font-bold text-muted-foreground">{language === 'en' ? 'Percentage' : 'النسبة المئوية'}</span>
             </div>
 
             <div className="space-y-2.5 pt-1">
               {servicesData.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-4">لا توجد بيانات كافية</p>
+                <p className="text-xs text-muted-foreground text-center py-4">{language === 'en' ? 'No data available' : 'لا توجد بيانات كافية'}</p>
               ) : servicesData.map((s, idx) => (
                 <div key={idx} className="space-y-1">
                   <div className="flex justify-between text-xs font-bold text-foreground">
-                    <span>{s.name}</span>
+                    <span>{tDynamic(s.name)}</span>
                     <span className="text-primary font-bold">{s.pct}%</span>
                   </div>
                   <div className="w-full h-2 rounded-full bg-secondary overflow-hidden">
@@ -548,22 +548,22 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
             <div className="flex items-center gap-2.5">
               <Building2 className="w-5 h-5 text-primary" />
               <div>
-                <h3 className="font-bold text-base text-foreground">مقارنة أداء الفروع</h3>
-                <p className="text-xs text-muted-foreground">توزيع الحجوزات والإيرادات والمتحصلات بين فروع العيادة</p>
+                <h3 className="font-bold text-base text-foreground">{t('branches_performance', 'مقارنة أداء الفروع')}</h3>
+                <p className="text-xs text-muted-foreground">{language === 'en' ? 'Distribution of bookings, revenues, and collections across clinic branches' : 'توزيع الحجوزات والإيرادات والمتحصلات بين فروع العيادة'}</p>
               </div>
             </div>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-right text-xs">
+            <table className={`w-full ${isRtl ? 'text-right' : 'text-left'} text-xs`}>
               <thead className="bg-secondary/60 border-b border-border text-muted-foreground font-bold select-none">
                 <tr>
-                  <th className="py-3 px-4">اسم الفرع</th>
-                  <th className="py-3 px-4 text-center">عدد الحجوزات</th>
-                  <th className="py-3 px-4">إجمالي المبيعات</th>
-                  <th className="py-3 px-4">المحصل</th>
-                  <th className="py-3 px-4">المستحق</th>
-                  <th className="py-3 px-4 text-center">نسبة التحصيل</th>
+                  <th className="py-3 px-4">{t('branch_name', 'اسم الفرع')}</th>
+                  <th className="py-3 px-4 text-center">{t('operations_count', 'عدد الحجوزات')}</th>
+                  <th className="py-3 px-4">{t('total_sales', 'إجمالي المبيعات')}</th>
+                  <th className="py-3 px-4">{t('collected', 'المحصل')}</th>
+                  <th className="py-3 px-4">{t('due_amounts', 'المستحق')}</th>
+                  <th className="py-3 px-4 text-center">{language === 'en' ? 'Collection Rate' : 'نسبة التحصيل'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -571,7 +571,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
                   const pct = b.revenue > 0 ? Math.round((b.collected / b.revenue) * 100) : 0
                   return (
                     <tr key={idx} className="hover:bg-secondary/40 transition-colors">
-                      <td className="py-3.5 px-4 font-bold text-foreground">{b.name}</td>
+                      <td className="py-3.5 px-4 font-bold text-foreground">{tDynamic(b.name)}</td>
                       <td className="py-3.5 px-4 text-center font-bold text-foreground">{b.bookingsCount}</td>
                       <td className="py-3.5 px-4 font-black text-foreground">{b.revenue.toLocaleString()} {t('currency_egp', 'ج.م')}</td>
                       <td className="py-3.5 px-4 font-bold text-emerald-600 dark:text-emerald-400">{b.collected.toLocaleString()} {t('currency_egp', 'ج.م')}</td>

@@ -12,6 +12,7 @@ import {
 } from '@/lib/printService'
 import { shareDocumentOrImage } from '@/lib/whatsappShare'
 import { downloadElementAsPdf, downloadElementAsImage, renderElementToImageBlob } from '@/lib/pdfGenerator'
+import { useLanguage } from '@/context/LanguageContext'
 import { toast } from 'sonner'
 
 export function ThermalReceiptModal({
@@ -23,6 +24,7 @@ export function ThermalReceiptModal({
   isOpen: boolean
   onClose: () => void
 }) {
+  const { t, isRtl, dir } = useLanguage()
   const receiptRef = useRef<HTMLDivElement>(null)
   const [isProcessing, setIsProcessing] = useState(false)
 
@@ -31,7 +33,7 @@ export function ThermalReceiptModal({
   const handlePrint = () => {
     const html = generateThermalReceiptHtml(data)
     printHtmlViaIframe(html)
-    toast.success('تم إرسال الفاتورة للطابعة الحرارية (80mm)')
+    toast.success(isRtl ? 'تم إرسال الفاتورة للطابعة الحرارية (80mm)' : 'Thermal receipt sent to printer (80mm)')
   }
 
   const handleDownloadPdf = async () => {
@@ -40,13 +42,13 @@ export function ThermalReceiptModal({
     try {
       await downloadElementAsPdf(
         receiptRef.current,
-        `فاتورة_${data.patientName}_${data.invoiceNumber || 'receipt'}.pdf`,
+        `Invoice_${data.patientName}_${data.invoiceNumber || 'receipt'}.pdf`,
         { format: 'thermal', scale: 2.5 }
       )
-      toast.success('تم تنزيل الفاتورة بصيغة PDF بنجاح')
+      toast.success(isRtl ? 'تم تنزيل الفاتورة بصيغة PDF بنجاح' : 'Invoice downloaded as PDF')
     } catch (err) {
       console.error(err)
-      toast.error('تعذر تنزيل الفاتورة بصيغة PDF')
+      toast.error(isRtl ? 'تعذر تنزيل الفاتورة بصيغة PDF' : 'Failed to download PDF')
     } finally {
       setIsProcessing(false)
     }
@@ -58,13 +60,13 @@ export function ThermalReceiptModal({
     try {
       await downloadElementAsImage(
         receiptRef.current,
-        `فاتورة_${data.patientName}_${data.invoiceNumber || 'receipt'}.png`,
+        `Invoice_${data.patientName}_${data.invoiceNumber || 'receipt'}.png`,
         { scale: 2.5 }
       )
-      toast.success('تم تنزيل صورة الفاتورة (PNG) بنجاح')
+      toast.success(isRtl ? 'تم تنزيل صورة الفاتورة (PNG) بنجاح' : 'Invoice downloaded as PNG')
     } catch (err) {
       console.error(err)
-      toast.error('تعذر تنزيل صورة الفاتورة')
+      toast.error(isRtl ? 'تعذر تنزيل صورة الفاتورة' : 'Failed to download image')
     } finally {
       setIsProcessing(false)
     }
@@ -72,13 +74,13 @@ export function ThermalReceiptModal({
 
   const handleSendWhatsApp = async () => {
     if (!data.patientPhone) {
-      toast.error('رقم هاتف المريض غير مسجل')
+      toast.error(isRtl ? 'رقم هاتف المريض غير مسجل' : 'Patient phone number is not available')
       return
     }
 
     setIsProcessing(true)
     try {
-      toast.info('جاري تجهيز صورة الفاتورة ومشاركتها...')
+      toast.info(isRtl ? 'جاري تجهيز صورة الفاتورة ومشاركتها...' : 'Preparing invoice image for sharing...')
       let blob: Blob | null = null
 
       if (receiptRef.current) {
@@ -86,16 +88,18 @@ export function ThermalReceiptModal({
         blob = res.blob
       }
 
-      const msg = `مرحباً ${data.patientName}،\nفاتورتك من عيادة ${data.clinicName} ${data.branchName ? `(فرع ${data.branchName})` : ''}:\n- رقم الفاتورة: ${data.invoiceNumber}\n- الخدمة: ${data.serviceName}\n- المبلغ المطلوب: ${data.netPrice} ج.م\n- حالة الدفع: ${data.paymentStatus === 'paid' ? 'مدفوع ومؤكد' : 'في انتظار التأكيد'}\nنتمنى لكم دوام الصحة والعافية.`
+      const msg = isRtl
+        ? `مرحباً ${data.patientName}،\nفاتورتك من عيادة ${data.clinicName} ${data.branchName ? `(فرع ${data.branchName})` : ''}:\n- رقم الفاتورة: ${data.invoiceNumber}\n- الخدمة: ${data.serviceName}\n- المبلغ المطلوب: ${data.netPrice} ج.م\n- حالة الدفع: ${data.paymentStatus === 'paid' ? 'مدفوع ومؤكد' : 'في انتظار التأكيد'}\nنتمنى لكم دوام الصحة والعافية.`
+        : `Hello ${data.patientName},\nYour invoice from ${data.clinicName} ${data.branchName ? `(Branch ${data.branchName})` : ''}:\n- Invoice No: ${data.invoiceNumber}\n- Service: ${data.serviceName}\n- Amount: ${data.netPrice} EGP\n- Payment: ${data.paymentStatus === 'paid' ? 'Paid & Confirmed' : 'Pending Confirmation'}\nWishing you good health.`
 
       if (blob) {
         await shareDocumentOrImage({
           blob,
-          fileName: `فاتورة_${data.patientName}_${data.invoiceNumber || 'receipt'}.png`,
+          fileName: `Invoice_${data.patientName}_${data.invoiceNumber || 'receipt'}.png`,
           fileType: 'image',
           recipientPhone: data.patientPhone,
           messageText: msg,
-          documentTitle: 'فاتورة الكشف'
+          documentTitle: isRtl ? 'فاتورة الكشف' : 'Medical Invoice'
         })
       } else {
         // Fallback text
@@ -103,34 +107,36 @@ export function ThermalReceiptModal({
       }
     } catch (err) {
       console.error(err)
-      toast.error('تعذر إرسال الفاتورة عبر واتساب')
+      toast.error(isRtl ? 'تعذر إرسال الفاتورة عبر واتساب' : 'Failed to share invoice via WhatsApp')
     } finally {
       setIsProcessing(false)
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in" dir="rtl">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in" dir={dir}>
+      <div className="bg-card text-card-foreground rounded-3xl shadow-2xl border border-border w-full max-w-md overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+        <div className="p-4 border-b border-border flex items-center justify-between bg-muted/40">
           <div className="flex items-center gap-2">
-            <Receipt className="w-5 h-5 text-[#087CF4]" />
-            <h3 className="font-black text-sm text-[#182230]">فاتورة كشف حرارية (80mm)</h3>
+            <Receipt className="w-5 h-5 text-primary" />
+            <h3 className="font-black text-sm text-foreground">
+              {t('thermal_receipt_title', isRtl ? 'فاتورة كشف حرارية (80mm)' : 'Thermal Receipt (80mm)')}
+            </h3>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-200/60 transition-colors"
+            className="text-muted-foreground hover:text-foreground p-1.5 rounded-lg hover:bg-muted transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* 80mm Preview Scrollable Box */}
-        <div className="overflow-y-auto p-4 sm:p-5 bg-slate-100 flex justify-center flex-1">
+        <div className="overflow-y-auto p-4 sm:p-5 bg-muted/20 flex justify-center flex-1">
           <div
             ref={receiptRef}
-            className="w-[290px] bg-white p-4 rounded-xl shadow-md border border-slate-200 font-sans text-xs space-y-3 text-right text-black"
+            className={`w-[290px] bg-white p-4 rounded-xl shadow-md border border-slate-200 font-sans text-xs space-y-3 ${isRtl ? 'text-right' : 'text-left'} text-black`}
           >
             {/* Clinic Name & Branch */}
             <div className="text-center pb-2 border-b border-dashed border-black">
@@ -144,39 +150,43 @@ export function ThermalReceiptModal({
               <h4 className="font-black text-base">{data.clinicName}</h4>
               {data.branchName && (
                 <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold border border-black my-1">
-                  فرع {data.branchName}
+                  {isRtl ? 'فرع ' : 'Branch '}{data.branchName}
                 </span>
               )}
               {data.clinicAddress && <p className="text-[10px] text-slate-600">{data.clinicAddress}</p>}
-              {data.clinicPhone && <p className="text-[10px] text-slate-600">ت: {data.clinicPhone}</p>}
+              {data.clinicPhone && <p className="text-[10px] text-slate-600">Tel: {data.clinicPhone}</p>}
             </div>
 
             {/* Big Queue Number */}
             {data.queueNumber !== undefined && data.queueNumber !== null && data.queueNumber !== '' && (
               <div className="border-2 border-black rounded-xl p-2.5 text-center bg-slate-50 my-1">
-                <span className="text-[10px] font-bold text-slate-600 block">رقم الدور في الانتظار</span>
+                <span className="text-[10px] font-bold text-slate-600 block">
+                  {isRtl ? 'رقم الدور في الانتظار' : 'Queue Turn Number'}
+                </span>
                 <span className="text-4xl font-black block tracking-tight font-mono my-0.5">#{data.queueNumber}</span>
-                <span className="text-[9px] text-slate-500 block">الرجاء متابعة شاشة النداء الآلي بالعيادة</span>
+                <span className="text-[9px] text-slate-500 block">
+                  {isRtl ? 'الرجاء متابعة شاشة النداء الآلي بالعيادة' : 'Please follow the automated queue calling screen'}
+                </span>
               </div>
             )}
 
             {/* Meta */}
             <div className="space-y-1 pb-2 border-b border-dashed border-black text-[11px]">
               <div className="flex justify-between">
-                <span className="text-slate-600">رقم الفاتورة:</span>
+                <span className="text-slate-600">{t('invoice_no', isRtl ? 'رقم الفاتورة:' : 'Invoice No:')}</span>
                 <span className="font-bold font-mono">{data.invoiceNumber}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-600">التاريخ:</span>
+                <span className="text-slate-600">{t('date', isRtl ? 'التاريخ:' : 'Date:')}</span>
                 <span>{data.date} {data.time || ''}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-600">المريض:</span>
+                <span className="text-slate-600">{t('patient', isRtl ? 'المريض:' : 'Patient:')}</span>
                 <span className="font-bold">{data.patientName}</span>
               </div>
               {data.patientPhone && (
                 <div className="flex justify-between">
-                  <span className="text-slate-600">الهاتف:</span>
+                  <span className="text-slate-600">{t('phone', isRtl ? 'الهاتف:' : 'Phone:')}</span>
                   <span className="font-mono">{data.patientPhone}</span>
                 </div>
               )}
@@ -186,51 +196,51 @@ export function ThermalReceiptModal({
             <div className="space-y-1.5 pb-2 border-b border-dashed border-black text-[11px]">
               <div className="flex justify-between font-bold">
                 <span>{data.serviceName}</span>
-                <span>{data.originalPrice} ج.م</span>
+                <span>{data.originalPrice} {isRtl ? 'ج.م' : 'EGP'}</span>
               </div>
               {data.discountAmount ? (
                 <div className="flex justify-between text-rose-600">
-                  <span>الخصم:</span>
-                  <span>- {data.discountAmount} ج.م</span>
+                  <span>{t('discount', isRtl ? 'الخصم:' : 'Discount:')}</span>
+                  <span>- {data.discountAmount} {isRtl ? 'ج.م' : 'EGP'}</span>
                 </div>
               ) : null}
               <div className="flex justify-between text-sm font-black pt-1 border-t border-black">
-                <span>الإجمالي الصافي:</span>
-                <span>{data.netPrice} ج.م</span>
+                <span>{t('net_total', isRtl ? 'الإجمالي الصافي:' : 'Net Total:')}</span>
+                <span>{data.netPrice} {isRtl ? 'ج.م' : 'EGP'}</span>
               </div>
             </div>
 
             {/* Payment Info */}
             <div className="bg-slate-50 p-2 rounded border border-slate-300 text-[11px] space-y-1">
               <div className="flex justify-between">
-                <span>طريقة الدفع:</span>
+                <span>{t('payment_method', isRtl ? 'طريقة الدفع:' : 'Payment Method:')}</span>
                 <span className="font-bold">
                   {data.paymentMethod === 'instapay'
                     ? 'InstaPay'
                     : data.paymentMethod === 'wallet'
-                    ? 'محفظة إلكترونية'
-                    : 'نقداً بالعيادة'}
+                    ? (isRtl ? 'محفظة إلكترونية' : 'Smart Wallet')
+                    : (isRtl ? 'نقداً بالعيادة' : 'Cash')}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span>حالة الدفع:</span>
+                <span>{t('payment_status', isRtl ? 'حالة الدفع:' : 'Payment Status:')}</span>
                 <span className="font-bold text-emerald-700">
                   {data.paymentStatus === 'paid'
-                    ? '● مدفوع ومؤكد'
+                    ? (isRtl ? '● مدفوع ومؤكد' : '● Paid & Confirmed')
                     : data.paymentStatus === 'pending_verification'
-                    ? '○ بانتظار التأكيد'
-                    : '○ غير محصل'}
+                    ? (isRtl ? '○ بانتظار التأكيد' : '○ Pending Confirmation')
+                    : (isRtl ? '○ غير محصل' : '○ Unpaid')}
                 </span>
               </div>
               {data.transferNumber && (
                 <div className="flex justify-between">
-                  <span>رقم التحويل:</span>
+                  <span>{isRtl ? 'رقم التحويل:' : 'Ref No:'}</span>
                   <span className="font-mono">{data.transferNumber}</span>
                 </div>
               )}
               {data.confirmedBy && (
                 <div className="flex justify-between text-[10px] text-slate-500">
-                  <span>المستلم:</span>
+                  <span>{isRtl ? 'المستلم:' : 'Receiver:'}</span>
                   <span>{data.confirmedBy}</span>
                 </div>
               )}
@@ -238,14 +248,14 @@ export function ThermalReceiptModal({
 
             {/* Footer */}
             <div className="text-center pt-2 text-[10px] text-slate-500 space-y-1">
-              <p className="font-bold text-black">{data.footerNote || 'نتمنى لكم دوام الصحة والعافية'}</p>
-              <p>Yalla Clinic • جميع الحقوق محفوظة YallaCodeX 2026</p>
+              <p className="font-bold text-black">{data.footerNote || (isRtl ? 'نتمنى لكم دوام الصحة والعافية' : 'Wishing you good health')}</p>
+              <p>Yalla Clinic • {t('copyright_text', 'جميع الحقوق محفوظة YallaCodeX 2026')}</p>
             </div>
           </div>
         </div>
 
         {/* Action Buttons Toolbar */}
-        <div className="p-3 sm:p-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-white">
+        <div className="p-3 sm:p-4 border-t border-border flex flex-wrap items-center justify-between gap-2 bg-card">
           <div className="flex items-center gap-1.5 flex-wrap">
             {/* WhatsApp Share as Image */}
             <Button
@@ -253,11 +263,11 @@ export function ThermalReceiptModal({
               size="sm"
               onClick={handleSendWhatsApp}
               disabled={isProcessing}
-              className="h-9 px-3 text-xs font-bold text-emerald-700 border-emerald-300 hover:bg-emerald-50 rounded-xl"
-              title="مشاركة صورة الفاتورة عبر واتساب"
+              className="h-9 px-3 text-xs font-bold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 rounded-xl"
+              title={isRtl ? 'مشاركة صورة الفاتورة عبر واتساب' : 'Share receipt image on WhatsApp'}
             >
-              {isProcessing ? <Loader2 className="w-3.5 h-3.5 animate-spin ml-1" /> : <Share2 className="w-3.5 h-3.5 ml-1" />}
-              واتساب
+              {isProcessing ? <Loader2 className={`w-3.5 h-3.5 animate-spin ${isRtl ? 'ml-1' : 'mr-1'}`} /> : <Share2 className={`w-3.5 h-3.5 ${isRtl ? 'ml-1' : 'mr-1'}`} />}
+              {t('send_whatsapp_btn', isRtl ? 'واتساب' : 'WhatsApp')}
             </Button>
 
             {/* Download as Image */}
@@ -266,11 +276,11 @@ export function ThermalReceiptModal({
               size="sm"
               onClick={handleDownloadImage}
               disabled={isProcessing}
-              className="h-9 px-2.5 text-xs font-bold text-slate-600 border-slate-300 hover:bg-slate-50 rounded-xl"
-              title="تنزيل الفاتورة كصورة PNG"
+              className="h-9 px-2.5 text-xs font-bold text-foreground border-border hover:bg-muted/40 rounded-xl"
+              title={isRtl ? 'تنزيل الفاتورة كصورة PNG' : 'Download receipt as PNG'}
             >
-              <ImageIcon className="w-3.5 h-3.5 ml-1" />
-              صورة
+              <ImageIcon className={`w-3.5 h-3.5 ${isRtl ? 'ml-1' : 'mr-1'}`} />
+              {t('image_btn', isRtl ? 'صورة' : 'Image')}
             </Button>
 
             {/* Download as PDF */}
@@ -279,10 +289,10 @@ export function ThermalReceiptModal({
               size="sm"
               onClick={handleDownloadPdf}
               disabled={isProcessing}
-              className="h-9 px-2.5 text-xs font-bold text-slate-600 border-slate-300 hover:bg-slate-50 rounded-xl"
-              title="تنزيل الفاتورة بصيغة PDF"
+              className="h-9 px-2.5 text-xs font-bold text-foreground border-border hover:bg-muted/40 rounded-xl"
+              title={isRtl ? 'تنزيل الفاتورة بصيغة PDF' : 'Download receipt as PDF'}
             >
-              <FileText className="w-3.5 h-3.5 ml-1" />
+              <FileText className={`w-3.5 h-3.5 ${isRtl ? 'ml-1' : 'mr-1'}`} />
               PDF
             </Button>
           </div>
@@ -292,8 +302,8 @@ export function ThermalReceiptModal({
             onClick={handlePrint}
             className="h-9 px-4 yalla-gradient-btn text-white font-bold rounded-xl shadow-md text-xs shrink-0 transition-colors"
           >
-            <Printer className="w-4 h-4 ml-1.5" />
-            طباعة (80mm)
+            <Printer className={`w-4 h-4 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
+            {t('print_80mm', isRtl ? 'طباعة (80mm)' : 'Print (80mm)')}
           </Button>
         </div>
       </div>
