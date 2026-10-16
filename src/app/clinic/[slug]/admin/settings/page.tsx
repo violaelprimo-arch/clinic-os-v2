@@ -11,7 +11,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   Save, Plus, Trash2, Palette, Phone, MapPin, Bot,
   Wallet, Users, Clock, Printer, ShieldCheck, Settings, Lock,
-  CheckCircle2, Bell, Sparkles, Building2, Copy, ExternalLink
+  CheckCircle2, Bell, Sparkles, Building2, Copy, ExternalLink,
+  Monitor, Smartphone, User
 } from 'lucide-react'
 import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 import { db } from '@/lib/firebase'
@@ -52,6 +53,9 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const [heroSubtitle, setHeroSubtitle] = useState('')
   const [certificationTitle, setCertificationTitle] = useState('')
   const [certificationEntity, setCertificationEntity] = useState('')
+  const [experienceYears, setExperienceYears] = useState<number | string>(10)
+  const [doctorRating, setDoctorRating] = useState('4.9')
+  const [previewDevice, setPreviewDevice] = useState<'desktop' | 'mobile'>('desktop')
   
   useEffect(() => {
     setCurrentRole(localStorage.getItem('clinic_role') || 'doctor');
@@ -146,6 +150,8 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           setHeroSubtitle(data.heroSubtitle || '')
           setCertificationTitle(data.certificationTitle || '')
           setCertificationEntity(data.certificationEntity || '')
+          setExperienceYears(data.experienceYears !== undefined ? data.experienceYears : 10)
+          setDoctorRating(data.doctorRating || '4.9')
           setLogoUrl(data.logoUrl || '')
           setThermalMonoLogoUrl(data.thermalMonoLogoUrl || '')
           setSlogan(data.slogan || '')
@@ -224,6 +230,9 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         heroSubtitle: heroSubtitle || '',
         certificationTitle: certificationTitle || '',
         certificationEntity: certificationEntity || '',
+        heroImage: photoUrl || '',
+        experienceYears: Number(experienceYears) || 10,
+        doctorRating: doctorRating || '4.9',
         ...(canEditBranding ? {
           logoUrl: logoUrl || '',
           thermalMonoLogoUrl: thermalMonoLogoUrl || '',
@@ -703,225 +712,405 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       {/* TAB 1: Profile & Visual Identity */}
       {activeTab === 'profile' && (
         <div className="space-y-6">
-          <div className="grid lg:grid-cols-2 gap-6">
+          <div className="grid lg:grid-cols-2 gap-6 items-start">
             {/* Form Side */}
             <div className="yalla-card p-6 space-y-5">
               <div className="pb-3 border-b border-border">
                 <h3 className="font-bold text-sm text-foreground">{t('general_clinic_data', 'البيانات العامة للعيادة')}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{t('general_clinic_desc', 'تخصيص بيانات الطبيب والعيادة التي تظهر للمرضى في الصفحة الرئيسية')}</p>
               </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-muted-foreground">{t('clinic_name', 'اسم العيادة')}</Label>
-              <Input
-                value={clinicName}
-                onChange={e => setClinicName(e.target.value)}
-                placeholder={t('clinic_name', 'عيادة الأمل التخصصية')}
-                className="h-10 text-xs rounded-xl"
-              />
-            </div>
+              {/* Doctor Photo Section */}
+              <div className="p-4 rounded-2xl bg-muted/40 border border-border space-y-3">
+                <Label className="text-xs font-bold text-foreground flex items-center gap-2">
+                  <User className="w-4 h-4 text-primary" />
+                  {t('doctor_photo_label', 'صورة الطبيب (تظهر في الواجهة الرئيسية والمعاينة الحية)')}
+                </Label>
+                <div className="flex items-center gap-4">
+                  <div className="relative w-16 h-16 rounded-2xl overflow-hidden border-2 border-primary/30 shadow-xs shrink-0 bg-muted">
+                    <img
+                      src={photoUrl || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=400&auto=format&fit=crop'}
+                      alt="Doctor Preview"
+                      className="w-full h-full object-cover object-top"
+                    />
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    <Input
+                      value={photoUrl}
+                      onChange={e => setPhotoUrl(e.target.value)}
+                      placeholder="https://example.com/doctor-photo.jpg"
+                      className="h-10 text-xs rounded-xl font-mono text-left"
+                      dir="ltr"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      {t('doctor_photo_hint', 'ضع رابط مباشر لصورة الطبيب (PNG أو JPG). تنعكس فوراً في المعاينة الحية.')}
+                    </p>
+                  </div>
+                </div>
+              </div>
 
-            <div className="grid sm:grid-cols-2 gap-4">
-              
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-muted-foreground">{t('treating_doctor_name', 'اسم الطبيب المعالج')}</Label>
-                <div className="flex gap-2">
-                  <select
-                    value={doctorTitle}
-                    onChange={e => setDoctorTitle(e.target.value)}
-                    className="h-10 text-xs rounded-xl border border-border px-2 bg-background text-foreground w-24"
-                  >
-                    <option value="د.">{tDynamic('د.')}</option>
-                    <option value="أ.د.">{tDynamic('أ.د.')}</option>
-                    <option value="دكتورة">{tDynamic('دكتورة')}</option>
-                    <option value="استشاري">{tDynamic('استشاري')}</option>
-                    <option value="طبيب">{tDynamic('طبيب')}</option>
-                    <option value="">{tDynamic('بدون لقب')}</option>
-                  </select>
+                <Label className="text-xs font-bold text-muted-foreground">{t('clinic_name', 'اسم العيادة')}</Label>
+                <Input
+                  value={clinicName}
+                  onChange={e => setClinicName(e.target.value)}
+                  placeholder={t('clinic_name', 'عيادة د. أحمد عبد العزيز')}
+                  className="h-10 text-xs rounded-xl"
+                />
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-muted-foreground">{t('treating_doctor_name', 'اسم الطبيب المعالج')}</Label>
+                  <div className="flex gap-2">
+                    <select
+                      value={doctorTitle}
+                      onChange={e => setDoctorTitle(e.target.value)}
+                      className="h-10 text-xs rounded-xl border border-border px-2 bg-background text-foreground w-24 shrink-0"
+                    >
+                      <option value="د.">{tDynamic('د.')}</option>
+                      <option value="أ.د.">{tDynamic('أ.د.')}</option>
+                      <option value="دكتورة">{tDynamic('دكتورة')}</option>
+                      <option value="استشاري">{tDynamic('استشاري')}</option>
+                      <option value="طبيب">{tDynamic('طبيب')}</option>
+                      <option value="">{tDynamic('بدون لقب')}</option>
+                    </select>
+                    <Input
+                      value={doctorName}
+                      onChange={e => setDoctorName(e.target.value)}
+                      placeholder={t('doctor', 'أحمد عبد العزيز')}
+                      className="h-10 text-xs rounded-xl flex-1"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-muted-foreground">{t('specialty_and_title', 'التخصص والمسمى')}</Label>
                   <Input
-                    value={doctorName}
-                    onChange={e => setDoctorName(e.target.value)}
-                    placeholder={t('doctor', 'الطبيب')}
-                    className="h-10 text-xs rounded-xl flex-1"
+                    value={specialty}
+                    onChange={e => setSpecialty(e.target.value)}
+                    placeholder={t('specialty', 'استشاري الطب الباطني والجهاز الهضمي')}
+                    className="h-10 text-xs rounded-xl"
                   />
                 </div>
               </div>
 
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-muted-foreground">{t('certification_title_label', 'اللقب / الاعتماد (يظهر على صورة الطبيب)')}</Label>
+                  <Input
+                    value={certificationTitle}
+                    onChange={e => setCertificationTitle(e.target.value)}
+                    placeholder={t('certified_doctor', 'طبيب معتمد رسمياً')}
+                    className="h-10 text-xs rounded-xl"
+                  />
+                </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-muted-foreground">{t('specialty_and_title', 'التخصص والمسمى')}</Label>
-                <Input
-                  value={specialty}
-                  onChange={e => setSpecialty(e.target.value)}
-                  placeholder={t('specialty', 'استشاري الطب الباطني والجهاز الهضمي')}
-                  className="h-10 text-xs rounded-xl"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-muted-foreground">{t('certification_title_label', 'اللقب / الاعتماد (يظهر على صورة الطبيب)')}</Label>
-                <Input
-                  value={certificationTitle}
-                  onChange={e => setCertificationTitle(e.target.value)}
-                  placeholder={t('certified_doctor', 'طبيب معتمد رسمياً')}
-                  className="h-10 text-xs rounded-xl"
-                />
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-muted-foreground">{t('certification_entity_label', 'الجهة المانحة (النقابة / الزمالة)')}</Label>
+                  <Input
+                    value={certificationEntity}
+                    onChange={e => setCertificationEntity(e.target.value)}
+                    placeholder="Egyptian Medical Syndicate"
+                    className="h-10 text-xs rounded-xl"
+                  />
+                </div>
               </div>
 
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-muted-foreground">{t('experience_years_label', 'سنوات الخبرة (تظهر في البادج العائم على الصورة)')}</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={60}
+                    value={experienceYears}
+                    onChange={e => setExperienceYears(e.target.value)}
+                    placeholder="10"
+                    className="h-10 text-xs rounded-xl font-bold"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-muted-foreground">{t('doctor_rating_label', 'تقييم الطبيب (يظهر على كارت الطبيب)')}</Label>
+                  <Input
+                    value={doctorRating}
+                    onChange={e => setDoctorRating(e.target.value)}
+                    placeholder="4.9"
+                    className="h-10 text-xs rounded-xl font-bold"
+                  />
+                </div>
+              </div>
+
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-muted-foreground">{t('certification_entity_label', 'الجهة المانحة (النقابة / الزمالة)')}</Label>
-                <Input
-                  value={certificationEntity}
-                  onChange={e => setCertificationEntity(e.target.value)}
-                  placeholder="Egyptian Medical Syndicate"
-                  className="h-10 text-xs rounded-xl"
+                <Label className="text-xs font-bold text-muted-foreground">{t('doctor_bio_label', 'نبذة تعريفية (تظهر للمرضى في الواجهة)')}</Label>
+                <Textarea
+                  value={heroSubtitle}
+                  onChange={e => setHeroSubtitle(e.target.value)}
+                  placeholder="نقدم لك ولأسرتك رعاية صحية متكاملة تعتمد على أحدث التقنيات وأفضل الكوادر الطبية المتخصصة..."
+                  className="text-xs rounded-xl h-24 leading-relaxed"
                 />
               </div>
-            </div>
 
-            <Label className="text-xs font-bold text-muted-foreground">{t('doctor_bio_label', 'نبذة تعريفية (تظهر للمرضى)')}</Label>
-              <Textarea
-                value={heroSubtitle}
-                onChange={e => setHeroSubtitle(e.target.value)}
-                placeholder="نقدم لك ولأسرتك رعاية طبية متكاملة..."
-                className="text-xs rounded-xl h-24"
-              />
-            </div>
-
-            
-            <div className="space-y-1.5">
+              <div className="space-y-1.5">
                 <Label className="text-xs font-bold text-muted-foreground">{t('system_primary_color', 'اللون الرئيسي للنظام')}</Label>
                 <div className="flex items-center gap-3">
                   <input
                     type="color"
                     value={primaryColor}
                     onChange={e => setPrimaryColor(e.target.value)}
-                    className="w-10 h-10 rounded-xl cursor-pointer border border-border p-0.5 bg-background"
+                    className="w-10 h-10 rounded-xl cursor-pointer border border-border p-0.5 bg-background shrink-0"
                   />
-                  <span className="font-mono text-sm text-muted-foreground">{primaryColor}</span>
+                  <Input
+                    value={primaryColor}
+                    onChange={e => setPrimaryColor(e.target.value)}
+                    className="h-10 w-32 font-mono text-xs rounded-xl text-left"
+                    dir="ltr"
+                  />
                 </div>
               </div>
 
+              <div className="grid sm:grid-cols-2 gap-4 pt-1">
+                <div className="space-y-1.5 p-3 rounded-xl bg-muted/30 border border-border">
+                  <Label className="text-xs font-bold text-muted-foreground">{t('clinic_status_toggle', 'حالة العيادة (مفتوحة / مغلقة)')}</Label>
+                  <div className="flex items-center gap-2 pt-1">
+                    <Switch checked={isClinicOpen} onCheckedChange={setIsClinicOpen} />
+                    <span className="text-xs text-foreground font-bold">{isClinicOpen ? t('clinic_open_accepting', 'العيادة تستقبل حجوزات') : t('clinic_closed_now', 'العيادة مغلقة حالياً')}</span>
+                  </div>
+                </div>
 
-            <div className="space-y-1.5 pt-2">
-              <Label className="text-xs font-bold text-muted-foreground">{t('clinic_status_toggle', 'حالة العيادة (مفتوحة / مغلقة)')}</Label>
-              <div className="flex items-center gap-2">
-                <Switch checked={isClinicOpen} onCheckedChange={setIsClinicOpen} />
-                <span className="text-sm text-foreground font-bold">{isClinicOpen ? t('clinic_open_accepting', 'العيادة تستقبل حجوزات') : t('clinic_closed_now', 'العيادة مغلقة حالياً')}</span>
-              </div>
-            </div>
-
-            <div className="space-y-1.5 pt-2">
-              <Label className="text-xs font-bold text-muted-foreground">{t('show_prices_to_patients', 'إظهار أسعار الكشوفات للمرضى')}</Label>
-              <div className="flex items-center gap-2">
-                <Switch checked={showPrices} onCheckedChange={setShowPrices} />
-                <span className="text-sm text-foreground font-bold">{showPrices ? t('prices_visible', 'الأسعار ظاهرة') : t('prices_hidden', 'الأسعار مخفية')}</span>
-              </div>
-            </div>
-
-            <div className="space-y-1.5 pt-2">
-              <Label className="text-xs font-bold text-muted-foreground">{t('detailed_clinic_address', 'عنوان العيادة التفصيلي')}</Label>
-              <Input
-                value={address}
-                onChange={e => setAddress(e.target.value)}
-                placeholder="90th North St, 5th Settlement, New Cairo"
-                className="h-10 text-xs rounded-xl"
-              />
-            </div>
-
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5 col-span-2">
-                <Label className="text-xs font-bold text-muted-foreground">{t('clinic_phone_numbers', 'أرقام هواتف العيادة (للحجز والواتساب)')}</Label>
-                <div className="space-y-2">
-                  {phones.map((p, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <Input
-                        value={p}
-                        onChange={e => {
-                          const newPhones = [...phones]
-                          newPhones[idx] = e.target.value
-                          setPhones(newPhones)
-                        }}
-                        placeholder="01012345678"
-                        className={`h-10 text-xs rounded-xl font-mono ${isRtl ? 'text-right' : 'text-left'}`}
-                        dir="ltr"
-                      />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setPhones(phones.filter((_, i) => i !== idx))}
-                        className="text-rose-500 hover:text-rose-600 hover:bg-rose-500/10"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ))}
-                  <Button
-                    variant="outline"
-                    onClick={() => setPhones([...phones, ''])}
-                    className="w-full border-dashed h-10 text-xs font-bold text-primary border-primary/30 hover:bg-primary/5"
-                  >
-                    <Plus className={`w-4 h-4 ${isRtl ? 'ml-2' : 'mr-2'}`} /> {t('add_another_phone', 'إضافة رقم آخر')}
-                  </Button>
+                <div className="space-y-1.5 p-3 rounded-xl bg-muted/30 border border-border">
+                  <Label className="text-xs font-bold text-muted-foreground">{t('show_prices_to_patients', 'إظهار أسعار الكشوفات للمرضى')}</Label>
+                  <div className="flex items-center gap-2 pt-1">
+                    <Switch checked={showPrices} onCheckedChange={setShowPrices} />
+                    <span className="text-xs text-foreground font-bold">{showPrices ? t('prices_visible', 'الأسعار ظاهرة') : t('prices_hidden', 'الأسعار مخفية')}</span>
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-1.5 col-span-2">
-                <Label className="text-xs font-bold text-muted-foreground">{t('google_maps_link', 'رابط موقع العيادة (Google Maps)')}</Label>
+              <div className="space-y-1.5 pt-2">
+                <Label className="text-xs font-bold text-muted-foreground">{t('detailed_clinic_address', 'عنوان العيادة التفصيلي')}</Label>
                 <Input
-                  value={mapsLink}
-                  onChange={e => setMapsLink(e.target.value)}
-                  placeholder="https://maps.google.com/..."
-                  className={`h-10 text-xs rounded-xl font-mono ${isRtl ? 'text-right' : 'text-left'}`}
-                  dir="ltr"
+                  value={address}
+                  onChange={e => setAddress(e.target.value)}
+                  placeholder="شارع التسعين الشمالي، التجمع الخامس، القاهرة"
+                  className="h-10 text-xs rounded-xl"
                 />
               </div>
-            </div>
-          </div>
 
-          {/* Preview Side */}
-          <div className="yalla-card overflow-hidden bg-muted/20 relative flex flex-col hidden lg:flex border border-border">
-            <div className="p-3 border-b border-border bg-card flex items-center justify-between shadow-xs z-10">
-              <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-500" />
-                {t('patient_live_preview', 'معاينة حية لصفحة المريض')}
-              </h3>
-              <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full font-bold">
-                Live Preview
-              </span>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5 col-span-2">
+                  <Label className="text-xs font-bold text-muted-foreground">{t('clinic_phone_numbers', 'أرقام هواتف العيادة (للحجز والواتساب)')}</Label>
+                  <div className="space-y-2">
+                    {phones.map((p, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <Input
+                          value={p}
+                          onChange={e => {
+                            const newPhones = [...phones]
+                            newPhones[idx] = e.target.value
+                            setPhones(newPhones)
+                          }}
+                          placeholder="01012345678"
+                          className={`h-10 text-xs rounded-xl font-mono ${isRtl ? 'text-right' : 'text-left'}`}
+                          dir="ltr"
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setPhones(phones.filter((_, i) => i !== idx))}
+                          className="text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 shrink-0"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      variant="outline"
+                      onClick={() => setPhones([...phones, ''])}
+                      className="w-full border-dashed h-10 text-xs font-bold text-primary border-primary/30 hover:bg-primary/5 cursor-pointer"
+                    >
+                      <Plus className={`w-4 h-4 ${isRtl ? 'ml-2' : 'mr-2'}`} /> {t('add_another_phone', 'إضافة رقم آخر')}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 col-span-2">
+                  <Label className="text-xs font-bold text-muted-foreground">{t('google_maps_link', 'رابط موقع العيادة (Google Maps)')}</Label>
+                  <Input
+                    value={mapsLink}
+                    onChange={e => setMapsLink(e.target.value)}
+                    placeholder="https://maps.google.com/..."
+                    className={`h-10 text-xs rounded-xl font-mono ${isRtl ? 'text-right' : 'text-left'}`}
+                    dir="ltr"
+                  />
+                </div>
+              </div>
             </div>
-            
-            <div className="flex-1 relative overflow-y-auto overflow-x-hidden no-scrollbar bg-background">
-              <div className="absolute inset-0 origin-top" style={{ transform: 'scale(0.85)', width: '117%' }}>
-                <PremiumLanding 
-                  key={`${clinicName}-${doctorName}-${specialty}-${primaryColor}-${photoUrl}`}
-                  clinic={{
-                    clinicName: clinicName || t('clinic_name', 'عيادة الأمل التخصصية'),
-                    doctorName: doctorName || 'Ahmed Abdelaziz',
-                    doctorTitle: doctorTitle || 'د.',
-                    specialty: specialty || 'Consultant of Internal Medicine',
-                    heroSubtitle: heroSubtitle || '',
-                    certificationTitle: certificationTitle || 'Certified Doctor',
-                    certificationEntity: certificationEntity || 'Medical Syndicate',
-                    heroImage: photoUrl || '',
-                    primaryColor: primaryColor || '#087CF4',
-                    clinicPhone: phones[0] || '01012345678',
-                    clinicPhones: phones.filter(p => p.trim() !== ''),
-                    clinicAddress: address || '90th St, New Cairo',
-                    mapsLink: mapsLink || '',
-                    services: services || [],
-                    aiEnabled: aiEnabled
-                  }} 
-                  services={services || []} 
-                />
+
+            {/* Preview Side */}
+            <div className="yalla-card overflow-hidden bg-slate-100/70 dark:bg-slate-900/40 relative flex flex-col hidden lg:flex border border-border sticky top-20 h-[calc(100vh-120px)] min-h-[700px] shadow-sm">
+              <div className="p-3 border-b border-border bg-card flex items-center justify-between shadow-xs z-10 gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <h3 className="font-bold text-xs sm:text-sm text-foreground">
+                    {t('patient_live_preview', 'معاينة حية لصفحة المريض')}
+                  </h3>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  {/* Device Switcher */}
+                  <div className="flex items-center bg-muted p-1 rounded-xl border border-border">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewDevice('desktop')}
+                      className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        previewDevice === 'desktop'
+                          ? 'bg-background text-primary shadow-xs'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                      title="معاينة شاشة الكمبيوتر"
+                    >
+                      <Monitor className="w-3.5 h-3.5" />
+                      <span>كمبيوتر</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewDevice('mobile')}
+                      className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        previewDevice === 'mobile'
+                          ? 'bg-background text-primary shadow-xs'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                      title="معاينة شاشة الموبايل"
+                    >
+                      <Smartphone className="w-3.5 h-3.5" />
+                      <span>موبايل</span>
+                    </button>
+                  </div>
+
+                  {/* Open in new tab */}
+                  <a
+                    href={`/clinic/${slug}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-muted transition-colors flex items-center gap-1 text-xs font-bold"
+                    title={t('open_live_page', 'فتح صفحة العيادة')}
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+                </div>
+              </div>
+              
+              {/* Scrollable Preview Area */}
+              <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar bg-slate-100/80 dark:bg-slate-950 p-3 sm:p-4 flex flex-col items-center">
+                {previewDevice === 'desktop' ? (
+                  /* Desktop Browser Frame Simulator */
+                  <div className="w-full flex flex-col items-center">
+                    {/* Browser Bar */}
+                    <div className="w-full max-w-[580px] bg-slate-200 dark:bg-slate-800 rounded-t-xl px-3 py-1.5 flex items-center gap-2 border border-border border-b-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-rose-400 inline-block"></span>
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span>
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span>
+                      </div>
+                      <div className="flex-1 bg-white/70 dark:bg-slate-900/70 text-[10px] text-muted-foreground rounded-md px-3 py-0.5 text-center truncate font-mono" dir="ltr">
+                        yallaclinic.com/clinic/{slug}
+                      </div>
+                    </div>
+
+                    {/* Scaled Desktop Viewport */}
+                    <div className="w-full overflow-hidden flex justify-center rounded-b-xl border border-border bg-white shadow-xl">
+                      <div
+                        style={{
+                          width: '1100px',
+                          transform: 'scale(0.52)',
+                          transformOrigin: 'top center',
+                          marginBottom: '-48%'
+                        }}
+                        className="shrink-0 pointer-events-auto select-none"
+                      >
+                        <PremiumLanding 
+                          key={`desk-${clinicName}-${doctorName}-${specialty}-${primaryColor}-${photoUrl}-${experienceYears}-${doctorRating}-${isClinicOpen}-${showPrices}-${heroSubtitle}`}
+                          clinic={{
+                            slug,
+                            clinicName: clinicName || t('clinic_name', 'عيادة الأمل التخصصية'),
+                            doctorName: doctorName || 'Ahmed Abdelaziz',
+                            doctorTitle: doctorTitle || 'د.',
+                            specialty: specialty || 'Consultant of Internal Medicine',
+                            heroSubtitle: heroSubtitle || '',
+                            certificationTitle: certificationTitle || '',
+                            certificationEntity: certificationEntity || '',
+                            experienceYears: Number(experienceYears) || 10,
+                            doctorRating: doctorRating || '4.9',
+                            heroImage: photoUrl || '',
+                            logoUrl: logoUrl || '',
+                            primaryColor: primaryColor || '#087CF4',
+                            clinicPhone: phones[0] || '01012345678',
+                            clinicPhones: phones.filter(p => typeof p === 'string' && p.trim() !== ''),
+                            clinicAddress: address || '90th St, New Cairo',
+                            mapsLink: mapsLink || '',
+                            isClinicOpen: isClinicOpen !== false,
+                            showPrices: showPrices !== false,
+                            hidePrices: !showPrices,
+                            services: services || [],
+                            aiEnabled: aiEnabled
+                          }} 
+                          services={services || []} 
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* Mobile Phone Frame Simulator */
+                  <div className="w-[360px] max-w-full my-auto rounded-[38px] border-4 border-slate-800 dark:border-slate-700 shadow-2xl overflow-hidden bg-background flex flex-col shrink-0">
+                    {/* iPhone Dynamic Island */}
+                    <div className="h-7 bg-slate-900 flex items-center justify-between px-6 text-white text-[10px] font-bold shrink-0">
+                      <span>9:41</span>
+                      <div className="w-20 h-3.5 bg-black rounded-full" />
+                      <span>5G 100%</span>
+                    </div>
+                    {/* Screen Content */}
+                    <div className="h-[580px] overflow-y-auto no-scrollbar">
+                      <PremiumLanding 
+                        key={`mob-${clinicName}-${doctorName}-${specialty}-${primaryColor}-${photoUrl}-${experienceYears}-${doctorRating}-${isClinicOpen}-${showPrices}-${heroSubtitle}`}
+                        clinic={{
+                          slug,
+                          clinicName: clinicName || t('clinic_name', 'عيادة الأمل التخصصية'),
+                          doctorName: doctorName || 'Ahmed Abdelaziz',
+                          doctorTitle: doctorTitle || 'د.',
+                          specialty: specialty || 'Consultant of Internal Medicine',
+                          heroSubtitle: heroSubtitle || '',
+                          certificationTitle: certificationTitle || '',
+                          certificationEntity: certificationEntity || '',
+                          experienceYears: Number(experienceYears) || 10,
+                          doctorRating: doctorRating || '4.9',
+                          heroImage: photoUrl || '',
+                          logoUrl: logoUrl || '',
+                          primaryColor: primaryColor || '#087CF4',
+                          clinicPhone: phones[0] || '01012345678',
+                          clinicPhones: phones.filter(p => typeof p === 'string' && p.trim() !== ''),
+                          clinicAddress: address || '90th St, New Cairo',
+                          mapsLink: mapsLink || '',
+                          isClinicOpen: isClinicOpen !== false,
+                          showPrices: showPrices !== false,
+                          hidePrices: !showPrices,
+                          services: services || [],
+                          aiEnabled: aiEnabled
+                        }} 
+                        services={services || []} 
+                      />
+                    </div>
+                    {/* Home Bar Indicator */}
+                    <div className="h-4 bg-background flex items-center justify-center shrink-0">
+                      <div className="w-28 h-1 bg-slate-400 dark:bg-slate-600 rounded-full" />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </div>
-      </div>
       )}
       {/* TAB 2: Queue & Visit Duration */}
       {activeTab === 'queue' && (

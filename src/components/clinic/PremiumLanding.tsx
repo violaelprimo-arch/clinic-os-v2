@@ -159,19 +159,27 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
                       alt={clinic?.doctorName || 'Doctor'}
                       className="w-full h-80 sm:h-96 object-cover object-top group-hover:scale-105 transition-transform duration-700"
                     />
-                    <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-slate-950/60 to-transparent"></div>
-                    <div className="absolute bottom-3 right-3 left-3 flex items-center justify-between text-white text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-900/70 backdrop-blur-md">
-                      <span className="flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>{clinic?.doctorName || (isRtl ? 'د. أحمد عبد العزيز' : 'Dr. Ahmed Abdel Aziz')}</span>
-                      </span>
-                      <span className="text-amber-300">★ 4.9</span>
+                    <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-slate-950/85 via-slate-950/40 to-transparent"></div>
+                    <div className="absolute bottom-3 right-3 left-3 flex flex-col gap-1 text-white text-xs font-bold px-3 py-2 rounded-xl bg-slate-900/80 backdrop-blur-md">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-1.5 truncate">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          <span className="truncate">{clinic?.doctorTitle ? clinic.doctorTitle + ' ' : ''}{clinic?.doctorName || (isRtl ? 'د. أحمد عبد العزيز' : 'Dr. Ahmed Abdel Aziz')}</span>
+                        </span>
+                        <span className="text-amber-300 shrink-0">★ {clinic?.doctorRating || '4.9'}</span>
+                      </div>
+                      {(clinic?.certificationTitle || clinic?.certificationEntity) && (
+                        <div className="text-[10px] text-sky-200/90 font-medium flex items-center gap-1 pt-1 border-t border-white/10 truncate">
+                          <Award className="w-3 h-3 text-sky-300 shrink-0" />
+                          <span className="truncate">{clinic.certificationTitle || ''} {clinic.certificationEntity ? `• ${clinic.certificationEntity}` : ''}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   <div className="absolute -bottom-3 -left-4 z-30 bg-white/95 dark:bg-slate-800 px-4 py-2.5 rounded-2xl border-2 border-white dark:border-slate-700 shadow-xl flex flex-col items-center justify-center">
                     <div className="flex items-center gap-1 text-sky-600 dark:text-sky-400 font-extrabold text-xl leading-none">
-                      <span>+10</span>
+                      <span>+{clinic?.experienceYears ?? 10}</span>
                       <Award className="w-4 h-4" />
                     </div>
                     <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 mt-0.5">
@@ -186,13 +194,13 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
             <div className="lg:col-span-6 order-1 lg:order-2 text-center lg:text-right space-y-5">
               <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-sky-100/90 dark:bg-sky-900/50 border border-sky-200 dark:border-sky-700/60 text-sky-700 dark:text-sky-300 text-xs sm:text-sm font-bold">
                 <span className="w-2 h-2 rounded-full bg-sky-500 animate-ping"></span>
-                <span>{isRtl ? 'رعاية صحية أفضل.. بخطوة أسهل' : 'Better Healthcare.. In One Easy Step'}</span>
+                <span>{clinic?.heroBadge || (isRtl ? 'رعاية صحية أفضل.. بخطوة أسهل' : 'Better Healthcare.. In One Easy Step')}</span>
               </div>
 
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 dark:text-white leading-tight">
                 <span className="block mb-2">{isRtl ? 'احجز موعدك الآن' : 'Book Your Appointment'}</span>
                 <span className="bg-gradient-to-l from-slate-900 via-sky-800 to-sky-600 dark:from-white dark:via-sky-200 dark:to-sky-400 bg-clip-text text-transparent">
-                  {clinic?.clinicName || (isRtl ? 'في عيادة د. أحمد عبد العزيز' : 'At Dr. Ahmed Abdel Aziz Clinic')}
+                  {clinic?.clinicName ? (isRtl ? `في ${clinic.clinicName}` : `At ${clinic.clinicName}`) : (isRtl ? 'في عيادة د. أحمد عبد العزيز' : 'At Dr. Ahmed Abdel Aziz Clinic')}
                 </span>
               </h1>
 
@@ -200,14 +208,15 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
                 <p className="text-base sm:text-lg font-bold text-slate-700 dark:text-slate-200">
                   {clinic?.specialty || (isRtl ? 'استشاري الطب الباطني والجهاز الهضمي • علاج الحالات المتقدمة' : 'Consultant of Internal Medicine & Gastroenterology')}
                 </p>
-                <p className="text-sm sm:text-base text-slate-500 dark:text-slate-400">
-                  {isRtl ? 'رعاية متكاملة .. خبرة .. اهتمام بكل مريض' : 'Comprehensive Care .. Expertise .. Patient Attention'}
+                <p className="text-sm sm:text-base text-slate-500 dark:text-slate-400 leading-relaxed">
+                  {clinic?.heroSubtitle || (isRtl ? 'رعاية متكاملة .. خبرة .. اهتمام بكل مريض' : 'Comprehensive Care .. Expertise .. Patient Attention')}
                 </p>
               </div>
 
               <div className="pt-2 flex flex-wrap items-center justify-center lg:justify-start gap-3.5">
                 <button
                   onClick={() => handleOpenBooking()}
+                  style={clinic?.primaryColor ? { background: `linear-gradient(135deg, ${clinic.primaryColor}, #00a8e8)` } : undefined}
                   className="bg-gradient-to-r from-[#0066dc] to-[#00a8e8] hover:shadow-xl hover:-translate-y-0.5 text-white font-extrabold px-8 py-4 rounded-full text-base flex items-center gap-2.5 shadow-lg transition-all"
                 >
                   <span>{isRtl ? 'حجز موعد الآن' : 'Book Appointment'}</span>
@@ -250,7 +259,7 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
                   </div>
                   <h3 className="font-extrabold text-slate-800 dark:text-white text-sm sm:text-base mb-1">{srv.name}</h3>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    {srv.price ? `${srv.price} ${isRtl ? 'ج.م' : 'EGP'}` : ''} {srv.duration ? `• ${srv.duration}` : ''}
+                    {clinic?.showPrices !== false && !clinic?.hidePrices && srv.price ? `${srv.price} ${isRtl ? 'ج.م' : 'EGP'}` : ''} {srv.duration ? `• ${srv.duration}` : ''}
                   </p>
                 </div>
               )
@@ -270,9 +279,13 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
                   <h2 className="text-lg font-black text-slate-900 dark:text-white">
                     {isRtl ? 'معلومات العيادة' : 'Clinic Information'}
                   </h2>
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
-                    <span>{isRtl ? 'مفتوح الآن' : 'Open Now'}</span>
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                    clinic?.isClinicOpen !== false
+                      ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
+                      : 'bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${clinic?.isClinicOpen !== false ? 'bg-emerald-500 animate-ping' : 'bg-rose-500'}`}></span>
+                    <span>{clinic?.isClinicOpen !== false ? (isRtl ? 'مفتوح الآن' : 'Open Now') : (isRtl ? 'مغلق حالياً' : 'Closed Now')}</span>
                   </span>
                 </div>
 
