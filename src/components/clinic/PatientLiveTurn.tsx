@@ -370,19 +370,23 @@ export function PatientLiveTurn({
                 </div>
               )}
 
-              {/* Currently with Doctor */}
-              {liveResult?.currentPatientExamining ? (
-                <div className="bg-sky-950/40 border border-sky-500/20 rounded-2xl p-2.5 text-center text-xs text-sky-200">
-                  <span>المريض حالياً بغرفة الكشف: </span>
-                  <strong className="text-white font-mono mr-1">
-                    #{liveResult.currentPatientExamining.queueNumber}
-                  </strong>
-                </div>
-              ) : (
-                <div className="bg-sky-950/40 border border-sky-500/20 rounded-2xl p-2.5 text-center text-xs text-slate-300">
-                  <span>المريض حالياً بغرفة الكشف: </span>
-                  <span className="text-sky-300 font-bold mr-1">في انتظار بدء الكشف</span>
-                </div>
+              {/* Currently with Doctor (Only when not completed) */}
+              {liveResult?.status !== 'completed' && myAppt?.status !== 'completed' && (
+                liveResult?.currentPatientExamining ? (
+                  <div className="bg-sky-950/40 border border-sky-500/20 rounded-2xl p-2.5 text-center text-xs text-sky-200">
+                    <span>المريض حالياً بغرفة الكشف: </span>
+                    <strong className="text-white font-mono mr-1">
+                      {Number(liveResult.currentPatientExamining.queueNumber) === Number(myAppt.queue_number)
+                        ? 'أنت الآن مع الطبيب'
+                        : `#${liveResult.currentPatientExamining.queueNumber}`}
+                    </strong>
+                  </div>
+                ) : (
+                  <div className="bg-sky-950/40 border border-sky-500/20 rounded-2xl p-2.5 text-center text-xs text-slate-300">
+                    <span>المريض حالياً بغرفة الكشف: </span>
+                    <span className="text-sky-300 font-bold mr-1">في انتظار بدء الكشف</span>
+                  </div>
+                )
               )}
 
               {/* Action Button */}

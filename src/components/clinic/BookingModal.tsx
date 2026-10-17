@@ -45,17 +45,20 @@ export function BookingModal({
   const clinicId = clinic?.id || clinic?.slug || 'demo'
   const slug = clinic?.slug || 'zizo'
 
+  // Price visibility setting
+  const showPrices = clinic?.showPrices !== false && clinic?.hidePrices !== true
+
   // Step 1: Branch, 2: Service, 3: Date & Queue Estimate, 4: Patient Info, 5: Payment, 6: Review
   const [step, setStep] = useState<number>(1)
 
-  // Fallback branches matching design
+  // Default medical branch images (Hospital/Clinic building, NOT doctor photo)
   const defaultBranches = [
     {
       id: 'main',
       name: 'الفرع الرئيسي',
-      sub: 'مدينة نصر',
-      address: clinic?.clinicAddress || 'مدينة نصر - القاهرة',
-      image: clinic?.branchImage || clinic?.heroImage || 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=600&auto=format&fit=crop',
+      sub: 'المقر الرئيسي',
+      address: clinic?.clinicAddress || 'مقر العيادة الرئيسي',
+      image: clinic?.branchImage || clinic?.clinicPhoto || 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=600&auto=format&fit=crop',
       available: true
     },
     {
@@ -79,7 +82,7 @@ export function BookingModal({
   const [branches, setBranches] = useState<any[]>(defaultBranches)
   const [selectedBranch, setSelectedBranch] = useState<any>(initialBranch || defaultBranches[0])
 
-  // Load real branches from Firestore so user-uploaded branch images appear immediately
+  // Load real branches from Firestore using branch image from settings
   useEffect(() => {
     let isMounted = true
     const loadBranches = async () => {
@@ -91,7 +94,8 @@ export function BookingModal({
           if (active.length > 0 && isMounted) {
             const mapped = active.map((b: any) => ({
               ...b,
-              image: b.image || clinic?.branchImage || clinic?.heroImage || defaultBranches[0].image
+              // Strictly use branch photo from branch settings, fallback to clinic branch photo, never doctor portrait
+              image: b.image || b.imageUrl || clinic?.branchImage || clinic?.clinicPhoto || defaultBranches[0].image
             }))
             setBranches(mapped)
             if (!selectedBranch || selectedBranch.id === 'main') {
@@ -103,7 +107,7 @@ export function BookingModal({
         if (clinic?.branches && clinic.branches.length > 0 && isMounted) {
           const mapped = clinic.branches.map((b: any) => ({
             ...b,
-            image: b.image || clinic?.branchImage || clinic?.heroImage || defaultBranches[0].image
+            image: b.image || b.imageUrl || clinic?.branchImage || clinic?.clinicPhoto || defaultBranches[0].image
           }))
           setBranches(mapped)
           if (!selectedBranch) {
@@ -133,9 +137,13 @@ export function BookingModal({
 
   const [selectedService, setSelectedService] = useState<any>(initialService || defaultServices[0])
 
+  // Max daily bookings quota
+  const maxLimit = Number(selectedBranch?.maxDailyBookings || clinic?.maxDailyBookings) || 0
+  const [dailyBookingCounts, setDailyBookingCounts] = useState<Record<string, number>>({})
+
   // Smart Date State (Today, Tomorrow, and Next 5 days)
   const availableDays = useMemo(() => {
-    const list: { iso: string; label: string; subLabel: string }[] = []
+    const list: { iso: string; label: string; subLabel: string; isFull: boolean }[] = []
     const dayNamesAr = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
     const monthNamesAr = [
       'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
@@ -156,16 +164,66 @@ export function BookingModal({
       if (i === 0) label = 'اليوم'
       else if (i === 1) label = 'غداً'
 
+      const count = dailyBookingCounts[iso] || 0
+      const isFull = maxLimit > 0 && count >= maxLimit
+
       list.push({
         iso,
         label,
-        subLabel: `${dayNum} ${monthName}`
+        subLabel: `${dayNum} ${monthName}`,
+        isFull
       })
     }
     return list
-  }, [])
+  }, [dailyBookingCounts, maxLimit])
 
-  const [selectedDate, setSelectedDate] = useState<string>(availableDays[0]?.iso || '')
+  const [selectedDate, setSelectedDate] = useState<string>('')
+
+  // Load daily counts for the 6 days to enforce maxDailyBookings
+  useEffect(() => {
+    if (!clinicId) return
+    let isCancelled = false
+
+    const now = new Date()
+    const daysToScan: string[] = []
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+      d.setDate(d.getDate() + i)
+      daysToScan.push(d.toISOString().split('T')[0])
+    }
+
+    Promise.all(
+      daysToScan.map(async (iso) => {
+        const q = query(
+          collection(db, 'appointments'),
+          where('clinic_id', '==', clinicId),
+          where('date', '==', iso)
+        )
+        const snap = await getDocs(q)
+        const active = snap.docs.filter((d) => d.data().status !== 'cancelled').length
+        return { iso, count: active }
+      })
+    )
+      .then((results) => {
+        if (isCancelled) return
+        const map: Record<string, number> = {}
+        results.forEach((r) => {
+          map[r.iso] = r.count
+        })
+        setDailyBookingCounts(map)
+
+        // Select first available day if none selected or selected is full
+        if (!selectedDate) {
+          const firstAvail = results.find((r) => maxLimit === 0 || r.count < maxLimit) || results[0]
+          if (firstAvail) setSelectedDate(firstAvail.iso)
+        }
+      })
+      .catch((err) => console.warn('Error fetching daily booking counts:', err))
+
+    return () => {
+      isCancelled = true
+    }
+  }, [clinicId, maxLimit, selectedDate])
 
   // Live estimated queue & wait time calculation
   const [estimatedQueueNumber, setEstimatedQueueNumber] = useState<number>(1)
@@ -256,7 +314,7 @@ export function BookingModal({
     if (!text) return
     navigator.clipboard.writeText(text)
     setIsCopied(true)
-    toast.success('تم النسخ إلى الحافظة')
+    toast.success('تم النسخ إلى الحافظة بنجاح')
     setTimeout(() => setIsCopied(false), 2000)
   }
 
@@ -282,6 +340,11 @@ export function BookingModal({
         toast.error('يرجى اختيار يوم الحجز')
         return
       }
+      const dayCount = dailyBookingCounts[selectedDate] || 0
+      if (maxLimit > 0 && dayCount >= maxLimit) {
+        toast.error(`عذراً، اكتمل الحد الأقصى لحجوزات هذا اليوم (${maxLimit} كشف). يرجى اختيار يوم آخر.`)
+        return
+      }
       setStep(4)
       return
     }
@@ -301,6 +364,10 @@ export function BookingModal({
     }
 
     if (step === 5) {
+      if ((paymentMethod === 'instapay' || paymentMethod === 'wallet') && !transferAccount.trim()) {
+        toast.error(paymentMethod === 'instapay' ? 'يرجى إدخال اسم الحساب أو رقم الهاتف المحول منه' : 'يرجى إدخال رقم المحفظة المحول منها')
+        return
+      }
       setStep(6)
       return
     }
@@ -312,13 +379,22 @@ export function BookingModal({
       const branchId = selectedBranch?.id || null
       const branchName = selectedBranch?.name || 'الفرع الرئيسي'
 
-      // Strictly sequential queue number directly from DB: max + 1
+      // Check max daily bookings quota directly from DB
       const q = query(
         collection(db, 'appointments'),
         where('clinic_id', '==', clinicId),
         where('date', '==', selectedDate)
       )
       const qSnap = await getDocs(q)
+      const activeAppts = qSnap.docs.filter((d) => d.data().status !== 'cancelled')
+
+      if (maxLimit > 0 && activeAppts.length >= maxLimit) {
+        toast.error(`عذراً، اكتمل الحد الأقصى للحجوزات لهذا اليوم (${maxLimit} كشف). يرجى اختيار يوم آخر.`)
+        setSubmitting(false)
+        return
+      }
+
+      // Strictly sequential queue number: max + 1
       const existingQueueNums = qSnap.docs.map((d) => Number(d.data().queue_number) || 0)
       const maxQueue = existingQueueNums.length > 0 ? Math.max(0, ...existingQueueNums) : 0
       const myQueueNumber = maxQueue + 1
@@ -439,8 +515,8 @@ export function BookingModal({
   ]
 
   // Clinic payment credentials
-  const clinicInstapayHandle = clinic?.instapayHandle || clinic?.instapayAccount || clinic?.clinicPhone || 'zizo@instapay'
-  const clinicWalletNumber = clinic?.walletNumber || clinic?.vodafoneCashNumber || clinic?.clinicPhone || '01012345678'
+  const clinicInstapayHandle = clinic?.instapayHandle || clinic?.instapayAccount || clinic?.clinicPhone || '01121320507'
+  const clinicWalletNumber = clinic?.walletNumber || clinic?.vodafoneCashNumber || clinic?.clinicPhone || '01121320507'
 
   return (
     <div dir="rtl" className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
@@ -553,7 +629,7 @@ export function BookingModal({
           </div>
         ) : (
           <div className="min-h-[290px] flex flex-col justify-between">
-            {/* STEP 1: BRANCH SELECTION */}
+            {/* STEP 1: BRANCH SELECTION (Using Facility Photo, never doctor portrait) */}
             {step === 1 && (
               <div className="space-y-4">
                 <h4 className="text-center font-extrabold text-slate-800 dark:text-slate-100 text-sm">اختر الفرع المناسب</h4>
@@ -588,7 +664,7 @@ export function BookingModal({
               </div>
             )}
 
-            {/* STEP 2: SERVICE SELECTION */}
+            {/* STEP 2: SERVICE SELECTION (Respecting clinic hidePrices setting) */}
             {step === 2 && (
               <div className="space-y-2.5">
                 <h4 className="text-center font-extrabold text-slate-800 dark:text-slate-100 text-sm">اختر نوع الكشف أو الخدمة</h4>
@@ -612,9 +688,11 @@ export function BookingModal({
                           </div>
                           {s.duration && <div className="text-[10px] text-slate-400">المدة: {s.duration}</div>}
                         </div>
-                        <span className="font-extrabold text-xs text-sky-600 dark:text-sky-400">
-                          {s.price} ج.م
-                        </span>
+                        {showPrices && (
+                          <span className="font-extrabold text-xs text-sky-600 dark:text-sky-400">
+                            {s.price} ج.م
+                          </span>
+                        )}
                       </div>
                     )
                   })}
@@ -622,28 +700,39 @@ export function BookingModal({
               </div>
             )}
 
-            {/* STEP 3: QUICK DATE SELECTION & LIVE ESTIMATE (No time slots, no calendar picker) */}
+            {/* STEP 3: QUICK DATE SELECTION & MAX QUOTA CHECK */}
             {step === 3 && (
               <div className="space-y-4">
                 <h4 className="text-center font-extrabold text-slate-800 dark:text-slate-100 text-sm">اختر يوم الكشف</h4>
 
                 {/* Quick Days Grid */}
                 <div>
-                  <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-200 mb-2">
-                    أيام الحجز المتاحة
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-200">
+                      أيام الحجز المتاحة
+                    </label>
+                    {maxLimit > 0 && (
+                      <span className="text-[10px] text-slate-400 font-bold">
+                        الحد اليومي: {maxLimit} كشوفات
+                      </span>
+                    )}
+                  </div>
                   <div className="grid grid-cols-3 gap-2">
                     {availableDays.map((d) => {
                       const isSelected = selectedDate === d.iso
+                      const isFull = d.isFull
                       return (
                         <button
                           key={d.iso}
                           type="button"
+                          disabled={isFull}
                           onClick={() => setSelectedDate(d.iso)}
-                          className={`p-2.5 rounded-2xl border-2 text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
-                            isSelected
-                              ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/60 shadow-md ring-2 ring-sky-400/20'
-                              : 'border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-sky-300'
+                          className={`p-2.5 rounded-2xl border-2 text-center transition-all flex flex-col items-center justify-center ${
+                            isFull
+                              ? 'border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-900/50 opacity-60 cursor-not-allowed'
+                              : isSelected
+                              ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/60 shadow-md ring-2 ring-sky-400/20 cursor-pointer'
+                              : 'border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-sky-300 cursor-pointer'
                           }`}
                         >
                           <span className={`text-xs font-black ${isSelected ? 'text-sky-600 dark:text-sky-400' : 'text-slate-900 dark:text-white'}`}>
@@ -652,6 +741,11 @@ export function BookingModal({
                           <span className="text-[10px] font-bold text-slate-400 mt-0.5">
                             {d.subLabel}
                           </span>
+                          {isFull && (
+                            <span className="mt-1 text-[8.5px] font-black text-rose-500 bg-rose-50 dark:bg-rose-950 px-1.5 py-0.5 rounded-full">
+                              مكتمل العدد
+                            </span>
+                          )}
                         </button>
                       )
                     })}
@@ -784,7 +878,7 @@ export function BookingModal({
               </div>
             )}
 
-            {/* STEP 5: PAYMENT METHODS */}
+            {/* STEP 5: PAYMENT METHODS (With Transfer Amount, Clinic Transfer Target & Sender Input) */}
             {step === 5 && (
               <div className="space-y-4">
                 <div className="text-center">
@@ -837,12 +931,25 @@ export function BookingModal({
                   </button>
                 </div>
 
-                {/* InstaPay Account Details Box */}
+                {/* InstaPay Details Box */}
                 {paymentMethod === 'instapay' && (
-                  <div className="p-3.5 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 space-y-2.5">
+                  <div className="p-3.5 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 space-y-3">
+                    {/* 1. سعر التحويل */}
+                    {showPrices && (
+                      <div className="flex items-center justify-between pb-2 border-b border-purple-200/60 dark:border-purple-800">
+                        <span className="text-xs font-bold text-purple-700 dark:text-purple-300">
+                          المبلغ المطلوب تحويله (سعر الكشف):
+                        </span>
+                        <span className="text-base font-black text-purple-900 dark:text-white font-mono">
+                          {selectedService?.price} ج.م
+                        </span>
+                      </div>
+                    )}
+
+                    {/* 2. رقم التحويل للعيادة */}
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="text-[10px] font-bold text-purple-600 dark:text-purple-300">عنوان InstaPay للعيادة:</div>
+                        <div className="text-[10px] font-bold text-purple-600 dark:text-purple-300">رقم / عنوان InstaPay للعيادة:</div>
                         <div className="text-sm font-black font-mono text-slate-900 dark:text-white" dir="ltr">
                           {clinicInstapayHandle}
                         </div>
@@ -856,9 +963,11 @@ export function BookingModal({
                         <span>{isCopied ? 'تم النسخ ✓' : 'نسخ'}</span>
                       </button>
                     </div>
+
+                    {/* 3. الرقم المحول منه */}
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
-                        اسم الحساب أو رقم الهاتف المحول منه (اختياري للتحقق):
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        اسم الحساب أو رقم الهاتف الذي تحول منه: <span className="text-rose-500">*</span>
                       </label>
                       <input
                         type="text"
@@ -873,7 +982,20 @@ export function BookingModal({
 
                 {/* Electronic Wallet Details Box */}
                 {paymentMethod === 'wallet' && (
-                  <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 space-y-2.5">
+                  <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 space-y-3">
+                    {/* 1. سعر التحويل */}
+                    {showPrices && (
+                      <div className="flex items-center justify-between pb-2 border-b border-rose-200/60 dark:border-rose-800">
+                        <span className="text-xs font-bold text-rose-700 dark:text-rose-300">
+                          المبلغ المطلوب تحويله (سعر الكشف):
+                        </span>
+                        <span className="text-base font-black text-rose-900 dark:text-white font-mono">
+                          {selectedService?.price} ج.م
+                        </span>
+                      </div>
+                    )}
+
+                    {/* 2. رقم التحويل للعيادة */}
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="text-[10px] font-bold text-rose-600 dark:text-rose-300">رقم محفظة العيادة (فودافون كاش / محافظ):</div>
@@ -890,9 +1012,11 @@ export function BookingModal({
                         <span>{isCopied ? 'تم النسخ ✓' : 'نسخ'}</span>
                       </button>
                     </div>
+
+                    {/* 3. الرقم المحول منه */}
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
-                        رقم المحفظة التي قمت بالتحويل منها:
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        رقم المحفظة التي قمت بالتحويل منها: <span className="text-rose-500">*</span>
                       </label>
                       <input
                         type="tel"
@@ -933,7 +1057,7 @@ export function BookingModal({
                   </div>
                   <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-700">
                     <span className="text-slate-400">الخدمة:</span>
-                    <strong>{selectedService?.name} ({selectedService?.price} ج.م)</strong>
+                    <strong>{selectedService?.name} {showPrices ? `(${selectedService?.price} ج.م)` : ''}</strong>
                   </div>
                   <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-700">
                     <span className="text-slate-400">تاريخ ويوم الكشف:</span>

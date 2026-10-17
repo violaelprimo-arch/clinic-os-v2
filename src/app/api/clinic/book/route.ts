@@ -33,13 +33,17 @@ export async function POST(req: NextRequest) {
     const cleanPhone = String(patientPhone).trim().replace(/\s+/g, '')
     const cleanName = String(patientName).trim()
 
-    // Resolve clinic ID
+    // Resolve clinic and check maxDailyBookings quota
     let clinicId = rawClinicId
-    if (!clinicId) {
-      const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
-      const cSnap = await getDocs(cQ)
-      clinicId = cSnap.empty ? slug : cSnap.docs[0].id
+    let maxLimit = 0
+    const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
+    const cSnap = await getDocs(cQ)
+    if (!cSnap.empty) {
+      const cData = cSnap.docs[0].data()
+      maxLimit = Number(cData.maxDailyBookings) || 0
+      if (!clinicId) clinicId = cSnap.docs[0].id
     }
+    if (!clinicId) clinicId = slug
 
     const bookingDate = date || new Date().toISOString().split('T')[0]
 
@@ -50,13 +54,19 @@ export async function POST(req: NextRequest) {
       where('date', '==', bookingDate)
     )
     const apptSnap = await getDocs(qAppts)
-    const filteredAppts = apptSnap.docs.filter((d) => {
-      const data = d.data()
-      return !branchId || data.branch_id === branchId || data.branchName === branchName
-    })
+    const activeAppts = apptSnap.docs.filter((d) => d.data().status !== 'cancelled')
 
-    const queueNumber = filteredAppts.length + 1
-    const aheadCount = filteredAppts.filter(
+    if (maxLimit > 0 && activeAppts.length >= maxLimit) {
+      return NextResponse.json(
+        { error: `عذراً، اكتمل الحد الأقصى للحجوزات لهذا اليوم (${maxLimit} كشف)` },
+        { status: 400 }
+      )
+    }
+
+    const existingQueueNums = apptSnap.docs.map((d) => Number(d.data().queue_number) || 0)
+    const maxQueue = existingQueueNums.length > 0 ? Math.max(0, ...existingQueueNums) : 0
+    const queueNumber = maxQueue + 1
+    const aheadCount = activeAppts.filter(
       (d) => d.data().status === 'waiting' || !d.data().status
     ).length
 

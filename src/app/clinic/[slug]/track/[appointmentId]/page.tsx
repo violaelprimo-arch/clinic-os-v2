@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import {
   Activity, Clock, CheckCircle2, Zap, MapPin, Phone,
   Users, Calendar, Sparkles, Navigation, MessageCircle, AlertCircle, Receipt,
-  UserCheck, ShieldCheck, FileText
+  UserCheck, ShieldCheck, FileText, Stethoscope
 } from 'lucide-react'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { ClinicLoading } from '@/components/clinic/ClinicLoading'
@@ -160,9 +160,14 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
     )
   }
 
-  const isCompleted = liveQueue.status === 'completed'
-  const isCurrentTurn = liveQueue.isCurrentTurn
-  const isNextInLine = liveQueue.isNextInLine
+  const isCompleted = liveQueue.status === 'completed' || appointment.status === 'completed'
+  const isExaminingNow =
+    !isCompleted &&
+    (appointment.status === 'in_progress' ||
+      (liveQueue.currentPatientExamining?.queueNumber &&
+        Number(liveQueue.currentPatientExamining.queueNumber) === Number(appointment.queue_number)))
+  const isCurrentTurn = !isExaminingNow && !isCompleted && liveQueue.isCurrentTurn
+  const isNextInLine = !isExaminingNow && !isCompleted && liveQueue.isNextInLine
   const isSkippedOrNoShow = liveQueue.status === 'skipped' || liveQueue.status === 'no_show'
   const isCancelled = liveQueue.status === 'cancelled'
 
@@ -223,12 +228,32 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
 
         {/* Live Status Content Rendering */}
         {isCompleted ? (
-          <div className="p-6 rounded-3xl bg-emerald-500/10 border border-emerald-500/20 text-center space-y-3">
-            <CheckCircle2 className="w-14 h-14 text-emerald-600 dark:text-emerald-400 mx-auto" />
-            <h3 className="text-xl font-black text-emerald-700 dark:text-emerald-400">{t('exam_completed_success', 'تم الكشف بنجاح!')}</h3>
+          <div className="p-6 rounded-3xl bg-emerald-500/10 border-2 border-emerald-500/30 text-center space-y-3">
+            <CheckCircle2 className="w-16 h-16 text-emerald-600 dark:text-emerald-400 mx-auto" />
+            <h3 className="text-2xl font-black text-emerald-700 dark:text-emerald-400">{t('exam_completed_success', 'تم الكشف الطبي بنجاح!')}</h3>
             <p className="text-xs text-muted-foreground font-medium">
               {t('wishing_good_health', 'نتمنى لك دوام الصحة والعافية ونتشرف دائماً بخدمتك.')}
             </p>
+            <div className="pt-1">
+              <span className="px-3.5 py-1.5 rounded-full bg-emerald-600 text-white text-xs font-black font-mono">
+                تذكرة رقم #{appointment.queue_number}
+              </span>
+            </div>
+          </div>
+        ) : isExaminingNow ? (
+          <div className="p-6 rounded-3xl bg-sky-500/15 border-2 border-sky-500 text-center space-y-3 animate-pulse shadow-xl shadow-sky-500/20">
+            <div className="w-16 h-16 rounded-full bg-sky-600 text-white flex items-center justify-center mx-auto shadow-lg">
+              <Stethoscope className="w-8 h-8 animate-bounce" />
+            </div>
+            <h3 className="text-2xl font-black text-sky-600 dark:text-sky-400">جاري الكشف الطبي الآن...</h3>
+            <p className="text-xs text-foreground font-bold">
+              أنت الآن داخل غرفة الكشف الطبي لمقابلة الطبيب. نتمنى لك الشفاء العاجل.
+            </p>
+            <div className="pt-2">
+              <span className="px-4 py-1.5 rounded-full bg-sky-600/20 text-sky-700 dark:text-sky-300 text-xs font-black font-mono">
+                تذكرة رقم #{appointment.queue_number} • مع الطبيب حالياً
+              </span>
+            </div>
           </div>
         ) : isCancelled ? (
           <div className="p-6 rounded-3xl bg-rose-500/10 border border-rose-500/20 text-center space-y-2">
