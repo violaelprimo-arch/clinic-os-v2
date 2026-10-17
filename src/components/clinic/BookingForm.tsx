@@ -242,9 +242,11 @@ export function BookingForm({
 
     const branchSchedule = selectedBranch?.weeklySchedule || clinic?.weeklySchedule || []
     const maxLimit = Number(selectedBranch?.maxDailyBookings || clinic?.maxDailyBookings) || 0
+    const isTodayOnly = clinic?.bookingAvailability === 'today_only' || clinic?.allowFutureBookings === false
 
-    // Scan up to 14 days ahead
-    for (let i = 0; i < 14; i++) {
+    // Scan up to 14 days ahead (or 1 day only if today_only is configured)
+    const maxDaysToScan = isTodayOnly ? 1 : 14
+    for (let i = 0; i < maxDaysToScan; i++) {
       const d = new Date()
       d.setDate(d.getDate() + i)
 
@@ -285,7 +287,7 @@ export function BookingForm({
     }
 
     return list
-  }, [selectedBranch, clinic?.weeklySchedule, clinic?.maxDailyBookings, dailyBookingCounts, isRtl])
+  }, [selectedBranch, clinic?.weeklySchedule, clinic?.maxDailyBookings, dailyBookingCounts, isRtl, clinic?.bookingAvailability, clinic?.allowFutureBookings])
 
   const [selectedDate, setSelectedDate] = useState<string>('')
 
@@ -761,30 +763,37 @@ export function BookingForm({
               </div>
 
               {availableDays.length > 0 ? (
-                <div className="grid grid-cols-3 gap-2">
-                  {availableDays.map((d) => {
-                    const isSelected = selectedDate === d.iso
-                    return (
-                      <button
-                        key={d.iso}
-                        type="button"
-                        onClick={() => setSelectedDate(d.iso)}
-                        className={`p-3 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
-                          isSelected
-                            ? 'bg-primary text-white border-primary shadow-md shadow-primary/20 ring-2 ring-primary/30'
-                            : 'bg-card text-foreground border-border hover:border-primary hover:bg-primary/5'
-                        }`}
-                      >
-                        <span className={`text-xs font-black ${isSelected ? 'text-white' : 'text-foreground'}`}>
-                          {d.label}
-                        </span>
-                        <span className={`text-[10px] font-bold ${isSelected ? 'text-white/90' : 'text-muted-foreground font-mono'}`}>
-                          {d.formattedDate}
-                        </span>
-                      </button>
-                    )
-                  })}
-                </div>
+                <>
+                  <div className={`grid ${availableDays.length === 1 ? 'grid-cols-1 max-w-[220px] mx-auto' : 'grid-cols-3'} gap-2`}>
+                    {availableDays.map((d) => {
+                      const isSelected = selectedDate === d.iso
+                      return (
+                        <button
+                          key={d.iso}
+                          type="button"
+                          onClick={() => setSelectedDate(d.iso)}
+                          className={`p-3 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                            isSelected
+                              ? 'bg-primary text-white border-primary shadow-md shadow-primary/20 ring-2 ring-primary/30'
+                              : 'bg-card text-foreground border-border hover:border-primary hover:bg-primary/5'
+                          }`}
+                        >
+                          <span className={`text-xs font-black ${isSelected ? 'text-white' : 'text-foreground'}`}>
+                            {d.label}
+                          </span>
+                          <span className={`text-[10px] font-bold ${isSelected ? 'text-white/90' : 'text-muted-foreground font-mono'}`}>
+                            {d.formattedDate}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {(clinic?.bookingAvailability === 'today_only' || clinic?.allowFutureBookings === false) && (
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400 font-bold text-center pt-1">
+                      ⚡ {isRtl ? 'الحجز متاح لليوم الحالي فقط بتعليمات العيادة' : 'Booking is restricted to today only'}
+                    </p>
+                  )}
+                </>
               ) : (
                 <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-center text-xs text-amber-700 dark:text-amber-400 font-bold">
                   {t('no_available_times', 'لا توجد مواعيد متاحة للحجز بهذا الفرع حالياً. يرجى اختيار فرع آخر أو التواصل مع العيادة.')}

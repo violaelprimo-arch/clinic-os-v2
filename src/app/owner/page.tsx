@@ -275,6 +275,7 @@ export default function OwnerDashboard() {
   const [specialty, setSpecialty] = useState('')
   const [certificationTitle, setCertificationTitle] = useState('')
   const [clinicAddress, setClinicAddress] = useState('')
+  const [bookingAvailability, setBookingAvailability] = useState<'all_days' | 'today_only'>('all_days')
 
   // Landing page customization
   const [heroImage, setHeroImage] = useState('https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=2000&auto=format&fit=crop')
@@ -1020,6 +1021,9 @@ export default function OwnerDashboard() {
         specialty: specialty || '',
         certificationTitle: certificationTitle || '',
         clinicAddress: clinicAddress || '',
+        address: clinicAddress || '',
+        bookingAvailability,
+        allowFutureBookings: bookingAvailability !== 'today_only',
 
         // Granular Feature Flags (TASK: Lock/Unlock any feature on doctor)
         allowFinance: allowFinance !== false,
@@ -1174,7 +1178,8 @@ export default function OwnerDashboard() {
     setSecondaryColor(c.secondaryColor || '#02CFF3')
     setSpecialty(c.specialty || '')
     setCertificationTitle(c.certificationTitle || '')
-    setClinicAddress(c.clinicAddress || '')
+    setClinicAddress(c.clinicAddress || c.address || '')
+    setBookingAvailability(c.bookingAvailability || (c.allowFutureBookings === false ? 'today_only' : 'all_days'))
     setHeroImage(c.heroImage || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=2000&auto=format&fit=crop')
     setHeroTitle(c.heroTitle || 'صحتك تستحق العناية الفائقة')
     setHeroSubtitle(c.heroSubtitle || 'نقدم لك ولعائلتك رعاية صحية متكاملة تعتمد على أحدث التقنيات وأفضل الكوادر الطبية المتخصصة لضمان سلامتك وتوفير راحتك.')
@@ -1214,6 +1219,7 @@ export default function OwnerDashboard() {
     setSpecialty('')
     setCertificationTitle('')
     setClinicAddress('')
+    setBookingAvailability('all_days')
     setPackageName('الباقة الأساسية')
     setAiResponsesLimit(100)
     setAiResponsesCount(0)
@@ -2128,11 +2134,16 @@ export default function OwnerDashboard() {
                                   </a>
                                 </div>
                               )}
-                              {c.clinicAddress && (
+                              {(c.clinicAddress || c.address) && (
                                 <p className="text-[10px] text-slate-400 flex items-center gap-1 truncate max-w-[190px]">
                                   <MapPin className="w-2.5 h-2.5 text-slate-400 shrink-0" />
-                                  <span className="truncate">{c.clinicAddress}</span>
+                                  <span className="truncate">{c.clinicAddress || c.address}</span>
                                 </p>
+                              )}
+                              {c.bookingAvailability === 'today_only' && (
+                                <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                  حجز اليوم فقط
+                                </span>
                               )}
                             </div>
                           </td>
@@ -3556,6 +3567,24 @@ export default function OwnerDashboard() {
                     />
                   </div>
                 </div>
+
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-[#087CF4]" />
+                      عنوان العيادة التفصيلي
+                    </Label>
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      يظهر للمرضى على الخريطة وصفحة الحجز والروشتة
+                    </span>
+                  </div>
+                  <Input
+                    value={clinicAddress}
+                    onChange={e => setClinicAddress(e.target.value)}
+                    placeholder="مثال: شارع التسعين الشمالي، التجمع الخامس، مبنى CMC الطبي، الدور الثاني، القاهرة"
+                    className="h-10 text-xs rounded-xl bg-white"
+                  />
+                </div>
               </div>
 
               {/* Section 3: Custom Prescription Template Upload & AI Controls */}
@@ -4160,6 +4189,60 @@ export default function OwnerDashboard() {
                         </div>
                       </div>
                       <Switch checked={allowOnlineBooking} onCheckedChange={setAllowOnlineBooking} />
+                    </div>
+
+                    {/* Booking Availability (Today Only vs Today + Future Days) */}
+                    <div className="p-4 rounded-xl bg-white border border-slate-200 sm:col-span-2 md:col-span-3 space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-5 h-5 text-[#087CF4] shrink-0" />
+                          <div>
+                            <Label className="text-xs font-black text-slate-800 block cursor-pointer">
+                              نطاق وإتاحة مواعيد الحجز للمرضى (Booking Availability)
+                            </Label>
+                            <span className="text-[11px] text-slate-500">
+                              حدد ما إذا كان مسموحاً للمرضى بالحجز في اليوم الحالي فقط، أو لليوم الحالي والأيام القادمة
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setBookingAvailability('all_days')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                              bookingAvailability === 'all_days'
+                                ? 'bg-white text-[#087CF4] shadow-xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            اليوم الحالي والأيام القادمة
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setBookingAvailability('today_only')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                              bookingAvailability === 'today_only'
+                                ? 'bg-amber-500 text-white shadow-xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            اليوم الحالي فقط
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="text-[11px] font-medium pt-1 border-t border-slate-100">
+                        {bookingAvailability === 'today_only' ? (
+                          <span className="text-amber-700 bg-amber-50 border border-amber-200/60 px-2.5 py-1 rounded-lg inline-block">
+                            ⚡ تم تفعيل &quot;اليوم الحالي فقط&quot;: يقتصر الحجز على اليوم الحالي حصراً، ولن يتمكن المرضى من اختيار أي تاريخ قادم.
+                          </span>
+                        ) : (
+                          <span className="text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2.5 py-1 rounded-lg inline-block">
+                            ✅ متاح الحجز لليوم الحالي وللأيام القادمة (حتى أسبوع) بناءً على مواعيد العمل المعتمدة للعيادة.
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

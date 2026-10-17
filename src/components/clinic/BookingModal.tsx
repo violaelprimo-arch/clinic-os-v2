@@ -187,7 +187,9 @@ export function BookingModal({
   const maxLimit = Number(selectedBranch?.maxDailyBookings || clinic?.maxDailyBookings) || 0
   const [dailyBookingCounts, setDailyBookingCounts] = useState<Record<string, number>>({})
 
-  // Smart Date State (Today, Tomorrow, and Next 5 days)
+  // Smart Date State (Today, Tomorrow, and Next 5 days or Today only based on clinic settings)
+  const isTodayOnly = clinic?.bookingAvailability === 'today_only' || clinic?.allowFutureBookings === false
+
   const availableDays = useMemo(() => {
     const list: { iso: string; label: string; subLabel: string; isFull: boolean }[] = []
     const dayNamesAr = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
@@ -196,8 +198,9 @@ export function BookingModal({
       'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
     ]
 
+    const daysCount = isTodayOnly ? 1 : 6
     const now = new Date()
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < daysCount; i++) {
       const d = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
       d.setDate(d.getDate() + i)
       const iso = d.toISOString().split('T')[0]
@@ -221,18 +224,19 @@ export function BookingModal({
       })
     }
     return list
-  }, [dailyBookingCounts, maxLimit])
+  }, [dailyBookingCounts, maxLimit, isTodayOnly])
 
   const [selectedDate, setSelectedDate] = useState<string>('')
 
-  // Load daily counts for the 6 days to enforce maxDailyBookings
+  // Load daily counts for available days to enforce maxDailyBookings
   useEffect(() => {
     if (!clinicId) return
     let isCancelled = false
 
+    const daysCount = isTodayOnly ? 1 : 6
     const now = new Date()
     const daysToScan: string[] = []
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < daysCount; i++) {
       const d = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
       d.setDate(d.getDate() + i)
       daysToScan.push(d.toISOString().split('T')[0])
@@ -269,7 +273,7 @@ export function BookingModal({
     return () => {
       isCancelled = true
     }
-  }, [clinicId, maxLimit])
+  }, [clinicId, maxLimit, isTodayOnly])
 
   // Live estimated queue & wait time calculation
   const [estimatedQueueNumber, setEstimatedQueueNumber] = useState<number>(1)
@@ -786,7 +790,7 @@ export function BookingModal({
                       </span>
                     )}
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className={`grid ${availableDays.length === 1 ? 'grid-cols-1 max-w-[220px] mx-auto' : 'grid-cols-3'} gap-2`}>
                     {availableDays.map((d) => {
                       const isSelected = selectedDate === d.iso
                       const isFull = d.isFull
@@ -819,6 +823,11 @@ export function BookingModal({
                       )
                     })}
                   </div>
+                  {isTodayOnly && (
+                    <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center text-[10.5px] font-bold text-amber-700 dark:text-amber-400">
+                      ⚡ تنبيه: الحجز متاح لليوم الحالي فقط بتعليمات العيادة
+                    </div>
+                  )}
                 </div>
 
                 {/* Live Queue & Estimated Wait Box */}

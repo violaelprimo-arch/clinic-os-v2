@@ -88,6 +88,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const [queueNormal, setQueueNormal] = useState(2)
   const [queueConsult, setQueueConsult] = useState(1)
   const [queueUrgent, setQueueUrgent] = useState(0)
+  const [bookingAvailability, setBookingAvailability] = useState<'all_days' | 'today_only'>('all_days')
 
   // Contacts & Location
   const [address, setAddress] = useState('')
@@ -176,10 +177,11 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           setAllowPatientMedicalView(data.allowPatientMedicalView !== false)
           setHidePrices(data.hidePrices === true)
           setAllowDoctorEditBranding(data.allowDoctorEditBranding !== false)
+          setBookingAvailability(
+            data.bookingAvailability || (data.allowFutureBookings === false ? 'today_only' : 'all_days')
+          )
         
-        
-        
-          setAddress(data.clinicAddress || '')
+          setAddress(data.clinicAddress || data.address || '')
           setDoctorPhone(data.doctorPhone || '')
           setClinicPhone(data.clinicPhone || (data.clinicPhones?.[0] || ''))
           setMapsLink(data.mapsLink || '')
@@ -257,10 +259,13 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         assistantPermissions: assistantPermissions || [],
         averageVisitTime: Number(averageVisitTime) || 15,
         maxDailyBookings: Number(maxDailyBookings) || 0,
-      allowPatientMedicalView,
-      hidePrices,
-      weeklySchedule,
+        bookingAvailability,
+        allowFutureBookings: bookingAvailability !== 'today_only',
+        allowPatientMedicalView,
+        hidePrices,
+        weeklySchedule,
         clinicAddress: address || '',
+        address: address || '',
         clinicPhone: phones[0] || '',
         doctorPhone: doctorPhone || '',
         mapsLink: mapsLink || '',
@@ -290,13 +295,9 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       )
 
       if (!clinicId) {
-        const docRef = await addDoc(collection(db, 'clinics'), {
-          slug,
-          ...payload,
-          isActive: true,
-          createdAt: new Date().toISOString()
-        })
-        setClinicId(docRef.id)
+        toast.error('لا يمكن إنشاء عيادة جديدة من حساب الطبيب. إنشاء العيادات وتفعيلها متاح حصرياً من لوحة تحكم المالك.')
+        setIsSaving(false)
+        return
       } else {
         await updateDoc(doc(db, 'clinics', clinicId), payload)
       }
@@ -988,11 +989,17 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               </div>
 
               <div className="space-y-1.5 pt-2">
-                <Label className="text-xs font-bold text-muted-foreground">{t('detailed_clinic_address', 'عنوان العيادة التفصيلي')}</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-primary" />
+                    <span>{t('detailed_clinic_address', 'عنوان العيادة التفصيلي')}</span>
+                  </Label>
+                  <span className="text-[10px] text-muted-foreground font-medium">يظهر للمرضى على الخريطة وصفحة الحجز والروشتة</span>
+                </div>
                 <Input
                   value={address}
                   onChange={e => setAddress(e.target.value)}
-                  placeholder="شارع التسعين الشمالي، التجمع الخامس، القاهرة"
+                  placeholder="مثال: شارع التسعين الشمالي، التجمع الخامس، مبنى CMC الطبي، الدور الثاني، القاهرة"
                   className="h-10 text-xs rounded-xl"
                 />
               </div>
@@ -1312,6 +1319,66 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               <p className="text-[11px] text-muted-foreground">
                 {t('avg_visit_time_hint', 'يُستخدم لحساب الوقت التقريبي المتبقي لشاشة تتبع دور المريض الذكية تلقائياً.')}
               </p>
+            </div>
+
+            {/* Booking Availability (Today Only vs Today + Future Days) */}
+            <div className="space-y-3 pb-4 border-b border-border">
+              <div>
+                <Label className="text-xs font-bold text-foreground block">
+                  {t('booking_availability_label', 'نطاق وإتاحة مواعيد الحجز للمرضى')}
+                </Label>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {t('booking_availability_desc', 'حدد ما إذا كان الحجز متاحاً لليوم الحالي فقط أو اليوم الحالي والأيام القادمة')}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl">
+                <div
+                  onClick={() => setBookingAvailability('all_days')}
+                  className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between gap-2 ${
+                    bookingAvailability === 'all_days'
+                      ? 'border-primary bg-primary/10 shadow-xs ring-2 ring-primary/20'
+                      : 'border-border bg-card hover:border-primary/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-foreground">
+                      {t('booking_all_days', 'اليوم الحالي والأيام القادمة')}
+                    </span>
+                    <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                      bookingAvailability === 'all_days' ? 'border-primary bg-primary' : 'border-muted-foreground'
+                    }`}>
+                      {bookingAvailability === 'all_days' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    {t('booking_all_days_desc', 'إتاحة الحجز لليوم وللأيام القادمة حتى أسبوع وفقاً لجدول العمل المعتمد')}
+                  </p>
+                </div>
+
+                <div
+                  onClick={() => setBookingAvailability('today_only')}
+                  className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between gap-2 ${
+                    bookingAvailability === 'today_only'
+                      ? 'border-amber-500 bg-amber-500/10 shadow-xs ring-2 ring-amber-500/20'
+                      : 'border-border bg-card hover:border-amber-500/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-foreground">
+                      {t('booking_today_only', 'اليوم الحالي فقط')}
+                    </span>
+                    <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                      bookingAvailability === 'today_only' ? 'border-amber-500 bg-amber-500' : 'border-muted-foreground'
+                    }`}>
+                      {bookingAvailability === 'today_only' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    {t('booking_today_only_desc', 'حصر الحجز لليوم الحالي فقط ومنع المرضى من حجز أي تواريخ مستقبلية')}
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div className="space-y-2 pb-4 border-b border-border">
