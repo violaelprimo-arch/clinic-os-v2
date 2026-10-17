@@ -1054,13 +1054,10 @@ export function BookingForm({
 
               <div className="space-y-1.5">
                 <Label className="text-xs font-bold text-foreground">{t('wallet_from_label', 'رقم المحفظة المحول منها (إجباري) *')}</Label>
-                <Input
+                <PhoneInputWithCountry
                   value={transferNumber}
-                  onChange={(e) => setTransferNumber(e.target.value)}
-                  placeholder="010xxxxxxxx"
-                  className="h-11 text-xs bg-background rounded-xl border-input text-foreground"
-                  dir="ltr"
-                  required
+                  onChange={(fullNumber) => setTransferNumber(fullNumber)}
+                  size="sm"
                 />
               </div>
 

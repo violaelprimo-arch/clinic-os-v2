@@ -23,6 +23,8 @@ import { PremiumLanding } from '@/components/clinic/PremiumLanding'
 import { MessageCircle } from 'lucide-react'
 import { useLanguage } from '@/context/LanguageContext'
 import { extractCoordsFromLink } from '@/lib/mapsHelper'
+import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
+import { cleanPhoneForWhatsApp } from '@/lib/countryPhoneHelper'
 
 export default function ClinicSettings({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -997,26 +999,33 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5 col-span-2">
+                  <Label className="text-xs font-bold text-muted-foreground">{t('doctor_phone_label', 'رقم تليفون الطبيب (شخصي)')}</Label>
+                  <PhoneInputWithCountry
+                    value={doctorPhone}
+                    onChange={(fullNumber) => setDoctorPhone(fullNumber)}
+                    size="sm"
+                  />
+                </div>
+
+                <div className="space-y-1.5 col-span-2">
                   <Label className="text-xs font-bold text-muted-foreground">{t('clinic_phone_numbers', 'أرقام هواتف العيادة (للحجز والواتساب)')}</Label>
                   <div className="space-y-2">
                     {phones.map((p, idx) => (
                       <div key={idx} className="flex items-center gap-2">
-                        <Input
+                        <PhoneInputWithCountry
                           value={p}
-                          onChange={e => {
+                          onChange={(fullNumber) => {
                             const newPhones = [...phones]
-                            newPhones[idx] = e.target.value
+                            newPhones[idx] = fullNumber
                             setPhones(newPhones)
                           }}
-                          placeholder="01012345678"
-                          className={`h-10 text-xs rounded-xl font-mono ${isRtl ? 'text-right' : 'text-left'}`}
-                          dir="ltr"
+                          size="sm"
                         />
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => setPhones(phones.filter((_, i) => i !== idx))}
-                          className="text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 shrink-0"
+                          className="text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 shrink-0 cursor-pointer"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -1498,13 +1507,11 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               </div>
               {isWalletEnabled && (
                 <div className={`space-y-1.5 ${isRtl ? 'pr-14' : 'pl-14'}`}>
-                  <Label className="text-xs font-bold text-muted-foreground">{t('wallet_number', 'رقم المحفظة')}</Label>
-                  <Input
+                  <Label className="text-xs font-bold text-muted-foreground">{t('wallet_number', 'رقم المحفظة الإلكترونية')}</Label>
+                  <PhoneInputWithCountry
                     value={walletNumber}
-                    onChange={e => setWalletNumber(e.target.value)}
-                    placeholder="010xxxxxxxx"
-                    className={`h-10 text-xs rounded-xl font-mono ${isRtl ? 'text-right' : 'text-left'}`}
-                    dir="ltr"
+                    onChange={(fullNumber) => setWalletNumber(fullNumber)}
+                    size="sm"
                   />
                 </div>
               )}
@@ -1653,7 +1660,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
             {supportNumbers.filter((n: any) => n.isActive).length > 0 ? (
               <div className="flex flex-wrap justify-center gap-3 pt-6">
                 {supportNumbers.filter((n: any) => n.isActive).map((num: any, idx: number) => (
-                  <a key={idx} href={`https://wa.me/20${num.phone.replace(/^0/, '')}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded-xl font-bold text-sm hover:bg-emerald-500/20 transition-colors shadow-xs">
+                  <a key={idx} href={`https://wa.me/${cleanPhoneForWhatsApp(num.phone)}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded-xl font-bold text-sm hover:bg-emerald-500/20 transition-colors shadow-xs">
                     <MessageCircle className="w-4 h-4" />
                     {num.label || t('technical_support', 'الدعم الفني')} - {num.phone}
                   </a>

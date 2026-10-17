@@ -20,6 +20,7 @@ import { EGYPTIAN_DRUGS } from '@/lib/egyptian-drugs'
 import { useEgyptianDrugs } from '@/hooks/useEgyptianDrugs'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
+import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import { printHtmlViaIframe, generateA4PrescriptionHtml } from '@/lib/printService'
 import { renderElementToPdfBlob, downloadElementAsPdf, renderElementToImageBlob, downloadElementAsImage } from '@/lib/pdfGenerator'
 import {
@@ -557,12 +558,10 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
 
               <div className="sm:col-span-1 space-y-1">
                 <Label className="text-xs font-bold text-muted-foreground">{t('phone', 'رقم الهاتف')}</Label>
-                <Input
+                <PhoneInputWithCountry
                   value={patientPhone}
-                  onChange={e => setPatientPhone(e.target.value)}
-                  placeholder="01xxxxxxxxx"
-                  className="h-10 text-xs font-mono rounded-xl bg-background border-border text-foreground"
-                  dir="ltr"
+                  onChange={(fullNumber) => setPatientPhone(fullNumber)}
+                  size="sm"
                 />
               </div>
 

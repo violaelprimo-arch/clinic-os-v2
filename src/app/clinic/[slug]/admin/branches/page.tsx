@@ -24,6 +24,8 @@ import {
   doc
 } from 'firebase/firestore'
 import { Branch, BranchScheduleDay } from '@/types/clinic'
+import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
+import { cleanPhoneForWhatsApp } from '@/lib/countryPhoneHelper'
 import {
   DEFAULT_WEEKLY_SCHEDULE,
   ensureClinicHasMainBranch,
@@ -693,23 +695,20 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                 <div className="grid sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs font-bold text-muted-foreground">{t('branch_phone', 'رقم هاتف الفرع')} *</Label>
-                    <Input
+                    <PhoneInputWithCountry
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="01012345678"
-                      className="h-10 text-xs rounded-xl"
+                      onChange={(fullNumber) => setPhone(fullNumber)}
                       required
-                      dir="ltr"
+                      size="sm"
                     />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs font-bold text-muted-foreground">{language === 'en' ? 'Branch WhatsApp' : 'رقم واتساب الفرع'}</Label>
-                    <Input
+                    <PhoneInputWithCountry
                       value={whatsapp}
-                      onChange={(e) => setWhatsapp(e.target.value)}
-                      placeholder="01012345678"
-                      className="h-10 text-xs rounded-xl"
-                      dir="ltr"
+                      onChange={(fullNumber) => setWhatsapp(fullNumber)}
+                      placeholder={phone || '01012345678'}
+                      size="sm"
                     />
                   </div>
                   <div className="space-y-1">

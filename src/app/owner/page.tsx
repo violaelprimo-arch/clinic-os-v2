@@ -36,6 +36,8 @@ import {
 import Link from 'next/link'
 import { SYSTEM_FEATURES } from '@/lib/featurePermissions'
 import { useLanguage } from '@/context/LanguageContext'
+import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
+import { cleanPhoneForWhatsApp } from '@/lib/countryPhoneHelper'
 
 function formatTime12(timeStr?: string): string {
   if (!timeStr) return ''
@@ -2116,7 +2118,7 @@ export default function OwnerDashboard() {
                                     <Copy className="w-2.5 h-2.5" />
                                   </button>
                                   <a
-                                    href={`https://wa.me/2${primaryPhone.replace(/^0+/, '').replace(/\D/g, '')}`}
+                                    href={`https://wa.me/${cleanPhoneForWhatsApp(primaryPhone)}`}
                                     target="_blank"
                                     rel="noreferrer"
                                     className="inline-flex items-center gap-0.5 text-emerald-600 hover:text-emerald-700 font-bold hover:underline"
@@ -3528,23 +3530,19 @@ export default function OwnerDashboard() {
                 <div className="grid md:grid-cols-3 gap-4">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-bold text-slate-600">رقم تليفون الطبيب (شخصي)</Label>
-                    <Input
+                    <PhoneInputWithCountry
                       value={doctorPhone}
-                      onChange={e => setDoctorPhone(e.target.value)}
-                      dir="ltr"
-                      className="h-10 text-xs rounded-xl text-right font-mono"
-                      placeholder="010xxxxxxxx"
+                      onChange={(fullNumber) => setDoctorPhone(fullNumber)}
+                      size="sm"
                     />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-bold text-slate-600">رقم العيادة (واتساب والحجز والروشتة) *</Label>
-                    <Input
+                    <PhoneInputWithCountry
                       value={clinicPhone}
-                      onChange={e => setClinicPhone(e.target.value)}
+                      onChange={(fullNumber) => setClinicPhone(fullNumber)}
                       required
-                      dir="ltr"
-                      className="h-10 text-xs rounded-xl text-right font-mono"
-                      placeholder="01xxxxxxxxx"
+                      size="sm"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -4267,11 +4265,15 @@ export default function OwnerDashboard() {
                   </div>
                   <div className="space-y-1.5 w-full">
                     <Label className="text-xs font-bold text-slate-700">رقم الهاتف (واتساب)</Label>
-                    <Input value={num.phone} onChange={e => {
-                      const newNums = [...supportNumbers];
-                      newNums[idx].phone = e.target.value;
-                      setSupportNumbers(newNums);
-                    }} className="h-10 text-xs font-mono text-right rounded-xl bg-white" dir="ltr" />
+                    <PhoneInputWithCountry
+                      value={num.phone}
+                      onChange={(fullNumber) => {
+                        const newNums = [...supportNumbers];
+                        newNums[idx].phone = fullNumber;
+                        setSupportNumbers(newNums);
+                      }}
+                      size="sm"
+                    />
                   </div>
                   <div className="flex items-center gap-3 w-full sm:w-auto h-10 px-2">
                     <Switch checked={num.isActive} onCheckedChange={checked => {

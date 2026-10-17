@@ -1071,13 +1071,10 @@ export function BookingModal({
                       <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
                         رقم المحفظة التي قمت بالتحويل منها: <span className="text-rose-500">*</span>
                       </label>
-                      <input
-                        type="tel"
-                        dir="ltr"
+                      <PhoneInputWithCountry
                         value={transferAccount}
-                        onChange={(e) => setTransferAccount(e.target.value)}
-                        placeholder="01012345678"
-                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-rose-200 dark:border-rose-700 text-xs font-bold outline-none text-left"
+                        onChange={(fullNumber) => setTransferAccount(fullNumber)}
+                        size="sm"
                       />
                     </div>
                   </div>
