@@ -107,6 +107,9 @@ export async function ensureClinicHasMainBranch(clinic: any): Promise<Branch> {
   if (!snap.empty) {
     const existingBranches = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as Branch[]
     const mainBranch = existingBranches.find((b) => b.isMain) || existingBranches[0]
+    if (clinic.weeklySchedule && clinic.weeklySchedule.length > 0 && (!mainBranch.weeklySchedule || mainBranch.weeklySchedule.length === 0)) {
+      mainBranch.weeklySchedule = clinic.weeklySchedule
+    }
     return mainBranch
   }
 
@@ -126,6 +129,7 @@ export async function ensureClinicHasMainBranch(clinic: any): Promise<Branch> {
     phone: clinic.clinicPhone || (clinic.clinicPhones?.[0] || '01012345678'),
     whatsapp: clinic.clinicPhone || '',
     weeklySchedule: schedule,
+    workingHours: formatWeeklyScheduleSummary(schedule, true),
     slotDuration: clinic.averageVisitTime || 15,
     maxDailyBookings: clinic.maxDailyBookings || 0,
     services: clinic.services || [
@@ -180,3 +184,203 @@ export async function getClinicBranches(clinicId: string): Promise<Branch[]> {
     return []
   }
 }
+
+/**
+ * Formats a 24-hour time string (e.g. '09:00', '22:00', '14:30') into 12-hour format ('9:00 ص', '10:00 م', '2:30 م').
+ */
+export function formatTime12h(time24: string, isRtl: boolean = true): string {
+  if (!time24 || !time24.includes(':')) return time24 || ''
+  const [hourStr, minStr] = time24.split(':')
+  let hour = parseInt(hourStr, 10)
+  const mins = minStr || '00'
+  if (isNaN(hour)) return time24
+
+  const isPm = hour >= 12
+  if (hour === 0) {
+    hour = 12
+  } else if (hour > 12) {
+    hour -= 12
+  }
+
+  if (isRtl) {
+    return `${hour}:${mins} ${isPm ? 'م' : 'ص'}`
+  } else {
+    return `${hour}:${mins} ${isPm ? 'PM' : 'AM'}`
+  }
+}
+
+export interface WeeklyScheduleDisplayGroup {
+  daysLabel: string
+  hoursLabel: string
+  isOpen: boolean
+}
+
+/**
+ * Groups consecutive days with identical operating hours into clean display groups.
+ */
+export function getWeeklyScheduleDisplayGroups(
+  schedule?: any[],
+  isRtl: boolean = true
+): WeeklyScheduleDisplayGroup[] {
+  if (!Array.isArray(schedule) || schedule.length === 0) {
+    return [
+      {
+        daysLabel: isRtl ? 'السبت - الخميس' : 'Sat - Thu',
+        hoursLabel: isRtl ? '9:00 ص - 10:00 م' : '9:00 AM - 10:00 PM',
+        isOpen: true
+      },
+      {
+        daysLabel: isRtl ? 'الجمعة' : 'Friday',
+        hoursLabel: isRtl ? 'مغلق' : 'Closed',
+        isOpen: false
+      }
+    ]
+  }
+
+  const dayOrder = ['saturday', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday']
+  const dayNamesAr: Record<string, string> = {
+    saturday: 'السبت',
+    sunday: 'الأحد',
+    monday: 'الإثنين',
+    tuesday: 'الثلاثاء',
+    wednesday: 'الأربعاء',
+    thursday: 'الخميس',
+    friday: 'الجمعة'
+  }
+  const dayNamesEn: Record<string, string> = {
+    saturday: 'Sat',
+    sunday: 'Sun',
+    monday: 'Mon',
+    tuesday: 'Tue',
+    wednesday: 'Wed',
+    thursday: 'Thu',
+    friday: 'Fri'
+  }
+
+  const sorted = [...schedule].sort((a, b) => {
+    const idxA = dayOrder.indexOf(a.id || a.dayKey || '')
+    const idxB = dayOrder.indexOf(b.id || b.dayKey || '')
+    return (idxA >= 0 ? idxA : 99) - (idxB >= 0 ? idxB : 99)
+  })
+
+  const groups: { days: string[]; isOpen: boolean; start: string; end: string }[] = []
+
+  for (const item of sorted) {
+    const dayKey = item.id || item.dayKey || item.day
+    const isOpen = item.isOpen !== false
+    const start = item.start || '09:00'
+    const end = item.end || '22:00'
+
+    const lastGroup = groups[groups.length - 1]
+    if (
+      lastGroup &&
+      lastGroup.isOpen === isOpen &&
+      (!isOpen || (lastGroup.start === start && lastGroup.end === end))
+    ) {
+      lastGroup.days.push(dayKey)
+    } else {
+      groups.push({
+        days: [dayKey],
+        isOpen,
+        start,
+        end
+      })
+    }
+  }
+
+  return groups.map((g) => {
+    const firstKey = g.days[0]
+    const lastKey = g.days[g.days.length - 1]
+    const firstName = isRtl ? dayNamesAr[firstKey] || firstKey : dayNamesEn[firstKey] || firstKey
+    const lastName = isRtl ? dayNamesAr[lastKey] || lastKey : dayNamesEn[lastKey] || lastKey
+
+    let daysLabel = ''
+    if (g.days.length === 7) {
+      daysLabel = isRtl ? 'طوال أيام الأسبوع' : 'Everyday'
+    } else if (g.days.length === 1) {
+      daysLabel = firstName
+    } else {
+      daysLabel = `${firstName} - ${lastName}`
+    }
+
+    let hoursLabel = ''
+    if (!g.isOpen) {
+      hoursLabel = isRtl ? 'مغلق' : 'Closed'
+    } else {
+      hoursLabel = `${formatTime12h(g.start, isRtl)} - ${formatTime12h(g.end, isRtl)}`
+    }
+
+    return { daysLabel, hoursLabel, isOpen: g.isOpen }
+  })
+}
+
+/**
+ * Returns a single-line human-readable summary of weekly operating hours.
+ */
+export function formatWeeklyScheduleSummary(schedule?: any[], isRtl: boolean = true): string {
+  const groups = getWeeklyScheduleDisplayGroups(schedule, isRtl)
+  const openGroups = groups.filter((g) => g.isOpen)
+  if (openGroups.length === 0) {
+    return isRtl ? 'مغلق حالياً' : 'Currently closed'
+  }
+  return openGroups.map((g) => `${g.daysLabel}: ${g.hoursLabel}`).join(' • ')
+}
+
+/**
+ * Checks whether the clinic or branch is currently open right now according to its schedule.
+ */
+export function isClinicOpenNow(schedule?: any[]): boolean {
+  if (!Array.isArray(schedule) || schedule.length === 0) return true
+  const now = new Date()
+  const dayKeys = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+  const todayKey = dayKeys[now.getDay()]
+  const daySchedule = schedule.find((s) => (s.id || s.dayKey) === todayKey)
+  if (!daySchedule || daySchedule.isOpen === false) return false
+
+  const curHour = now.getHours()
+  const curMin = now.getMinutes()
+  const curMins = curHour * 60 + curMin
+
+  const [startH, startM] = (daySchedule.start || '00:00').split(':').map(Number)
+  const [endH, endM] = (daySchedule.end || '23:59').split(':').map(Number)
+
+  const startMins = (isNaN(startH) ? 0 : startH) * 60 + (isNaN(startM) ? 0 : startM)
+  const endMins = (isNaN(endH) ? 23 : endH) * 60 + (isNaN(endM) ? 59 : endM)
+
+  return curMins >= startMins && curMins <= endMins
+}
+
+/**
+ * Synchronizes the updated clinic weekly schedule and working hours to the clinic's main branch.
+ */
+export async function syncClinicScheduleToMainBranch(
+  clinicId: string,
+  weeklySchedule: BranchScheduleDay[],
+  workingHoursSummary?: string
+): Promise<void> {
+  try {
+    const branchesRef = collection(db, 'branches')
+    const q = query(branchesRef, where('clinicId', '==', clinicId))
+    const snap = await getDocs(q)
+    if (snap.empty) return
+
+    const summary = workingHoursSummary || formatWeeklyScheduleSummary(weeklySchedule)
+    const batch = writeBatch(db)
+
+    snap.docs.forEach((docSnap) => {
+      const data = docSnap.data()
+      // If it's the main branch, or if the clinic only has 1 branch, sync schedule
+      if (data.isMain || snap.docs.length === 1) {
+        batch.update(doc(db, 'branches', docSnap.id), {
+          weeklySchedule,
+          workingHours: summary
+        })
+      }
+    })
+
+    await batch.commit()
+  } catch (err) {
+    console.warn('Failed to sync clinic schedule to main branch:', err)
+  }
+}
+

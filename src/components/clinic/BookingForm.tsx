@@ -261,7 +261,7 @@ export function BookingForm({
 
       // Check weeklySchedule: if branch is closed on this day, SKIP
       if (branchSchedule && branchSchedule.length > 0) {
-        const sched = branchSchedule.find((s: any) => s.id === dayKey)
+        const sched = branchSchedule.find((s: any) => (s.id || s.dayKey) === dayKey)
         if (sched && sched.isOpen === false) {
           continue
         }

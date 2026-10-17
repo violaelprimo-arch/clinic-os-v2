@@ -22,7 +22,7 @@ import {
   Maximize2
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { getClinicBranches } from '@/lib/branchService'
+import { getClinicBranches, formatWeeklyScheduleSummary, isClinicOpenNow, DEFAULT_WEEKLY_SCHEDULE } from '@/lib/branchService'
 import { resolveEffectiveLocation, isPlaceholderAddress } from '@/lib/mapsHelper'
 import { InteractiveClinicMap } from '@/components/clinic/InteractiveClinicMap'
 
@@ -54,7 +54,8 @@ export function ClinicLocationMap({
       mapsLink: clinic?.mapsLink || 'https://maps.google.com/?q=Nasr+City+Cairo',
       phone: clinic?.clinicPhone || '01012345678',
       whatsapp: clinic?.whatsappNumber || clinic?.clinicPhone || '01012345678',
-      workingHours: clinic?.workingHours || 'السبت - الخميس: 2:00 م - 10:00 م',
+      workingHours: clinic?.workingHours || formatWeeklyScheduleSummary(clinic?.weeklySchedule, true) || 'السبت - الخميس: 9:00 ص - 10:00 م',
+      weeklySchedule: clinic?.weeklySchedule || DEFAULT_WEEKLY_SCHEDULE,
       landmark: 'بجوار محطة المترو والبنك الأهلي • متوفر أماكن انتظار سيارات',
       isOpen: true,
       isMain: true
@@ -108,7 +109,8 @@ export function ClinicLocationMap({
               mapsLink: b.mapsLink || clinic?.mapsLink || `https://maps.google.com/?q=${encodeURIComponent(addr)}`,
               phone: b.phone || clinic?.clinicPhone || '01012345678',
               whatsapp: b.whatsapp || clinic?.whatsappNumber || b.phone || clinic?.clinicPhone || '01012345678',
-              workingHours: b.workingHours || clinic?.workingHours || 'السبت - الخميس: 2:00 م - 10:00 م',
+              workingHours: b.workingHours || clinic?.workingHours || formatWeeklyScheduleSummary(b.weeklySchedule || clinic?.weeklySchedule, true),
+              weeklySchedule: b.weeklySchedule || clinic?.weeklySchedule || DEFAULT_WEEKLY_SCHEDULE,
               landmark: b.landmark || 'متاح أماكن انتظار سيارات بالخارج'
             }
           })
@@ -416,22 +418,34 @@ export function ClinicLocationMap({
         </div>
 
         {/* Working Hours Row */}
-        <div className="flex items-start gap-2.5 pb-3 border-b border-slate-100 dark:border-slate-700/70">
-          <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
-            <Clock className="w-4 h-4" />
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-400">مواعيد العمل واستقبال المرضى:</span>
-              <span className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/70 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
-                متاح ومفتوح
-              </span>
+        {(() => {
+          const effectiveSchedule = current?.weeklySchedule || clinic?.weeklySchedule
+          const isOpenNow = isClinicOpenNow(effectiveSchedule)
+          const scheduleSummary = current?.workingHours || formatWeeklyScheduleSummary(effectiveSchedule, true)
+
+          return (
+            <div className="flex items-start gap-2.5 pb-3 border-b border-slate-100 dark:border-slate-700/70">
+              <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
+                <Clock className="w-4 h-4" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-400">مواعيد العمل واستقبال المرضى:</span>
+                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
+                    isOpenNow
+                      ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/70 border-emerald-200 dark:border-emerald-800'
+                      : 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/70 border-amber-200 dark:border-amber-800'
+                  }`}>
+                    {isOpenNow ? 'متاح ومفتوح الآن' : 'مغلق حالياً'}
+                  </span>
+                </div>
+                <p className="text-xs font-black text-slate-800 dark:text-white mt-1">
+                  {scheduleSummary}
+                </p>
+              </div>
             </div>
-            <p className="text-xs font-black text-slate-800 dark:text-white mt-1">
-              {current?.workingHours || 'السبت إلى الخميس: 2:00 م - 10:00 م'}
-            </p>
-          </div>
-        </div>
+          )
+        })()}
 
         {/* Quick Contact & Action Buttons */}
         <div className="grid grid-cols-3 gap-2 pt-1">

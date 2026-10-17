@@ -193,21 +193,34 @@ export function BookingModal({
   const availableDays = useMemo(() => {
     const list: { iso: string; label: string; subLabel: string; isFull: boolean }[] = []
     const dayNamesAr = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
+    const dayKeys = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
     const monthNamesAr = [
       'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
       'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
     ]
 
-    const daysCount = isTodayOnly ? 1 : 6
+    const branchSchedule = selectedBranch?.weeklySchedule || clinic?.weeklySchedule || []
+    const maxDaysToScan = isTodayOnly ? 1 : 14
+    const targetCount = isTodayOnly ? 1 : 6
     const now = new Date()
-    for (let i = 0; i < daysCount; i++) {
+
+    for (let i = 0; i < maxDaysToScan; i++) {
       const d = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
       d.setDate(d.getDate() + i)
       const iso = d.toISOString().split('T')[0]
       const dayIndex = d.getDay()
+      const dayKey = dayKeys[dayIndex]
       const dayName = dayNamesAr[dayIndex]
       const dayNum = d.getDate()
       const monthName = monthNamesAr[d.getMonth()]
+
+      // Check weeklySchedule: if branch/clinic is closed on this day, SKIP
+      if (branchSchedule && branchSchedule.length > 0) {
+        const sched = branchSchedule.find((s: any) => (s.id || s.dayKey) === dayKey)
+        if (sched && sched.isOpen === false) {
+          continue
+        }
+      }
 
       let label = `${dayName}`
       if (i === 0) label = 'اليوم'
@@ -222,9 +235,11 @@ export function BookingModal({
         subLabel: `${dayNum} ${monthName}`,
         isFull
       })
+
+      if (list.length >= targetCount) break
     }
     return list
-  }, [dailyBookingCounts, maxLimit, isTodayOnly])
+  }, [dailyBookingCounts, maxLimit, isTodayOnly, selectedBranch?.weeklySchedule, clinic?.weeklySchedule])
 
   const [selectedDate, setSelectedDate] = useState<string>('')
 
@@ -233,13 +248,29 @@ export function BookingModal({
     if (!clinicId) return
     let isCancelled = false
 
-    const daysCount = isTodayOnly ? 1 : 6
+    const branchSchedule = selectedBranch?.weeklySchedule || clinic?.weeklySchedule || []
+    const dayKeys = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+    const maxDaysToScan = isTodayOnly ? 1 : 14
+    const targetCount = isTodayOnly ? 1 : 6
     const now = new Date()
     const daysToScan: string[] = []
-    for (let i = 0; i < daysCount; i++) {
+
+    for (let i = 0; i < maxDaysToScan; i++) {
       const d = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
       d.setDate(d.getDate() + i)
-      daysToScan.push(d.toISOString().split('T')[0])
+      const iso = d.toISOString().split('T')[0]
+      const dayIndex = d.getDay()
+      const dayKey = dayKeys[dayIndex]
+
+      if (branchSchedule && branchSchedule.length > 0) {
+        const sched = branchSchedule.find((s: any) => (s.id || s.dayKey) === dayKey)
+        if (sched && sched.isOpen === false) {
+          continue
+        }
+      }
+
+      daysToScan.push(iso)
+      if (daysToScan.length >= targetCount) break
     }
 
     Promise.all(
@@ -273,7 +304,7 @@ export function BookingModal({
     return () => {
       isCancelled = true
     }
-  }, [clinicId, maxLimit, isTodayOnly])
+  }, [clinicId, maxLimit, isTodayOnly, selectedBranch?.weeklySchedule, clinic?.weeklySchedule])
 
   // Live estimated queue & wait time calculation
   const [estimatedQueueNumber, setEstimatedQueueNumber] = useState<number>(1)

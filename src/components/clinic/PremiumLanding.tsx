@@ -8,7 +8,7 @@ import { BookingModal } from '@/components/clinic/BookingModal'
 import { PatientLiveTurn } from '@/components/clinic/PatientLiveTurn'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { ClinicLocationMap } from '@/components/clinic/ClinicLocationMap'
-import { getClinicBranches } from '@/lib/branchService'
+import { getClinicBranches, getWeeklyScheduleDisplayGroups, isClinicOpenNow } from '@/lib/branchService'
 import {
   Clock,
   Star,
@@ -434,12 +434,12 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
                     {isRtl ? 'معلومات العيادة' : 'Clinic Information'}
                   </h2>
                   <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                    clinic?.isClinicOpen !== false
+                    clinic?.isClinicOpen !== false && isClinicOpenNow(selectedBranch?.weeklySchedule || clinic?.weeklySchedule)
                       ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
                       : 'bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
                   }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${clinic?.isClinicOpen !== false ? 'bg-emerald-500 animate-ping' : 'bg-rose-500'}`}></span>
-                    <span>{clinic?.isClinicOpen !== false ? (isRtl ? 'مفتوح الآن' : 'Open Now') : (isRtl ? 'مغلق حالياً' : 'Closed Now')}</span>
+                    <span className={`w-1.5 h-1.5 rounded-full ${clinic?.isClinicOpen !== false && isClinicOpenNow(selectedBranch?.weeklySchedule || clinic?.weeklySchedule) ? 'bg-emerald-500 animate-ping' : 'bg-rose-500'}`}></span>
+                    <span>{clinic?.isClinicOpen !== false && isClinicOpenNow(selectedBranch?.weeklySchedule || clinic?.weeklySchedule) ? (isRtl ? 'مفتوح الآن' : 'Open Now') : (isRtl ? 'مغلق حالياً' : 'Closed Now')}</span>
                   </span>
                 </div>
 
@@ -481,14 +481,14 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
                   {isRtl ? 'مواعيد العمل' : 'Working Hours'}
                 </h3>
                 <div className="space-y-2 text-sm">
-                  <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-slate-50 dark:bg-slate-800/50">
-                    <span className="font-bold text-slate-700 dark:text-slate-300">{isRtl ? 'السبت - الخميس' : 'Sat - Thu'}</span>
-                    <span className="font-extrabold text-slate-900 dark:text-white text-xs">9:00 ص - 10:00 م</span>
-                  </div>
-                  <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-slate-50 dark:bg-slate-800/50">
-                    <span className="font-bold text-slate-700 dark:text-slate-300">{isRtl ? 'الجمعة' : 'Friday'}</span>
-                    <span className="font-extrabold text-slate-900 dark:text-white text-xs">4:00 م - 9:00 م</span>
-                  </div>
+                  {getWeeklyScheduleDisplayGroups(selectedBranch?.weeklySchedule || clinic?.weeklySchedule, isRtl).map((grp, idx) => (
+                    <div key={idx} className="flex items-center justify-between py-2 px-3 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                      <span className="font-bold text-slate-700 dark:text-slate-300">{grp.daysLabel}</span>
+                      <span className={`font-extrabold text-xs ${grp.isOpen ? 'text-slate-900 dark:text-white' : 'text-rose-500 dark:text-rose-400'}`}>
+                        {grp.hoursLabel}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

@@ -30,7 +30,8 @@ import {
   DEFAULT_WEEKLY_SCHEDULE,
   ensureClinicHasMainBranch,
   getClinicBranches,
-  checkScheduleConflicts
+  checkScheduleConflicts,
+  formatWeeklyScheduleSummary
 } from '@/lib/branchService'
 import { useLanguage } from '@/context/LanguageContext'
 import { extractCoordsFromLink } from '@/lib/mapsHelper'
@@ -219,6 +220,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
         maxDailyBookings: Number(maxDailyBookings) || 0,
         isOpen,
         weeklySchedule,
+        workingHours: formatWeeklyScheduleSummary(weeklySchedule, isRtl),
         updatedAt: new Date().toISOString()
       }
 

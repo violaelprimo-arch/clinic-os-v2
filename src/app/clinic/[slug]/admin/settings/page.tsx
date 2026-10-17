@@ -25,6 +25,7 @@ import { useLanguage } from '@/context/LanguageContext'
 import { extractCoordsFromLink } from '@/lib/mapsHelper'
 import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import { cleanPhoneForWhatsApp } from '@/lib/countryPhoneHelper'
+import { formatWeeklyScheduleSummary, syncClinicScheduleToMainBranch } from '@/lib/branchService'
 
 export default function ClinicSettings({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -264,6 +265,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         allowPatientMedicalView,
         hidePrices,
         weeklySchedule,
+        workingHours: formatWeeklyScheduleSummary(weeklySchedule, isRtl),
         clinicAddress: address || '',
         address: address || '',
         clinicPhone: phones[0] || '',
@@ -300,6 +302,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         return
       } else {
         await updateDoc(doc(db, 'clinics', clinicId), payload)
+        await syncClinicScheduleToMainBranch(clinicId, weeklySchedule, formatWeeklyScheduleSummary(weeklySchedule, isRtl))
       }
       toast.success('تم حفظ كافة إعدادات العيادة بنجاح وتطبيقها فورياً');
       if (newDoctorEmail || newDoctorPassword) {

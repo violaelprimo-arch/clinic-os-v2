@@ -28,6 +28,7 @@ export interface Branch {
   phone: string
   whatsapp?: string
   image?: string
+  workingHours?: string
   weeklySchedule: BranchScheduleDay[]
   vacations?: string[] // list of ISO dates YYYY-MM-DD
   slotDuration?: number // default 15 mins
