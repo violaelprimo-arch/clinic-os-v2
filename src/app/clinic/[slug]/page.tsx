@@ -15,6 +15,7 @@ export default function ClinicPage({ params }: { params: Promise<{ slug: string 
   const { isRtl, dir, t } = useLanguage()
   
   const [clinic, setClinic] = useState<any>(null)
+  const [liveServices, setLiveServices] = useState<any[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -85,6 +86,39 @@ export default function ClinicPage({ params }: { params: Promise<{ slug: string 
     return () => unsubscribe()
   }, [slug, isRtl])
 
+  // Real-time synchronization for settings live preview (iframe)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const isEmbedded = window.self !== window.top || new URLSearchParams(window.location.search).get('preview') === '1'
+    if (!isEmbedded) return
+
+    // 1. Initial hydration from localStorage
+    try {
+      const stored = localStorage.getItem(`clinic_live_preview_${slug}`)
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        setClinic((prev: any) => ({ ...(prev || {}), ...parsed }))
+        if (parsed.services && Array.isArray(parsed.services)) {
+          setLiveServices(parsed.services)
+        }
+      }
+    } catch (e) {}
+
+    // 2. Real-time postMessage listener
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'CLINIC_PREVIEW_UPDATE' && event.data?.data) {
+        const update = event.data.data
+        setClinic((prev: any) => ({ ...(prev || {}), ...update }))
+        if (update.services && Array.isArray(update.services)) {
+          setLiveServices(update.services)
+        }
+      }
+    }
+
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [slug])
+
   if (loading) {
     return <ClinicLoading fullScreen size="lg" label={isRtl ? 'جاري تجهيز العيادة...' : 'Loading clinic...'} />
   }
@@ -104,7 +138,7 @@ export default function ClinicPage({ params }: { params: Promise<{ slug: string 
   }
 
   // Define fallback services if the clinic didn't set any yet
-  const services = clinic.services || [
+  const services = liveServices || clinic.services || [
     { id: '1', name: isRtl ? 'كشف عام' : 'General Exam', price: 250 },
     { id: '2', name: isRtl ? 'استشارة' : 'Consultation', price: 100 },
     { id: '3', name: isRtl ? 'كشف مستعجل' : 'Urgent Exam', price: 400 }

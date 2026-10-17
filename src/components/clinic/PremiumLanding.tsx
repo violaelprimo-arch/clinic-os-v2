@@ -9,7 +9,7 @@ import { PatientLiveTurn } from '@/components/clinic/PatientLiveTurn'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { ClinicLocationMap } from '@/components/clinic/ClinicLocationMap'
 import { getClinicBranches, getWeeklyScheduleDisplayGroups, isClinicOpenNow } from '@/lib/branchService'
-import { sanitizeAddress } from '@/lib/mapsHelper'
+import { sanitizeAddress, safeImageUrl } from '@/lib/mapsHelper'
 import {
   Clock,
   Star,
@@ -104,10 +104,10 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
       ]
 
   // Doctor portrait strictly from doctor/hero photo, never from clinic building photo
-  const heroDoctorImage =
-    clinic?.heroImage ||
-    clinic?.doctorPhoto ||
-    'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=1000&auto=format&fit=crop'
+  const rawDoctorImage = clinic?.heroImage || clinic?.doctorPhoto || ''
+  const heroDoctorImage = rawDoctorImage
+    ? safeImageUrl(rawDoctorImage)
+    : 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=1000&auto=format&fit=crop'
 
   const serviceIcons = [Clock, MapPin, Stethoscope, ShieldCheck, FlaskConical, Activity]
 

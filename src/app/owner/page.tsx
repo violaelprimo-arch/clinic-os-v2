@@ -2269,6 +2269,19 @@ export default function OwnerDashboard() {
                                 تعديل
                               </Button>
                               <a
+                                href={`/clinic/${c.slug}/admin/branches`}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={() => {
+                                  localStorage.setItem('clinic_role', 'owner')
+                                }}
+                                className="h-8 px-2.5 inline-flex items-center gap-1 rounded-xl border border-sky-300 bg-sky-50/60 hover:bg-sky-100 text-sky-700 text-xs font-bold cursor-pointer transition-colors"
+                                title="إدارة وإضافة فروع هذه العيادة بصلاحيات المالك"
+                              >
+                                <Building2 className="w-3.5 h-3.5 text-sky-600" />
+                                <span>الفروع</span>
+                              </a>
+                              <a
                                 href={`https://${c.slug}.yalla-clinic.com/admin`}
                                 target="_blank"
                                 rel="noreferrer"

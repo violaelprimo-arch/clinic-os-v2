@@ -30,6 +30,20 @@ const PLACEHOLDER_WORDS = [
 ]
 
 /**
+ * Safely encodes image URLs that may contain non-ASCII/Arabic characters or spaces
+ */
+export function safeImageUrl(url?: string | null): string {
+  if (!url || typeof url !== 'string') return ''
+  const trimmed = url.trim()
+  if (!trimmed) return ''
+  try {
+    return encodeURI(decodeURI(trimmed))
+  } catch {
+    return encodeURI(trimmed)
+  }
+}
+
+/**
  * Sanitizes any address string by stripping out placeholder phrases like 'عندها' or '(عندها)'
  * and cleaning up stray punctuation and bullet points.
  */

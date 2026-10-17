@@ -127,8 +127,8 @@ export function BranchSelector({
                 onClick={() => setIsOpen(false)}
                 className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-bold text-primary hover:bg-primary/10 rounded-xl transition-colors"
               >
-                <Plus className="w-3.5 h-3.5" />
-                <span>{t('branches_management', 'إدارة وإضافة الفروع')}</span>
+                <Building2 className="w-3.5 h-3.5" />
+                <span>{t('branches_management', 'إدارة الفروع والمواعيد')}</span>
               </Link>
             </div>
           </div>

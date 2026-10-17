@@ -4,7 +4,7 @@ import { use, useEffect, useState } from 'react'
 import {
   Building2, Plus, Edit, Trash2, MapPin, Phone, Clock,
   Calendar, CheckCircle2, XCircle, AlertCircle, Save, X,
-  ExternalLink, Power, Archive, ShieldCheck, Image as ImageIcon, Sparkles
+  ExternalLink, Power, Archive, ShieldCheck, Image as ImageIcon, Sparkles, Lock
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -45,6 +45,13 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
   const [branches, setBranches] = useState<Branch[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [currentRole, setCurrentRole] = useState<string>('doctor')
+
+  useEffect(() => {
+    setCurrentRole(localStorage.getItem('clinic_role') || 'doctor')
+  }, [])
+
+  const isOwner = currentRole === 'owner'
 
   // Edit / Add modal state
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -111,9 +118,13 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
   const maxBranches = typeof clinic?.maxBranches === 'number' ? clinic.maxBranches : 1
   const activeBranches = branches.filter((b) => !b.isArchived)
   const isLimitReached = activeBranches.length >= maxBranches
-  const canAddBranch = branchesEnabled && !isLimitReached
+  const canAddBranch = isOwner && branchesEnabled && !isLimitReached
 
   const openAddModal = () => {
+    if (!isOwner) {
+      toast.error(language === 'en' ? 'Adding branches is restricted to Platform Super Admin.' : 'إضافة فروع جديدة متاح حصرياً بواسطة مالك المنصة Super Admin.')
+      return
+    }
     if (!branchesEnabled) {
       toast.error('ميزة تعدد الفروع غير مفعلة لاشتراك عيادتكم. يرجى التواصل مع إدارة Yalla Clinic.')
       return
@@ -182,6 +193,10 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
     if (!phone.trim()) return toast.error('يرجى إدخال رقم هاتف الفرع')
 
     if (!editingBranchId) {
+      if (!isOwner) {
+        setIsSaving(false)
+        return toast.error(language === 'en' ? 'Adding branches is restricted to Platform Owner only.' : 'إضافة فروع جديدة متاح حصرياً بواسطة مالك المنصة Super Admin.')
+      }
       if (!branchesEnabled) {
         return toast.error('ميزة تعدد الفروع غير مفعلة لاشتراك عيادتكم. يرجى التواصل مع إدارة Yalla Clinic.')
       }
@@ -316,7 +331,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
               : (language === 'en' ? `Branch Plan: ${activeBranches.length} of ${maxBranches} branches` : `باقة الفروع: ${activeBranches.length} من ${maxBranches} فروع`)}
           </Badge>
 
-          {canAddBranch && (
+          {isOwner && canAddBranch && (
             <Button
               onClick={openAddModal}
               className="h-10 px-4 yalla-gradient-btn text-white font-bold rounded-xl shadow-xs text-xs cursor-pointer gap-1.5"
@@ -324,6 +339,13 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
               <Plus className="w-4 h-4" />
               {t('add_new_branch', 'إضافة فرع جديد')}
             </Button>
+          )}
+
+          {!isOwner && (
+            <div className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-bold">
+              <Lock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              <span>{language === 'en' ? 'Adding branches managed by Platform Owner only' : 'إضافة الفروع بواسطة مالك المنصة فقط'}</span>
+            </div>
           )}
         </div>
       </div>

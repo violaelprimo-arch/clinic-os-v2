@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useState, useEffect } from 'react'
+import { use, useState, useEffect, useRef, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,17 +12,16 @@ import {
   Save, Plus, Trash2, Palette, Phone, MapPin, Bot,
   Wallet, Users, Clock, Printer, ShieldCheck, Settings, Lock,
   CheckCircle2, Bell, Sparkles, Building2, Copy, ExternalLink,
-  Monitor, Tablet, Smartphone, User
+  Monitor, Tablet, Smartphone, User, RefreshCw
 } from 'lucide-react'
 import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 import { db } from '@/lib/firebase'
 import { collection, query, where, getDocs, updateDoc, doc, addDoc } from 'firebase/firestore'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { PremiumLanding } from '@/components/clinic/PremiumLanding'
 import { MessageCircle } from 'lucide-react'
 import { useLanguage } from '@/context/LanguageContext'
-import { extractCoordsFromLink } from '@/lib/mapsHelper'
+import { extractCoordsFromLink, safeImageUrl } from '@/lib/mapsHelper'
 import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import { cleanPhoneForWhatsApp } from '@/lib/countryPhoneHelper'
 import { formatWeeklyScheduleSummary, syncClinicScheduleToMainBranch } from '@/lib/branchService'
@@ -61,6 +60,8 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const [experienceYears, setExperienceYears] = useState<number | string>(10)
   const [doctorRating, setDoctorRating] = useState('4.9')
   const [previewDevice, setPreviewDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop')
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const [iframeKey, setIframeKey] = useState(0)
   
   useEffect(() => {
     setCurrentRole(localStorage.getItem('clinic_role') || 'doctor');
@@ -390,35 +391,98 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
     ? baseTabs 
     : [...baseTabs, { id: 'ai', label: t('tab_ai', 'المساعد الذكي (AI Chatbot)'), icon: Bot }]
 
-  const previewClinicData = {
+  const previewClinicData = useMemo(() => {
+    return {
+      id: clinicId,
+      slug,
+      clinicName: clinicName || (isRtl ? 'عيادة الطبيب' : 'Doctor Clinic'),
+      doctorName: doctorName || (isRtl ? 'د. أحمد عبد العزيز' : 'Dr. Ahmed Abdel Aziz'),
+      doctorTitle: doctorTitle || 'د.',
+      specialty: specialty || (isRtl ? 'استشاري الطب التخصصي' : 'Consultant Physician'),
+      heroSubtitle: heroSubtitle || '',
+      certificationTitle: certificationTitle || '',
+      certificationEntity: certificationEntity || '',
+      experienceYears: Number(experienceYears) || 10,
+      doctorRating: doctorRating || '4.9',
+      heroImage: safeImageUrl(photoUrl),
+      branchImage: safeImageUrl(branchImage),
+      logoUrl: safeImageUrl(logoUrl),
+      primaryColor: primaryColor || '#087CF4',
+      secondaryColor: secondaryColor || '#02CFF3',
+      clinicPhone: phones[0] || '01012345678',
+      clinicPhones: phones.filter((p) => typeof p === 'string' && p.trim() !== ''),
+      clinicAddress: address || '',
+      mapsLink: mapsLink || '',
+      latitude: latitude ? parseFloat(latitude) : undefined,
+      longitude: longitude ? parseFloat(longitude) : undefined,
+      isClinicOpen: isClinicOpen !== false,
+      showPrices: showPrices !== false,
+      hidePrices: !showPrices,
+      weeklySchedule: weeklySchedule || [],
+      averageVisitTime: averageVisitTime || 15,
+      services: services || [],
+      aiEnabled: aiEnabled
+    }
+  }, [
+    clinicId,
     slug,
-    clinicName: clinicName || t('clinic_name', 'عيادة الأمل التخصصية'),
-    doctorName: doctorName || 'Ahmed Abdelaziz',
-    doctorTitle: doctorTitle || 'د.',
-    specialty: specialty || 'Consultant of Internal Medicine',
-    heroSubtitle: heroSubtitle || '',
-    certificationTitle: certificationTitle || '',
-    certificationEntity: certificationEntity || '',
-    experienceYears: Number(experienceYears) || 10,
-    doctorRating: doctorRating || '4.9',
-    heroImage: photoUrl || '',
-    branchImage: branchImage || '',
-    logoUrl: logoUrl || '',
-    primaryColor: primaryColor || '#087CF4',
-    clinicPhone: phones[0] || '01012345678',
-    clinicPhones: phones.filter((p) => typeof p === 'string' && p.trim() !== ''),
-    clinicAddress: address || '90th St, New Cairo',
-    mapsLink: mapsLink || '',
-    latitude: latitude ? parseFloat(latitude) : undefined,
-    longitude: longitude ? parseFloat(longitude) : undefined,
-    isClinicOpen: isClinicOpen !== false,
-    showPrices: showPrices !== false,
-    hidePrices: !showPrices,
-    services: services || [],
-    aiEnabled: aiEnabled
-  }
+    clinicName,
+    doctorName,
+    doctorTitle,
+    specialty,
+    heroSubtitle,
+    certificationTitle,
+    certificationEntity,
+    experienceYears,
+    doctorRating,
+    photoUrl,
+    branchImage,
+    logoUrl,
+    primaryColor,
+    secondaryColor,
+    phones,
+    address,
+    mapsLink,
+    latitude,
+    longitude,
+    isClinicOpen,
+    showPrices,
+    weeklySchedule,
+    averageVisitTime,
+    services,
+    aiEnabled,
+    isRtl
+  ])
 
-  const previewKey = `${clinicName}-${doctorName}-${specialty}-${primaryColor}-${photoUrl}-${experienceYears}-${doctorRating}-${isClinicOpen}-${showPrices}-${heroSubtitle}`
+  // Real-time synchronization of live edits to preview iframe
+  useEffect(() => {
+    if (typeof window === 'undefined' || !slug) return
+    try {
+      localStorage.setItem(`clinic_live_preview_${slug}`, JSON.stringify(previewClinicData))
+    } catch (e) {}
+
+    if (iframeRef.current?.contentWindow) {
+      iframeRef.current.contentWindow.postMessage(
+        {
+          type: 'CLINIC_PREVIEW_UPDATE',
+          data: previewClinicData
+        },
+        '*'
+      )
+    }
+  }, [previewClinicData, slug])
+
+  const handleIframeLoad = () => {
+    if (iframeRef.current?.contentWindow) {
+      iframeRef.current.contentWindow.postMessage(
+        {
+          type: 'CLINIC_PREVIEW_UPDATE',
+          data: previewClinicData
+        },
+        '*'
+      )
+    }
+  }
 
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto" dir={dir}>
@@ -680,7 +744,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               <div className="bg-white p-5 rounded-xl shadow-xs border border-slate-200 text-center font-mono text-xs space-y-2.5 max-w-[290px] mx-auto text-slate-900" dir={dir}>
                 {thermalMonoLogoUrl || logoUrl ? (
                   <img
-                    src={thermalMonoLogoUrl || logoUrl}
+                    src={safeImageUrl(thermalMonoLogoUrl || logoUrl)}
                     alt="Thermal Logo"
                     className="w-14 h-14 object-contain mx-auto filter grayscale contrast-200"
                   />
@@ -743,7 +807,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               >
                 {logoUrl && (
                   <img
-                    src={logoUrl}
+                    src={safeImageUrl(logoUrl)}
                     alt="Logo Preview"
                     className="w-12 h-12 rounded-xl object-cover bg-white p-1 mx-auto shadow-xs"
                   />
@@ -786,7 +850,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                 <div className="flex items-center gap-4">
                   <div className="relative w-16 h-16 rounded-2xl overflow-hidden border-2 border-primary/30 shadow-xs shrink-0 bg-muted">
                     <img
-                      src={photoUrl || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=400&auto=format&fit=crop'}
+                      src={safeImageUrl(photoUrl) || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=400&auto=format&fit=crop'}
                       alt="Doctor Preview"
                       className="w-full h-full object-cover object-top"
                     />
@@ -826,7 +890,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                 <div className="flex flex-col sm:flex-row items-center gap-4">
                   <div className="relative w-28 h-20 rounded-2xl overflow-hidden border-2 border-primary/30 shadow-xs shrink-0 bg-slate-900">
                     <img
-                      src={branchImage || 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=400&auto=format&fit=crop'}
+                      src={safeImageUrl(branchImage) || 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=400&auto=format&fit=crop'}
                       alt="Clinic Facility Preview"
                       className="w-full h-full object-cover"
                     />
@@ -1174,6 +1238,16 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                     </button>
                   </div>
 
+                  {/* Refresh Preview */}
+                  <button
+                    type="button"
+                    onClick={() => setIframeKey((k) => k + 1)}
+                    className="p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-muted transition-colors flex items-center justify-center cursor-pointer"
+                    title={t('refresh_preview', 'إعادة تحميل المعاينة')}
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+
                   {/* Open in new tab */}
                   <a
                     href={`/clinic/${slug}`}
@@ -1188,40 +1262,49 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               </div>
               
               {/* Scrollable Preview Area */}
-              <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar bg-slate-100/80 dark:bg-slate-950 p-3 sm:p-4 flex flex-col items-center">
+              <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar bg-slate-100/80 dark:bg-slate-950 p-3 sm:p-4 flex flex-col items-center justify-start">
                 {/* 1. DESKTOP VIEW */}
                 {previewDevice === 'desktop' && (
-                  <div className="w-full flex flex-col items-center">
+                  <div className="w-full flex flex-col items-center my-auto">
                     {/* Browser Bar */}
-                    <div className="w-full max-w-[580px] bg-slate-200 dark:bg-slate-800 rounded-t-xl px-3 py-1.5 flex items-center gap-2 border border-border border-b-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-full bg-rose-400 inline-block"></span>
-                        <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span>
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span>
+                    <div className="w-full max-w-[620px] bg-slate-200 dark:bg-slate-800 rounded-t-xl px-3 py-2 flex items-center gap-2 border border-border border-b-0 shadow-xs">
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="w-2.5 h-2.5 rounded-full bg-rose-400 inline-block" />
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block" />
                       </div>
-                      <div className="flex-1 bg-white/70 dark:bg-slate-900/70 text-[10px] text-muted-foreground rounded-md px-3 py-0.5 text-center truncate font-mono" dir="ltr">
-                        yallaclinic.com/clinic/{slug}
+                      <div className="flex-1 bg-white/80 dark:bg-slate-900/80 text-[11px] text-muted-foreground rounded-lg px-3 py-1 text-center truncate font-mono border border-border/50 shadow-xs" dir="ltr">
+                        https://yallaclinic.com/clinic/{slug}
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => setIframeKey(k => k + 1)}
+                        className="p-1 text-muted-foreground hover:text-foreground cursor-pointer rounded-md hover:bg-black/5 dark:hover:bg-white/5"
+                        title={t('refresh_preview', 'تحديث')}
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                      </button>
                     </div>
 
-                    {/* Scaled Desktop Viewport */}
-                    <div className="w-full max-w-[580px] overflow-hidden flex justify-center rounded-b-xl border border-border bg-white dark:bg-slate-950 shadow-xl">
+                    {/* True Desktop Viewport (1200px desktop viewport scaled cleanly to fit) */}
+                    <div className="w-full max-w-[620px] overflow-hidden flex justify-center rounded-b-xl border border-border bg-white dark:bg-slate-950 shadow-2xl">
                       <div
                         style={{
-                          width: '1080px',
-                          transform: 'scale(0.53)',
+                          width: '1200px',
+                          transform: 'scale(0.51)',
                           transformOrigin: 'top center',
-                          marginBottom: '-47%'
+                          marginBottom: '-49%'
                         }}
-                        className="shrink-0 pointer-events-auto select-none"
+                        className="shrink-0"
                       >
-                        <div className="h-[750px] overflow-y-auto no-scrollbar">
-                          <PremiumLanding 
-                            key={`desk-${previewKey}`}
-                            clinic={previewClinicData} 
-                            services={services || []} 
-                          />
-                        </div>
+                        <iframe
+                          ref={iframeRef}
+                          key={`preview-desktop-${iframeKey}`}
+                          src={`/clinic/${slug}?preview=1`}
+                          onLoad={handleIframeLoad}
+                          className="w-[1200px] h-[860px] border-0 bg-white dark:bg-slate-950"
+                          title="معاينة الكمبيوتر"
+                        />
                       </div>
                     </div>
                   </div>
@@ -1231,29 +1314,30 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                 {previewDevice === 'tablet' && (
                   <div className="my-auto flex flex-col items-center w-full">
                     {/* iPad Tablet Frame */}
-                    <div className="w-full max-w-[520px] rounded-[36px] border-[10px] border-slate-900 dark:border-slate-800 shadow-2xl overflow-hidden bg-slate-950 flex flex-col shrink-0">
+                    <div className="w-full max-w-[540px] rounded-[36px] border-[10px] border-slate-900 dark:border-slate-800 shadow-2xl overflow-hidden bg-slate-950 flex flex-col shrink-0">
                       {/* Top Camera Dot */}
                       <div className="h-4 bg-slate-950 flex items-center justify-center shrink-0">
-                        <div className="w-2 h-2 rounded-full bg-slate-800 ring-1 ring-slate-700" />
+                        <div className="w-2.5 h-2.5 rounded-full bg-slate-800 ring-1 ring-slate-700" />
                       </div>
-                      {/* Scaled Tablet Viewport (768px standard tablet) */}
+                      {/* Scaled Tablet Viewport (768px standard iPad viewport) */}
                       <div className="w-full overflow-hidden flex justify-center bg-white dark:bg-slate-950">
                         <div
                           style={{
                             width: '768px',
-                            transform: 'scale(0.65)',
+                            transform: 'scale(0.67)',
                             transformOrigin: 'top center',
-                            marginBottom: '-35%'
+                            marginBottom: '-33%'
                           }}
-                          className="shrink-0 pointer-events-auto select-none"
+                          className="shrink-0"
                         >
-                          <div className="h-[780px] overflow-y-auto no-scrollbar">
-                            <PremiumLanding 
-                              key={`tab-${previewKey}`}
-                              clinic={previewClinicData} 
-                              services={services || []} 
-                            />
-                          </div>
+                          <iframe
+                            ref={iframeRef}
+                            key={`preview-tablet-${iframeKey}`}
+                            src={`/clinic/${slug}?preview=1`}
+                            onLoad={handleIframeLoad}
+                            className="w-[768px] h-[860px] border-0 bg-white dark:bg-slate-950"
+                            title="معاينة التابلت"
+                          />
                         </div>
                       </div>
                       {/* Home Indicator Bar */}
@@ -1268,34 +1352,25 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                 {previewDevice === 'mobile' && (
                   <div className="my-auto flex flex-col items-center">
                     {/* iPhone Mobile Frame */}
-                    <div className="w-[340px] max-w-full rounded-[44px] border-[8px] border-slate-900 dark:border-slate-800 shadow-2xl overflow-hidden bg-slate-950 flex flex-col shrink-0">
+                    <div className="w-[390px] max-w-full rounded-[48px] border-[10px] border-slate-900 dark:border-slate-800 shadow-2xl overflow-hidden bg-slate-950 flex flex-col shrink-0">
                       {/* Dynamic Island */}
-                      <div className="h-7 bg-slate-950 flex items-center justify-between px-6 text-white text-[10px] font-bold shrink-0">
+                      <div className="h-8 bg-slate-950 flex items-center justify-between px-6 text-white text-[10px] font-bold shrink-0 select-none">
                         <span>9:41</span>
-                        <div className="w-20 h-4 bg-black rounded-full flex items-center justify-end px-2">
-                          <div className="w-2 h-2 rounded-full bg-slate-900 border border-slate-700" />
+                        <div className="w-24 h-5 bg-black rounded-full flex items-center justify-end px-2.5 shadow-inner">
+                          <div className="w-2.5 h-2.5 rounded-full bg-slate-900 border border-slate-700" />
                         </div>
                         <span>5G 100%</span>
                       </div>
-                      {/* Scaled Mobile Viewport (390px true mobile width) */}
+                      {/* True Mobile Viewport (390px 1:1 pixel exact native mobile layout) */}
                       <div className="w-full overflow-hidden flex justify-center bg-white dark:bg-slate-950">
-                        <div
-                          style={{
-                            width: '390px',
-                            transform: 'scale(0.83)',
-                            transformOrigin: 'top center',
-                            marginBottom: '-17%'
-                          }}
-                          className="shrink-0 pointer-events-auto select-none"
-                        >
-                          <div className="h-[680px] overflow-y-auto no-scrollbar">
-                            <PremiumLanding 
-                              key={`mob-${previewKey}`}
-                              clinic={previewClinicData} 
-                              services={services || []} 
-                            />
-                          </div>
-                        </div>
+                        <iframe
+                          ref={iframeRef}
+                          key={`preview-mobile-${iframeKey}`}
+                          src={`/clinic/${slug}?preview=1`}
+                          onLoad={handleIframeLoad}
+                          className="w-[390px] h-[720px] border-0 bg-white dark:bg-slate-950"
+                          title="معاينة الموبايل"
+                        />
                       </div>
                       {/* Home Bar Indicator */}
                       <div className="h-5 bg-slate-950 flex items-center justify-center shrink-0">
