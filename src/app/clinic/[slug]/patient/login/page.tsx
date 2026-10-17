@@ -3,6 +3,10 @@
 import React, { useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
+import { db } from '@/lib/firebase'
+import { collection, query, where, getDocs, addDoc } from 'firebase/firestore'
+import { toast } from 'sonner'
+import { Eye, EyeOff, Loader2, ArrowRight } from 'lucide-react'
 
 export default function PatientLoginPage() {
   const router = useRouter()
@@ -13,23 +17,191 @@ export default function PatientLoginPage() {
   const [age, setAge] = useState('')
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
+
+  const validateEgyptianPhone = (val: string) => {
+    const cleaned = val.replace(/\s+/g, '')
+    return /^01[0125][0-9]{8}$/.test(cleaned) || cleaned.length >= 10
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+
     try {
-      const endpoint = mode === 'login' ? '/api/patient/login' : '/api/patient/register'
-      await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug, name, age, phone, password })
-      })
-    } catch {
-      // Fallback navigation
+      // 1. Resolve clinic by slug
+      const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
+      const cSnap = await getDocs(cQ)
+      if (cSnap.empty && slug !== 'demo') {
+        toast.error('العيادة غير موجودة أو غير متاحة حالياً')
+        setLoading(false)
+        return
+      }
+
+      const clinicDoc = cSnap.empty ? null : cSnap.docs[0]
+      const clinicId = clinicDoc ? clinicDoc.id : 'demo'
+      const cleanPhone = phone.trim().replace(/\s+/g, '')
+
+      if (!validateEgyptianPhone(cleanPhone)) {
+        toast.error('يرجى إدخال رقم هاتف محمول صحيح (مثال: 01012345678)')
+        setLoading(false)
+        return
+      }
+
+      if (mode === 'register') {
+        if (!name.trim() || name.trim().length < 3) {
+          toast.error('يرجى إدخال اسم المريض ثلاثي على الأقل')
+          setLoading(false)
+          return
+        }
+
+        const ageNum = parseInt(age.trim(), 10)
+        if (!age.trim() || isNaN(ageNum) || ageNum <= 0 || ageNum > 120) {
+          toast.error('يرجى إدخال سن صحيح بالسنوات (بين 1 و 120) لإنشاء الملف الطبي')
+          setLoading(false)
+          return
+        }
+
+        if (!password || password.length < 4) {
+          toast.error('كلمة المرور يجب أن تكون 4 أحرف أو أرقام على الأقل')
+          setLoading(false)
+          return
+        }
+
+        if (confirmPassword && password !== confirmPassword) {
+          toast.error('كلمة المرور وتأكيد كلمة المرور غير متطابقتين')
+          setLoading(false)
+          return
+        }
+
+        // Check if phone already registered in this clinic
+        const checkQ = query(
+          collection(db, 'patient_accounts'),
+          where('clinic_id', '==', clinicId),
+          where('phone', '==', cleanPhone)
+        )
+        const checkSnap = await getDocs(checkQ)
+
+        if (!checkSnap.empty) {
+          toast.error('رقم الهاتف مسجل بالفعل في هذه العيادة. يرجى تسجيل الدخول.')
+          setMode('login')
+          setLoading(false)
+          return
+        }
+
+        // Create new account
+        await addDoc(collection(db, 'patient_accounts'), {
+          clinic_id: clinicId,
+          name: name.trim(),
+          phone: cleanPhone,
+          age: age.trim(),
+          password: password,
+          createdAt: new Date().toISOString()
+        })
+
+        toast.success('تم إنشاء حسابك الطبي بنجاح!')
+
+        localStorage.setItem(
+          'patient_auth',
+          JSON.stringify({
+            phone: cleanPhone,
+            name: name.trim(),
+            age: age.trim(),
+            clinic_id: clinicId,
+            clinicSlug: slug
+          })
+        )
+
+        router.push(`/clinic/${slug}/patient`)
+      } else {
+        // Mode: Login
+        if (!password) {
+          toast.error('يرجى كتابة كلمة المرور للدخول')
+          setLoading(false)
+          return
+        }
+
+        const loginQ = query(
+          collection(db, 'patient_accounts'),
+          where('clinic_id', '==', clinicId),
+          where('phone', '==', cleanPhone)
+        )
+        const loginSnap = await getDocs(loginQ)
+
+        if (loginSnap.empty) {
+          // Check if patient booked before in appointments collection
+          const apptQ = query(
+            collection(db, 'appointments'),
+            where('clinic_id', '==', clinicId),
+            where('phone', '==', cleanPhone)
+          )
+          const apptSnap = await getDocs(apptQ)
+
+          if (!apptSnap.empty) {
+            const firstAppt = apptSnap.docs[0].data()
+            const patientResolvedName = firstAppt.patientName || 'المريض'
+            const patientResolvedAge = firstAppt.age || ''
+
+            // Auto-activate account with this new password
+            await addDoc(collection(db, 'patient_accounts'), {
+              clinic_id: clinicId,
+              name: patientResolvedName,
+              phone: cleanPhone,
+              age: patientResolvedAge,
+              password: password,
+              createdAt: new Date().toISOString()
+            })
+
+            toast.success('تم تفعيل حسابك الطبي وربطه بحجوزاتك السابقة بنجاح')
+            localStorage.setItem(
+              'patient_auth',
+              JSON.stringify({
+                phone: cleanPhone,
+                name: patientResolvedName,
+                age: patientResolvedAge,
+                clinic_id: clinicId,
+                clinicSlug: slug
+              })
+            )
+            router.push(`/clinic/${slug}/patient`)
+            return
+          }
+
+          toast.error('رقم الهاتف غير مسجل في هذه العيادة. يرجى إنشاء حساب جديد.')
+          setMode('register')
+          setLoading(false)
+          return
+        }
+
+        const userDoc = loginSnap.docs[0]
+        const userData = userDoc.data()
+
+        if (userData.password && userData.password !== password) {
+          toast.error('كلمة المرور غير صحيحة. يرجى المحاولة مرة أخرى.')
+          setLoading(false)
+          return
+        }
+
+        toast.success(`مرحباً بك ${userData.name || ''}`)
+        localStorage.setItem(
+          'patient_auth',
+          JSON.stringify({
+            phone: cleanPhone,
+            name: userData.name || 'المريض',
+            age: userData.age || '',
+            clinic_id: clinicId,
+            clinicSlug: slug
+          })
+        )
+        router.push(`/clinic/${slug}/patient`)
+      }
+    } catch (err: any) {
+      console.error('Patient login error:', err)
+      toast.error('حدث خطأ أثناء تسجيل الدخول، يرجى التحقق من الاتصال والمحاولة ثانيةً')
     } finally {
       setLoading(false)
-      router.push(`/clinic/${slug}/patient`)
     }
   }
 
@@ -79,7 +251,7 @@ export default function PatientLoginPage() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="مثال: محمد أحمد علي"
-                  className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold"
+                  className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
               </div>
               <div>
@@ -87,10 +259,12 @@ export default function PatientLoginPage() {
                 <input
                   type="number"
                   required
+                  min="1"
+                  max="120"
                   value={age}
                   onChange={(e) => setAge(e.target.value)}
                   placeholder="28"
-                  className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold"
+                  className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
               </div>
             </>
@@ -105,29 +279,62 @@ export default function PatientLoginPage() {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="01012345678"
-              className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold"
+              className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
             />
           </div>
 
           <div>
             <label className="block text-xs font-bold mb-1 text-slate-700 dark:text-slate-200">كلمة المرور *</label>
-            <input
-              type="password"
-              required
-              dir="ltr"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                dir="ltr"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500 pl-11"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
+
+          {mode === 'register' && (
+            <div>
+              <label className="block text-xs font-bold mb-1 text-slate-700 dark:text-slate-200">تأكيد كلمة المرور *</label>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                dir="ltr"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
+          )}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#0066dc] to-[#00a8e8] text-white font-extrabold text-sm shadow-lg hover:shadow-xl transition-all cursor-pointer"
+            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#0066dc] to-[#00a8e8] text-white font-extrabold text-sm shadow-lg hover:shadow-xl transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-70"
           >
-            {loading ? 'جاري التحقق...' : mode === 'login' ? 'تسجيل الدخول للملف الطبي' : 'إنشاء حساب والدخول'}
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>جاري التحقق والمزامنة...</span>
+              </>
+            ) : mode === 'login' ? (
+              'تسجيل الدخول للملف الطبي'
+            ) : (
+              'إنشاء حساب والدخول'
+            )}
           </button>
 
           <div className="pt-2 text-center">
@@ -135,7 +342,8 @@ export default function PatientLoginPage() {
               href={`/clinic/${slug}`}
               className="text-xs font-bold text-slate-500 hover:text-sky-600 transition-colors inline-flex items-center gap-1"
             >
-              <span>← العودة لصفحة العيادة الرئيسية</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+              <span>العودة لصفحة العيادة الرئيسية</span>
             </Link>
           </div>
         </form>
