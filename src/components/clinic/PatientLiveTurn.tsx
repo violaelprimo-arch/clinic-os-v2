@@ -39,42 +39,22 @@ export function PatientLiveTurn({
   const resolvedClinicId = clinic?.id || propClinicId || clinic?.slug || 'demo'
   const slug = (propSlug || clinic?.slug || 'zizo').toLowerCase()
 
-  // Initialize active phone: from prop first, or once from localStorage if available
+  // Fresh search state: Always start empty on fresh search unless explicitly passed as a prop!
   const [activePhone, setActivePhone] = useState<string>(() => {
-    if (propPhone) return propPhone
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem('patient_auth')
-        if (stored) {
-          const parsed = JSON.parse(stored)
-          if (parsed.phone) return String(parsed.phone).trim()
-        }
-      } catch (e) {}
-    }
-    return ''
+    return propPhone ? propPhone.trim() : ''
   })
 
   const [inputPhone, setInputPhone] = useState<string>(() => {
-    if (propPhone) return propPhone
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem('patient_auth')
-        if (stored) {
-          const parsed = JSON.parse(stored)
-          if (parsed.phone) return String(parsed.phone).trim()
-        }
-      } catch (e) {}
-    }
-    return ''
+    return propPhone ? propPhone.trim() : ''
   })
 
   const [activeApptId, setActiveApptId] = useState<string>(propApptId || '')
-  const [isManualSearch, setIsManualSearch] = useState<boolean>(false)
+  const [isManualSearch, setIsManualSearch] = useState<boolean>(!propPhone && !propApptId)
   const [otherDateAppt, setOtherDateAppt] = useState<any>(null)
   const [myAppt, setMyAppt] = useState<any>(null)
   const [allTodayAppts, setAllTodayAppts] = useState<any[]>([])
   const [clinicData, setClinicData] = useState<any>(clinic || null)
-  const [loading, setLoading] = useState<boolean>(true)
+  const [loading, setLoading] = useState<boolean>(Boolean(propPhone || propApptId))
   const [searchError, setSearchError] = useState<string>('')
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false)
 
@@ -102,27 +82,32 @@ export function PatientLiveTurn({
       setActivePhone(propPhone)
       setInputPhone(propPhone)
       setIsManualSearch(false)
+      setLoading(true)
     }
     if (propApptId) {
       setActiveApptId(propApptId)
       setIsManualSearch(false)
+      setLoading(true)
     }
   }, [propPhone, propApptId])
 
-  // Focus input when manual search is triggered
+  // Focus input when manual search is active
   useEffect(() => {
     if (isManualSearch || !activePhone) {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         inputRef.current?.focus()
-      }, 100)
+      }, 150)
+      return () => clearTimeout(timer)
     }
   }, [isManualSearch, activePhone])
 
   // 3. Real-time snapshot of today's appointments
   useEffect(() => {
     if (!resolvedClinicId) return
-    if (isManualSearch && !activePhone) {
+    if (!activePhone && !activeApptId) {
       setLoading(false)
+      setMyAppt(null)
+      setOtherDateAppt(null)
       return
     }
 
@@ -137,7 +122,7 @@ export function PatientLiveTurn({
 
     const unsubscribe = onSnapshot(
       q,
-      (snapshot) => {
+      async (snapshot) => {
         const list: any[] = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as any))
         setAllTodayAppts(list)
 
@@ -149,7 +134,6 @@ export function PatientLiveTurn({
         if (!found && activePhone) {
           const clean = activePhone.trim().replace(/[^0-9]/g, '')
           const normActive = clean.replace(/^20/, '').replace(/^0+/, '')
-          // Sort by createdAt descending to get most recent today's booking
           const matches = list
             .filter((a: any) => {
               if (!a.phone || a.status === 'cancelled') return false
@@ -162,27 +146,28 @@ export function PatientLiveTurn({
 
         setMyAppt(found)
 
-        // If not found today, query if there is any booking for this phone on another date in this clinic
+        // If not found today, query specifically for this phone's appointments
         if (!found && activePhone) {
-          const clean = activePhone.trim().replace(/[^0-9]/g, '')
-          const normActive = clean.replace(/^20/, '').replace(/^0+/, '')
-          const qAll = query(
-            collection(db, 'appointments'),
-            where('clinic_id', '==', resolvedClinicId)
-          )
-          getDocs(qAll)
-            .then((allSnap) => {
-              const allClinicAppts = allSnap.docs.map((d) => ({ id: d.id, ...d.data() } as any))
-              const otherMatches = allClinicAppts
-                .filter((a: any) => {
-                  if (!a.phone || a.status === 'cancelled') return false
-                  const normAppt = String(a.phone).trim().replace(/[^0-9]/g, '').replace(/^20/, '').replace(/^0+/, '')
-                  return normAppt === normActive || a.phone.includes(clean)
-                })
+          try {
+            const clean = activePhone.trim()
+            const qPhone = query(
+              collection(db, 'appointments'),
+              where('clinic_id', '==', resolvedClinicId),
+              where('phone', '==', clean)
+            )
+            const snap = await getDocs(qPhone)
+            if (!snap.empty) {
+              const otherMatches = snap.docs
+                .map((d) => ({ id: d.id, ...d.data() } as any))
+                .filter((a: any) => a.status !== 'cancelled')
                 .sort((a: any, b: any) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime())
               setOtherDateAppt(otherMatches[0] || null)
-            })
-            .catch(() => {})
+            } else {
+              setOtherDateAppt(null)
+            }
+          } catch (e) {
+            setOtherDateAppt(null)
+          }
         } else {
           setOtherDateAppt(null)
         }
@@ -198,7 +183,7 @@ export function PatientLiveTurn({
     )
 
     return () => unsubscribe()
-  }, [resolvedClinicId, activePhone, activeApptId, isManualSearch])
+  }, [resolvedClinicId, activePhone, activeApptId])
 
   const liveResult: PatientQueueStatusResult | null = useMemo(() => {
     if (!myAppt) return null
@@ -266,7 +251,7 @@ export function PatientLiveTurn({
           </div>
 
           <div dir="ltr" className="shrink-0">
-            <ClinicLogo size="sm" variant="dark" />
+            <ClinicLogo size="md" variant="dark" />
           </div>
 
           {onClose ? (

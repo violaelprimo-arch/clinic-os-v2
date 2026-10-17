@@ -251,7 +251,7 @@ export default function PatientPortalPage() {
             <MessageCircle className="w-4 h-4" />
           </a>
           <Link href={`/clinic/${slug}`} className="flex items-center shrink-0" dir="ltr">
-            <ClinicLogo size="sm" variant="auto" />
+            <ClinicLogo size="md" variant="auto" />
           </Link>
           <button
             onClick={handleLogout}

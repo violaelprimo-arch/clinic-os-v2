@@ -262,7 +262,7 @@ export function BookingModal({
     return () => {
       isCancelled = true
     }
-  }, [clinicId, maxLimit, selectedDate])
+  }, [clinicId, maxLimit])
 
   // Live estimated queue & wait time calculation
   const [estimatedQueueNumber, setEstimatedQueueNumber] = useState<number>(1)
@@ -569,7 +569,7 @@ export function BookingModal({
             <X className="w-4 h-4" />
           </button>
           <div dir="ltr" className="shrink-0">
-            <ClinicLogo size="sm" variant="auto" />
+            <ClinicLogo size="md" variant="auto" />
           </div>
           <div className="w-9" />
         </div>
