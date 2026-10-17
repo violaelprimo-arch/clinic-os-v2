@@ -27,6 +27,7 @@ import { getClinicBranches, ensureClinicHasMainBranch } from '@/lib/branchServic
 import { createClinicNotification } from '@/lib/notificationService'
 import { toast } from 'sonner'
 import Link from 'next/link'
+import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 
 export function BookingModal({
   clinic,
@@ -529,9 +530,8 @@ export function BookingModal({
           >
             <X className="w-4 h-4" />
           </button>
-          <div className="text-xl font-extrabold tracking-tight" dir="ltr">
-            <span className="text-sky-600">yalla</span>
-            <span className="text-slate-400 font-semibold">clinic</span>
+          <div dir="ltr" className="shrink-0">
+            <ClinicLogo size="sm" variant="auto" />
           </div>
           <div className="w-9" />
         </div>

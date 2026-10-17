@@ -55,17 +55,17 @@ export function ClinicLogo({
       <div className="flex items-center">
         {variant === 'auto' ? (
           <>
-            {/* Light Mode Logo (Visible in light mode, hidden in dark mode via CSS) */}
+            {/* Light Mode Logo (Visible in light mode, hidden in dark mode) */}
             <img
               src="/brand/yalla-clinic/logo-light-bg.png"
               alt="Yalla Clinic"
-              className={`${commonImgClass} logo-light-mode`}
+              className={`${commonImgClass} logo-light-mode dark:hidden`}
             />
-            {/* Dark Mode Logo (Visible in dark mode, hidden in light mode via CSS) */}
+            {/* Dark Mode Logo (Visible in dark mode, hidden in light mode) */}
             <img
               src="/brand/yalla-clinic/logo-dark-bg.png"
               alt="Yalla Clinic"
-              className={`${commonImgClass} logo-dark-mode`}
+              className={`${commonImgClass} logo-dark-mode hidden dark:block`}
             />
           </>
         ) : variant === 'dark' ? (

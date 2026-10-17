@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useLanguage } from '@/context/LanguageContext'
 import { BookingModal } from '@/components/clinic/BookingModal'
 import { PatientLiveTurn } from '@/components/clinic/PatientLiveTurn'
+import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { getClinicBranches } from '@/lib/branchService'
 import {
   Clock,
@@ -152,9 +153,8 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
             </a>
           </nav>
 
-          <Link href={`/clinic/${clinic?.slug || 'zizo'}`} className="flex items-center gap-1 text-2xl sm:text-3xl font-extrabold tracking-tight" dir="ltr">
-            <span className="bg-gradient-to-r from-sky-600 to-cyan-500 bg-clip-text text-transparent">yalla</span>
-            <span className="text-slate-400 dark:text-slate-300 font-semibold">clinic</span>
+          <Link href={`/clinic/${clinic?.slug || 'zizo'}`} className="flex items-center shrink-0" dir="ltr">
+            <ClinicLogo size="md" variant="auto" />
           </Link>
         </div>
       </header>
@@ -435,9 +435,8 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
               <span>{isRtl ? 'بوابة المريض (تسجيل الدخول / إنشاء حساب)' : 'Patient Portal (Login / Register)'}</span>
             </Link>
           </div>
-          <div className="text-2xl font-extrabold tracking-tight" dir="ltr">
-            <span className="text-sky-400">yalla</span>
-            <span className="text-slate-300 font-semibold">clinic</span>
+          <div dir="ltr" className="shrink-0">
+            <ClinicLogo size="md" variant="dark" />
           </div>
         </div>
       </footer>

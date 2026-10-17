@@ -16,6 +16,7 @@ import {
 import { db } from '@/lib/firebase'
 import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore'
 import { calculatePatientLivePosition, PatientQueueStatusResult } from '@/lib/queueCalculations'
+import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import Link from 'next/link'
 
 export function PatientLiveTurn({
@@ -264,9 +265,8 @@ export function PatientLiveTurn({
             <span className="text-[11px] font-bold text-sky-300">مباشر ولحظي</span>
           </div>
 
-          <div className="text-xl font-extrabold tracking-tight" dir="ltr">
-            <span className="text-sky-400">yalla</span>
-            <span className="text-slate-300 font-semibold">clinic</span>
+          <div dir="ltr" className="shrink-0">
+            <ClinicLogo size="sm" variant="dark" />
           </div>
 
           {onClose ? (

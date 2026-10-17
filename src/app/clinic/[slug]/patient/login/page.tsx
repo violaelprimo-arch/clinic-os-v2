@@ -7,6 +7,7 @@ import { db } from '@/lib/firebase'
 import { collection, query, where, getDocs, addDoc } from 'firebase/firestore'
 import { toast } from 'sonner'
 import { Eye, EyeOff, Loader2, ArrowRight } from 'lucide-react'
+import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 
 export default function PatientLoginPage() {
   const router = useRouter()
@@ -209,9 +210,8 @@ export default function PatientLoginPage() {
     <div dir="rtl" className="min-h-screen bg-[#f4f9ff] dark:bg-[#050d1a] flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white dark:bg-[#081526] rounded-[32px] p-6 shadow-xl border border-sky-100 dark:border-slate-800 space-y-5">
         <div className="text-center space-y-1">
-          <Link href={`/clinic/${slug}`} className="inline-block text-2xl font-extrabold tracking-tight mb-2" dir="ltr">
-            <span className="text-sky-600">yalla</span>
-            <span className="text-slate-400 font-semibold">clinic</span>
+          <Link href={`/clinic/${slug}`} className="inline-block mb-2" dir="ltr">
+            <ClinicLogo size="md" variant="auto" />
           </Link>
           <h1 className="text-xl font-black text-slate-900 dark:text-white">بوابة المريض المعتمدة</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">

@@ -13,6 +13,7 @@ import { downloadElementAsPdf, downloadElementAsImage } from '@/lib/pdfGenerator
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ClinicLocationMap } from '@/components/clinic/ClinicLocationMap'
+import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import {
   CalendarCheck,
   FileText,
@@ -249,9 +250,8 @@ export default function PatientPortalPage() {
           >
             <MessageCircle className="w-4 h-4" />
           </a>
-          <Link href={`/clinic/${slug}`} className="text-xl font-extrabold tracking-tight" dir="ltr">
-            <span className="text-sky-600">yalla</span>
-            <span className="text-slate-400 font-semibold">clinic</span>
+          <Link href={`/clinic/${slug}`} className="flex items-center shrink-0" dir="ltr">
+            <ClinicLogo size="sm" variant="auto" />
           </Link>
           <button
             onClick={handleLogout}
