@@ -1,20 +1,17 @@
 'use client'
 
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import {
-  Bell,
   RotateCw,
-  Check,
   X,
   Clock,
-  Activity,
-  User,
   AlertCircle,
   Search,
   ExternalLink,
   MapPin,
-  CheckCircle2,
-  Hourglass
+  Calendar,
+  Sparkles,
+  UserCheck
 } from 'lucide-react'
 import { db } from '@/lib/firebase'
 import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore'
@@ -24,6 +21,7 @@ import Link from 'next/link'
 export function PatientLiveTurn({
   clinic,
   clinicId: propClinicId,
+  slug: propSlug,
   patientPhone: propPhone,
   patientName: propName,
   appointmentId: propApptId,
@@ -31,23 +29,55 @@ export function PatientLiveTurn({
 }: {
   clinic?: any
   clinicId?: string
+  slug?: string
   patientPhone?: string
   patientName?: string
   appointmentId?: string
   onClose?: () => void
 }) {
   const resolvedClinicId = clinic?.id || propClinicId || clinic?.slug || 'demo'
-  const slug = clinic?.slug || 'zizo'
+  const slug = (propSlug || clinic?.slug || 'zizo').toLowerCase()
 
-  const [inputPhone, setInputPhone] = useState<string>(propPhone || '')
-  const [activePhone, setActivePhone] = useState<string>(propPhone || '')
+  // Initialize active phone: from prop first, or once from localStorage if available
+  const [activePhone, setActivePhone] = useState<string>(() => {
+    if (propPhone) return propPhone
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('patient_auth')
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          if (parsed.phone) return String(parsed.phone).trim()
+        }
+      } catch (e) {}
+    }
+    return ''
+  })
+
+  const [inputPhone, setInputPhone] = useState<string>(() => {
+    if (propPhone) return propPhone
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('patient_auth')
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          if (parsed.phone) return String(parsed.phone).trim()
+        }
+      } catch (e) {}
+    }
+    return ''
+  })
+
   const [activeApptId, setActiveApptId] = useState<string>(propApptId || '')
+  const [isManualSearch, setIsManualSearch] = useState<boolean>(false)
+  const [otherDateAppt, setOtherDateAppt] = useState<any>(null)
   const [myAppt, setMyAppt] = useState<any>(null)
   const [allTodayAppts, setAllTodayAppts] = useState<any[]>([])
   const [clinicData, setClinicData] = useState<any>(clinic || null)
   const [loading, setLoading] = useState<boolean>(true)
   const [searchError, setSearchError] = useState<string>('')
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false)
+
+  const inputRef = useRef<HTMLInputElement>(null)
 
   // 1. Fetch clinic details if not provided
   useEffect(() => {
@@ -65,27 +95,35 @@ export function PatientLiveTurn({
       .catch((err) => console.error('Error fetching clinic for live turn:', err))
   }, [clinic, slug])
 
-  // 2. Resolve active phone from localStorage if empty
+  // 2. React to prop updates from parent
   useEffect(() => {
-    if (!activePhone && !activeApptId && typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem('patient_auth')
-        if (stored) {
-          const parsed = JSON.parse(stored)
-          if (parsed.phone) {
-            setActivePhone(parsed.phone)
-            setInputPhone(parsed.phone)
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to parse patient_auth:', e)
-      }
+    if (propPhone) {
+      setActivePhone(propPhone)
+      setInputPhone(propPhone)
+      setIsManualSearch(false)
     }
-  }, [activePhone, activeApptId])
+    if (propApptId) {
+      setActiveApptId(propApptId)
+      setIsManualSearch(false)
+    }
+  }, [propPhone, propApptId])
+
+  // Focus input when manual search is triggered
+  useEffect(() => {
+    if (isManualSearch || !activePhone) {
+      setTimeout(() => {
+        inputRef.current?.focus()
+      }, 100)
+    }
+  }, [isManualSearch, activePhone])
 
   // 3. Real-time snapshot of today's appointments
   useEffect(() => {
     if (!resolvedClinicId) return
+    if (isManualSearch && !activePhone) {
+      setLoading(false)
+      return
+    }
 
     const now = new Date()
     const today = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split('T')[0]
@@ -103,20 +141,51 @@ export function PatientLiveTurn({
         setAllTodayAppts(list)
 
         // Find patient appointment
-        let found = null
+        let found: any = null
         if (activeApptId) {
           found = list.find((a: any) => a.id === activeApptId)
         }
         if (!found && activePhone) {
-          const clean = activePhone.trim().replace(/\s+/g, '')
+          const clean = activePhone.trim().replace(/[^0-9]/g, '')
+          const normActive = clean.replace(/^20/, '').replace(/^0+/, '')
           // Sort by createdAt descending to get most recent today's booking
           const matches = list
-            .filter((a: any) => a.phone && a.phone.replace(/\s+/g, '') === clean)
+            .filter((a: any) => {
+              if (!a.phone || a.status === 'cancelled') return false
+              const normAppt = String(a.phone).trim().replace(/[^0-9]/g, '').replace(/^20/, '').replace(/^0+/, '')
+              return normAppt === normActive || a.phone.includes(clean)
+            })
             .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
           found = matches[0] || null
         }
 
         setMyAppt(found)
+
+        // If not found today, query if there is any booking for this phone on another date in this clinic
+        if (!found && activePhone) {
+          const clean = activePhone.trim().replace(/[^0-9]/g, '')
+          const normActive = clean.replace(/^20/, '').replace(/^0+/, '')
+          const qAll = query(
+            collection(db, 'appointments'),
+            where('clinic_id', '==', resolvedClinicId)
+          )
+          getDocs(qAll)
+            .then((allSnap) => {
+              const allClinicAppts = allSnap.docs.map((d) => ({ id: d.id, ...d.data() } as any))
+              const otherMatches = allClinicAppts
+                .filter((a: any) => {
+                  if (!a.phone || a.status === 'cancelled') return false
+                  const normAppt = String(a.phone).trim().replace(/[^0-9]/g, '').replace(/^20/, '').replace(/^0+/, '')
+                  return normAppt === normActive || a.phone.includes(clean)
+                })
+                .sort((a: any, b: any) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime())
+              setOtherDateAppt(otherMatches[0] || null)
+            })
+            .catch(() => {})
+        } else {
+          setOtherDateAppt(null)
+        }
+
         setLoading(false)
         setIsRefreshing(false)
       },
@@ -128,7 +197,7 @@ export function PatientLiveTurn({
     )
 
     return () => unsubscribe()
-  }, [resolvedClinicId, activePhone, activeApptId])
+  }, [resolvedClinicId, activePhone, activeApptId, isManualSearch])
 
   const liveResult: PatientQueueStatusResult | null = useMemo(() => {
     if (!myAppt) return null
@@ -142,13 +211,27 @@ export function PatientLiveTurn({
 
   const handlePhoneSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!inputPhone.trim()) {
+    const clean = inputPhone.trim()
+    if (!clean) {
       setSearchError('يرجى إدخال رقم الهاتف')
       return
     }
     setSearchError('')
     setLoading(true)
-    setActivePhone(inputPhone.trim())
+    setIsManualSearch(false)
+    setActiveApptId('')
+    setActivePhone(clean)
+  }
+
+  const handleStartManualSearch = () => {
+    setIsManualSearch(true)
+    setActivePhone('')
+    setInputPhone('')
+    setActiveApptId('')
+    setMyAppt(null)
+    setOtherDateAppt(null)
+    setSearchError('')
+    setLoading(false)
   }
 
   const handleRefresh = () => {
@@ -170,7 +253,7 @@ export function PatientLiveTurn({
 
   return (
     <div dir="rtl" className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-      <div className="w-full max-w-[410px] rounded-[40px] bg-gradient-to-b from-[#071529] via-[#091b34] to-[#051020] text-white p-6 shadow-2xl border border-sky-400/25 space-y-5 my-auto">
+      <div className="w-full max-w-[420px] rounded-[40px] bg-gradient-to-b from-[#071529] via-[#091b34] to-[#051020] text-white p-6 shadow-2xl border border-sky-400/25 space-y-5 my-auto">
         {/* Top Bar */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -198,8 +281,8 @@ export function PatientLiveTurn({
           )}
         </div>
 
-        {/* Patient Not Found or No Phone Set Yet */}
-        {!activePhone && !myAppt ? (
+        {/* 1. Search Form: When no phone is set OR user requested manual search */}
+        {(!activePhone || isManualSearch) ? (
           <div className="py-6 space-y-4 text-center">
             <div className="w-14 h-14 rounded-2xl bg-sky-500/15 border border-sky-400/30 text-sky-400 flex items-center justify-center mx-auto">
               <Search className="w-7 h-7" />
@@ -207,24 +290,25 @@ export function PatientLiveTurn({
             <div>
               <h3 className="text-lg font-black text-white">تتبع دورك المباشر في العيادة</h3>
               <p className="text-xs text-slate-300 mt-1">
-                أدخل رقم هاتفك المسجل بالحجز للاطلاع على ترتيبك ووقت الدخول المتوقع
+                أدخل رقم الهاتف المسجل بالحجز لعرض ترتيبك في قائمة الانتظار فوراً
               </p>
             </div>
 
             <form onSubmit={handlePhoneSearch} className="space-y-3">
               <input
+                ref={inputRef}
                 type="tel"
                 dir="ltr"
                 required
                 value={inputPhone}
                 onChange={(e) => setInputPhone(e.target.value)}
                 placeholder="01012345678"
-                className="w-full px-4 py-3 rounded-2xl bg-white/10 border border-sky-400/30 text-white text-center font-bold text-sm outline-none focus:border-sky-400"
+                className="w-full px-4 py-3 rounded-2xl bg-white/10 border border-sky-400/30 text-white text-center font-bold text-sm outline-none focus:border-sky-400 focus:bg-white/15 transition-all"
               />
               {searchError && <p className="text-xs font-bold text-rose-400">{searchError}</p>}
               <button
                 type="submit"
-                className="w-full py-3 rounded-2xl bg-gradient-to-r from-[#0066dc] to-[#00a8e8] text-white font-extrabold text-sm shadow-lg hover:shadow-xl transition-all cursor-pointer"
+                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#0066dc] to-[#00a8e8] text-white font-extrabold text-sm shadow-lg hover:shadow-xl transition-all cursor-pointer"
               >
                 تتبع الدور الآن
               </button>
@@ -236,38 +320,105 @@ export function PatientLiveTurn({
             <span className="text-xs font-bold text-sky-200">جاري قراءة بيانات الانتظار المباشرة...</span>
           </div>
         ) : !myAppt ? (
-          <div className="py-6 space-y-4 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-amber-500/15 border border-amber-400/30 text-amber-400 flex items-center justify-center mx-auto">
-              <AlertCircle className="w-7 h-7" />
-            </div>
-            <div>
-              <h3 className="text-lg font-black text-white">لا يوجد حجز مسجل اليوم</h3>
-              <p className="text-xs text-slate-300 mt-1">
-                لم نجد حجزاً نشطاً لرقم الهاتف (<strong dir="ltr">{activePhone}</strong>) لتاريخ اليوم في هذه العيادة.
-              </p>
-            </div>
-            <div className="pt-2 flex flex-col gap-2">
-              <button
-                onClick={() => {
-                  setActivePhone('')
-                  setInputPhone('')
-                }}
-                className="w-full py-2.5 rounded-2xl bg-white/10 text-slate-200 font-bold text-xs hover:bg-white/15"
-              >
-                البحث برقم آخر
-              </button>
-              {onClose && (
-                <button
+          /* 2. No Today Appointment Found */
+          otherDateAppt ? (
+            /* 2A. Found Appointment on ANOTHER Date */
+            <div className="py-5 space-y-4 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-sky-500/20 border border-sky-400/40 text-sky-300 flex items-center justify-center mx-auto">
+                <Calendar className="w-7 h-7" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-white">لديك حجز مؤكد لتاريخ قادم!</h3>
+                <p className="text-xs text-slate-300 mt-1">
+                  عثرنا على حجزك المسجل برقم (<strong dir="ltr">{activePhone}</strong>):
+                </p>
+              </div>
+
+              {/* Booking preview card */}
+              <div className="bg-[#0c213d] rounded-2xl p-4 border border-sky-400/25 space-y-2 text-right">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-400">اسم المريض:</span>
+                  <span className="text-sm font-bold text-white">{otherDateAppt.patientName}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-400">تاريخ الحجز:</span>
+                  <span className="text-sm font-black text-sky-300 font-mono">{otherDateAppt.date}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-400">الفرع:</span>
+                  <span className="text-xs font-bold text-slate-200">{otherDateAppt.branchName || 'الفرع الرئيسي'}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-400">رقم الدور المعتمد:</span>
+                  <span className="text-base font-black text-emerald-400 font-mono">#{otherDateAppt.queue_number || '—'}</span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-sky-950/60 border border-sky-500/20 text-sky-200 text-xs leading-relaxed text-right">
+                💡 <strong className="text-white">ملاحظة هامة:</strong> يبدأ تتبع الانتظار اللحظي وحساب دقائق الدخول المتوقعة تلقائياً في يوم موعد الكشف ({otherDateAppt.date}).
+              </div>
+
+              <div className="pt-2 flex flex-col gap-2">
+                <Link
+                  href={`/clinic/${slug}/track/${otherDateAppt.id}`}
                   onClick={onClose}
-                  className="w-full py-2.5 rounded-2xl bg-sky-600 text-white font-bold text-xs hover:bg-sky-500"
+                  className="w-full py-3 rounded-2xl bg-gradient-to-r from-[#0066dc] to-[#00a8e8] text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow hover:opacity-95 transition-all"
                 >
-                  إغلاق
+                  <span>عرض تذكرة الحجز الكاملة</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </Link>
+                <button
+                  type="button"
+                  onClick={handleStartManualSearch}
+                  className="w-full py-2.5 rounded-2xl bg-white/10 text-slate-200 font-bold text-xs hover:bg-white/15 transition-colors cursor-pointer"
+                >
+                  البحث برقم هاتف آخر
                 </button>
-              )}
+                {onClose && (
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="w-full py-2 rounded-2xl bg-transparent text-slate-400 font-bold text-xs hover:text-white"
+                  >
+                    إغلاق
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          ) : (
+            /* 2B. Truly No Appointment Found for this Phone */
+            <div className="py-6 space-y-4 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-amber-500/15 border border-amber-400/30 text-amber-400 flex items-center justify-center mx-auto">
+                <AlertCircle className="w-7 h-7" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-white">لا يوجد حجز مسجل لهذا الرقم</h3>
+                <p className="text-xs text-slate-300 mt-1">
+                  لم نجد حجزاً نشطاً لرقم الهاتف (<strong dir="ltr">{activePhone}</strong>) في هذه العيادة.
+                </p>
+              </div>
+              <div className="pt-2 flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={handleStartManualSearch}
+                  className="w-full py-3 rounded-2xl bg-gradient-to-r from-[#0066dc] to-[#00a8e8] text-white font-extrabold text-xs hover:opacity-95 transition-all cursor-pointer"
+                >
+                  البحث برقم هاتف آخر
+                </button>
+                {onClose && (
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="w-full py-2.5 rounded-2xl bg-white/10 text-slate-300 font-bold text-xs hover:bg-white/20 transition-colors"
+                  >
+                    إغلاق
+                  </button>
+                )}
+              </div>
+            </div>
+          )
         ) : (
-          /* Live Queue View */
+          /* 3. Live Queue View When Appointment is Found */
           <div className="space-y-4">
             {/* Patient Header */}
             <div className="flex items-center justify-between bg-white/5 p-3 rounded-2xl border border-white/10">
@@ -389,8 +540,8 @@ export function PatientLiveTurn({
                 )
               )}
 
-              {/* Action Button */}
-              <div className="pt-1">
+              {/* Action Buttons */}
+              <div className="pt-1 space-y-2">
                 <Link
                   href={`/clinic/${slug}/track/${myAppt.id}`}
                   onClick={onClose}
@@ -399,6 +550,13 @@ export function PatientLiveTurn({
                   <span>صفحة المتابعة الكاملة</span>
                   <ExternalLink className="w-3.5 h-3.5" />
                 </Link>
+                <button
+                  type="button"
+                  onClick={handleStartManualSearch}
+                  className="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 font-bold text-[11px] transition-colors cursor-pointer"
+                >
+                  تبديل المريض / البحث برقم آخر
+                </button>
               </div>
             </div>
           </div>

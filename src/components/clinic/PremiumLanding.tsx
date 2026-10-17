@@ -457,6 +457,7 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
       {liveTurnOpen && (
         <PatientLiveTurn
           clinic={clinic}
+          slug={clinic?.slug}
           onClose={() => setLiveTurnOpen(false)}
         />
       )}

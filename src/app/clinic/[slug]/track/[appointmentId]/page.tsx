@@ -490,6 +490,13 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
             </a>
           )}
           
+          <a href={`/clinic/${slug}/patient`} className="block w-full">
+            <Button variant="outline" className="w-full h-11 text-xs font-bold border-sky-400/40 text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/40 rounded-xl flex items-center justify-center gap-1.5">
+              <UserCheck className="w-4 h-4" />
+              <span>{t('patient_portal_my_records', 'بوابة المريض (مواعيدي وروشتاتي)')}</span>
+            </Button>
+          </a>
+
           <a href={`/clinic/${slug}`} className="block w-full">
             <Button variant="ghost" className="w-full h-11 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-secondary rounded-xl">
               {t('exit_back_to_home', 'خروج والعودة للرئيسية')}

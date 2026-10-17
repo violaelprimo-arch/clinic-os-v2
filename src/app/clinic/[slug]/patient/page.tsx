@@ -54,6 +54,7 @@ export default function PatientPortalPage() {
 
   const [activeTab, setActiveTab] = useState<'appointments' | 'prescriptions' | 'invoices' | 'medical'>('appointments')
   const [liveTurnOpen, setLiveTurnOpen] = useState<boolean>(false)
+  const [selectedApptForLive, setSelectedApptForLive] = useState<any | null>(null)
   const [bookingModalOpen, setBookingModalOpen] = useState<boolean>(false)
 
   // Selected modals
@@ -264,10 +265,18 @@ export default function PatientPortalPage() {
               </p>
             </div>
           </div>
-          <span className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
-            <ShieldCheck className="w-3 h-3" />
-            <span>ملف موثق</span>
-          </span>
+          <div className="flex flex-col items-end gap-1.5">
+            <span className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3" />
+              <span>ملف موثق</span>
+            </span>
+            <button
+              onClick={handleLogout}
+              className="text-[10px] font-bold text-sky-600 dark:text-sky-400 hover:underline cursor-pointer"
+            >
+              تبديل الحساب
+            </button>
+          </div>
         </div>
 
         {/* 4 Navigation Tabs */}
@@ -385,7 +394,10 @@ export default function PatientPortalPage() {
                     {(isWaiting || isInProgress) && (
                       <div className="space-y-2 pt-1">
                         <button
-                          onClick={() => setLiveTurnOpen(true)}
+                          onClick={() => {
+                            setSelectedApptForLive(appt)
+                            setLiveTurnOpen(true)
+                          }}
                           className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#0066dc] to-[#00a8e8] text-white font-extrabold text-xs shadow hover:opacity-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
                         >
                           <Hourglass className="w-3.5 h-3.5" />
@@ -606,9 +618,13 @@ export default function PatientPortalPage() {
       {liveTurnOpen && (
         <PatientLiveTurn
           clinic={clinic}
-          patientPhone={patientPhone}
-          patientName={patientName}
-          onClose={() => setLiveTurnOpen(false)}
+          patientPhone={selectedApptForLive?.phone || patientPhone}
+          patientName={selectedApptForLive?.patientName || patientName}
+          appointmentId={selectedApptForLive?.id}
+          onClose={() => {
+            setLiveTurnOpen(false)
+            setSelectedApptForLive(null)
+          }}
         />
       )}
 

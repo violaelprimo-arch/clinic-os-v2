@@ -594,7 +594,9 @@ export function BookingModal({
                 #{bookingSuccess.queueNumber}
               </div>
               <div className="text-[11px] text-slate-400">
-                يوجد {bookingSuccess.aheadCount} في قائمة الانتظار أمامك
+                {bookingSuccess.aheadCount === 0
+                  ? 'أنت الأول في قائمة الانتظار لهذا اليوم'
+                  : `يوجد ${bookingSuccess.aheadCount} في قائمة الانتظار أمامك`}
               </div>
               <div className="text-[11px] font-bold text-sky-600 dark:text-sky-400 pt-1 border-t border-slate-100 dark:border-slate-800">
                 طريقة الدفع: {bookingSuccess.paymentMethod}
