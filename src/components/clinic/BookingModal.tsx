@@ -16,7 +16,10 @@ import {
   Clock,
   Loader2,
   ExternalLink,
-  ChevronLeft
+  CreditCard,
+  Banknote,
+  Wallet,
+  Copy
 } from 'lucide-react'
 import { db } from '@/lib/firebase'
 import { collection, addDoc, getDocs, query, where } from 'firebase/firestore'
@@ -42,16 +45,17 @@ export function BookingModal({
   const clinicId = clinic?.id || clinic?.slug || 'demo'
   const slug = clinic?.slug || 'zizo'
 
+  // Step 1: Branch, 2: Service, 3: Date & Queue Estimate, 4: Patient Info, 5: Payment, 6: Review
   const [step, setStep] = useState<number>(1)
 
-  // Fallback branches matching design in case clinic has no custom ones
+  // Fallback branches matching design
   const defaultBranches = [
     {
       id: 'main',
       name: 'الفرع الرئيسي',
       sub: 'مدينة نصر',
       address: clinic?.clinicAddress || 'مدينة نصر - القاهرة',
-      image: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=600&auto=format&fit=crop',
+      image: clinic?.branchImage || clinic?.heroImage || 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=600&auto=format&fit=crop',
       available: true
     },
     {
@@ -75,7 +79,7 @@ export function BookingModal({
   const [branches, setBranches] = useState<any[]>(defaultBranches)
   const [selectedBranch, setSelectedBranch] = useState<any>(initialBranch || defaultBranches[0])
 
-  // Load real branches from Firestore if available
+  // Load real branches from Firestore so user-uploaded branch images appear immediately
   useEffect(() => {
     let isMounted = true
     const loadBranches = async () => {
@@ -85,17 +89,25 @@ export function BookingModal({
           const dbBranches = await getClinicBranches(clinic.id).catch(() => [])
           const active = dbBranches.filter((b: any) => !b.isArchived)
           if (active.length > 0 && isMounted) {
-            setBranches(active)
+            const mapped = active.map((b: any) => ({
+              ...b,
+              image: b.image || clinic?.branchImage || clinic?.heroImage || defaultBranches[0].image
+            }))
+            setBranches(mapped)
             if (!selectedBranch || selectedBranch.id === 'main') {
-              setSelectedBranch(initialBranch || active[0])
+              setSelectedBranch(initialBranch || mapped[0])
             }
             return
           }
         }
         if (clinic?.branches && clinic.branches.length > 0 && isMounted) {
-          setBranches(clinic.branches)
+          const mapped = clinic.branches.map((b: any) => ({
+            ...b,
+            image: b.image || clinic?.branchImage || clinic?.heroImage || defaultBranches[0].image
+          }))
+          setBranches(mapped)
           if (!selectedBranch) {
-            setSelectedBranch(initialBranch || clinic.branches[0])
+            setSelectedBranch(initialBranch || mapped[0])
           }
         }
       } catch (e) {
@@ -140,7 +152,7 @@ export function BookingModal({
       const dayNum = d.getDate()
       const monthName = monthNamesAr[d.getMonth()]
 
-      let label = dayName
+      let label = `${dayName}`
       if (i === 0) label = 'اليوم'
       else if (i === 1) label = 'غداً'
 
@@ -153,16 +165,15 @@ export function BookingModal({
     return list
   }, [])
 
-  const [selectedDate, setSelectedDate] = useState<string>(availableDays[0]?.iso || new Date().toISOString().split('T')[0])
-  const [selectedTime, setSelectedTime] = useState<string>('10:30 ص')
+  const [selectedDate, setSelectedDate] = useState<string>(availableDays[0]?.iso || '')
 
-  // Real-time Queue & Wait Time Estimator for Selected Date and Branch
+  // Live estimated queue & wait time calculation
   const [estimatedQueueNumber, setEstimatedQueueNumber] = useState<number>(1)
   const [estimatedWaitMins, setEstimatedWaitMins] = useState<number>(0)
   const [isEstimating, setIsEstimating] = useState<boolean>(false)
 
   useEffect(() => {
-    if (!clinicId || !selectedDate) return
+    if (!selectedDate || !clinicId) return
     let isCancelled = false
     setIsEstimating(true)
 
@@ -175,15 +186,15 @@ export function BookingModal({
     getDocs(q)
       .then((snap) => {
         if (isCancelled) return
-        const branchAppts = snap.docs.filter((d) => {
-          const data = d.data()
-          return !selectedBranch?.id || data.branch_id === selectedBranch.id || data.branchName === selectedBranch?.name
-        })
-        const nextQueue = branchAppts.length + 1
-        const waitingAhead = branchAppts.filter(
+        const existingNums = snap.docs.map((d) => Number(d.data().queue_number) || 0)
+        const maxQueue = existingNums.length > 0 ? Math.max(0, ...existingNums) : 0
+        const nextQueue = maxQueue + 1
+
+        const waitingAhead = snap.docs.filter(
           (d) => d.data().status === 'waiting' || !d.data().status
         ).length
         const avgMins = Number(clinic?.averageVisitTime) || 15
+
         setEstimatedQueueNumber(nextQueue)
         setEstimatedWaitMins(waitingAhead * avgMins)
       })
@@ -195,15 +206,20 @@ export function BookingModal({
     return () => {
       isCancelled = true
     }
-  }, [clinicId, selectedDate, selectedBranch, clinic?.averageVisitTime])
+  }, [clinicId, selectedDate, clinic?.averageVisitTime])
 
-  // Patient Form State
+  // Patient Form State (No birthdate - only name, phone, age, gender)
   const [patientName, setPatientName] = useState<string>('')
   const [patientPhone, setPatientPhone] = useState<string>('')
-  const [birthDate, setBirthDate] = useState<string>('')
   const [age, setAge] = useState<string>('')
   const [gender, setGender] = useState<'ذكر' | 'أنثى'>('أنثى')
   const [phoneError, setPhoneError] = useState<boolean>(false)
+
+  // Payment Method State
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'instapay' | 'wallet'>('cash')
+  const [transferAccount, setTransferAccount] = useState<string>('')
+  const [isCopied, setIsCopied] = useState<boolean>(false)
+
   const [submitting, setSubmitting] = useState<boolean>(false)
   const [bookingSuccess, setBookingSuccess] = useState<{
     appointmentId: string
@@ -211,7 +227,7 @@ export function BookingModal({
     aheadCount: number
     branchName: string
     date: string
-    time: string
+    paymentMethod: string
   } | null>(null)
 
   // Auto-fill from authenticated patient session if available
@@ -236,6 +252,14 @@ export function BookingModal({
     return valid
   }
 
+  const handleCopyText = (text: string) => {
+    if (!text) return
+    navigator.clipboard.writeText(text)
+    setIsCopied(true)
+    toast.success('تم النسخ إلى الحافظة')
+    setTimeout(() => setIsCopied(false), 2000)
+  }
+
   const handleNext = async () => {
     if (step === 1) {
       if (!selectedBranch && branches.length > 0) {
@@ -255,7 +279,7 @@ export function BookingModal({
 
     if (step === 3) {
       if (!selectedDate) {
-        toast.error('يرجى اختيار موعد الحجز')
+        toast.error('يرجى اختيار يوم الحجز')
         return
       }
       setStep(4)
@@ -272,39 +296,35 @@ export function BookingModal({
         setPhoneError(true)
         return
       }
-      if (birthDate && !age) {
-        const birthYear = new Date(birthDate).getFullYear()
-        const currentYear = new Date().getFullYear()
-        if (birthYear > 1900 && birthYear <= currentYear) {
-          setAge(String(currentYear - birthYear))
-        }
-      }
       setStep(5)
       return
     }
 
-    // STEP 5: Final Submission to Firestore
+    if (step === 5) {
+      setStep(6)
+      return
+    }
+
+    // STEP 6: Final Submission to Firestore
     setSubmitting(true)
     try {
       const cleanPhone = patientPhone.trim().replace(/\s+/g, '')
       const branchId = selectedBranch?.id || null
       const branchName = selectedBranch?.name || 'الفرع الرئيسي'
 
-      // Calculate sequential queue number directly from DB
+      // Strictly sequential queue number directly from DB: max + 1
       const q = query(
         collection(db, 'appointments'),
         where('clinic_id', '==', clinicId),
         where('date', '==', selectedDate)
       )
       const qSnap = await getDocs(q)
-      const branchDateAppts = qSnap.docs.filter((d) => {
-        const data = d.data()
-        return !branchId || data.branch_id === branchId || data.branchName === branchName
-      })
+      const existingQueueNums = qSnap.docs.map((d) => Number(d.data().queue_number) || 0)
+      const maxQueue = existingQueueNums.length > 0 ? Math.max(0, ...existingQueueNums) : 0
+      const myQueueNumber = maxQueue + 1
 
-      const myQueueNumber = branchDateAppts.length + 1
       let waitingCount = 0
-      branchDateAppts.forEach((docSnap) => {
+      qSnap.docs.forEach((docSnap) => {
         const st = docSnap.data().status
         if (st === 'waiting' || !st) waitingCount++
       })
@@ -316,14 +336,8 @@ export function BookingModal({
         serviceName.includes('طوارئ') ||
         String(selectedService?.id) === '3'
 
-      let calculatedAge = age.trim()
-      if (!calculatedAge && birthDate) {
-        const bYear = new Date(birthDate).getFullYear()
-        const curYear = new Date().getFullYear()
-        if (bYear > 1900 && bYear <= curYear) {
-          calculatedAge = String(curYear - bYear)
-        }
-      }
+      const isOnlinePay = paymentMethod === 'instapay' || paymentMethod === 'wallet'
+      const paymentStatus = isOnlinePay ? 'pending_verification' : 'unpaid'
 
       const newAppt = {
         clinic_id: clinicId,
@@ -331,19 +345,18 @@ export function BookingModal({
         branchName: branchName,
         patientName: patientName.trim(),
         phone: cleanPhone,
-        age: calculatedAge || null,
-        birthDate: birthDate || null,
+        age: age.trim() || null,
         gender: gender || 'أنثى',
         serviceId: selectedService?.id || '1',
         serviceName: serviceName,
         servicePrice: selectedService?.price || 0,
         isUrgent,
         date: selectedDate,
-        time: selectedTime,
         queue_number: myQueueNumber,
         status: 'waiting',
-        paymentMethod: 'cash',
-        paymentStatus: 'unpaid',
+        paymentMethod,
+        paymentStatus,
+        paymentDetails: transferAccount.trim() ? { senderAccount: transferAccount.trim() } : null,
         createdAt: new Date().toISOString()
       }
 
@@ -362,41 +375,31 @@ export function BookingModal({
             clinic_id: clinicId,
             name: patientName.trim(),
             phone: cleanPhone,
-            age: calculatedAge || '',
+            age: age.trim() || null,
+            gender: gender || 'أنثى',
             createdAt: new Date().toISOString()
           })
         }
-      } catch (accErr) {
-        console.warn('Patient account auto-create warning:', accErr)
+      } catch (e) {
+        console.warn('Could not auto-provision patient account:', e)
       }
 
-      // Automatically store/update patient session in localStorage so portal is ready
+      // Auto-login patient session
       try {
         localStorage.setItem(
           'patient_auth',
           JSON.stringify({
-            phone: cleanPhone,
             name: patientName.trim(),
-            age: calculatedAge || '',
-            clinic_id: clinicId,
-            clinicSlug: slug
+            phone: cleanPhone,
+            age: age.trim(),
+            gender: gender || 'أنثى',
+            clinicSlug: slug,
+            clinicId
           })
         )
-      } catch (storageErr) {
-        console.warn('Could not persist patient_auth:', storageErr)
+      } catch (e) {
+        console.warn('Could not write patient session:', e)
       }
-
-      // Trigger Reception & Patient Notifications
-      createClinicNotification({
-        clinicId,
-        branchId: branchId,
-        recipientType: 'staff',
-        recipientTarget: clinicId,
-        title: 'حجز جديد مسجل',
-        body: `حجز جديد للمريض ${patientName.trim()} في فرع "${branchName}" برقم دور #${myQueueNumber}.`,
-        type: 'new_booking',
-        appointmentId: docRef.id
-      }).catch(() => {})
 
       createClinicNotification({
         clinicId,
@@ -416,7 +419,7 @@ export function BookingModal({
         aheadCount: waitingCount,
         branchName: branchName,
         date: selectedDate,
-        time: selectedTime
+        paymentMethod: paymentMethod === 'cash' ? 'كاش بالعيادة' : paymentMethod === 'instapay' ? 'InstaPay' : 'محفظة إلكترونية'
       })
     } catch (err: any) {
       console.error('Booking submission error:', err)
@@ -431,8 +434,13 @@ export function BookingModal({
     { id: 2, label: 'الخدمة', Icon: Stethoscope },
     { id: 3, label: 'الموعد', Icon: Calendar },
     { id: 4, label: 'بيانات المريض', Icon: UserCheck },
-    { id: 5, label: 'مراجعة', Icon: ClipboardCheck }
+    { id: 5, label: 'طريقة الدفع', Icon: CreditCard },
+    { id: 6, label: 'تأكيد الحجز', Icon: ClipboardCheck }
   ]
+
+  // Clinic payment credentials
+  const clinicInstapayHandle = clinic?.instapayHandle || clinic?.instapayAccount || clinic?.clinicPhone || 'zizo@instapay'
+  const clinicWalletNumber = clinic?.walletNumber || clinic?.vodafoneCashNumber || clinic?.clinicPhone || '01012345678'
 
   return (
     <div dir="rtl" className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
@@ -459,7 +467,7 @@ export function BookingModal({
           )}
         </div>
 
-        {/* 5-Step Stepper */}
+        {/* 6-Step Stepper */}
         <div className="flex items-center justify-between relative px-1">
           <div className="absolute top-4 left-6 right-6 h-0.5 bg-slate-200 dark:bg-slate-700 -z-0" />
           {stepsMeta.map(({ id, label, Icon }) => {
@@ -473,7 +481,7 @@ export function BookingModal({
                 className="relative z-10 flex flex-col items-center gap-1 cursor-pointer"
               >
                 <div
-                  className={`w-9 h-9 rounded-full flex items-center justify-center text-xs transition-all ${
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs transition-all ${
                     done
                       ? 'bg-emerald-500 text-white shadow'
                       : active
@@ -481,9 +489,9 @@ export function BookingModal({
                       : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400'
                   }`}
                 >
-                  {done ? <Check className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
+                  {done ? <Check className="w-3.5 h-3.5" /> : <Icon className="w-3.5 h-3.5" />}
                 </div>
-                <span className={`text-[10px] font-bold ${active ? 'text-sky-600 dark:text-sky-400 font-extrabold' : 'text-slate-400'}`}>
+                <span className={`text-[9px] font-bold ${active ? 'text-sky-600 dark:text-sky-400 font-extrabold' : 'text-slate-400'}`}>
                   {label}
                 </span>
               </button>
@@ -511,6 +519,9 @@ export function BookingModal({
               </div>
               <div className="text-[11px] text-slate-400">
                 يوجد {bookingSuccess.aheadCount} في قائمة الانتظار أمامك
+              </div>
+              <div className="text-[11px] font-bold text-sky-600 dark:text-sky-400 pt-1 border-t border-slate-100 dark:border-slate-800">
+                طريقة الدفع: {bookingSuccess.paymentMethod}
               </div>
             </div>
 
@@ -542,7 +553,7 @@ export function BookingModal({
           </div>
         ) : (
           <div className="min-h-[290px] flex flex-col justify-between">
-            {/* STEP 1: BRANCH SELECTION (Screen 2 / 3-Card Grid Matching User Screenshot) */}
+            {/* STEP 1: BRANCH SELECTION */}
             {step === 1 && (
               <div className="space-y-4">
                 <h4 className="text-center font-extrabold text-slate-800 dark:text-slate-100 text-sm">اختر الفرع المناسب</h4>
@@ -611,12 +622,12 @@ export function BookingModal({
               </div>
             )}
 
-            {/* STEP 3: DATE & TIME WITH QUICK TODAY/TOMORROW & LIVE ESTIMATE */}
+            {/* STEP 3: QUICK DATE SELECTION & LIVE ESTIMATE (No time slots, no calendar picker) */}
             {step === 3 && (
               <div className="space-y-4">
-                <h4 className="text-center font-extrabold text-slate-800 dark:text-slate-100 text-sm">اختر يوم وموعد الكشف</h4>
+                <h4 className="text-center font-extrabold text-slate-800 dark:text-slate-100 text-sm">اختر يوم الكشف</h4>
 
-                {/* Quick Days Selector */}
+                {/* Quick Days Grid */}
                 <div>
                   <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-200 mb-2">
                     أيام الحجز المتاحة
@@ -662,58 +673,23 @@ export function BookingModal({
                       </div>
                     </div>
                     <div className="text-left">
-                      <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400">الوقت التقريبي</div>
+                      <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400">الوقت التقريبي للدخول</div>
                       <div className="text-xs font-black text-sky-600 dark:text-sky-400">
                         {estimatedWaitMins > 0 ? `~ ${estimatedWaitMins} دقيقة` : 'كشف فوري'}
                       </div>
                     </div>
                   </div>
                   <p className="text-[10px] text-slate-500 dark:text-slate-400 border-t border-sky-100 dark:border-slate-800 pt-1.5">
-                    * يتم حساب رقم الدور فورياً وفقاً للحجوزات المسجلة لهذا الفرع واليوم.
+                    * يتم حساب رقم الدور والوقت فورياً وبشكل تسلسلي وفقاً للحجوزات المسجلة.
                   </p>
-                </div>
-
-                {/* Custom Date Picker toggle */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">
-                    أو اختر تاريخاً آخر من التقويم:
-                  </label>
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    min={new Date().toISOString().split('T')[0]}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                </div>
-
-                {/* Preferred time period */}
-                <div>
-                  <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-200 mb-1.5">الفترة الزمنية المفضلة</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {['10:00 ص', '10:30 ص', '11:30 ص', '01:00 م', '06:30 م', '08:00 م'].map((t) => (
-                      <button
-                        key={t}
-                        type="button"
-                        onClick={() => setSelectedTime(t)}
-                        className={`py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                          selectedTime === t
-                            ? 'bg-sky-600 text-white border-sky-600 shadow'
-                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
-                        }`}
-                      >
-                        {t}
-                      </button>
-                    ))}
-                  </div>
                 </div>
               </div>
             )}
 
-            {/* STEP 4: PATIENT FORM */}
+            {/* STEP 4: PATIENT FORM (Without birth date) */}
             {step === 4 && (
               <div className="space-y-3">
-                <div className="text-xs font-extrabold text-sky-600 dark:text-sky-400">+ بيانات المريض</div>
+                <div className="text-xs font-extrabold text-sky-600 dark:text-sky-400">+ بيانات المريض الأساسية</div>
                 <div>
                   <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-200 mb-1">
                     الاسم الكامل للمريض <span className="text-rose-500">*</span>
@@ -729,7 +705,7 @@ export function BookingModal({
 
                 <div>
                   <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-200 mb-1">
-                    رقم الهاتف (واتساب) <span className="text-rose-500">*</span>
+                    رقم الهاتف المحمول (واتساب) <span className="text-rose-500">*</span>
                   </label>
                   <div
                     dir="ltr"
@@ -760,10 +736,10 @@ export function BookingModal({
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-200 mb-1">
-                      السن (إجباري للروشتة)
+                      السن (بالسنوات)
                     </label>
                     <input
                       type="number"
@@ -771,66 +747,171 @@ export function BookingModal({
                       max="120"
                       value={age}
                       onChange={(e) => setAge(e.target.value)}
-                      placeholder="28"
+                      placeholder="مثال: 28"
                       className="w-full px-3 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:border-sky-500 outline-none text-sm font-bold text-slate-900 dark:text-white"
                     />
                   </div>
                   <div>
                     <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-200 mb-1">
-                      تاريخ الميلاد
+                      النوع
                     </label>
-                    <input
-                      type="date"
-                      value={birthDate}
-                      onChange={(e) => {
-                        setBirthDate(e.target.value)
-                        if (e.target.value) {
-                          const y = new Date(e.target.value).getFullYear()
-                          const now = new Date().getFullYear()
-                          if (y > 1900 && y <= now) setAge(String(now - y))
-                        }
-                      }}
-                      className="w-full px-3 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:border-sky-500 outline-none text-xs font-bold text-slate-900 dark:text-white"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-200 mb-1">
-                    النوع
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setGender('ذكر')}
-                      className={`py-2.5 rounded-2xl font-extrabold text-xs transition-all cursor-pointer ${
-                        gender === 'ذكر'
-                          ? 'bg-sky-600 text-white shadow-md'
-                          : 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200'
-                      }`}
-                    >
-                      ذكر
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setGender('أنثى')}
-                      className={`py-2.5 rounded-2xl font-extrabold text-xs transition-all cursor-pointer ${
-                        gender === 'أنثى'
-                          ? 'bg-sky-600 text-white shadow-md'
-                          : 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200'
-                      }`}
-                    >
-                      أنثى
-                    </button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setGender('ذكر')}
+                        className={`py-2 rounded-xl font-extrabold text-xs transition-all cursor-pointer ${
+                          gender === 'ذكر'
+                            ? 'bg-sky-600 text-white shadow-md'
+                            : 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200'
+                        }`}
+                      >
+                        ذكر
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setGender('أنثى')}
+                        className={`py-2 rounded-xl font-extrabold text-xs transition-all cursor-pointer ${
+                          gender === 'أنثى'
+                            ? 'bg-sky-600 text-white shadow-md'
+                            : 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200'
+                        }`}
+                      >
+                        أنثى
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* STEP 5: REVIEW & CONFIRM */}
+            {/* STEP 5: PAYMENT METHODS */}
             {step === 5 && (
+              <div className="space-y-4">
+                <div className="text-center">
+                  <h4 className="font-extrabold text-slate-800 dark:text-slate-100 text-sm">اختر طريقة الدفع</h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">يمكنك الدفع كاش في العيادة أو إلكترونياً</p>
+                </div>
+
+                {/* 3 Payment Methods Cards */}
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('cash')}
+                    className={`p-3 rounded-2xl border-2 text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
+                      paymentMethod === 'cash'
+                        ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/50 shadow-md ring-2 ring-emerald-400/20'
+                        : 'border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-emerald-300'
+                    }`}
+                  >
+                    <Banknote className="w-5 h-5 text-emerald-600 mb-1" />
+                    <span className="text-xs font-black text-slate-900 dark:text-white">كاش بالعيادة</span>
+                    <span className="text-[9px] text-slate-400 mt-0.5">عند الحضور</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('instapay')}
+                    className={`p-3 rounded-2xl border-2 text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
+                      paymentMethod === 'instapay'
+                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-950/50 shadow-md ring-2 ring-purple-400/20'
+                        : 'border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-purple-300'
+                    }`}
+                  >
+                    <CreditCard className="w-5 h-5 text-purple-600 mb-1" />
+                    <span className="text-xs font-black text-slate-900 dark:text-white">InstaPay</span>
+                    <span className="text-[9px] text-slate-400 mt-0.5">تحويل فوري</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('wallet')}
+                    className={`p-3 rounded-2xl border-2 text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
+                      paymentMethod === 'wallet'
+                        ? 'border-rose-500 bg-rose-50 dark:bg-rose-950/50 shadow-md ring-2 ring-rose-400/20'
+                        : 'border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-rose-300'
+                    }`}
+                  >
+                    <Wallet className="w-5 h-5 text-rose-600 mb-1" />
+                    <span className="text-xs font-black text-slate-900 dark:text-white">محفظة ذكية</span>
+                    <span className="text-[9px] text-slate-400 mt-0.5">كاش / محافظ</span>
+                  </button>
+                </div>
+
+                {/* InstaPay Account Details Box */}
+                {paymentMethod === 'instapay' && (
+                  <div className="p-3.5 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-[10px] font-bold text-purple-600 dark:text-purple-300">عنوان InstaPay للعيادة:</div>
+                        <div className="text-sm font-black font-mono text-slate-900 dark:text-white" dir="ltr">
+                          {clinicInstapayHandle}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyText(clinicInstapayHandle)}
+                        className="px-2.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <Copy className="w-3 h-3" />
+                        <span>{isCopied ? 'تم النسخ ✓' : 'نسخ'}</span>
+                      </button>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                        اسم الحساب أو رقم الهاتف المحول منه (اختياري للتحقق):
+                      </label>
+                      <input
+                        type="text"
+                        value={transferAccount}
+                        onChange={(e) => setTransferAccount(e.target.value)}
+                        placeholder="مثال: أحمد محمد أو 01012345678"
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-purple-200 dark:border-purple-700 text-xs font-bold outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Electronic Wallet Details Box */}
+                {paymentMethod === 'wallet' && (
+                  <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-[10px] font-bold text-rose-600 dark:text-rose-300">رقم محفظة العيادة (فودافون كاش / محافظ):</div>
+                        <div className="text-sm font-black font-mono text-slate-900 dark:text-white" dir="ltr">
+                          {clinicWalletNumber}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyText(clinicWalletNumber)}
+                        className="px-2.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <Copy className="w-3 h-3" />
+                        <span>{isCopied ? 'تم النسخ ✓' : 'نسخ'}</span>
+                      </button>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                        رقم المحفظة التي قمت بالتحويل منها:
+                      </label>
+                      <input
+                        type="tel"
+                        dir="ltr"
+                        value={transferAccount}
+                        onChange={(e) => setTransferAccount(e.target.value)}
+                        placeholder="01012345678"
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-rose-200 dark:border-rose-700 text-xs font-bold outline-none text-left"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* STEP 6: REVIEW & CONFIRM */}
+            {step === 6 && (
               <div className="space-y-3">
-                <h4 className="text-center font-extrabold text-slate-800 dark:text-slate-100 text-sm">مراجعة تفاصيل الحجز</h4>
+                <h4 className="text-center font-extrabold text-slate-800 dark:text-slate-100 text-sm">مراجعة وتأكيد الحجز</h4>
                 <div className="p-4 rounded-2xl bg-white dark:bg-slate-800 border border-sky-200 dark:border-slate-700 space-y-2.5 text-xs">
                   <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-700">
                     <span className="text-slate-400">اسم المريض:</span>
@@ -840,6 +921,12 @@ export function BookingModal({
                     <span className="text-slate-400">رقم الهاتف:</span>
                     <strong dir="ltr">{patientPhone}</strong>
                   </div>
+                  {age && (
+                    <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-700">
+                      <span className="text-slate-400">السن:</span>
+                      <strong>{age} سنة</strong>
+                    </div>
+                  )}
                   <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-700">
                     <span className="text-slate-400">الفرع:</span>
                     <strong className="text-sky-600">{selectedBranch?.name || 'الفرع الرئيسي'}</strong>
@@ -849,8 +936,14 @@ export function BookingModal({
                     <strong>{selectedService?.name} ({selectedService?.price} ج.م)</strong>
                   </div>
                   <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-700">
-                    <span className="text-slate-400">الموعد والتاريخ:</span>
-                    <strong>{selectedDate} • {selectedTime}</strong>
+                    <span className="text-slate-400">تاريخ ويوم الكشف:</span>
+                    <strong>{selectedDate}</strong>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-700">
+                    <span className="text-slate-400">طريقة الدفع:</span>
+                    <strong className="text-emerald-600">
+                      {paymentMethod === 'cash' ? 'كاش في العيادة' : paymentMethod === 'instapay' ? 'InstaPay' : 'محفظة إلكترونية'}
+                    </strong>
                   </div>
                   <div className="flex justify-between py-1">
                     <span className="text-slate-400">الدور المتوقع:</span>
@@ -875,7 +968,7 @@ export function BookingModal({
                   </>
                 ) : (
                   <>
-                    <span>{step === 5 ? 'تأكيد الحجز الآن' : 'التالي'}</span>
+                    <span>{step === 6 ? 'تأكيد الحجز الآن' : 'التالي'}</span>
                     <ArrowLeft className="w-4 h-4" />
                   </>
                 )}

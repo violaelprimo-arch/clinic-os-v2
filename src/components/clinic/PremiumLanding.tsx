@@ -1,10 +1,11 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useLanguage } from '@/context/LanguageContext'
 import { BookingModal } from '@/components/clinic/BookingModal'
 import { PatientLiveTurn } from '@/components/clinic/PatientLiveTurn'
+import { getClinicBranches } from '@/lib/branchService'
 import {
   Clock,
   Star,
@@ -32,10 +33,34 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
   const [bookingOpen, setBookingOpen] = useState(false)
   const [liveTurnOpen, setLiveTurnOpen] = useState(false)
   const [selectedService, setSelectedService] = useState<any>(null)
+  const [loadedBranches, setLoadedBranches] = useState<any[]>([])
   const [selectedBranch, setSelectedBranch] = useState<any>(
     clinic?.branches?.[0] || { id: 'main', name: clinic?.clinicName || 'الفرع الرئيسي', address: clinic?.clinicAddress || '' }
   )
   const [dark, setDark] = useState(false)
+
+  // Fetch real branches from Firestore so user-uploaded branch images appear immediately
+  useEffect(() => {
+    if (!clinic?.id && !clinic?.slug) return
+    const clinicId = clinic.id || clinic.slug
+    let isMounted = true
+    getClinicBranches(clinicId)
+      .then((list) => {
+        const active = list.filter((b: any) => !b.isArchived)
+        if (active.length > 0 && isMounted) {
+          setLoadedBranches(active)
+          setSelectedBranch((prev: any) => {
+            if (!prev || prev.id === 'main') return active[0]
+            const found = active.find((b: any) => b.id === prev.id)
+            return found || active[0]
+          })
+        }
+      })
+      .catch((e) => console.warn('Could not load branches in PremiumLanding:', e))
+    return () => {
+      isMounted = false
+    }
+  }, [clinic?.id, clinic?.slug])
 
   const handleToggleDark = () => {
     setDark(!dark)
@@ -48,7 +73,9 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
     setBookingOpen(true)
   }
 
-  const branches = clinic?.branches?.length
+  const branches = loadedBranches.length > 0
+    ? loadedBranches
+    : clinic?.branches?.length
     ? clinic.branches
     : [
         {
@@ -59,6 +86,13 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
           available: true
         }
       ]
+
+  const heroImageSrc =
+    loadedBranches.find((b: any) => b.image)?.image ||
+    clinic?.heroImage ||
+    clinic?.branchImage ||
+    branches[0]?.image ||
+    'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=1000&auto=format&fit=crop'
 
   const serviceIcons = [Clock, MapPin, Stethoscope, ShieldCheck, FlaskConical, Activity]
 
@@ -158,7 +192,7 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
                   <div className="absolute -inset-3 bg-gradient-to-tr from-sky-400/30 via-cyan-300/20 to-blue-600/25 rounded-[36px] blur-xl"></div>
                   <div className="relative w-64 sm:w-72 md:w-80 rounded-[32px] overflow-hidden border-4 border-white dark:border-slate-800 shadow-2xl bg-gradient-to-b from-sky-50 to-white dark:from-slate-800 dark:to-slate-900">
                     <img
-                      src={clinic?.heroImage || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=1000&auto=format&fit=crop'}
+                      src={heroImageSrc}
                       alt={clinic?.doctorName || 'Doctor'}
                       className="w-full h-80 sm:h-96 object-cover object-top group-hover:scale-105 transition-transform duration-700"
                     />

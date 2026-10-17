@@ -230,16 +230,6 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
               {t('wishing_good_health', 'نتمنى لك دوام الصحة والعافية ونتشرف دائماً بخدمتك.')}
             </p>
           </div>
-        ) : isCurrentTurn ? (
-          <div className="p-6 rounded-3xl bg-primary/10 border-2 border-primary text-center space-y-3 animate-pulse">
-            <div className="w-14 h-14 rounded-full bg-primary text-white flex items-center justify-center mx-auto text-2xl font-black shadow-lg shadow-primary/30">
-              #{appointment.queue_number}
-            </div>
-            <h3 className="text-xl font-black text-primary">{t('your_turn_now', 'دورك الآن!')}</h3>
-            <p className="text-xs text-foreground font-bold">
-              {t('proceed_to_room', 'يرجى التوجه إلى غرفة الكشف مباشرة لمقابلة الطبيب.')}
-            </p>
-          </div>
         ) : isCancelled ? (
           <div className="p-6 rounded-3xl bg-rose-500/10 border border-rose-500/20 text-center space-y-2">
             <AlertCircle className="w-12 h-12 text-rose-600 dark:text-rose-400 mx-auto" />
@@ -256,10 +246,23 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Big Queue Card */}
+            {/* If it's your turn right now, show high-visibility calling banner at top */}
+            {isCurrentTurn && (
+              <div className="p-5 rounded-3xl bg-primary/10 border-2 border-primary text-center space-y-2 animate-pulse shadow-lg shadow-primary/20">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary text-white text-xs font-black">
+                  <span>🔔</span>
+                  <span>{t('your_turn_now', 'دورك الآن!')}</span>
+                </div>
+                <h3 className="text-lg font-black text-primary">
+                  {t('proceed_to_room', 'يرجى التوجه إلى غرفة الكشف مباشرة لمقابلة الطبيب')}
+                </h3>
+              </div>
+            )}
+
+            {/* Big Queue Ticket Card */}
             <div className="bg-secondary/40 border border-border rounded-3xl p-6 text-center space-y-2">
               <span className="text-xs font-bold text-muted-foreground">{t('ticket_number', 'رقم تذكرة الحجز')}</span>
-              <div className="text-6xl font-black text-primary tracking-tight">
+              <div className="text-6xl font-black text-primary tracking-tight font-mono">
                 #{appointment.queue_number}
               </div>
               
@@ -277,15 +280,25 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
             </div>
 
             {/* In-Progress Doctor Indicator */}
-            {liveQueue.currentPatientExamining && (
-              <div className="p-3 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-between text-xs">
+            {liveQueue.currentPatientExamining ? (
+              <div className="p-3.5 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2 text-primary font-bold">
                   <Activity className="w-4 h-4 text-primary animate-pulse" />
                   <span>{t('doctor_with_patient', 'الطبيب مع مريض رقم:')}</span>
                 </div>
-                <Badge className="bg-primary text-white font-mono font-bold text-xs">
+                <Badge className="bg-primary text-white font-mono font-bold text-xs px-2.5 py-1">
                   #{liveQueue.currentPatientExamining.queueNumber}
                 </Badge>
+              </div>
+            ) : (
+              <div className="p-3.5 rounded-2xl bg-secondary/50 border border-border flex items-center justify-between text-xs text-muted-foreground">
+                <div className="flex items-center gap-2 font-bold">
+                  <Activity className="w-4 h-4 text-muted-foreground" />
+                  <span>{t('doctor_status', 'المريض الحالي بغرفة الكشف:')}</span>
+                </div>
+                <span className="font-bold text-foreground bg-card px-2.5 py-1 rounded-lg border border-border text-[11px]">
+                  {t('waiting_first_patient', 'في انتظار استدعاء الحالة')}
+                </span>
               </div>
             )}
 
