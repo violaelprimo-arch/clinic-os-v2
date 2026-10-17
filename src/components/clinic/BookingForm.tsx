@@ -710,11 +710,15 @@ export function BookingForm({
                 onChange={(fullNumber, country, localNum) => {
                   setPhone(fullNumber)
                   setSelectedCountry(country)
-                  const valid = validatePhoneNumber(localNum, country)
-                  setPhoneError(!valid)
-                  if (!valid) {
+                  const valid = validatePhoneNumber(fullNumber, country)
+                  if (valid) {
+                    setPhoneError(false)
+                    setPhoneErrorMsg('')
+                  } else if (localNum.length >= (country.minLength || 9)) {
+                    setPhoneError(true)
                     setPhoneErrorMsg(isRtl ? `يرجى إدخال رقم هاتف صحيح لـ ${country.nameAr} (${country.placeholder})` : 'Please enter a valid phone number')
                   } else {
+                    setPhoneError(false)
                     setPhoneErrorMsg('')
                   }
                 }}

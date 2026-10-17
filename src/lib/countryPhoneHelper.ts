@@ -370,7 +370,10 @@ export function parsePhoneAndCountry(rawPhone: string): {
     for (const country of sortedCountries) {
       if (clean.startsWith(country.dialCode)) {
         const withoutDial = clean.substring(country.dialCode.length)
-        const local = withoutDial.startsWith('0') ? withoutDial : `0${withoutDial}`
+        const shouldHaveLeadingZero = country.placeholder.startsWith('0')
+        const local = shouldHaveLeadingZero && !withoutDial.startsWith('0') && withoutDial.length > 0
+          ? `0${withoutDial}`
+          : withoutDial
         return {
           country,
           localNumber: local,
@@ -386,7 +389,10 @@ export function parsePhoneAndCountry(rawPhone: string): {
     const rawDial = country.dialCode.replace('+', '')
     if (clean.startsWith(rawDial) && clean.length > rawDial.length + 6) {
       const withoutDial = clean.substring(rawDial.length)
-      const local = withoutDial.startsWith('0') ? withoutDial : `0${withoutDial}`
+      const shouldHaveLeadingZero = country.placeholder.startsWith('0')
+      const local = shouldHaveLeadingZero && !withoutDial.startsWith('0') && withoutDial.length > 0
+        ? `0${withoutDial}`
+        : withoutDial
       return {
         country,
         localNumber: local,
@@ -396,56 +402,135 @@ export function parsePhoneAndCountry(rawPhone: string): {
   }
 
   // Default to Egypt
-  const local = clean.startsWith('0') ? clean : `0${clean}`
   const withoutZero = clean.replace(/^0+/, '')
+  const local = clean.startsWith('0') ? clean : (clean.length > 0 ? `0${clean}` : '')
   return {
     country: DEFAULT_COUNTRY,
     localNumber: clean,
-    fullNumber: `+20${withoutZero}`
+    fullNumber: withoutZero ? `+20${withoutZero}` : ''
   }
 }
 
 /**
- * Validates local phone number according to country rules
+ * Validates phone number according to country rules.
+ * Supports:
+ * - Local numbers with or without leading zero (e.g. "01121320507" or "1121320507")
+ * - International numbers with plus (e.g. "+201121320507")
+ * - International numbers with 00 (e.g. "00201121320507")
+ * - International numbers without plus (e.g. "201121320507")
  */
 export function validatePhoneNumber(phone: string, country: CountryInfo = DEFAULT_COUNTRY): boolean {
-  const normalized = normalizePhoneDigits(phone).replace(/[^0-9]/g, '')
+  if (!phone) return false
+  const normalized = normalizePhoneDigits(phone).trim()
   if (!normalized) return false
 
+  // 1. Determine effective country and extract local digits
+  let activeCountry = country || DEFAULT_COUNTRY
+  let clean = normalized
+
+  // Handle leading 00 as international +
+  if (clean.startsWith('00')) {
+    clean = '+' + clean.substring(2)
+  }
+
+  // If the phone explicitly starts with +, identify country by dial code
+  if (clean.startsWith('+')) {
+    const sortedCountries = [...COUNTRIES].sort((a, b) => b.dialCode.length - a.dialCode.length)
+    for (const c of sortedCountries) {
+      if (clean.startsWith(c.dialCode)) {
+        activeCountry = c
+        clean = clean.substring(c.dialCode.length)
+        break
+      }
+    }
+  } else {
+    // If it doesn't start with +, check if it starts with the active country's dial code without plus
+    // e.g. "201012345678" or "966501234567"
+    const dialDigits = (activeCountry.dialCode || '').replace(/[^0-9]/g, '')
+    const digitsOnly = clean.replace(/[^0-9]/g, '')
+    if (dialDigits && digitsOnly.startsWith(dialDigits) && digitsOnly.length > dialDigits.length + 6) {
+      clean = digitsOnly.substring(dialDigits.length)
+    }
+  }
+
+  // Extract clean digits of the local number
+  const localDigits = clean.replace(/[^0-9]/g, '')
+  if (!localDigits) return false
+
+  // Normalize local number with leading zero for standard checks
+  const localWithZero = localDigits.startsWith('0') ? localDigits : `0${localDigits}`
+  const localWithoutZero = localDigits.replace(/^0+/, '')
+
   // Egypt validation
-  if (country.code === 'EG') {
-    // Local: 010, 011, 012, 015 followed by 8 digits (total 11)
-    // Or without leading zero: 10, 11, 12, 15 followed by 8 digits (total 10)
-    return /^0?1[0125][0-9]{8}$/.test(normalized)
+  if (activeCountry.code === 'EG') {
+    // Local: 010, 011, 012, 015 followed by 8 digits (total 11 digits with 0, 10 without 0)
+    return /^01[0125][0-9]{8}$/.test(localWithZero)
   }
 
   // Saudi Arabia validation
-  if (country.code === 'SA') {
-    // 05xxxxxxxx (10 digits) or 5xxxxxxxx (9 digits)
-    return /^0?5[0-9]{8}$/.test(normalized)
+  if (activeCountry.code === 'SA') {
+    // 05xxxxxxxx (10 digits with 0) or 5xxxxxxxx (9 digits)
+    return /^05[0-9]{8}$/.test(localWithZero)
   }
 
   // UAE validation
-  if (country.code === 'AE') {
-    // 05xxxxxxxx (10 digits) or 5xxxxxxxx (9 digits)
-    return /^0?5[0-9]{8}$/.test(normalized)
+  if (activeCountry.code === 'AE') {
+    // 05xxxxxxxx (10 digits with 0) or 5xxxxxxxx (9 digits)
+    return /^05[0-9]{8}$/.test(localWithZero)
   }
 
   // Kuwait validation
-  if (country.code === 'KW') {
+  if (activeCountry.code === 'KW') {
     // 8 digits starting with 5, 6, 9
-    return /^[569][0-9]{7}$/.test(normalized)
+    return /^[569][0-9]{7}$/.test(localWithoutZero)
   }
 
   // Qatar validation
-  if (country.code === 'QA') {
+  if (activeCountry.code === 'QA') {
     // 8 digits starting with 3, 5, 6, 7
-    return /^[3567][0-9]{7}$/.test(normalized)
+    return /^[3567][0-9]{7}$/.test(localWithoutZero)
   }
 
-  // Generic fallback: check length
-  const digitsOnly = normalized.replace(/^0+/, '')
-  return digitsOnly.length >= 7 && digitsOnly.length <= 13
+  // Bahrain validation
+  if (activeCountry.code === 'BH') {
+    // 8 digits starting with 3 or 6
+    return /^[36][0-9]{7}$/.test(localWithoutZero)
+  }
+
+  // Oman validation
+  if (activeCountry.code === 'OM') {
+    // 8 digits starting with 7 or 9
+    return /^[79][0-9]{7}$/.test(localWithoutZero)
+  }
+
+  // Jordan validation
+  if (activeCountry.code === 'JO') {
+    // 077, 078, 079 (10 digits with 0, 9 without)
+    return /^07[789][0-9]{7}$/.test(localWithZero)
+  }
+
+  // Iraq validation
+  if (activeCountry.code === 'IQ') {
+    // 075, 077, 078, 079 (11 digits with 0, 10 without)
+    return /^07[5789][0-9]{8}$/.test(localWithZero)
+  }
+
+  // Palestine validation
+  if (activeCountry.code === 'PS') {
+    // 059, 056 (10 digits with 0, 9 without)
+    return /^05[69][0-9]{7}$/.test(localWithZero)
+  }
+
+  // Lebanon validation
+  if (activeCountry.code === 'LB') {
+    // 03, 70, 71, 76, 78, 79, 81 (8 digits with 0, 7 or 8 without)
+    return /^0?(3[0-9]{6}|(70|71|76|78|79|81)[0-9]{6})$/.test(localWithZero)
+  }
+
+  // Generic fallback using country min/max length if available
+  const min = Math.max(6, (activeCountry.minLength || 8) - 1)
+  const max = (activeCountry.maxLength || 11) + 1
+  return localDigits.length >= min && localDigits.length <= max
 }
 
 /**
@@ -480,6 +565,9 @@ export function formatToE164(phone: string, countryDialCode = '+20'): string {
 
   // Strip leading zero for international format
   const localDigits = digitsOnly.replace(/^0+/, '')
+  if (!localDigits) {
+    return digitsOnly ? `+${dialDigits}` : ''
+  }
   return `+${dialDigits}${localDigits}`
 }
 

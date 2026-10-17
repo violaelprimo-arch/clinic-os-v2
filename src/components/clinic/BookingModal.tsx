@@ -390,12 +390,17 @@ export function BookingModal({
     }
   }, [])
 
-  const validatePhoneInput = (val: string, country: CountryInfo = selectedCountry) => {
+  const validatePhoneInput = (val: string, country: CountryInfo = selectedCountry, isFinalCheck = false) => {
     const valid = validatePhoneNumber(val, country)
-    setPhoneError(!valid)
-    if (!valid) {
+    const digitsOnly = val.replace(/[^0-9]/g, '')
+    if (valid) {
+      setPhoneError(false)
+      setPhoneErrorMsg('')
+    } else if (isFinalCheck || digitsOnly.length >= (country.minLength || 9)) {
+      setPhoneError(true)
       setPhoneErrorMsg(`يرجى إدخال رقم هاتف محمول صحيح لـ ${country.nameAr} (${country.placeholder})`)
     } else {
+      setPhoneError(false)
       setPhoneErrorMsg('')
     }
     return valid
@@ -445,7 +450,7 @@ export function BookingModal({
         toast.error('يرجى إدخال اسم المريض بالكامل')
         return
       }
-      if (!patientPhone.trim() || !validatePhoneInput(patientPhone, selectedCountry)) {
+      if (!patientPhone.trim() || !validatePhoneInput(patientPhone, selectedCountry, true)) {
         toast.error(`يرجى إدخال رقم هاتف محمول صحيح لـ ${selectedCountry.nameAr}`)
         setPhoneError(true)
         return
@@ -915,7 +920,7 @@ export function BookingModal({
                     onChange={(fullNumber, country, localNum) => {
                       setPatientPhone(fullNumber)
                       setSelectedCountry(country)
-                      validatePhoneInput(localNum, country)
+                      validatePhoneInput(fullNumber, country, false)
                     }}
                     hasError={phoneError}
                     errorMessage={phoneErrorMsg}

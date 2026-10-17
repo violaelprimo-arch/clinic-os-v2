@@ -399,7 +399,14 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                     onChange={(fullNumber, country, localNum) => {
                       setNewPhone(fullNumber)
                       setNewCountry(country)
-                      setNewPhoneError(!validatePhoneNumber(localNum, country))
+                      const valid = validatePhoneNumber(fullNumber, country)
+                      if (valid) {
+                        setNewPhoneError(false)
+                      } else if (localNum.length >= (country.minLength || 9)) {
+                        setNewPhoneError(true)
+                      } else {
+                        setNewPhoneError(false)
+                      }
                     }}
                     hasError={newPhoneError}
                     size="sm"

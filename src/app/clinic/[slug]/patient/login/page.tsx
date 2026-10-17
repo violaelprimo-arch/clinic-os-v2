@@ -289,11 +289,15 @@ export default function PatientLoginPage() {
               onChange={(fullNumber, country, localNum) => {
                 setPhone(fullNumber)
                 setSelectedCountry(country)
-                const valid = validatePhoneNumber(localNum, country)
-                setPhoneError(!valid)
-                if (!valid) {
+                const valid = validatePhoneNumber(fullNumber, country)
+                if (valid) {
+                  setPhoneError(false)
+                  setPhoneErrorMsg('')
+                } else if (localNum.length >= (country.minLength || 9)) {
+                  setPhoneError(true)
                   setPhoneErrorMsg(`يرجى إدخال رقم هاتف محمول صحيح لـ ${country.nameAr} (${country.placeholder})`)
                 } else {
+                  setPhoneError(false)
                   setPhoneErrorMsg('')
                 }
               }}

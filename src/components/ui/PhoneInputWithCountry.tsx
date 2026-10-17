@@ -77,7 +77,9 @@ export function PhoneInputWithCountry({
     if (parsed.country && parsed.country.code !== selectedCountry.code) {
       setSelectedCountry(parsed.country)
     }
-    if (parsed.localNumber !== localNumber) {
+    // Only update localNumber if value was changed externally to something different than current input
+    const currentFull = formatToE164(localNumber, selectedCountry.dialCode)
+    if (value !== currentFull && parsed.localNumber !== localNumber) {
       setLocalNumber(parsed.localNumber)
     }
   }, [value])
@@ -125,14 +127,40 @@ export function PhoneInputWithCountry({
     )
   }, [searchQuery])
 
-  // Handle local phone typing
+  // Handle local phone typing & pasting
   const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value
-    const normalized = normalizePhoneDigits(raw).replace(/[^0-9]/g, '')
-    setLocalNumber(normalized)
+    const normalizedDigits = normalizePhoneDigits(raw)
 
-    const fullE164 = formatToE164(normalized, selectedCountry.dialCode)
-    onChange(fullE164, selectedCountry, normalized)
+    // 1. Check if user pasted an international number starting with '+' or '00'
+    if (normalizedDigits.trim().startsWith('+') || normalizedDigits.trim().startsWith('00')) {
+      const parsed = parsePhoneAndCountry(normalizedDigits)
+      if (parsed.country) {
+        setSelectedCountry(parsed.country)
+      }
+      setLocalNumber(parsed.localNumber)
+      onChange(parsed.fullNumber, parsed.country || selectedCountry, parsed.localNumber)
+      return
+    }
+
+    // 2. Normal typing: strip non-digits
+    const digitsOnly = normalizedDigits.replace(/[^0-9]/g, '')
+
+    // 3. If pasted digits start with current dial code (e.g. "2010..." for EG or "9665..." for SA)
+    const dialDigits = selectedCountry.dialCode.replace(/[^0-9]/g, '')
+    let effectiveLocal = digitsOnly
+    if (dialDigits && digitsOnly.startsWith(dialDigits) && digitsOnly.length > dialDigits.length + 6) {
+      const withoutDial = digitsOnly.substring(dialDigits.length)
+      const shouldHaveLeadingZero = selectedCountry.placeholder.startsWith('0')
+      effectiveLocal = shouldHaveLeadingZero && !withoutDial.startsWith('0') && withoutDial.length > 0
+        ? `0${withoutDial}`
+        : withoutDial
+    }
+
+    setLocalNumber(effectiveLocal)
+
+    const fullE164 = effectiveLocal ? formatToE164(effectiveLocal, selectedCountry.dialCode) : ''
+    onChange(fullE164, selectedCountry, effectiveLocal)
   }
 
   // Handle country selection
@@ -141,7 +169,7 @@ export function PhoneInputWithCountry({
     setIsDropdownOpen(false)
 
     // Recalculate full E.164 with the newly selected country dial code
-    const fullE164 = formatToE164(localNumber, country.dialCode)
+    const fullE164 = localNumber ? formatToE164(localNumber, country.dialCode) : ''
     onChange(fullE164, country, localNumber)
 
     // Return focus to number input
