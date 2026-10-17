@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   MapPin,
@@ -15,7 +15,8 @@ import {
   AlertCircle,
   Clock,
   Loader2,
-  ExternalLink
+  ExternalLink,
+  ChevronLeft
 } from 'lucide-react'
 import { db } from '@/lib/firebase'
 import { collection, addDoc, getDocs, query, where } from 'firebase/firestore'
@@ -42,10 +43,39 @@ export function BookingModal({
   const slug = clinic?.slug || 'zizo'
 
   const [step, setStep] = useState<number>(1)
-  const [branches, setBranches] = useState<any[]>([])
-  const [loadingBranches, setLoadingBranches] = useState<boolean>(true)
 
-  // Load real branches from Firestore or clinic props
+  // Fallback branches matching design in case clinic has no custom ones
+  const defaultBranches = [
+    {
+      id: 'main',
+      name: 'الفرع الرئيسي',
+      sub: 'مدينة نصر',
+      address: clinic?.clinicAddress || 'مدينة نصر - القاهرة',
+      image: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=600&auto=format&fit=crop',
+      available: true
+    },
+    {
+      id: 'tagamoa',
+      name: 'التجمع الخامس',
+      sub: 'التجمع الخامس',
+      address: 'التجمع الخامس - القاهرة الجديدة',
+      image: 'https://images.unsplash.com/photo-1586773860418-d37222d8fce3?q=80&w=600&auto=format&fit=crop',
+      available: true
+    },
+    {
+      id: 'zayed',
+      name: 'الشيخ زايد',
+      sub: 'الشيخ زايد',
+      address: 'الشيخ زايد - الجيزة',
+      image: 'https://images.unsplash.com/photo-1538108149393-fbbd81895907?q=80&w=600&auto=format&fit=crop',
+      available: true
+    }
+  ]
+
+  const [branches, setBranches] = useState<any[]>(defaultBranches)
+  const [selectedBranch, setSelectedBranch] = useState<any>(initialBranch || defaultBranches[0])
+
+  // Load real branches from Firestore if available
   useEffect(() => {
     let isMounted = true
     const loadBranches = async () => {
@@ -56,10 +86,9 @@ export function BookingModal({
           const active = dbBranches.filter((b: any) => !b.isArchived)
           if (active.length > 0 && isMounted) {
             setBranches(active)
-            if (!selectedBranch) {
+            if (!selectedBranch || selectedBranch.id === 'main') {
               setSelectedBranch(initialBranch || active[0])
             }
-            setLoadingBranches(false)
             return
           }
         }
@@ -68,24 +97,9 @@ export function BookingModal({
           if (!selectedBranch) {
             setSelectedBranch(initialBranch || clinic.branches[0])
           }
-          setLoadingBranches(false)
-          return
         }
       } catch (e) {
         console.error('Error loading branches:', e)
-      }
-
-      if (isMounted) {
-        const fallbackBranch = {
-          id: 'main',
-          name: clinic?.clinicName ? `فرع ${clinic.clinicName}` : 'الفرع الرئيسي',
-          address: clinic?.clinicAddress || 'العنوان الرئيسي للعيادة',
-          image: clinic?.heroImage || 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=600&auto=format&fit=crop',
-          available: true
-        }
-        setBranches([fallbackBranch])
-        if (!selectedBranch) setSelectedBranch(initialBranch || fallbackBranch)
-        setLoadingBranches(false)
       }
     }
 
@@ -102,16 +116,86 @@ export function BookingModal({
     : [
         { id: '1', name: 'كشف عادي', price: 250, duration: '15 دقيقة' },
         { id: '2', name: 'استشارة ومتابعة', price: 150, duration: '15 دقيقة' },
-        { id: '3', name: 'كشف مستعجل / طوارئ', price: 400, duration: 'فوري مباشر' }
+        { id: '3', name: 'كشف مستعجل / طوارئ', price: 400, duration: 'فوري مباشر', isUrgent: true }
       ]
 
-  const [selectedBranch, setSelectedBranch] = useState<any>(initialBranch || null)
   const [selectedService, setSelectedService] = useState<any>(initialService || defaultServices[0])
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
+
+  // Smart Date State (Today, Tomorrow, and Next 5 days)
+  const availableDays = useMemo(() => {
+    const list: { iso: string; label: string; subLabel: string }[] = []
+    const dayNamesAr = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
+    const monthNamesAr = [
+      'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+      'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+    ]
+
     const now = new Date()
-    return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split('T')[0]
-  })
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+      d.setDate(d.getDate() + i)
+      const iso = d.toISOString().split('T')[0]
+      const dayIndex = d.getDay()
+      const dayName = dayNamesAr[dayIndex]
+      const dayNum = d.getDate()
+      const monthName = monthNamesAr[d.getMonth()]
+
+      let label = dayName
+      if (i === 0) label = 'اليوم'
+      else if (i === 1) label = 'غداً'
+
+      list.push({
+        iso,
+        label,
+        subLabel: `${dayNum} ${monthName}`
+      })
+    }
+    return list
+  }, [])
+
+  const [selectedDate, setSelectedDate] = useState<string>(availableDays[0]?.iso || new Date().toISOString().split('T')[0])
   const [selectedTime, setSelectedTime] = useState<string>('10:30 ص')
+
+  // Real-time Queue & Wait Time Estimator for Selected Date and Branch
+  const [estimatedQueueNumber, setEstimatedQueueNumber] = useState<number>(1)
+  const [estimatedWaitMins, setEstimatedWaitMins] = useState<number>(0)
+  const [isEstimating, setIsEstimating] = useState<boolean>(false)
+
+  useEffect(() => {
+    if (!clinicId || !selectedDate) return
+    let isCancelled = false
+    setIsEstimating(true)
+
+    const q = query(
+      collection(db, 'appointments'),
+      where('clinic_id', '==', clinicId),
+      where('date', '==', selectedDate)
+    )
+
+    getDocs(q)
+      .then((snap) => {
+        if (isCancelled) return
+        const branchAppts = snap.docs.filter((d) => {
+          const data = d.data()
+          return !selectedBranch?.id || data.branch_id === selectedBranch.id || data.branchName === selectedBranch?.name
+        })
+        const nextQueue = branchAppts.length + 1
+        const waitingAhead = branchAppts.filter(
+          (d) => d.data().status === 'waiting' || !d.data().status
+        ).length
+        const avgMins = Number(clinic?.averageVisitTime) || 15
+        setEstimatedQueueNumber(nextQueue)
+        setEstimatedWaitMins(waitingAhead * avgMins)
+      })
+      .catch((e) => console.warn('Error fetching estimated queue:', e))
+      .finally(() => {
+        if (!isCancelled) setIsEstimating(false)
+      })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [clinicId, selectedDate, selectedBranch, clinic?.averageVisitTime])
 
   // Patient Form State
   const [patientName, setPatientName] = useState<string>('')
@@ -129,6 +213,21 @@ export function BookingModal({
     date: string
     time: string
   } | null>(null)
+
+  // Auto-fill from authenticated patient session if available
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('patient_auth')
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (parsed.name && !patientName) setPatientName(parsed.name)
+        if (parsed.phone && !patientPhone) setPatientPhone(parsed.phone)
+        if (parsed.age && !age) setAge(parsed.age)
+      }
+    } catch (e) {
+      console.warn('Could not read existing patient session:', e)
+    }
+  }, [])
 
   const validateEgyptianPhone = (val: string) => {
     const cleaned = val.replace(/\s+/g, '')
@@ -156,7 +255,7 @@ export function BookingModal({
 
     if (step === 3) {
       if (!selectedDate) {
-        toast.error('يرجى اختيار تاريخ الحجز')
+        toast.error('يرجى اختيار موعد الحجز')
         return
       }
       setStep(4)
@@ -165,7 +264,7 @@ export function BookingModal({
 
     if (step === 4) {
       if (!patientName.trim()) {
-        toast.error('يرجى إدخال اسم المريض ثلاثي')
+        toast.error('يرجى إدخال اسم المريض بالكامل')
         return
       }
       if (!validateEgyptianPhone(patientPhone)) {
@@ -173,7 +272,6 @@ export function BookingModal({
         setPhoneError(true)
         return
       }
-      // Calculate age if birthDate is filled but age is not
       if (birthDate && !age) {
         const birthYear = new Date(birthDate).getFullYear()
         const currentYear = new Date().getFullYear()
@@ -192,7 +290,7 @@ export function BookingModal({
       const branchId = selectedBranch?.id || null
       const branchName = selectedBranch?.name || 'الفرع الرئيسي'
 
-      // Isolated queue calculation for clinic and selected date
+      // Calculate sequential queue number directly from DB
       const q = query(
         collection(db, 'appointments'),
         where('clinic_id', '==', clinicId),
@@ -272,7 +370,23 @@ export function BookingModal({
         console.warn('Patient account auto-create warning:', accErr)
       }
 
-      // Notifications
+      // Automatically store/update patient session in localStorage so portal is ready
+      try {
+        localStorage.setItem(
+          'patient_auth',
+          JSON.stringify({
+            phone: cleanPhone,
+            name: patientName.trim(),
+            age: calculatedAge || '',
+            clinic_id: clinicId,
+            clinicSlug: slug
+          })
+        )
+      } catch (storageErr) {
+        console.warn('Could not persist patient_auth:', storageErr)
+      }
+
+      // Trigger Reception & Patient Notifications
       createClinicNotification({
         clinicId,
         branchId: branchId,
@@ -404,15 +518,23 @@ export function BookingModal({
               <Link
                 href={`/clinic/${slug}/track/${bookingSuccess.appointmentId}`}
                 onClick={onClose}
-                className="w-full py-3 rounded-2xl bg-gradient-to-r from-[#0066dc] to-[#00a8e8] text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all"
+                className="w-full py-3 rounded-2xl bg-gradient-to-r from-[#0066dc] to-[#00a8e8] text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all"
               >
                 <span>متابعة وتتبع الدور المباشر</span>
                 <ExternalLink className="w-4 h-4" />
               </Link>
+              <Link
+                href={`/clinic/${slug}/patient`}
+                onClick={onClose}
+                className="w-full py-2.5 rounded-2xl bg-white dark:bg-slate-800 border border-sky-200 dark:border-slate-700 text-sky-700 dark:text-sky-300 font-bold text-xs hover:bg-sky-50 flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <UserCheck className="w-4 h-4" />
+                <span>الدخول إلى بوابتي الطبية</span>
+              </Link>
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full py-2.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold text-xs hover:bg-slate-50 transition-colors"
+                className="w-full py-2 rounded-2xl bg-slate-100 dark:bg-slate-800/60 text-slate-500 font-bold text-xs hover:bg-slate-200 transition-colors cursor-pointer"
               >
                 إغلاق
               </button>
@@ -420,47 +542,38 @@ export function BookingModal({
           </div>
         ) : (
           <div className="min-h-[290px] flex flex-col justify-between">
-            {/* STEP 1: BRANCH SELECTION */}
+            {/* STEP 1: BRANCH SELECTION (Screen 2 / 3-Card Grid Matching User Screenshot) */}
             {step === 1 && (
               <div className="space-y-4">
                 <h4 className="text-center font-extrabold text-slate-800 dark:text-slate-100 text-sm">اختر الفرع المناسب</h4>
-                {loadingBranches ? (
-                  <div className="flex flex-col items-center justify-center py-10 gap-2 text-slate-400">
-                    <Loader2 className="w-6 h-6 animate-spin text-sky-500" />
-                    <span className="text-xs font-bold">جاري تحميل الفروع...</span>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-64 overflow-y-auto">
-                    {branches.map((b: any) => {
-                      const isSelected = selectedBranch?.id === b.id || selectedBranch?.name === b.name
-                      return (
-                        <div
-                          key={b.id || b.name}
-                          onClick={() => setSelectedBranch(b)}
-                          className={`cursor-pointer rounded-2xl p-3 bg-white dark:bg-slate-800 border-2 ${
-                            isSelected ? 'border-sky-500 shadow-md ring-2 ring-sky-400/30' : 'border-slate-100 dark:border-slate-700'
-                          } flex flex-col text-right relative transition-all hover:-translate-y-0.5`}
-                        >
-                          <div className="flex items-center justify-between mb-1.5">
-                            <span className="font-black text-slate-900 dark:text-white text-xs leading-tight">{b.name}</span>
-                            <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 text-[9px] font-extrabold border border-emerald-200 dark:border-emerald-800">
-                              متاح
-                            </span>
-                          </div>
-                          <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                            <MapPin className="w-3 h-3 text-sky-500 shrink-0" />
-                            <span className="truncate">{b.address || b.city || 'الفرع الرئيسي'}</span>
-                          </div>
-                          {isSelected && (
-                            <span className="absolute -bottom-1 -left-1 w-5 h-5 rounded-full bg-sky-600 text-white flex items-center justify-center text-[10px] shadow">
-                              <Check className="w-3 h-3" />
-                            </span>
-                          )}
+                <div className="grid grid-cols-3 gap-2.5">
+                  {branches.map((b: any) => {
+                    const isSelected = selectedBranch?.id === b.id || selectedBranch?.name === b.name
+                    return (
+                      <div
+                        key={b.id || b.name}
+                        onClick={() => setSelectedBranch(b)}
+                        className={`cursor-pointer rounded-2xl p-2 bg-white dark:bg-slate-800 border-2 ${
+                          isSelected ? 'border-sky-500 shadow-md ring-2 ring-sky-400/30' : 'border-slate-100 dark:border-slate-700'
+                        } flex flex-col items-center text-center relative transition-all hover:-translate-y-1`}
+                      >
+                        <div className="w-full h-20 rounded-xl overflow-hidden mb-2 bg-sky-100 dark:bg-slate-700">
+                          {b.image && <img src={b.image} alt={b.name} className="w-full h-full object-cover" />}
                         </div>
-                      )
-                    })}
-                  </div>
-                )}
+                        <div className="font-black text-slate-900 dark:text-white text-[11px] leading-tight">{b.name}</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">{b.sub || b.address}</div>
+                        <span className="mt-2 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 text-[9px] font-extrabold border border-emerald-200 dark:border-emerald-800">
+                          متاح اليوم
+                        </span>
+                        {isSelected && (
+                          <span className="absolute -bottom-2 -right-2 w-5 h-5 rounded-full bg-sky-600 text-white flex items-center justify-center text-[10px] shadow">
+                            <Check className="w-3 h-3" />
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             )}
 
@@ -482,7 +595,10 @@ export function BookingModal({
                         } flex items-center justify-between transition-all hover:border-sky-400`}
                       >
                         <div>
-                          <div className="font-extrabold text-xs text-slate-900 dark:text-white">{s.name}</div>
+                          <div className="font-extrabold text-xs text-slate-900 dark:text-white">
+                            {s.name}
+                            {s.isUrgent && <span className="text-rose-600 font-black mr-1">(أولوية قصوى)</span>}
+                          </div>
                           {s.duration && <div className="text-[10px] text-slate-400">المدة: {s.duration}</div>}
                         </div>
                         <span className="font-extrabold text-xs text-sky-600 dark:text-sky-400">
@@ -495,29 +611,92 @@ export function BookingModal({
               </div>
             )}
 
-            {/* STEP 3: DATE & TIME */}
+            {/* STEP 3: DATE & TIME WITH QUICK TODAY/TOMORROW & LIVE ESTIMATE */}
             {step === 3 && (
               <div className="space-y-4">
-                <h4 className="text-center font-extrabold text-slate-800 dark:text-slate-100 text-sm">اختر التاريخ والموعد</h4>
+                <h4 className="text-center font-extrabold text-slate-800 dark:text-slate-100 text-sm">اختر يوم وموعد الكشف</h4>
+
+                {/* Quick Days Selector */}
                 <div>
-                  <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-200 mb-1.5">تاريخ الحجز</label>
+                  <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-200 mb-2">
+                    أيام الحجز المتاحة
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {availableDays.map((d) => {
+                      const isSelected = selectedDate === d.iso
+                      return (
+                        <button
+                          key={d.iso}
+                          type="button"
+                          onClick={() => setSelectedDate(d.iso)}
+                          className={`p-2.5 rounded-2xl border-2 text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
+                            isSelected
+                              ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/60 shadow-md ring-2 ring-sky-400/20'
+                              : 'border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-sky-300'
+                          }`}
+                        >
+                          <span className={`text-xs font-black ${isSelected ? 'text-sky-600 dark:text-sky-400' : 'text-slate-900 dark:text-white'}`}>
+                            {d.label}
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-400 mt-0.5">
+                            {d.subLabel}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Live Queue & Estimated Wait Box */}
+                <div className="p-3.5 rounded-2xl bg-gradient-to-r from-sky-50 to-blue-50 dark:from-[#091b34] dark:to-[#07162d] border border-sky-200 dark:border-sky-500/25 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-xl bg-sky-500/15 text-sky-600 dark:text-sky-400 flex items-center justify-center">
+                        <Clock className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400">دورك المتوقع لهذا اليوم</div>
+                        <div className="text-sm font-black text-slate-900 dark:text-white font-mono">
+                          {isEstimating ? 'جاري الحساب...' : `دور رقم #${estimatedQueueNumber}`}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-left">
+                      <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400">الوقت التقريبي</div>
+                      <div className="text-xs font-black text-sky-600 dark:text-sky-400">
+                        {estimatedWaitMins > 0 ? `~ ${estimatedWaitMins} دقيقة` : 'كشف فوري'}
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 border-t border-sky-100 dark:border-slate-800 pt-1.5">
+                    * يتم حساب رقم الدور فورياً وفقاً للحجوزات المسجلة لهذا الفرع واليوم.
+                  </p>
+                </div>
+
+                {/* Custom Date Picker toggle */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">
+                    أو اختر تاريخاً آخر من التقويم:
+                  </label>
                   <input
                     type="date"
                     value={selectedDate}
                     min={new Date().toISOString().split('T')[0]}
                     onChange={(e) => setSelectedDate(e.target.value)}
-                    className="w-full px-4 py-3 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
                   />
                 </div>
+
+                {/* Preferred time period */}
                 <div>
-                  <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-200 mb-1.5">المواعيد المتاحة</label>
+                  <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-200 mb-1.5">الفترة الزمنية المفضلة</label>
                   <div className="grid grid-cols-3 gap-2">
                     {['10:00 ص', '10:30 ص', '11:30 ص', '01:00 م', '06:30 م', '08:00 م'].map((t) => (
                       <button
                         key={t}
                         type="button"
                         onClick={() => setSelectedTime(t)}
-                        className={`py-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                        className={`py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                           selectedTime === t
                             ? 'bg-sky-600 text-white border-sky-600 shadow'
                             : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
@@ -669,9 +848,13 @@ export function BookingModal({
                     <span className="text-slate-400">الخدمة:</span>
                     <strong>{selectedService?.name} ({selectedService?.price} ج.م)</strong>
                   </div>
-                  <div className="flex justify-between py-1">
+                  <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-700">
                     <span className="text-slate-400">الموعد والتاريخ:</span>
                     <strong>{selectedDate} • {selectedTime}</strong>
+                  </div>
+                  <div className="flex justify-between py-1">
+                    <span className="text-slate-400">الدور المتوقع:</span>
+                    <strong className="text-sky-600 font-mono">#{estimatedQueueNumber}</strong>
                   </div>
                 </div>
               </div>
