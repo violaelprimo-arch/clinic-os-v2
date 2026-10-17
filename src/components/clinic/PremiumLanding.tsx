@@ -261,7 +261,7 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
                   <motion.div
                     animate={{ y: [0, -6, 0] }}
                     transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
-                    className="absolute -bottom-2 -left-3 sm:-bottom-3 sm:-left-4 z-30 bg-white/95 dark:bg-slate-800 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl border-2 border-white dark:border-slate-700 shadow-xl flex flex-col items-center justify-center"
+                    className="absolute top-3 -left-3 sm:top-4 sm:-left-4 z-30 bg-white/95 dark:bg-slate-800 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl border-2 border-white dark:border-slate-700 shadow-xl flex flex-col items-center justify-center backdrop-blur-xs"
                   >
                     <div className="flex items-center gap-1 text-sky-600 dark:text-sky-400 font-extrabold text-base sm:text-xl leading-none">
                       <span>+{clinic?.experienceYears ?? 10}</span>

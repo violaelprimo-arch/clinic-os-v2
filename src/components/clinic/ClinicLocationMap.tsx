@@ -24,7 +24,6 @@ import {
 import { toast } from 'sonner'
 import { getClinicBranches, formatWeeklyScheduleSummary, isClinicOpenNow, DEFAULT_WEEKLY_SCHEDULE } from '@/lib/branchService'
 import { resolveEffectiveLocation, isPlaceholderAddress, sanitizeAddress } from '@/lib/mapsHelper'
-import { InteractiveClinicMap } from '@/components/clinic/InteractiveClinicMap'
 
 export interface ClinicLocationMapProps {
   clinic: any
@@ -76,7 +75,6 @@ export function ClinicLocationMap({
     return initialList[0]
   })
   const [isCopied, setIsCopied] = useState<boolean>(false)
-  const [mapViewMode, setMapViewMode] = useState<'interactive' | 'iframe'>('interactive')
   const [asyncResolvedCoords, setAsyncResolvedCoords] = useState<{ lat: number; lng: number } | null>(null)
 
   // Load branches from Firestore if not provided as prop
@@ -185,8 +183,10 @@ export function ClinicLocationMap({
     }
   }, [current?.mapsLink, clinic?.mapsLink, effectiveAddress, effective.lat, effective.lng])
 
-  // Safe Google Maps Embed Query for iFrame fallback
-  const iframeEmbedUrl = `https://maps.google.com/maps?q=${effectiveLat},${effectiveLng}&t=&z=16&ie=UTF8&iwloc=&output=embed`
+  // Official Google Maps Embed Query
+  const iframeEmbedUrl = (effectiveLat && effectiveLng)
+    ? `https://maps.google.com/maps?q=${effectiveLat},${effectiveLng}&t=&z=16&ie=UTF8&iwloc=&output=embed`
+    : `https://maps.google.com/maps?q=${encodeURIComponent(effectiveAddress || clinic?.clinicName || 'Cairo')}&t=&z=16&ie=UTF8&iwloc=&output=embed`
 
   const handleCopyAddress = () => {
     if (!effectiveAddress) return
@@ -304,9 +304,9 @@ export function ClinicLocationMap({
         </div>
       )}
 
-      {/* Interactive Map Frame Card */}
+      {/* Official Google Maps Frame Card */}
       <div className="relative rounded-[28px] overflow-hidden bg-slate-900 border border-sky-200 dark:border-slate-700 shadow-lg">
-        {/* Map Top Bar with Mode Switcher */}
+        {/* Map Top Bar */}
         <div className="bg-slate-950/90 backdrop-blur-md px-4 py-2.5 flex items-center justify-between border-b border-white/10 z-10 relative flex-wrap gap-2">
           <div className="flex items-center gap-2 truncate">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
@@ -316,72 +316,38 @@ export function ClinicLocationMap({
           </div>
 
           <div className="flex items-center gap-2">
-            {/* View Mode Toggle */}
-            <div className="flex items-center bg-slate-800 p-0.5 rounded-lg border border-white/10 text-[10px]">
-              <button
-                type="button"
-                onClick={() => setMapViewMode('interactive')}
-                className={`px-2 py-1 rounded-md font-bold transition-colors cursor-pointer ${
-                  mapViewMode === 'interactive'
-                    ? 'bg-sky-600 text-white'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                خريطة تفاعلية (سكرول)
-              </button>
-              <button
-                type="button"
-                onClick={() => setMapViewMode('iframe')}
-                className={`px-2 py-1 rounded-md font-bold transition-colors cursor-pointer ${
-                  mapViewMode === 'iframe'
-                    ? 'bg-sky-600 text-white'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                إطار Google
-              </button>
-            </div>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-500/20 text-sky-300 text-[11px] font-bold border border-sky-400/30">
+              <MapPin className="w-3.5 h-3.5 text-rose-400" />
+              <span>خرائط Google الرسمية</span>
+            </span>
 
             <a
               href={effectiveMapsLink}
               target="_blank"
               rel="noreferrer"
-              className="text-[11px] font-bold text-sky-400 hover:text-sky-300 flex items-center gap-1 transition-colors shrink-0"
+              className="text-[11px] font-bold text-sky-400 hover:text-sky-300 flex items-center gap-1 transition-colors shrink-0 bg-white/10 hover:bg-white/15 px-2.5 py-1 rounded-lg border border-white/10 cursor-pointer"
+              title="فتح الموقع في خرائط Google"
             >
-              <span>تكبير</span>
+              <span>فتح في Google Maps</span>
               <ExternalLink className="w-3 h-3" />
             </a>
           </div>
         </div>
 
-        {/* Map Render Mode */}
-        {mapViewMode === 'interactive' ? (
-          <InteractiveClinicMap
-            key={`map-${current?.id || current?.name || 'main'}-${effectiveLat}-${effectiveLng}`}
-            lat={effectiveLat}
-            lng={effectiveLng}
-            clinicName={clinic?.clinicName || 'عيادة الطبيب'}
-            branchName={current?.name}
-            address={effectiveAddress}
-            directionsUrl={effectiveDirectionsUrl}
-            googleMapsUrl={effectiveMapsLink}
-            height="h-72 sm:h-80"
+        {/* Google Maps Viewport */}
+        <div className="relative w-full h-72 sm:h-80 md:h-96 bg-slate-950">
+          <iframe
+            title={`خريطة موقع ${current?.name || clinic?.clinicName || 'العيادة'}`}
+            src={iframeEmbedUrl}
+            width="100%"
+            height="100%"
+            style={{ border: 0 }}
+            allowFullScreen
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+            className="w-full h-full"
           />
-        ) : (
-          <div className="relative w-full h-72 sm:h-80 bg-slate-950">
-            <iframe
-              title={`خريطة موقع ${current?.name}`}
-              src={iframeEmbedUrl}
-              width="100%"
-              height="100%"
-              style={{ border: 0 }}
-              allowFullScreen={false}
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-              className="w-full h-full"
-            />
-          </div>
-        )}
+        </div>
       </div>
 
       {/* Branch Detailed Information Card */}
