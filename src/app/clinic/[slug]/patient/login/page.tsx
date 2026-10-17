@@ -8,6 +8,13 @@ import { collection, query, where, getDocs, addDoc } from 'firebase/firestore'
 import { toast } from 'sonner'
 import { Eye, EyeOff, Loader2, ArrowRight } from 'lucide-react'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
+import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
+import {
+  CountryInfo,
+  DEFAULT_COUNTRY,
+  validatePhoneNumber,
+  getPhoneSearchVariants
+} from '@/lib/countryPhoneHelper'
 
 export default function PatientLoginPage() {
   const router = useRouter()
@@ -17,15 +24,13 @@ export default function PatientLoginPage() {
   const [name, setName] = useState('')
   const [age, setAge] = useState('')
   const [phone, setPhone] = useState('')
+  const [selectedCountry, setSelectedCountry] = useState<CountryInfo>(DEFAULT_COUNTRY)
+  const [phoneError, setPhoneError] = useState(false)
+  const [phoneErrorMsg, setPhoneErrorMsg] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-
-  const validateEgyptianPhone = (val: string) => {
-    const cleaned = val.replace(/\s+/g, '')
-    return /^01[0125][0-9]{8}$/.test(cleaned) || cleaned.length >= 10
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -45,11 +50,18 @@ export default function PatientLoginPage() {
       const clinicId = clinicDoc ? clinicDoc.id : 'demo'
       const cleanPhone = phone.trim().replace(/\s+/g, '')
 
-      if (!validateEgyptianPhone(cleanPhone)) {
-        toast.error('يرجى إدخال رقم هاتف محمول صحيح (مثال: 01012345678)')
+      const isValidPhone = validatePhoneNumber(cleanPhone, selectedCountry)
+      if (!isValidPhone) {
+        setPhoneError(true)
+        setPhoneErrorMsg(`يرجى إدخال رقم هاتف محمول صحيح لـ ${selectedCountry.nameAr} (${selectedCountry.placeholder})`)
+        toast.error(`يرجى إدخال رقم هاتف محمول صحيح لـ ${selectedCountry.nameAr}`)
         setLoading(false)
         return
       }
+      setPhoneError(false)
+      setPhoneErrorMsg('')
+
+      const phoneVariants = getPhoneSearchVariants(cleanPhone)
 
       if (mode === 'register') {
         if (!name.trim() || name.trim().length < 3) {
@@ -77,11 +89,11 @@ export default function PatientLoginPage() {
           return
         }
 
-        // Check if phone already registered in this clinic
+        // Check if phone already registered in this clinic (matching any format)
         const checkQ = query(
           collection(db, 'patient_accounts'),
           where('clinic_id', '==', clinicId),
-          where('phone', '==', cleanPhone)
+          where('phone', 'in', phoneVariants.slice(0, 10))
         )
         const checkSnap = await getDocs(checkQ)
 
@@ -92,7 +104,7 @@ export default function PatientLoginPage() {
           return
         }
 
-        // Create new account
+        // Create new account with standardized international phone
         await addDoc(collection(db, 'patient_accounts'), {
           clinic_id: clinicId,
           name: name.trim(),
@@ -127,7 +139,7 @@ export default function PatientLoginPage() {
         const loginQ = query(
           collection(db, 'patient_accounts'),
           where('clinic_id', '==', clinicId),
-          where('phone', '==', cleanPhone)
+          where('phone', 'in', phoneVariants.slice(0, 10))
         )
         const loginSnap = await getDocs(loginQ)
 
@@ -136,7 +148,7 @@ export default function PatientLoginPage() {
           const apptQ = query(
             collection(db, 'appointments'),
             where('clinic_id', '==', clinicId),
-            where('phone', '==', cleanPhone)
+            where('phone', 'in', phoneVariants.slice(0, 10))
           )
           const apptSnap = await getDocs(apptQ)
 
@@ -271,15 +283,23 @@ export default function PatientLoginPage() {
           )}
 
           <div>
-            <label className="block text-xs font-bold mb-1 text-slate-700 dark:text-slate-200">رقم التليفون المحمول *</label>
-            <input
-              type="tel"
-              required
-              dir="ltr"
+            <label className="block text-xs font-bold mb-1 text-slate-700 dark:text-slate-200">رقم التليفون المحمول (واتساب) *</label>
+            <PhoneInputWithCountry
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="01012345678"
-              className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+              onChange={(fullNumber, country, localNum) => {
+                setPhone(fullNumber)
+                setSelectedCountry(country)
+                const valid = validatePhoneNumber(localNum, country)
+                setPhoneError(!valid)
+                if (!valid) {
+                  setPhoneErrorMsg(`يرجى إدخال رقم هاتف محمول صحيح لـ ${country.nameAr} (${country.placeholder})`)
+                } else {
+                  setPhoneErrorMsg('')
+                }
+              }}
+              hasError={phoneError}
+              errorMessage={phoneErrorMsg}
+              size="md"
             />
           </div>
 

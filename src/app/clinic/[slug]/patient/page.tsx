@@ -14,6 +14,7 @@ import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ClinicLocationMap } from '@/components/clinic/ClinicLocationMap'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
+import { getPhoneSearchVariants } from '@/lib/countryPhoneHelper'
 import {
   CalendarCheck,
   FileText,
@@ -114,6 +115,8 @@ export default function PatientPortalPage() {
     if (!patient?.phone) return
 
     const cleanPhone = patient.phone.trim().replace(/\s+/g, '')
+    const phoneVariants = getPhoneSearchVariants(cleanPhone)
+    const searchPhones = phoneVariants.length > 0 ? phoneVariants.slice(0, 10) : [cleanPhone]
     const clinicId = patient.clinic_id || clinic?.id || slug
 
     const loadRecords = async () => {
@@ -122,7 +125,7 @@ export default function PatientPortalPage() {
         const apptQ = query(
           collection(db, 'appointments'),
           where('clinic_id', '==', clinicId),
-          where('phone', '==', cleanPhone)
+          where('phone', 'in', searchPhones)
         )
         const apptSnap = await getDocs(apptQ)
         const appts = apptSnap.docs
@@ -134,7 +137,7 @@ export default function PatientPortalPage() {
         const rxQ = query(
           collection(db, 'prescriptions'),
           where('clinic_id', '==', clinicId),
-          where('patientPhone', '==', cleanPhone)
+          where('patientPhone', 'in', searchPhones)
         )
         const rxSnap = await getDocs(rxQ)
         const rxs = rxSnap.docs
@@ -155,7 +158,7 @@ export default function PatientPortalPage() {
     const apptRealtimeQ = query(
       collection(db, 'appointments'),
       where('clinic_id', '==', clinicId),
-      where('phone', '==', cleanPhone)
+      where('phone', 'in', searchPhones)
     )
     const unsubAppts = onSnapshot(apptRealtimeQ, (snap) => {
       const liveList = snap.docs

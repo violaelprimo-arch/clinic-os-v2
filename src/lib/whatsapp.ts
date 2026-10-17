@@ -32,17 +32,14 @@ export interface WhatsAppSendResult {
   error?: string
 }
 
+import { cleanPhoneForWhatsApp } from '@/lib/countryPhoneHelper'
+
 /**
- * Format local Egyptian numbers (010xxx) to E.164 (2010xxx).
+ * Format phone numbers to international standard digits (e.g. 201012345678, 966501234567)
+ * strictly formatted for Meta WhatsApp Cloud API recipients.
  */
 export function formatWhatsAppPhone(phone: string): string {
-  let cleaned = String(phone || '').replace(/[^0-9]/g, '')
-  if (cleaned.startsWith('0')) {
-    cleaned = '2' + cleaned
-  } else if (!cleaned.startsWith('20') && cleaned.length === 10) {
-    cleaned = '20' + cleaned
-  }
-  return cleaned
+  return cleanPhoneForWhatsApp(phone, '+20')
 }
 
 /**

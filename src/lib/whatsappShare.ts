@@ -1,31 +1,17 @@
 import { toast } from 'sonner'
+import { cleanPhoneForWhatsApp } from '@/lib/countryPhoneHelper'
 
 /**
- * Normalizes Egyptian phone number to standard international WhatsApp format:
- * e.g., '01012345678' -> '201012345678'
+ * Normalizes phone number to standard international WhatsApp format:
+ * Supports Egyptian numbers (010xxx -> 2010xxx), Saudi (050xxx -> 96650xxx),
+ * UAE (050xxx -> 97150xxx), and all E.164 formats (+966..., +20...).
  */
 export function formatEgyptianPhoneForWhatsApp(phone: string): string {
-  let cleaned = String(phone || '')
-  // Normalize Arabic and Persian digits to standard ASCII 0-9
-  const arDigits = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩']
-  const faDigits = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹']
-  for (let i = 0; i < 10; i++) {
-    cleaned = cleaned.replace(new RegExp(arDigits[i], 'g'), String(i)).replace(new RegExp(faDigits[i], 'g'), String(i))
-  }
-  cleaned = cleaned.replace(/[^0-9]/g, '')
-  if (cleaned.startsWith('002')) {
-    cleaned = cleaned.substring(2)
-  }
-  if (cleaned.startsWith('+2')) {
-    cleaned = cleaned.substring(1)
-  }
-  if (cleaned.startsWith('0')) {
-    cleaned = '2' + cleaned
-  }
-  if (!cleaned.startsWith('2') && cleaned.length === 10) {
-    cleaned = '20' + cleaned
-  }
-  return cleaned
+  return cleanPhoneForWhatsApp(phone, '+20')
+}
+
+export function formatInternationalWhatsAppPhone(phone: string, defaultCountry = '+20'): string {
+  return cleanPhoneForWhatsApp(phone, defaultCountry)
 }
 
 /**

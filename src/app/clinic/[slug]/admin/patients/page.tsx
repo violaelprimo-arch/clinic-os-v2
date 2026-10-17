@@ -20,6 +20,8 @@ import { toast } from 'sonner'
 import { exportPatientsToExcel } from '@/lib/excelExport'
 import { printHtmlViaIframe, generatePatientsReportHtml } from '@/lib/printService'
 import { useLanguage } from '@/context/LanguageContext'
+import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
+import { cleanPhoneForWhatsApp, validatePhoneNumber, DEFAULT_COUNTRY, CountryInfo } from '@/lib/countryPhoneHelper'
 
 export default function PatientsPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -38,6 +40,8 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [newPhone, setNewPhone] = useState('')
+  const [newCountry, setNewCountry] = useState<CountryInfo>(DEFAULT_COUNTRY)
+  const [newPhoneError, setNewPhoneError] = useState(false)
   const [newDob, setNewDob] = useState('')
   const [newAge, setNewAge] = useState('')
   const [newService, setNewService] = useState('كشف عادي')
@@ -180,6 +184,11 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
     if (!newName.trim() || !newPhone.trim()) {
       return toast.error('يرجى كتابة الاسم ورقم الهاتف')
     }
+    if (!validatePhoneNumber(newPhone, newCountry)) {
+      setNewPhoneError(true)
+      return toast.error(`يرجى كتابة رقم هاتف صحيح لـ ${newCountry.nameAr}`)
+    }
+    setNewPhoneError(false)
     setIsAdding(true)
     try {
       if (clinicId) {
@@ -259,8 +268,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
 
   const sendWhatsApp = (phone: string, name: string) => {
     if (!phone) return
-    let formattedPhone = phone.replace(/[^0-9]/g, '')
-    if (formattedPhone.startsWith('0')) formattedPhone = '2' + formattedPhone
+    const formattedPhone = cleanPhoneForWhatsApp(phone)
     const message = encodeURIComponent(`مرحباً ${name}،\nنتمنى لك دوام الصحة والعافية من عيادتنا.`)
     window.open(`https://wa.me/${formattedPhone}?text=${message}`, '_blank')
   }
@@ -386,13 +394,15 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                   <Label className="text-xs font-bold text-muted-foreground">
                     {t('patient_phone_whatsapp', 'رقم الهاتف (واتساب)')}
                   </Label>
-                  <Input
+                  <PhoneInputWithCountry
                     value={newPhone}
-                    onChange={e => setNewPhone(e.target.value)}
-                    placeholder="01xxxxxxxxx"
-                    className="h-10 text-sm font-mono text-right rounded-xl bg-background border-border text-foreground"
-                    dir="ltr"
-                    required
+                    onChange={(fullNumber, country, localNum) => {
+                      setNewPhone(fullNumber)
+                      setNewCountry(country)
+                      setNewPhoneError(!validatePhoneNumber(localNum, country))
+                    }}
+                    hasError={newPhoneError}
+                    size="sm"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">

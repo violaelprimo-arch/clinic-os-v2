@@ -28,6 +28,13 @@ import { createClinicNotification } from '@/lib/notificationService'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
+import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
+import {
+  CountryInfo,
+  DEFAULT_COUNTRY,
+  validatePhoneNumber,
+  parsePhoneAndCountry
+} from '@/lib/countryPhoneHelper'
 
 export function BookingModal({
   clinic,
@@ -308,9 +315,11 @@ export function BookingModal({
   // Patient Form State (No birthdate - only name, phone, age, gender)
   const [patientName, setPatientName] = useState<string>('')
   const [patientPhone, setPatientPhone] = useState<string>('')
+  const [selectedCountry, setSelectedCountry] = useState<CountryInfo>(DEFAULT_COUNTRY)
   const [age, setAge] = useState<string>('')
   const [gender, setGender] = useState<'ذكر' | 'أنثى'>('أنثى')
   const [phoneError, setPhoneError] = useState<boolean>(false)
+  const [phoneErrorMsg, setPhoneErrorMsg] = useState<string>('')
 
   // Payment Method State
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'instapay' | 'wallet'>('cash')
@@ -334,7 +343,11 @@ export function BookingModal({
       if (raw) {
         const parsed = JSON.parse(raw)
         if (parsed.name && !patientName) setPatientName(parsed.name)
-        if (parsed.phone && !patientPhone) setPatientPhone(parsed.phone)
+        if (parsed.phone && !patientPhone) {
+          setPatientPhone(parsed.phone)
+          const p = parsePhoneAndCountry(parsed.phone)
+          if (p.country) setSelectedCountry(p.country)
+        }
         if (parsed.age && !age) setAge(parsed.age)
       }
     } catch (e) {
@@ -342,10 +355,14 @@ export function BookingModal({
     }
   }, [])
 
-  const validateEgyptianPhone = (val: string) => {
-    const cleaned = val.replace(/\s+/g, '')
-    const valid = /^01[0125][0-9]{8}$/.test(cleaned) || cleaned.length >= 10
+  const validatePhoneInput = (val: string, country: CountryInfo = selectedCountry) => {
+    const valid = validatePhoneNumber(val, country)
     setPhoneError(!valid)
+    if (!valid) {
+      setPhoneErrorMsg(`يرجى إدخال رقم هاتف محمول صحيح لـ ${country.nameAr} (${country.placeholder})`)
+    } else {
+      setPhoneErrorMsg('')
+    }
     return valid
   }
 
@@ -393,8 +410,8 @@ export function BookingModal({
         toast.error('يرجى إدخال اسم المريض بالكامل')
         return
       }
-      if (!validateEgyptianPhone(patientPhone)) {
-        toast.error('يرجى إدخال رقم هاتف محمول صحيح')
+      if (!patientPhone.trim() || !validatePhoneInput(patientPhone, selectedCountry)) {
+        toast.error(`يرجى إدخال رقم هاتف محمول صحيح لـ ${selectedCountry.nameAr}`)
         setPhoneError(true)
         return
       }
@@ -853,33 +870,17 @@ export function BookingModal({
                   <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-200 mb-1">
                     رقم الهاتف المحمول (واتساب) <span className="text-rose-500">*</span>
                   </label>
-                  <div
-                    dir="ltr"
-                    className={`flex items-center rounded-2xl bg-slate-50 dark:bg-slate-800 border-2 overflow-hidden transition-all ${
-                      phoneError ? 'border-rose-400 dark:border-rose-500' : 'border-slate-200 dark:border-slate-700 focus-within:border-sky-500'
-                    }`}
-                  >
-                    <div className="px-3 py-3 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700 flex items-center gap-1.5 text-xs font-bold shrink-0 text-slate-700 dark:text-slate-300">
-                      <span>🇪🇬</span>
-                      <span>+20</span>
-                    </div>
-                    <input
-                      type="tel"
-                      value={patientPhone}
-                      onChange={(e) => {
-                        setPatientPhone(e.target.value)
-                        validateEgyptianPhone(e.target.value)
-                      }}
-                      placeholder="01012345678"
-                      className="w-full px-3 py-3 bg-transparent outline-none text-sm font-bold text-slate-900 dark:text-white"
-                    />
-                  </div>
-                  {phoneError && (
-                    <div className="mt-1 flex items-center gap-1.5 text-[11px] font-bold text-rose-500">
-                      <AlertCircle className="w-3.5 h-3.5" />
-                      <span>يرجى إدخال رقم محمول مصري صحيح</span>
-                    </div>
-                  )}
+                  <PhoneInputWithCountry
+                    value={patientPhone}
+                    onChange={(fullNumber, country, localNum) => {
+                      setPatientPhone(fullNumber)
+                      setSelectedCountry(country)
+                      validatePhoneInput(localNum, country)
+                    }}
+                    hasError={phoneError}
+                    errorMessage={phoneErrorMsg}
+                    size="md"
+                  />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">

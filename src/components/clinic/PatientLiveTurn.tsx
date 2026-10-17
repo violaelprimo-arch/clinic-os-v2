@@ -18,6 +18,8 @@ import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestor
 import { calculatePatientLivePosition, PatientQueueStatusResult } from '@/lib/queueCalculations'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import Link from 'next/link'
+import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
+import { getPhoneSearchVariants } from '@/lib/countryPhoneHelper'
 
 export function PatientLiveTurn({
   clinic,
@@ -132,13 +134,12 @@ export function PatientLiveTurn({
           found = list.find((a: any) => a.id === activeApptId)
         }
         if (!found && activePhone) {
-          const clean = activePhone.trim().replace(/[^0-9]/g, '')
-          const normActive = clean.replace(/^20/, '').replace(/^0+/, '')
+          const variants = getPhoneSearchVariants(activePhone)
           const matches = list
             .filter((a: any) => {
               if (!a.phone || a.status === 'cancelled') return false
-              const normAppt = String(a.phone).trim().replace(/[^0-9]/g, '').replace(/^20/, '').replace(/^0+/, '')
-              return normAppt === normActive || a.phone.includes(clean)
+              const apptVariants = getPhoneSearchVariants(String(a.phone))
+              return variants.some((v) => apptVariants.includes(v) || a.phone.includes(v) || v.includes(a.phone))
             })
             .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
           found = matches[0] || null
@@ -149,11 +150,12 @@ export function PatientLiveTurn({
         // If not found today, query specifically for this phone's appointments
         if (!found && activePhone) {
           try {
-            const clean = activePhone.trim()
+            const variants = getPhoneSearchVariants(activePhone)
+            const searchPhones = variants.length > 0 ? variants.slice(0, 10) : [activePhone.trim()]
             const qPhone = query(
               collection(db, 'appointments'),
               where('clinic_id', '==', resolvedClinicId),
-              where('phone', '==', clean)
+              where('phone', 'in', searchPhones)
             )
             const snap = await getDocs(qPhone)
             if (!snap.empty) {
@@ -280,15 +282,13 @@ export function PatientLiveTurn({
             </div>
 
             <form onSubmit={handlePhoneSearch} className="space-y-3">
-              <input
-                ref={inputRef}
-                type="tel"
-                dir="ltr"
-                required
+              <PhoneInputWithCountry
                 value={inputPhone}
-                onChange={(e) => setInputPhone(e.target.value)}
-                placeholder="01012345678"
-                className="w-full px-4 py-3 rounded-2xl bg-white/10 border border-sky-400/30 text-white text-center font-bold text-sm outline-none focus:border-sky-400 focus:bg-white/15 transition-all"
+                onChange={(fullNumber) => {
+                  setInputPhone(fullNumber)
+                  setSearchError('')
+                }}
+                size="md"
               />
               {searchError && <p className="text-xs font-bold text-rose-400">{searchError}</p>}
               <button

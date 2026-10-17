@@ -24,6 +24,13 @@ import {
 } from '@/lib/branchService'
 import { createClinicNotification } from '@/lib/notificationService'
 import { useLanguage } from '@/context/LanguageContext'
+import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
+import {
+  CountryInfo,
+  DEFAULT_COUNTRY,
+  validatePhoneNumber,
+  parsePhoneAndCountry
+} from '@/lib/countryPhoneHelper'
 
 export function BookingForm({
   clinic,
@@ -44,6 +51,15 @@ export function BookingForm({
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [name, setName] = useState(defaultName)
   const [phone, setPhone] = useState(defaultPhone)
+  const [selectedCountry, setSelectedCountry] = useState<CountryInfo>(() => {
+    if (defaultPhone) {
+      const p = parsePhoneAndCountry(defaultPhone)
+      if (p.country) return p.country
+    }
+    return DEFAULT_COUNTRY
+  })
+  const [phoneError, setPhoneError] = useState(false)
+  const [phoneErrorMsg, setPhoneErrorMsg] = useState('')
   const [age, setAge] = useState(defaultAge)
   const [dob, setDob] = useState('')
   const showPrices = clinic?.showPrices !== false && clinic?.hidePrices !== true
@@ -316,7 +332,11 @@ export function BookingForm({
   const handleNextStep1 = () => {
     if (!selectedBranch) return toast.error(isRtl ? 'يرجى اختيار فرع العيادة أولاً' : 'Please select a branch first')
     if (!name.trim()) return toast.error(isRtl ? 'يرجى إدخال اسم المريض' : 'Please enter patient full name')
-    if (!phone.trim() || phone.length < 10) return toast.error(isRtl ? 'يرجى إدخال رقم هاتف صحيح' : 'Please enter a valid phone number')
+    if (!phone.trim() || !validatePhoneNumber(phone, selectedCountry)) {
+      setPhoneError(true)
+      setPhoneErrorMsg(isRtl ? `يرجى إدخال رقم هاتف صحيح لـ ${selectedCountry.nameAr} (${selectedCountry.placeholder})` : 'Please enter a valid phone number')
+      return toast.error(isRtl ? `يرجى إدخال رقم هاتف صحيح لـ ${selectedCountry.nameAr}` : 'Please enter a valid phone number')
+    }
     if (!age.trim()) return toast.error(isRtl ? 'يرجى إدخال السن' : 'Please enter patient age')
     if (!selectedDate) return toast.error(isRtl ? 'يرجى اختيار يوم الحجز' : 'Please select a booking date')
 
@@ -683,14 +703,22 @@ export function BookingForm({
 
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-foreground">{t('phone_whatsapp_label', 'رقم الهاتف (واتساب) *')}</Label>
-              <Input
+              <PhoneInputWithCountry
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="01012345678"
-                type="tel"
-                className={`h-11 text-sm font-mono rounded-xl bg-background border border-input text-foreground focus:ring-2 focus:ring-primary ${isRtl ? 'text-right' : 'text-left'}`}
-                dir="ltr"
-                required
+                onChange={(fullNumber, country, localNum) => {
+                  setPhone(fullNumber)
+                  setSelectedCountry(country)
+                  const valid = validatePhoneNumber(localNum, country)
+                  setPhoneError(!valid)
+                  if (!valid) {
+                    setPhoneErrorMsg(isRtl ? `يرجى إدخال رقم هاتف صحيح لـ ${country.nameAr} (${country.placeholder})` : 'Please enter a valid phone number')
+                  } else {
+                    setPhoneErrorMsg('')
+                  }
+                }}
+                hasError={phoneError}
+                errorMessage={phoneErrorMsg}
+                size="md"
               />
             </div>
 
