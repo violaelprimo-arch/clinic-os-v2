@@ -30,12 +30,25 @@ const PLACEHOLDER_WORDS = [
 ]
 
 /**
+ * Sanitizes any address string by stripping out placeholder phrases like 'عندها' or '(عندها)'
+ * and cleaning up stray punctuation and bullet points.
+ */
+export function sanitizeAddress(raw?: string | null): string {
+  if (!raw) return ''
+  return raw
+    .replace(/\(?\s*عندها\s*\)?/gi, '')
+    .replace(/^[\s•\-\/]+|[\s•\-\/]+$/g, '')
+    .trim()
+}
+
+/**
  * Returns true if an address string is just a placeholder and should be ignored
  */
 export function isPlaceholderAddress(address?: string | null): boolean {
   if (!address) return true
-  const trimmed = address.trim().toLowerCase()
-  if (trimmed.length < 3) return true
+  const sanitized = sanitizeAddress(address)
+  if (sanitized.length < 3) return true
+  const trimmed = sanitized.toLowerCase()
   return PLACEHOLDER_WORDS.some((p) => trimmed === p.toLowerCase())
 }
 
@@ -141,19 +154,25 @@ export function resolveEffectiveLocation(
     }
   }
 
-  // Resolve best human-readable address
+  // Resolve best human-readable address: prioritize doctor's configured address
   let address = ''
-  if (currentBranch?.address && !isPlaceholderAddress(currentBranch.address)) {
-    address = currentBranch.address.trim()
-  } else if (clinic?.clinicAddress && !isPlaceholderAddress(clinic.clinicAddress)) {
-    address = clinic.clinicAddress.trim()
-  } else if (currentBranch?.area && !isPlaceholderAddress(currentBranch.area)) {
-    address = `${currentBranch.area}${currentBranch?.city ? ` - ${currentBranch.city}` : ''}`
+  const sanitizedClinicAddr = sanitizeAddress(clinic?.clinicAddress || clinic?.address)
+  const sanitizedBranchAddr = sanitizeAddress(currentBranch?.address)
+  const sanitizedBranchArea = sanitizeAddress(currentBranch?.area)
+
+  if (sanitizedClinicAddr && !isPlaceholderAddress(sanitizedClinicAddr)) {
+    address = sanitizedClinicAddr
+  } else if (sanitizedBranchAddr && !isPlaceholderAddress(sanitizedBranchAddr)) {
+    address = sanitizedBranchAddr
+  } else if (sanitizedBranchArea && !isPlaceholderAddress(sanitizedBranchArea)) {
+    address = sanitizedBranchArea
   } else if (clinic?.city) {
     address = `${clinic.city} - مصر`
   } else {
     address = 'مقر العيادة الرئيسي'
   }
+
+  address = sanitizeAddress(address) || 'مقر العيادة الرئيسي'
 
   // Build optimal links
   const isPrecise = lat !== null && lng !== null

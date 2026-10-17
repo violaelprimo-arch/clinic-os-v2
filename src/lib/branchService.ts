@@ -10,6 +10,7 @@ import {
   writeBatch
 } from 'firebase/firestore'
 import { Branch, BranchScheduleDay } from '@/types/clinic'
+import { sanitizeAddress, isPlaceholderAddress } from './mapsHelper'
 
 export const DEFAULT_WEEKLY_SCHEDULE: BranchScheduleDay[] = [
   { id: 'saturday', day: 'السبت', isOpen: true, start: '09:00', end: '22:00' },
@@ -123,8 +124,8 @@ export async function ensureClinicHasMainBranch(clinic: any): Promise<Branch> {
     name: 'الفرع الرئيسي',
     governorate: 'القاهرة',
     city: 'القاهرة',
-    area: clinic.clinicAddress || 'المقر الرئيسي',
-    address: clinic.clinicAddress || 'عنوان العيادة الرئيسي',
+    area: '',
+    address: sanitizeAddress(clinic.clinicAddress || clinic.address) || 'عنوان العيادة الرئيسي',
     mapsLink: clinic.mapsLink || '',
     phone: clinic.clinicPhone || (clinic.clinicPhones?.[0] || '01012345678'),
     whatsapp: clinic.clinicPhone || '',
@@ -351,12 +352,19 @@ export function isClinicOpenNow(schedule?: any[]): boolean {
 }
 
 /**
- * Synchronizes the updated clinic weekly schedule and working hours to the clinic's main branch.
+ * Synchronizes the updated clinic weekly schedule, working hours, and address to the clinic's main branch.
  */
 export async function syncClinicScheduleToMainBranch(
   clinicId: string,
-  weeklySchedule: BranchScheduleDay[],
-  workingHoursSummary?: string
+  weeklySchedule?: BranchScheduleDay[],
+  workingHoursSummary?: string,
+  extraBranchData?: {
+    address?: string
+    mapsLink?: string
+    latitude?: number
+    longitude?: number
+    phone?: string
+  }
 ): Promise<void> {
   try {
     const branchesRef = collection(db, 'branches')
@@ -364,17 +372,44 @@ export async function syncClinicScheduleToMainBranch(
     const snap = await getDocs(q)
     if (snap.empty) return
 
-    const summary = workingHoursSummary || formatWeeklyScheduleSummary(weeklySchedule)
+    const summary = workingHoursSummary || (weeklySchedule && weeklySchedule.length > 0 ? formatWeeklyScheduleSummary(weeklySchedule) : undefined)
     const batch = writeBatch(db)
 
     snap.docs.forEach((docSnap) => {
       const data = docSnap.data()
-      // If it's the main branch, or if the clinic only has 1 branch, sync schedule
+      // If it's the main branch, or if the clinic only has 1 branch, sync schedule & address
       if (data.isMain || snap.docs.length === 1) {
-        batch.update(doc(db, 'branches', docSnap.id), {
-          weeklySchedule,
-          workingHours: summary
-        })
+        const updateData: any = {}
+        if (weeklySchedule && weeklySchedule.length > 0) {
+          updateData.weeklySchedule = weeklySchedule
+        }
+        if (summary) {
+          updateData.workingHours = summary
+        }
+        if (extraBranchData?.address !== undefined) {
+          updateData.address = sanitizeAddress(extraBranchData.address)
+        }
+        if (extraBranchData?.mapsLink !== undefined) {
+          updateData.mapsLink = extraBranchData.mapsLink.trim()
+        }
+        if (extraBranchData?.latitude !== undefined) {
+          updateData.latitude = extraBranchData.latitude
+        }
+        if (extraBranchData?.longitude !== undefined) {
+          updateData.longitude = extraBranchData.longitude
+        }
+        if (extraBranchData?.phone) {
+          updateData.phone = extraBranchData.phone
+        }
+        // Always clean up placeholder 'عندها' or placeholder words from area if present
+        if (data.area && (data.area.includes('عندها') || isPlaceholderAddress(data.area))) {
+          updateData.area = ''
+        }
+
+        if (Object.keys(updateData).length > 0) {
+          updateData.updatedAt = new Date().toISOString()
+          batch.update(doc(db, 'branches', docSnap.id), updateData)
+        }
       }
     })
 

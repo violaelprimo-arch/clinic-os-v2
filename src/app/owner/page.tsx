@@ -38,6 +38,7 @@ import { SYSTEM_FEATURES } from '@/lib/featurePermissions'
 import { useLanguage } from '@/context/LanguageContext'
 import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import { cleanPhoneForWhatsApp } from '@/lib/countryPhoneHelper'
+import { syncClinicScheduleToMainBranch } from '@/lib/branchService'
 
 function formatTime12(timeStr?: string): string {
   if (!timeStr) return ''
@@ -1056,6 +1057,10 @@ export default function OwnerDashboard() {
 
       if (editingId) {
         await updateDoc(doc(db, 'clinics', editingId), clinicData)
+        await syncClinicScheduleToMainBranch(editingId, undefined, undefined, {
+          address: clinicAddress || '',
+          phone: clinicPhone || ''
+        })
         if (ownerMessage && ownerMessage.trim()) {
           await createClinicNotification({
             clinicId: editingId,

@@ -33,8 +33,8 @@ import {
   checkScheduleConflicts,
   formatWeeklyScheduleSummary
 } from '@/lib/branchService'
+import { sanitizeAddress, isPlaceholderAddress, extractCoordsFromLink } from '@/lib/mapsHelper'
 import { useLanguage } from '@/context/LanguageContext'
-import { extractCoordsFromLink } from '@/lib/mapsHelper'
 
 export default function BranchesPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -208,7 +208,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
         name,
         governorate,
         city,
-        area: area || city,
+        area: sanitizeAddress(area) || city,
         address,
         mapsLink,
         latitude: latitude ? parseFloat(latitude) : undefined,
@@ -387,7 +387,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                   </div>
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
                     <MapPin className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                    <span>{b.area || b.city} • {b.address}</span>
+                    <span>{sanitizeAddress(b.address || b.city || b.area || '')}</span>
                   </p>
                 </div>
 

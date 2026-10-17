@@ -9,6 +9,7 @@ import { PatientLiveTurn } from '@/components/clinic/PatientLiveTurn'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { ClinicLocationMap } from '@/components/clinic/ClinicLocationMap'
 import { getClinicBranches, getWeeklyScheduleDisplayGroups, isClinicOpenNow } from '@/lib/branchService'
+import { sanitizeAddress } from '@/lib/mapsHelper'
 import {
   Clock,
   Star,
@@ -93,7 +94,7 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
         {
           id: 'main',
           name: isRtl ? 'الفرع الرئيسي' : 'Main Branch',
-          address: clinic?.clinicAddress || (isRtl ? 'مدينة نصر - القاهرة' : 'Nasr City - Cairo'),
+          address: sanitizeAddress(clinic?.clinicAddress) || (isRtl ? 'مدينة نصر - القاهرة' : 'Nasr City - Cairo'),
           latitude: clinic?.latitude,
           longitude: clinic?.longitude,
           mapsLink: clinic?.mapsLink,
@@ -449,7 +450,7 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
                       <MapPin className="w-4 h-4" />
                     </span>
                     <div className="font-bold text-slate-800 dark:text-slate-100">
-                      {clinic?.clinicAddress || (isRtl ? 'مدينة نصر - القاهرة' : 'Nasr City - Cairo')}
+                      {sanitizeAddress(clinic?.clinicAddress) || (isRtl ? 'مدينة نصر - القاهرة' : 'Nasr City - Cairo')}
                     </div>
                   </div>
 

@@ -23,7 +23,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { getClinicBranches, formatWeeklyScheduleSummary, isClinicOpenNow, DEFAULT_WEEKLY_SCHEDULE } from '@/lib/branchService'
-import { resolveEffectiveLocation, isPlaceholderAddress } from '@/lib/mapsHelper'
+import { resolveEffectiveLocation, isPlaceholderAddress, sanitizeAddress } from '@/lib/mapsHelper'
 import { InteractiveClinicMap } from '@/components/clinic/InteractiveClinicMap'
 
 export interface ClinicLocationMapProps {
@@ -99,8 +99,8 @@ export function ClinicLocationMap({
         const active = dbBranches.filter((b: any) => !b.isArchived)
         if (active.length > 0 && isMounted) {
           const mapped = active.map((b: any) => {
-            const rawAddr = b.address || clinic?.clinicAddress || ''
-            const addr = !isPlaceholderAddress(rawAddr) ? rawAddr.trim() : clinic?.clinicAddress || 'مقر العيادة'
+            const rawAddr = sanitizeAddress(b.address || clinic?.clinicAddress || '')
+            const addr = !isPlaceholderAddress(rawAddr) ? rawAddr : sanitizeAddress(clinic?.clinicAddress) || 'مقر العيادة'
             return {
               ...b,
               address: addr,

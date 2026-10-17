@@ -1,4 +1,5 @@
 import type ExcelJS from 'exceljs'
+import { sanitizeAddress } from './mapsHelper'
 
 async function createWorkbook(creator: string = 'Yalla Clinic'): Promise<any> {
   const { default: ExcelJSClass } = await import('exceljs')
@@ -402,7 +403,7 @@ export async function exportComprehensiveFinancialReportExcel({
 
       branchesSheet.addRow({
         name: sanitizeExcelValue(b.name),
-        address: sanitizeExcelValue(b.address || b.area || '—'),
+        address: sanitizeExcelValue(sanitizeAddress(b.address || b.area || '') || '—'),
         bookings: bAppts.length,
         revenue: bRev,
         collected: bCol,

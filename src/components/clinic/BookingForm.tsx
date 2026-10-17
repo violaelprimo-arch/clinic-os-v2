@@ -31,6 +31,7 @@ import {
   validatePhoneNumber,
   parsePhoneAndCountry
 } from '@/lib/countryPhoneHelper'
+import { sanitizeAddress, isPlaceholderAddress } from '@/lib/mapsHelper'
 
 export function BookingForm({
   clinic,
@@ -160,8 +161,8 @@ export function BookingForm({
   const uniqueAreas = useMemo(() => {
     const set = new Set<string>()
     branches.forEach((b) => {
-      const loc = b.governorate || b.city || b.area
-      if (loc) set.add(loc)
+      const loc = sanitizeAddress(b.governorate || b.city || b.area)
+      if (loc && !isPlaceholderAddress(loc)) set.add(loc)
     })
     return Array.from(set)
   }, [branches])
@@ -669,7 +670,7 @@ export function BookingForm({
                       </div>
                       <p className="text-[11px] text-muted-foreground truncate flex items-center gap-1">
                         <MapPin className="w-3 h-3 text-muted-foreground shrink-0" />
-                        <span>{b.area || b.city} • {b.address}</span>
+                        <span>{sanitizeAddress(b.address || clinic?.clinicAddress || b.city || '')}</span>
                       </p>
                       <p className="text-[10px] text-muted-foreground">{t('phone_prefix', 'هاتف:')} <span dir="ltr">{b.phone}</span></p>
                     </div>
@@ -901,8 +902,14 @@ export function BookingForm({
           <div className="p-4 rounded-2xl bg-secondary/40 border border-border space-y-2 text-xs">
             <div className="flex justify-between py-1 border-b border-border">
               <span className="text-muted-foreground font-bold">{t('selected_branch', 'الفرع المختار:')}</span>
-              <span className="font-bold text-foreground">{selectedBranch?.name} ({selectedBranch?.city || selectedBranch?.area})</span>
+              <span className="font-bold text-foreground">{selectedBranch?.name}</span>
             </div>
+            {(selectedBranch?.address || clinic?.clinicAddress) && (
+              <div className="flex justify-between py-1 border-b border-border">
+                <span className="text-muted-foreground font-bold">{t('clinic_address', 'عنوان العيادة:')}</span>
+                <span className="font-bold text-foreground">{sanitizeAddress(selectedBranch?.address || clinic?.clinicAddress)}</span>
+              </div>
+            )}
             <div className="flex justify-between py-1 border-b border-border">
               <span className="text-muted-foreground font-bold">{t('patient', 'المريض:')}</span>
               <span className="font-bold text-foreground">{name} ({phone})</span>

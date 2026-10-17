@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Building2, ChevronDown, Check, Plus } from 'lucide-react'
 import { Branch } from '@/types/clinic'
 import { getClinicBranches, ensureClinicHasMainBranch } from '@/lib/branchService'
+import { sanitizeAddress } from '@/lib/mapsHelper'
 import Link from 'next/link'
 import { useLanguage } from '@/context/LanguageContext'
 
@@ -113,7 +114,7 @@ export function BranchSelector({
                   <span className={`w-2 h-2 rounded-full shrink-0 ${b.isOpen ? 'bg-emerald-500' : 'bg-rose-400'}`} />
                   <div className="truncate">
                     <p className="truncate">{b.name}</p>
-                    <p className="text-[10px] text-muted-foreground font-normal truncate">{b.area || b.city || b.address}</p>
+                    <p className="text-[10px] text-muted-foreground font-normal truncate">{sanitizeAddress(b.address || clinic?.clinicAddress || b.city || '')}</p>
                   </div>
                 </div>
                 {selectedBranchId === b.id && <Check className="w-4 h-4 text-primary shrink-0" />}

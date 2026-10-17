@@ -300,10 +300,21 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         toast.error('لا يمكن إنشاء عيادة جديدة من حساب الطبيب. إنشاء العيادات وتفعيلها متاح حصرياً من لوحة تحكم المالك.')
         setIsSaving(false)
         return
-      } else {
-        await updateDoc(doc(db, 'clinics', clinicId), payload)
-        await syncClinicScheduleToMainBranch(clinicId, weeklySchedule, formatWeeklyScheduleSummary(weeklySchedule, isRtl))
       }
+
+      await updateDoc(doc(db, 'clinics', clinicId), payload)
+      await syncClinicScheduleToMainBranch(
+        clinicId,
+        weeklySchedule,
+        formatWeeklyScheduleSummary(weeklySchedule, isRtl),
+        {
+          address: address || '',
+          mapsLink: mapsLink || '',
+          latitude: latitude ? parseFloat(latitude) : undefined,
+          longitude: longitude ? parseFloat(longitude) : undefined,
+          phone: phones[0] || ''
+        }
+      )
       toast.success('تم حفظ كافة إعدادات العيادة بنجاح وتطبيقها فورياً');
       if (newDoctorEmail || newDoctorPassword) {
         toast.info('تم تغيير بيانات الدخول، يرجى تسجيل الدخول مجدداً.');
