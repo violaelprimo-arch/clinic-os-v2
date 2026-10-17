@@ -586,6 +586,11 @@ export default function PatientPortalPage() {
             </div>
           </div>
         )}
+
+        {/* Footer */}
+        <div className="pt-4 border-t border-sky-100 dark:border-slate-800 text-center text-xs text-slate-400 dark:text-slate-500 font-bold">
+          <span>جميع الحقوق محفوظة 2026 YallaCodex</span>
+        </div>
       </div>
 
       {/* Booking Modal */}

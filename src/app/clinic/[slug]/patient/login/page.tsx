@@ -346,6 +346,10 @@ export default function PatientLoginPage() {
               <span>العودة لصفحة العيادة الرئيسية</span>
             </Link>
           </div>
+
+          <div className="pt-3 text-center text-[11px] text-slate-400 dark:text-slate-500 font-bold border-t border-slate-100 dark:border-slate-800">
+            <span>جميع الحقوق محفوظة 2026 YallaCodex</span>
+          </div>
         </form>
       </div>
     </div>

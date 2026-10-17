@@ -391,7 +391,7 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
       <footer className="bg-[#081526] text-white py-8 px-4 sm:px-6 lg:px-8 border-t border-slate-800 mt-auto">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
           <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-5 text-xs text-slate-400 text-center sm:text-right">
-            <span>© 2026 {clinic?.clinicName || 'YallaClinic'}</span>
+            <span>جميع الحقوق محفوظة 2026 YallaCodex</span>
             <span className="hidden sm:inline opacity-40">•</span>
             <Link
               href={`/clinic/${clinic?.slug || 'zizo'}/patient/login`}
