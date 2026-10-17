@@ -12,7 +12,7 @@ import {
   Save, Plus, Trash2, Palette, Phone, MapPin, Bot,
   Wallet, Users, Clock, Printer, ShieldCheck, Settings, Lock,
   CheckCircle2, Bell, Sparkles, Building2, Copy, ExternalLink,
-  Monitor, Smartphone, User
+  Monitor, Tablet, Smartphone, User
 } from 'lucide-react'
 import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 import { db } from '@/lib/firebase'
@@ -57,7 +57,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const [certificationEntity, setCertificationEntity] = useState('')
   const [experienceYears, setExperienceYears] = useState<number | string>(10)
   const [doctorRating, setDoctorRating] = useState('4.9')
-  const [previewDevice, setPreviewDevice] = useState<'desktop' | 'mobile'>('desktop')
+  const [previewDevice, setPreviewDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop')
   
   useEffect(() => {
     setCurrentRole(localStorage.getItem('clinic_role') || 'doctor');
@@ -372,6 +372,36 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const tabs = !canUseAi 
     ? baseTabs 
     : [...baseTabs, { id: 'ai', label: t('tab_ai', 'المساعد الذكي (AI Chatbot)'), icon: Bot }]
+
+  const previewClinicData = {
+    slug,
+    clinicName: clinicName || t('clinic_name', 'عيادة الأمل التخصصية'),
+    doctorName: doctorName || 'Ahmed Abdelaziz',
+    doctorTitle: doctorTitle || 'د.',
+    specialty: specialty || 'Consultant of Internal Medicine',
+    heroSubtitle: heroSubtitle || '',
+    certificationTitle: certificationTitle || '',
+    certificationEntity: certificationEntity || '',
+    experienceYears: Number(experienceYears) || 10,
+    doctorRating: doctorRating || '4.9',
+    heroImage: photoUrl || '',
+    branchImage: branchImage || '',
+    logoUrl: logoUrl || '',
+    primaryColor: primaryColor || '#087CF4',
+    clinicPhone: phones[0] || '01012345678',
+    clinicPhones: phones.filter((p) => typeof p === 'string' && p.trim() !== ''),
+    clinicAddress: address || '90th St, New Cairo',
+    mapsLink: mapsLink || '',
+    latitude: latitude ? parseFloat(latitude) : undefined,
+    longitude: longitude ? parseFloat(longitude) : undefined,
+    isClinicOpen: isClinicOpen !== false,
+    showPrices: showPrices !== false,
+    hidePrices: !showPrices,
+    services: services || [],
+    aiEnabled: aiEnabled
+  }
+
+  const previewKey = `${clinicName}-${doctorName}-${specialty}-${primaryColor}-${photoUrl}-${experienceYears}-${doctorRating}-${isClinicOpen}-${showPrices}-${heroSubtitle}`
 
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto" dir={dir}>
@@ -1081,10 +1111,23 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                           ? 'bg-background text-primary shadow-xs'
                           : 'text-muted-foreground hover:text-foreground'
                       }`}
-                      title="معاينة شاشة الكمبيوتر"
+                      title="معاينة شاشة الكمبيوتر (1080px)"
                     >
                       <Monitor className="w-3.5 h-3.5" />
                       <span>كمبيوتر</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewDevice('tablet')}
+                      className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        previewDevice === 'tablet'
+                          ? 'bg-background text-primary shadow-xs'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                      title="معاينة شاشة التابلت / iPad (768px)"
+                    >
+                      <Tablet className="w-3.5 h-3.5" />
+                      <span>تابلت</span>
                     </button>
                     <button
                       type="button"
@@ -1094,7 +1137,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                           ? 'bg-background text-primary shadow-xs'
                           : 'text-muted-foreground hover:text-foreground'
                       }`}
-                      title="معاينة شاشة الموبايل"
+                      title="معاينة شاشة الموبايل / iPhone (390px)"
                     >
                       <Smartphone className="w-3.5 h-3.5" />
                       <span>موبايل</span>
@@ -1116,8 +1159,8 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               
               {/* Scrollable Preview Area */}
               <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar bg-slate-100/80 dark:bg-slate-950 p-3 sm:p-4 flex flex-col items-center">
-                {previewDevice === 'desktop' ? (
-                  /* Desktop Browser Frame Simulator */
+                {/* 1. DESKTOP VIEW */}
+                {previewDevice === 'desktop' && (
                   <div className="w-full flex flex-col items-center">
                     {/* Browser Bar */}
                     <div className="w-full max-w-[580px] bg-slate-200 dark:bg-slate-800 rounded-t-xl px-3 py-1.5 flex items-center gap-2 border border-border border-b-0">
@@ -1132,96 +1175,102 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                     </div>
 
                     {/* Scaled Desktop Viewport */}
-                    <div className="w-full overflow-hidden flex justify-center rounded-b-xl border border-border bg-white shadow-xl">
+                    <div className="w-full max-w-[580px] overflow-hidden flex justify-center rounded-b-xl border border-border bg-white dark:bg-slate-950 shadow-xl">
                       <div
                         style={{
-                          width: '1100px',
-                          transform: 'scale(0.52)',
+                          width: '1080px',
+                          transform: 'scale(0.53)',
                           transformOrigin: 'top center',
-                          marginBottom: '-48%'
+                          marginBottom: '-47%'
                         }}
                         className="shrink-0 pointer-events-auto select-none"
                       >
-                        <PremiumLanding 
-                          key={`desk-${clinicName}-${doctorName}-${specialty}-${primaryColor}-${photoUrl}-${experienceYears}-${doctorRating}-${isClinicOpen}-${showPrices}-${heroSubtitle}`}
-                          clinic={{
-                            slug,
-                            clinicName: clinicName || t('clinic_name', 'عيادة الأمل التخصصية'),
-                            doctorName: doctorName || 'Ahmed Abdelaziz',
-                            doctorTitle: doctorTitle || 'د.',
-                            specialty: specialty || 'Consultant of Internal Medicine',
-                            heroSubtitle: heroSubtitle || '',
-                            certificationTitle: certificationTitle || '',
-                            certificationEntity: certificationEntity || '',
-                            experienceYears: Number(experienceYears) || 10,
-                            doctorRating: doctorRating || '4.9',
-                            heroImage: photoUrl || '',
-                            branchImage: branchImage || '',
-                            logoUrl: logoUrl || '',
-                            primaryColor: primaryColor || '#087CF4',
-                            clinicPhone: phones[0] || '01012345678',
-                            clinicPhones: phones.filter(p => typeof p === 'string' && p.trim() !== ''),
-                            clinicAddress: address || '90th St, New Cairo',
-                            mapsLink: mapsLink || '',
-                            latitude: latitude ? parseFloat(latitude) : undefined,
-                            longitude: longitude ? parseFloat(longitude) : undefined,
-                            isClinicOpen: isClinicOpen !== false,
-                            showPrices: showPrices !== false,
-                            hidePrices: !showPrices,
-                            services: services || [],
-                            aiEnabled: aiEnabled
-                          }} 
-                          services={services || []} 
-                        />
+                        <div className="h-[750px] overflow-y-auto no-scrollbar">
+                          <PremiumLanding 
+                            key={`desk-${previewKey}`}
+                            clinic={previewClinicData} 
+                            services={services || []} 
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
-                ) : (
-                  /* Mobile Phone Frame Simulator */
-                  <div className="w-[360px] max-w-full my-auto rounded-[38px] border-4 border-slate-800 dark:border-slate-700 shadow-2xl overflow-hidden bg-background flex flex-col shrink-0">
-                    {/* iPhone Dynamic Island */}
-                    <div className="h-7 bg-slate-900 flex items-center justify-between px-6 text-white text-[10px] font-bold shrink-0">
-                      <span>9:41</span>
-                      <div className="w-20 h-3.5 bg-black rounded-full" />
-                      <span>5G 100%</span>
+                )}
+
+                {/* 2. TABLET VIEW (iPad) */}
+                {previewDevice === 'tablet' && (
+                  <div className="my-auto flex flex-col items-center w-full">
+                    {/* iPad Tablet Frame */}
+                    <div className="w-full max-w-[520px] rounded-[36px] border-[10px] border-slate-900 dark:border-slate-800 shadow-2xl overflow-hidden bg-slate-950 flex flex-col shrink-0">
+                      {/* Top Camera Dot */}
+                      <div className="h-4 bg-slate-950 flex items-center justify-center shrink-0">
+                        <div className="w-2 h-2 rounded-full bg-slate-800 ring-1 ring-slate-700" />
+                      </div>
+                      {/* Scaled Tablet Viewport (768px standard tablet) */}
+                      <div className="w-full overflow-hidden flex justify-center bg-white dark:bg-slate-950">
+                        <div
+                          style={{
+                            width: '768px',
+                            transform: 'scale(0.65)',
+                            transformOrigin: 'top center',
+                            marginBottom: '-35%'
+                          }}
+                          className="shrink-0 pointer-events-auto select-none"
+                        >
+                          <div className="h-[780px] overflow-y-auto no-scrollbar">
+                            <PremiumLanding 
+                              key={`tab-${previewKey}`}
+                              clinic={previewClinicData} 
+                              services={services || []} 
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      {/* Home Indicator Bar */}
+                      <div className="h-4 bg-slate-950 flex items-center justify-center shrink-0">
+                        <div className="w-32 h-1 bg-slate-700 rounded-full" />
+                      </div>
                     </div>
-                    {/* Screen Content */}
-                    <div className="h-[580px] overflow-y-auto no-scrollbar">
-                      <PremiumLanding 
-                        key={`mob-${clinicName}-${doctorName}-${specialty}-${primaryColor}-${photoUrl}-${experienceYears}-${doctorRating}-${isClinicOpen}-${showPrices}-${heroSubtitle}`}
-                        clinic={{
-                          slug,
-                          clinicName: clinicName || t('clinic_name', 'عيادة الأمل التخصصية'),
-                          doctorName: doctorName || 'Ahmed Abdelaziz',
-                          doctorTitle: doctorTitle || 'د.',
-                          specialty: specialty || 'Consultant of Internal Medicine',
-                          heroSubtitle: heroSubtitle || '',
-                          certificationTitle: certificationTitle || '',
-                          certificationEntity: certificationEntity || '',
-                          experienceYears: Number(experienceYears) || 10,
-                          doctorRating: doctorRating || '4.9',
-                          heroImage: photoUrl || '',
-                          branchImage: branchImage || '',
-                          logoUrl: logoUrl || '',
-                          primaryColor: primaryColor || '#087CF4',
-                          clinicPhone: phones[0] || '01012345678',
-                          clinicPhones: phones.filter(p => typeof p === 'string' && p.trim() !== ''),
-                          clinicAddress: address || '90th St, New Cairo',
-                          mapsLink: mapsLink || '',
-                          latitude: latitude ? parseFloat(latitude) : undefined,
-                          longitude: longitude ? parseFloat(longitude) : undefined,
-                          isClinicOpen: isClinicOpen !== false,
-                          showPrices: showPrices !== false,
-                          hidePrices: !showPrices,
-                          services: services || [],
-                          aiEnabled: aiEnabled
-                        }} 
-                        services={services || []} 
-                      />
-                    </div>
-                    {/* Home Bar Indicator */}
-                    <div className="h-4 bg-background flex items-center justify-center shrink-0">
-                      <div className="w-28 h-1 bg-slate-400 dark:bg-slate-600 rounded-full" />
+                  </div>
+                )}
+
+                {/* 3. MOBILE VIEW (iPhone) */}
+                {previewDevice === 'mobile' && (
+                  <div className="my-auto flex flex-col items-center">
+                    {/* iPhone Mobile Frame */}
+                    <div className="w-[340px] max-w-full rounded-[44px] border-[8px] border-slate-900 dark:border-slate-800 shadow-2xl overflow-hidden bg-slate-950 flex flex-col shrink-0">
+                      {/* Dynamic Island */}
+                      <div className="h-7 bg-slate-950 flex items-center justify-between px-6 text-white text-[10px] font-bold shrink-0">
+                        <span>9:41</span>
+                        <div className="w-20 h-4 bg-black rounded-full flex items-center justify-end px-2">
+                          <div className="w-2 h-2 rounded-full bg-slate-900 border border-slate-700" />
+                        </div>
+                        <span>5G 100%</span>
+                      </div>
+                      {/* Scaled Mobile Viewport (390px true mobile width) */}
+                      <div className="w-full overflow-hidden flex justify-center bg-white dark:bg-slate-950">
+                        <div
+                          style={{
+                            width: '390px',
+                            transform: 'scale(0.83)',
+                            transformOrigin: 'top center',
+                            marginBottom: '-17%'
+                          }}
+                          className="shrink-0 pointer-events-auto select-none"
+                        >
+                          <div className="h-[680px] overflow-y-auto no-scrollbar">
+                            <PremiumLanding 
+                              key={`mob-${previewKey}`}
+                              clinic={previewClinicData} 
+                              services={services || []} 
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      {/* Home Bar Indicator */}
+                      <div className="h-5 bg-slate-950 flex items-center justify-center shrink-0">
+                        <div className="w-28 h-1 bg-slate-600 rounded-full" />
+                      </div>
                     </div>
                   </div>
                 )}
