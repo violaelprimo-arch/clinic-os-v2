@@ -11,6 +11,8 @@ import { A4Prescription } from '@/components/clinic/A4Prescription'
 import { InvoiceView, InvoiceData } from '@/components/clinic/InvoiceView'
 import { downloadElementAsPdf, downloadElementAsImage } from '@/lib/pdfGenerator'
 import { toast } from 'sonner'
+import { motion, AnimatePresence } from 'framer-motion'
+import { ClinicLocationMap } from '@/components/clinic/ClinicLocationMap'
 import {
   CalendarCheck,
   FileText,
@@ -32,7 +34,11 @@ import {
   Loader2,
   Eye,
   ShieldCheck,
-  ExternalLink
+  ExternalLink,
+  MapPin,
+  Navigation,
+  Compass,
+  ChevronLeft
 } from 'lucide-react'
 
 export default function PatientPortalPage() {
@@ -52,7 +58,8 @@ export default function PatientPortalPage() {
   const [prescriptions, setPrescriptions] = useState<any[]>([])
   const [loading, setLoading] = useState<boolean>(true)
 
-  const [activeTab, setActiveTab] = useState<'appointments' | 'prescriptions' | 'invoices' | 'medical'>('appointments')
+  const [activeTab, setActiveTab] = useState<'appointments' | 'prescriptions' | 'invoices' | 'medical' | 'location'>('appointments')
+  const [selectedBranchForMap, setSelectedBranchForMap] = useState<string | undefined>(undefined)
   const [liveTurnOpen, setLiveTurnOpen] = useState<boolean>(false)
   const [selectedApptForLive, setSelectedApptForLive] = useState<any | null>(null)
   const [bookingModalOpen, setBookingModalOpen] = useState<boolean>(false)
@@ -225,7 +232,12 @@ export default function PatientPortalPage() {
 
   return (
     <div dir="rtl" className="min-h-screen bg-[#f5f9ff] dark:bg-[#050d1a] text-slate-900 dark:text-white py-6 px-4">
-      <div className="max-w-md mx-auto bg-[#f5f9ff] dark:bg-[#081526] rounded-[36px] p-5 shadow-xl border border-sky-100 dark:border-slate-800 space-y-4">
+      <motion.div
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, ease: 'easeOut' }}
+        className="max-w-md mx-auto bg-[#f5f9ff] dark:bg-[#081526] rounded-[36px] p-5 shadow-xl border border-sky-100 dark:border-slate-800 space-y-4"
+      >
         {/* Top Header */}
         <div className="flex items-center justify-between">
           <a
@@ -250,8 +262,12 @@ export default function PatientPortalPage() {
           </button>
         </div>
 
-        {/* Patient Profile Card */}
-        <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-3.5 shadow-sm border border-sky-100 dark:border-slate-700 flex items-center justify-between">
+        {/* Patient Profile Card with Motion */}
+        <motion.div
+          whileHover={{ y: -2 }}
+          transition={{ duration: 0.2 }}
+          className="bg-white dark:bg-slate-800/90 rounded-2xl p-3.5 shadow-sm border border-sky-100 dark:border-slate-700 flex items-center justify-between"
+        >
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-full bg-sky-100 dark:bg-sky-900/60 border-2 border-sky-500 flex items-center justify-center font-black text-sky-600 text-lg">
               {patientName.charAt(0)}
@@ -277,35 +293,40 @@ export default function PatientPortalPage() {
               تبديل الحساب
             </button>
           </div>
-        </div>
+        </motion.div>
 
-        {/* 4 Navigation Tabs */}
-        <div className="grid grid-cols-4 gap-1.5 bg-white dark:bg-slate-800 p-1.5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 text-center">
+        {/* 5 Navigation Tabs with Motion */}
+        <div className="grid grid-cols-5 gap-1 bg-white dark:bg-slate-800 p-1.5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 text-center">
           {[
             { id: 'appointments', label: 'مواعيدي', Icon: CalendarCheck, count: upcomingAppointments.length },
             { id: 'prescriptions', label: 'روشتاتي', Icon: FileText, count: prescriptions.length },
             { id: 'invoices', label: 'فواتيري', Icon: Receipt, count: completedAppointments.length },
-            { id: 'medical', label: 'ملفي الطبي', Icon: ClipboardList }
+            { id: 'medical', label: 'ملفي الطبي', Icon: ClipboardList },
+            { id: 'location', label: 'الخريطة', Icon: MapPin }
           ].map(({ id, label, Icon, count }) => {
             const active = activeTab === id
             return (
-              <button
+              <motion.button
                 key={id}
+                whileTap={{ scale: 0.94 }}
                 onClick={() => setActiveTab(id as any)}
-                className={`py-2 px-1 rounded-xl text-[11px] flex flex-col items-center gap-1 transition-all cursor-pointer relative ${
+                className={`py-2 px-0.5 rounded-xl text-[10px] sm:text-[11px] flex flex-col items-center gap-1 transition-all cursor-pointer relative ${
                   active
-                    ? 'bg-sky-50 dark:bg-sky-900/50 text-sky-600 dark:text-sky-300 font-extrabold'
-                    : 'text-slate-500 dark:text-slate-400 font-bold hover:bg-slate-50'
+                    ? 'bg-sky-50 dark:bg-sky-900/50 text-sky-600 dark:text-sky-300 font-extrabold shadow-xs'
+                    : 'text-slate-500 dark:text-slate-400 font-bold hover:bg-slate-50 dark:hover:bg-slate-700/50'
                 }`}
               >
-                <Icon className="w-4 h-4" />
-                <span>{label}</span>
+                <Icon className={`w-4 h-4 ${id === 'location' && !active ? 'text-sky-500' : ''}`} />
+                <span className="leading-tight">{label}</span>
                 {typeof count === 'number' && count > 0 && (
-                  <span className="absolute top-1 left-2 w-4 h-4 bg-sky-600 text-white rounded-full text-[9px] flex items-center justify-center font-bold">
+                  <span className="absolute top-1 left-1.5 w-3.5 h-3.5 bg-sky-600 text-white rounded-full text-[8px] flex items-center justify-center font-bold">
                     {count}
                   </span>
                 )}
-              </button>
+                {id === 'location' && !active && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 absolute top-1 right-1.5 animate-pulse" />
+                )}
+              </motion.button>
             )
           })}
         </div>
@@ -403,6 +424,20 @@ export default function PatientPortalPage() {
                           <Hourglass className="w-3.5 h-3.5" />
                           <span>متابعة الدور وتتبع الانتظار اللحظي</span>
                         </button>
+
+                        <motion.button
+                          whileTap={{ scale: 0.97 }}
+                          type="button"
+                          onClick={() => {
+                            setSelectedBranchForMap(appt.branchName || 'الفرع الرئيسي')
+                            setActiveTab('location')
+                          }}
+                          className="w-full py-2 rounded-xl bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/50 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800/60 font-bold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                          <MapPin className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                          <span>خريطة موقع الفرع والاتجاهات ({appt.branchName || 'الفرع الرئيسي'})</span>
+                        </motion.button>
+
                         <button
                           disabled={cancellingId === appt.id}
                           onClick={() => handleCancelAppointment(appt.id)}
@@ -416,6 +451,37 @@ export default function PatientPortalPage() {
                 )
               })
             )}
+
+            {/* Quick Clinic Location & Route Shortcut Banner */}
+            <motion.div
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => {
+                if (upcomingAppointments[0]?.branchName) {
+                  setSelectedBranchForMap(upcomingAppointments[0].branchName)
+                }
+                setActiveTab('location')
+              }}
+              className="p-3.5 rounded-2xl bg-gradient-to-r from-sky-500/10 via-sky-500/5 to-cyan-500/10 border border-sky-400/30 flex items-center justify-between cursor-pointer shadow-xs transition-all"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-sky-600 text-white flex items-center justify-center shadow-md shrink-0">
+                  <Navigation className="w-5 h-5 animate-pulse" />
+                </div>
+                <div>
+                  <span className="text-xs font-black text-slate-900 dark:text-white block">
+                    خريطة العيادة والملاحة الذكية (GPS)
+                  </span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
+                    تعرف على الفروع، مواعيد العمل، وخط السير إلى العيادة
+                  </span>
+                </div>
+              </div>
+              <span className="text-[11px] font-extrabold text-sky-600 dark:text-sky-400 flex items-center gap-0.5 shrink-0">
+                <span>الخريطة</span>
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </span>
+            </motion.div>
           </div>
         )}
 
@@ -599,11 +665,20 @@ export default function PatientPortalPage() {
           </div>
         )}
 
+        {/* TAB 5: CLINIC LOCATION & INTERACTIVE MAP */}
+        {activeTab === 'location' && (
+          <ClinicLocationMap
+            clinic={clinic}
+            activeBranchName={selectedBranchForMap}
+            patientUpcomingAppt={upcomingAppointments[0]}
+          />
+        )}
+
         {/* Footer */}
         <div className="pt-4 border-t border-sky-100 dark:border-slate-800 text-center text-xs text-slate-400 dark:text-slate-500 font-bold">
           <span>جميع الحقوق محفوظة 2026 YallaCodex</span>
         </div>
-      </div>
+      </motion.div>
 
       {/* Booking Modal */}
       {bookingModalOpen && (
