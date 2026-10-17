@@ -46,6 +46,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
   const [clinicId, setClinicId] = useState<string | null>(null)
   const [photoUrl, setPhotoUrl] = useState('')
+  const [branchImage, setBranchImage] = useState('')
   const [doctorName, setDoctorName] = useState('')
   const [doctorTitle, setDoctorTitle] = useState('د.')
   const [clinicName, setClinicName] = useState('')
@@ -143,6 +144,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           const data = cDoc.data()
           setClinic({ id: cDoc.id, ...data })
           setPhotoUrl(data.heroImage || '')
+          setBranchImage(data.branchImage || '')
           setClinicName(data.clinicName || '')
           setDoctorName(data.doctorName || '')
           setDoctorTitle(data.doctorTitle || 'د.')
@@ -231,6 +233,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         certificationTitle: certificationTitle || '',
         certificationEntity: certificationEntity || '',
         heroImage: photoUrl || '',
+        branchImage: branchImage || '',
         experienceYears: Number(experienceYears) || 10,
         doctorRating: doctorRating || '4.9',
         ...(canEditBranding ? {
@@ -749,6 +752,63 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                 </div>
               </div>
 
+              {/* Clinic Facility / Main Branch Photo Section */}
+              <div className="p-4 rounded-2xl bg-muted/40 border border-border space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold text-foreground flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-primary" />
+                    <span>{t('clinic_branch_photo_label', 'صورة مبنى العيادة / الفرع الرئيسي (تظهر في شاشة حجز المريض والخرائط)')}</span>
+                  </Label>
+                  {branchImage && (
+                    <button
+                      type="button"
+                      onClick={() => setBranchImage('')}
+                      className="text-[10px] text-rose-500 hover:underline font-bold cursor-pointer"
+                    >
+                      {t('clear_photo', 'إزالة')}
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <div className="relative w-28 h-20 rounded-2xl overflow-hidden border-2 border-primary/30 shadow-xs shrink-0 bg-slate-900">
+                    <img
+                      src={branchImage || 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=400&auto=format&fit=crop'}
+                      alt="Clinic Facility Preview"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="flex-1 w-full space-y-2">
+                    <Input
+                      value={branchImage}
+                      onChange={e => setBranchImage(e.target.value)}
+                      placeholder="https://images.unsplash.com/photo-..."
+                      className="h-10 text-xs rounded-xl font-mono text-left"
+                      dir="ltr"
+                    />
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-[10px] text-muted-foreground font-bold flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-amber-500" />
+                        <span>صور مقترحة:</span>
+                      </span>
+                      {[
+                        { label: 'مستشفى حديث', url: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=800&auto=format&fit=crop' },
+                        { label: 'مركز طبي راقي', url: 'https://images.unsplash.com/photo-1586773860418-d37222d8fce3?q=80&w=800&auto=format&fit=crop' },
+                        { label: 'عيادة خاصة', url: 'https://images.unsplash.com/photo-1538108149393-fbbd81895907?q=80&w=800&auto=format&fit=crop' }
+                      ].map((preset) => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => setBranchImage(preset.url)}
+                          className="px-2 py-0.5 text-[10px] font-bold rounded-lg bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition-colors cursor-pointer"
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-1.5">
                 <Label className="text-xs font-bold text-muted-foreground">{t('clinic_name', 'اسم العيادة')}</Label>
                 <Input
@@ -1044,6 +1104,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                             experienceYears: Number(experienceYears) || 10,
                             doctorRating: doctorRating || '4.9',
                             heroImage: photoUrl || '',
+                            branchImage: branchImage || '',
                             logoUrl: logoUrl || '',
                             primaryColor: primaryColor || '#087CF4',
                             clinicPhone: phones[0] || '01012345678',
@@ -1086,6 +1147,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                           experienceYears: Number(experienceYears) || 10,
                           doctorRating: doctorRating || '4.9',
                           heroImage: photoUrl || '',
+                          branchImage: branchImage || '',
                           logoUrl: logoUrl || '',
                           primaryColor: primaryColor || '#087CF4',
                           clinicPhone: phones[0] || '01012345678',

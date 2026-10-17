@@ -25,18 +25,18 @@ export interface ClinicLocationMapProps {
   clinic: any
   activeBranchName?: string
   patientUpcomingAppt?: any
+  branches?: any[]
+  className?: string
 }
 
 export function ClinicLocationMap({
   clinic,
   activeBranchName,
-  patientUpcomingAppt
+  patientUpcomingAppt,
+  branches: propBranches,
+  className = ''
 }: ClinicLocationMapProps) {
   const clinicId = clinic?.id || clinic?.slug || 'demo'
-  const [branches, setBranches] = useState<any[]>([])
-  const [selectedBranch, setSelectedBranch] = useState<any>(null)
-  const [isCopied, setIsCopied] = useState<boolean>(false)
-  const [mapLoaded, setMapLoaded] = useState<boolean>(false)
 
   // Default fallback branches if no branches in database
   const defaultBranches = [
@@ -76,30 +76,61 @@ export function ClinicLocationMap({
     }
   ]
 
-  // Load branches from Firestore or fall back to default
+  const initialList = propBranches && propBranches.length > 0 ? propBranches : defaultBranches
+  const [branches, setBranches] = useState<any[]>(initialList)
+  const [selectedBranch, setSelectedBranch] = useState<any>(() => {
+    if (activeBranchName) {
+      const match = initialList.find((b: any) => b.name?.includes(activeBranchName))
+      if (match) return match
+    }
+    if (patientUpcomingAppt?.branchName) {
+      const match = initialList.find((b: any) => b.name?.includes(patientUpcomingAppt.branchName))
+      if (match) return match
+    }
+    return initialList[0]
+  })
+  const [isCopied, setIsCopied] = useState<boolean>(false)
+  const [mapLoaded, setMapLoaded] = useState<boolean>(false)
+
+  // Load branches from Firestore if not provided as prop
   useEffect(() => {
+    if (propBranches && propBranches.length > 0) {
+      setBranches(propBranches)
+      const match = propBranches.find(
+        (b: any) =>
+          (activeBranchName && b.name?.includes(activeBranchName)) ||
+          (patientUpcomingAppt?.branchName && b.name?.includes(patientUpcomingAppt.branchName))
+      )
+      setSelectedBranch(match || propBranches[0])
+      return
+    }
+
     let isMounted = true
     const load = async () => {
       try {
         const dbBranches = await getClinicBranches(clinicId).catch(() => [])
         const active = dbBranches.filter((b: any) => !b.isArchived)
         if (active.length > 0 && isMounted) {
-          const mapped = active.map((b: any) => ({
-            ...b,
-            address: b.address || clinic?.clinicAddress || 'مقر العيادة',
-            mapsLink: b.mapsLink || clinic?.mapsLink || `https://maps.google.com/?q=${encodeURIComponent(b.address || b.name)}`,
-            phone: b.phone || clinic?.clinicPhone || '01012345678',
-            whatsapp: b.whatsapp || clinic?.whatsappNumber || b.phone || clinic?.clinicPhone || '01012345678',
-            workingHours: b.workingHours || clinic?.workingHours || 'السبت - الخميس: 2:00 م - 10:00 م',
-            landmark: b.landmark || 'متاح أماكن انتظار سيارات بالخارج'
-          }))
+          const mapped = active.map((b: any) => {
+            const addr = (b.address || clinic?.clinicAddress || '').trim() || 'مقر العيادة'
+            return {
+              ...b,
+              address: addr,
+              // Strictly rely on address only for maps - never clinic or branch name
+              mapsLink: b.mapsLink || clinic?.mapsLink || `https://maps.google.com/?q=${encodeURIComponent(addr)}`,
+              phone: b.phone || clinic?.clinicPhone || '01012345678',
+              whatsapp: b.whatsapp || clinic?.whatsappNumber || b.phone || clinic?.clinicPhone || '01012345678',
+              workingHours: b.workingHours || clinic?.workingHours || 'السبت - الخميس: 2:00 م - 10:00 م',
+              landmark: b.landmark || 'متاح أماكن انتظار سيارات بالخارج'
+            }
+          })
           setBranches(mapped)
 
           // Select matching branch from patient's appointment, or first branch
           const match = mapped.find(
             (b: any) =>
-              (activeBranchName && b.name.includes(activeBranchName)) ||
-              (patientUpcomingAppt?.branchName && b.name.includes(patientUpcomingAppt.branchName))
+              (activeBranchName && b.name?.includes(activeBranchName)) ||
+              (patientUpcomingAppt?.branchName && b.name?.includes(patientUpcomingAppt.branchName))
           )
           setSelectedBranch(match || mapped[0])
           return
@@ -113,8 +144,8 @@ export function ClinicLocationMap({
         setBranches(defaultBranches)
         const match = defaultBranches.find(
           (b) =>
-            (activeBranchName && b.name.includes(activeBranchName)) ||
-            (patientUpcomingAppt?.branchName && b.name.includes(patientUpcomingAppt.branchName))
+            (activeBranchName && b.name?.includes(activeBranchName)) ||
+            (patientUpcomingAppt?.branchName && b.name?.includes(patientUpcomingAppt.branchName))
         )
         setSelectedBranch(match || defaultBranches[0])
       }
@@ -124,19 +155,20 @@ export function ClinicLocationMap({
     return () => {
       isMounted = false
     }
-  }, [clinicId, activeBranchName, patientUpcomingAppt?.branchName])
+  }, [clinicId, activeBranchName, patientUpcomingAppt?.branchName, propBranches])
 
   // Current active branch data
   const current = selectedBranch || branches[0] || defaultBranches[0]
-  const currentAddress = current?.address || clinic?.clinicAddress || 'القاهرة - مصر'
+  // Strictly use the address registered in settings only - NEVER search by clinic name!
+  const currentAddress = (current?.address || clinic?.clinicAddress || '').trim() || 'القاهرة - مصر'
   const currentMapsLink =
     current?.mapsLink ||
     clinic?.mapsLink ||
     `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(currentAddress)}`
   const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(currentAddress)}`
 
-  // Safe Google Maps Embed Query
-  const embedQuery = encodeURIComponent(`${clinic?.clinicName ? clinic.clinicName + ' ' : ''}${currentAddress}`)
+  // Safe Google Maps Embed Query - Strictly Address Only
+  const embedQuery = encodeURIComponent(currentAddress)
   const embedUrl = `https://maps.google.com/maps?q=${embedQuery}&t=&z=15&ie=UTF8&iwloc=&output=embed`
 
   const handleCopyAddress = () => {
@@ -171,7 +203,7 @@ export function ClinicLocationMap({
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, ease: 'easeOut' }}
-      className="space-y-4"
+      className={`space-y-4 ${className}`}
     >
       {/* Top Header Card with Floating Glow */}
       <div className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#0066dc] via-[#007fe8] to-[#00b4d8] text-white p-5 shadow-xl shadow-sky-600/15">

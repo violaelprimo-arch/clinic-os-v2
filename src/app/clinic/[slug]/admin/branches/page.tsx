@@ -4,7 +4,7 @@ import { use, useEffect, useState } from 'react'
 import {
   Building2, Plus, Edit, Trash2, MapPin, Phone, Clock,
   Calendar, CheckCircle2, XCircle, AlertCircle, Save, X,
-  ExternalLink, Power, Archive, ShieldCheck
+  ExternalLink, Power, Archive, ShieldCheck, Image as ImageIcon, Sparkles
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -584,6 +584,81 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                         className="h-10 text-xs rounded-xl"
                         dir="ltr"
                       />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Branch Facility Photo */}
+              <div className="space-y-3 pt-2 border-t border-border">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black text-foreground flex items-center gap-1.5">
+                    <ImageIcon className="w-4 h-4 text-sky-500" />
+                    <span>{language === 'en' ? 'Branch Photo / Facility Image' : 'صورة واجهة الفرع / المركز الطبي'}</span>
+                  </h4>
+                  <span className="text-[10px] text-muted-foreground">
+                    {language === 'en' ? 'Displayed in booking modal & maps' : 'تظهر في شاشة حجز المريض والخرائط'}
+                  </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center gap-4 p-3.5 rounded-2xl bg-muted/40 border border-border">
+                  <div className="relative w-28 h-20 rounded-xl overflow-hidden border-2 border-sky-400/40 bg-slate-900 shrink-0 shadow-sm">
+                    {image ? (
+                      <img src={image} alt="Branch Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground p-2 text-center text-[10px]">
+                        <ImageIcon className="w-5 h-5 mb-1 opacity-50" />
+                        <span>{language === 'en' ? 'No photo' : 'بدون صورة'}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 w-full space-y-2">
+                    <div className="space-y-1">
+                      <Label className="text-[11px] font-bold text-muted-foreground">
+                        {language === 'en' ? 'Direct Image URL' : 'رابط مباشر لصورة الفرع (PNG / JPG / WebP)'}
+                      </Label>
+                      <Input
+                        value={image}
+                        onChange={(e) => setImage(e.target.value)}
+                        placeholder="https://images.unsplash.com/photo-..."
+                        className="h-9 text-xs rounded-xl font-mono"
+                        dir="ltr"
+                      />
+                    </div>
+
+                    {/* Quick Medical Presets */}
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-bold text-muted-foreground flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-amber-500" />
+                        <span>{language === 'en' ? 'Quick preset clinic photos:' : 'أو اختر صورة جاهزة عالية الجودة:'}</span>
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          { label: 'مستشفى حديث', url: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=800&auto=format&fit=crop' },
+                          { label: 'مركز تخصصي', url: 'https://images.unsplash.com/photo-1586773860418-d37222d8fce3?q=80&w=800&auto=format&fit=crop' },
+                          { label: 'عيادة خاصة', url: 'https://images.unsplash.com/photo-1538108149393-fbbd81895907?q=80&w=800&auto=format&fit=crop' },
+                          { label: 'استقبال راقي', url: 'https://images.unsplash.com/photo-1512678080530-7760d81faba6?q=80&w=800&auto=format&fit=crop' }
+                        ].map((preset) => (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => setImage(preset.url)}
+                            className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900 border border-sky-200/60 dark:border-sky-800 transition-colors cursor-pointer"
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                        {image && (
+                          <button
+                            type="button"
+                            onClick={() => setImage('')}
+                            className="px-2 py-1 text-[10px] font-bold rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-600 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer"
+                          >
+                            {language === 'en' ? 'Clear' : 'إزالة'}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

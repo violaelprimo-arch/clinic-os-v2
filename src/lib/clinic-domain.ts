@@ -103,5 +103,5 @@ export function mapsUrl(clinic: { address?: string; name?: string; latitude?: nu
   if (typeof clinic.latitude === 'number' && typeof clinic.longitude === 'number') {
     return 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(clinic.latitude + ',' + clinic.longitude);
   }
-  return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(clinic.address || clinic.name || '');
+  return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(clinic.address || 'القاهرة، مصر');
 }

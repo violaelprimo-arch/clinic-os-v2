@@ -32,12 +32,14 @@ import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 export function BookingModal({
   clinic,
   services = [],
+  branches: propBranches,
   initialService = null,
   initialBranch = null,
   onClose
 }: {
   clinic: any
   services?: any[]
+  branches?: any[]
   initialService?: any
   initialBranch?: any
   onClose: () => void
@@ -80,23 +82,59 @@ export function BookingModal({
     }
   ]
 
-  const [branches, setBranches] = useState<any[]>(defaultBranches)
-  const [selectedBranch, setSelectedBranch] = useState<any>(initialBranch || defaultBranches[0])
+  const fallbackMainImage =
+    clinic?.branchImage ||
+    clinic?.clinicPhoto ||
+    'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=600&auto=format&fit=crop'
 
-  // Load real branches from Firestore using branch image from settings
+  // Pre-calculate initial branches synchronously for instant 0ms rendering
+  const computeInitialBranches = () => {
+    if (propBranches && propBranches.length > 0) {
+      return propBranches.map((b: any) => ({
+        ...b,
+        image: b.image || b.imageUrl || fallbackMainImage
+      }))
+    }
+    if (clinic?.branches && clinic.branches.length > 0) {
+      return clinic.branches.map((b: any) => ({
+        ...b,
+        image: b.image || b.imageUrl || fallbackMainImage
+      }))
+    }
+    return defaultBranches
+  }
+
+  const [branches, setBranches] = useState<any[]>(computeInitialBranches)
+  const [selectedBranch, setSelectedBranch] = useState<any>(() => {
+    if (initialBranch) return initialBranch
+    const list = computeInitialBranches()
+    return list[0]
+  })
+
+  // Synchronize or load in background without blocking modal interaction
   useEffect(() => {
+    if (propBranches && propBranches.length > 0) {
+      const mapped = propBranches.map((b: any) => ({
+        ...b,
+        image: b.image || b.imageUrl || fallbackMainImage
+      }))
+      setBranches(mapped)
+      if (!selectedBranch || selectedBranch.id === 'main') {
+        setSelectedBranch(initialBranch || mapped[0])
+      }
+      return
+    }
+
     let isMounted = true
     const loadBranches = async () => {
       try {
         if (clinic?.id) {
-          await ensureClinicHasMainBranch(clinic).catch(() => {})
           const dbBranches = await getClinicBranches(clinic.id).catch(() => [])
           const active = dbBranches.filter((b: any) => !b.isArchived)
           if (active.length > 0 && isMounted) {
             const mapped = active.map((b: any) => ({
               ...b,
-              // Strictly use branch photo from branch settings, fallback to clinic branch photo, never doctor portrait
-              image: b.image || b.imageUrl || clinic?.branchImage || clinic?.clinicPhoto || defaultBranches[0].image
+              image: b.image || b.imageUrl || fallbackMainImage
             }))
             setBranches(mapped)
             if (!selectedBranch || selectedBranch.id === 'main') {
@@ -108,7 +146,7 @@ export function BookingModal({
         if (clinic?.branches && clinic.branches.length > 0 && isMounted) {
           const mapped = clinic.branches.map((b: any) => ({
             ...b,
-            image: b.image || b.imageUrl || clinic?.branchImage || clinic?.clinicPhoto || defaultBranches[0].image
+            image: b.image || b.imageUrl || fallbackMainImage
           }))
           setBranches(mapped)
           if (!selectedBranch) {
@@ -124,7 +162,7 @@ export function BookingModal({
     return () => {
       isMounted = false
     }
-  }, [clinic, initialBranch])
+  }, [clinic?.id, initialBranch, propBranches])
 
   const defaultServices = services?.length
     ? services
@@ -646,8 +684,20 @@ export function BookingModal({
                           isSelected ? 'border-sky-500 shadow-md ring-2 ring-sky-400/30' : 'border-slate-100 dark:border-slate-700'
                         } flex flex-col items-center text-center relative transition-all hover:-translate-y-1`}
                       >
-                        <div className="w-full h-20 rounded-xl overflow-hidden mb-2 bg-sky-100 dark:bg-slate-700">
-                          {b.image && <img src={b.image} alt={b.name} className="w-full h-full object-cover" />}
+                        <div className="w-full h-20 rounded-xl overflow-hidden mb-2 bg-sky-100 dark:bg-slate-700 relative">
+                          {b.image ? (
+                            <img
+                              src={b.image}
+                              alt={b.name}
+                              loading="eager"
+                              decoding="async"
+                              className="w-full h-full object-cover transition-transform duration-300"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-sky-400">
+                              <MapPin className="w-6 h-6 opacity-60" />
+                            </div>
+                          )}
                         </div>
                         <div className="font-black text-slate-900 dark:text-white text-[11px] leading-tight">{b.name}</div>
                         <div className="text-[10px] text-slate-400 mt-0.5">{b.sub || b.address}</div>
