@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { db } from '@/lib/firebase'
-import { collection, query, where, getDocs, onSnapshot, doc, updateDoc } from 'firebase/firestore'
+import { collection, query, where, getDocs, onSnapshot, doc, updateDoc, addDoc } from 'firebase/firestore'
 import { PatientLiveTurn } from '@/components/clinic/PatientLiveTurn'
 import { BookingModal } from '@/components/clinic/BookingModal'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
@@ -40,8 +40,47 @@ import {
   MapPin,
   Navigation,
   Compass,
-  ChevronLeft
+  ChevronLeft,
+  Camera,
+  Trash2
 } from 'lucide-react'
+
+// Resizes and crops an image to a clean 1:1 square avatar (max 360x360) in JPEG format
+function resizeImageToAvatar(file: File, maxSize = 360): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (readerEvent) => {
+      const img = new Image()
+      img.onload = () => {
+        const width = img.width
+        const height = img.height
+
+        const minDim = Math.min(width, height)
+        const sx = (width - minDim) / 2
+        const sy = (height - minDim) / 2
+
+        const canvas = document.createElement('canvas')
+        const targetSize = Math.min(maxSize, minDim)
+        canvas.width = targetSize
+        canvas.height = targetSize
+
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          resolve(readerEvent.target?.result as string)
+          return
+        }
+
+        ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, targetSize, targetSize)
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.82)
+        resolve(dataUrl)
+      }
+      img.onerror = reject
+      img.src = readerEvent.target?.result as string
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
 
 export default function PatientPortalPage() {
   const router = useRouter()
@@ -53,12 +92,19 @@ export default function PatientPortalPage() {
     name: string
     clinic_id: string
     age?: string
+    avatarUrl?: string
   } | null>(null)
 
   const [clinic, setClinic] = useState<any>(null)
   const [appointments, setAppointments] = useState<any[]>([])
   const [prescriptions, setPrescriptions] = useState<any[]>([])
   const [loading, setLoading] = useState<boolean>(true)
+
+  // Patient Avatar Upload State
+  const [avatarUrl, setAvatarUrl] = useState<string>('')
+  const [patientAccountDocId, setPatientAccountDocId] = useState<string | null>(null)
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [activeTab, setActiveTab] = useState<'appointments' | 'prescriptions' | 'invoices' | 'medical' | 'location'>('appointments')
   const [selectedBranchForMap, setSelectedBranchForMap] = useState<string | undefined>(undefined)
@@ -90,6 +136,9 @@ export default function PatientPortalPage() {
     }
 
     setPatient(authData)
+    if (authData.avatarUrl) {
+      setAvatarUrl(authData.avatarUrl)
+    }
 
     // Listen to Clinic info
     const qC = query(collection(db, 'clinics'), where('slug', '==', slug))
@@ -145,6 +194,30 @@ export default function PatientPortalPage() {
           .filter((rx) => rx.status === 'approved' || rx.status === 'finalized' || !rx.status)
           .sort((a, b) => new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime())
         setPrescriptions(rxs)
+
+        // Patient Account query (to fetch avatar and profile info)
+        const accQ = query(
+          collection(db, 'patient_accounts'),
+          where('clinic_id', '==', clinicId),
+          where('phone', 'in', searchPhones)
+        )
+        const accSnap = await getDocs(accQ)
+        if (!accSnap.empty) {
+          const accDoc = accSnap.docs[0]
+          setPatientAccountDocId(accDoc.id)
+          const accData = accDoc.data()
+          if (accData.avatarUrl) {
+            setAvatarUrl(accData.avatarUrl)
+            try {
+              const raw = localStorage.getItem('patient_auth')
+              if (raw) {
+                const parsed = JSON.parse(raw)
+                parsed.avatarUrl = accData.avatarUrl
+                localStorage.setItem('patient_auth', JSON.stringify(parsed))
+              }
+            } catch (e) {}
+          }
+        }
       } catch (err) {
         console.error('Error loading patient records:', err)
       } finally {
@@ -175,6 +248,107 @@ export default function PatientPortalPage() {
     localStorage.removeItem('patient_auth')
     toast.success('تم تسجيل الخروج بنجاح')
     router.push(`/clinic/${slug}/patient/login`)
+  }
+
+  // Patient Avatar Upload Handler
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('حجم الصورة كبير، يرجى اختيار صورة أقل من 5 ميجابايت')
+      return
+    }
+
+    setIsUploadingPhoto(true)
+    try {
+      const base64 = await resizeImageToAvatar(file)
+      setAvatarUrl(base64)
+
+      // 1. Update localStorage
+      const rawAuth = localStorage.getItem('patient_auth')
+      if (rawAuth) {
+        const parsed = JSON.parse(rawAuth)
+        parsed.avatarUrl = base64
+        localStorage.setItem('patient_auth', JSON.stringify(parsed))
+      }
+
+      // 2. Update Firestore patient_accounts document
+      const cleanPhone = patient?.phone?.trim() || ''
+      const phoneVariants = getPhoneSearchVariants(cleanPhone)
+      const searchPhones = phoneVariants.length > 0 ? phoneVariants.slice(0, 10) : [cleanPhone]
+      const clinicId = patient?.clinic_id || clinic?.id || slug
+
+      if (patientAccountDocId) {
+        await updateDoc(doc(db, 'patient_accounts', patientAccountDocId), {
+          avatarUrl: base64,
+          updatedAt: new Date().toISOString()
+        })
+      } else {
+        const accQ = query(
+          collection(db, 'patient_accounts'),
+          where('clinic_id', '==', clinicId),
+          where('phone', 'in', searchPhones)
+        )
+        const snap = await getDocs(accQ)
+        if (!snap.empty) {
+          await updateDoc(doc(db, 'patient_accounts', snap.docs[0].id), {
+            avatarUrl: base64,
+            updatedAt: new Date().toISOString()
+          })
+          setPatientAccountDocId(snap.docs[0].id)
+        } else {
+          const newDoc = await addDoc(collection(db, 'patient_accounts'), {
+            clinic_id: clinicId,
+            name: patient?.name || 'مريض',
+            phone: cleanPhone,
+            avatarUrl: base64,
+            createdAt: new Date().toISOString()
+          })
+          setPatientAccountDocId(newDoc.id)
+        }
+      }
+
+      toast.success('تم حفظ صورتك الشخصية بنجاح! 📸')
+    } catch (err) {
+      console.error('Error uploading photo:', err)
+      toast.error('حدث خطأ أثناء رفع الصورة، يرجى المحاولة ثانيةً')
+    } finally {
+      setIsUploadingPhoto(false)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
+
+  // Remove Photo Handler
+  const handleRemovePhoto = async () => {
+    setIsUploadingPhoto(true)
+    try {
+      setAvatarUrl('')
+
+      // 1. Update localStorage
+      const rawAuth = localStorage.getItem('patient_auth')
+      if (rawAuth) {
+        const parsed = JSON.parse(rawAuth)
+        delete parsed.avatarUrl
+        localStorage.setItem('patient_auth', JSON.stringify(parsed))
+      }
+
+      // 2. Update Firestore
+      if (patientAccountDocId) {
+        await updateDoc(doc(db, 'patient_accounts', patientAccountDocId), {
+          avatarUrl: '',
+          updatedAt: new Date().toISOString()
+        })
+      }
+
+      toast.success('تمت إزالة الصورة بنجاح')
+    } catch (err) {
+      toast.error('تعذر إزالة الصورة')
+    } finally {
+      setIsUploadingPhoto(false)
+    }
   }
 
   // Cancel Appointment Handler
@@ -272,12 +446,65 @@ export default function PatientPortalPage() {
           className="bg-white dark:bg-slate-800/90 rounded-2xl p-3.5 shadow-sm border border-sky-100 dark:border-slate-700 flex items-center justify-between"
         >
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-sky-100 dark:bg-sky-900/60 border-2 border-sky-500 flex items-center justify-center font-black text-sky-600 text-lg">
-              {patientName.charAt(0)}
+            {/* Interactive Patient Avatar with Upload */}
+            <div className="relative group shrink-0">
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="w-13 h-13 rounded-2xl bg-sky-100 dark:bg-sky-900/60 border-2 border-sky-500 overflow-hidden flex items-center justify-center font-black text-sky-600 text-lg shadow-sm cursor-pointer hover:opacity-90 transition-all select-none"
+                title="اضغط لتغيير صورتك الشخصية"
+              >
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt={patientName}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span>{patientName.charAt(0)}</span>
+                )}
+
+                {isUploadingPhoto && (
+                  <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center">
+                    <Loader2 className="w-5 h-5 animate-spin text-white" />
+                  </div>
+                )}
+              </div>
+
+              {/* Camera Icon Button */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingPhoto}
+                title="رفع صورة شخصية"
+                className="absolute -bottom-1 -left-1 w-6 h-6 rounded-lg bg-sky-600 hover:bg-sky-500 text-white flex items-center justify-center shadow-md border-2 border-white dark:border-slate-800 transition-all hover:scale-110 active:scale-95 cursor-pointer"
+              >
+                <Camera className="w-3 h-3" />
+              </button>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handlePhotoUpload}
+              />
             </div>
+
             <div>
-              <h3 className="font-black text-slate-900 dark:text-white text-sm">{patientName}</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5" dir="ltr">
+              <div className="flex items-center gap-2">
+                <h3 className="font-black text-slate-900 dark:text-white text-sm">{patientName}</h3>
+                {avatarUrl && (
+                  <button
+                    type="button"
+                    onClick={handleRemovePhoto}
+                    title="حذف الصورة والرجوع للحرف الأول"
+                    className="text-[10px] text-rose-500 hover:text-rose-600 font-bold underline cursor-pointer"
+                  >
+                    حذف
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5" dir="ltr">
                 <Phone className="w-3 h-3 text-sky-500" />
                 <span>{patientPhone}</span>
                 {patientAge && <span className="text-[10px] bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded-md font-mono">{patientAge} سنة</span>}

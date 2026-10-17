@@ -54,45 +54,48 @@ export function InteractiveClinicMap({
   const [isFullscreen, setIsFullscreen] = useState(false)
   const tileLayerRef = useRef<any>(null)
 
-  // Load Leaflet CSS and JS dynamically from CDN
+  // Load Leaflet CSS and JS dynamically with robust polling
   useEffect(() => {
     let isCancelled = false
 
-    const loadLeafletAssets = async (): Promise<any> => {
-      if (typeof window === 'undefined') return null
-      if (window.L) return window.L
+    const loadLeafletAssets = (): Promise<any> => {
+      if (typeof window === 'undefined') return Promise.resolve(null)
+      if (window.L) return Promise.resolve(window.L)
 
-      // Inject Leaflet CSS if not already present
+      // 1. Inject Leaflet CSS if not already present
       if (!document.getElementById('leaflet-css')) {
         const link = document.createElement('link')
         link.id = 'leaflet-css'
         link.rel = 'stylesheet'
-        link.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'
-        link.integrity = 'sha512-Zcn6bjR/8RZbLEpLIeOwNtzREBAUnWC//YOTCm09vBp8r14CL7Z4hYsP79g4+AoWIecGoQDQRcQ5xC26Cfl5dQ=='
-        link.crossOrigin = ''
+        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
         document.head.appendChild(link)
       }
 
-      // Inject Leaflet JS if not already present
-      return new Promise((resolve, reject) => {
-        if (window.L) return resolve(window.L)
-
-        const existingScript = document.getElementById('leaflet-js') as HTMLScriptElement
-        if (existingScript) {
-          existingScript.addEventListener('load', () => resolve(window.L))
-          existingScript.addEventListener('error', reject)
-          return
-        }
-
-        const script = document.createElement('script')
+      // 2. Inject Leaflet JS if not already present
+      let script = document.getElementById('leaflet-js') as HTMLScriptElement
+      if (!script) {
+        script = document.createElement('script')
         script.id = 'leaflet-js'
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'
-        script.integrity = 'sha512-BwHfrr4c9kmRkLw6iXFdzcdWV/PGkVgiIyIWLLlTSXznnUo93SxF4PHBIac94lU/IsXX+Q+NczchG0RMBRz0dQ=='
-        script.crossOrigin = ''
+        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
         script.async = true
-        script.onload = () => resolve(window.L)
-        script.onerror = () => reject(new Error('Failed to load Leaflet script'))
         document.body.appendChild(script)
+      }
+
+      // 3. Poll for window.L with 4-second timeout to prevent infinite hang
+      const startTime = Date.now()
+      return new Promise((resolve, reject) => {
+        const checkL = () => {
+          if (window.L) {
+            resolve(window.L)
+            return
+          }
+          if (Date.now() - startTime > 4000) {
+            reject(new Error('Leaflet map load timeout after 4s'))
+            return
+          }
+          setTimeout(checkL, 50)
+        }
+        checkL()
       })
     }
 
@@ -100,7 +103,9 @@ export function InteractiveClinicMap({
       .then((L) => {
         if (isCancelled || !L || !containerRef.current) return
 
-        // Destroy previous map instance if re-initializing
+        const container = containerRef.current
+
+        // Clean up previous map instance if re-initializing
         if (mapInstanceRef.current) {
           try {
             mapInstanceRef.current.remove()
@@ -108,26 +113,39 @@ export function InteractiveClinicMap({
           mapInstanceRef.current = null
         }
 
-        // Initialize Leaflet Map with smooth mouse wheel zooming enabled
-        const map = L.map(containerRef.current, {
-          center: [lat, lng],
+        // Avoid "Map container is already initialized" Leaflet error on fast remounts
+        if ((container as any)._leaflet_id) {
+          try {
+            (container as any)._leaflet_id = null
+          } catch (e) {}
+        }
+
+        const validLat = Number.isFinite(lat) && lat !== 0 ? lat : 30.1294522
+        const validLng = Number.isFinite(lng) && lng !== 0 ? lng : 31.2485622
+
+        // Initialize Leaflet Map with native mouse wheel zoom enabled
+        const map = L.map(container, {
+          center: [validLat, validLng],
           zoom: 16,
-          minZoom: 6,
-          maxZoom: 20,
-          scrollWheelZoom: true, // NATIVE MOUSE WHEEL ZOOMING
-          smoothWheelZoom: true,
-          zoomControl: false, // We use custom Tailwind UI controls
+          minZoom: 4,
+          maxZoom: 19,
+          scrollWheelZoom: true,
+          doubleClickZoom: true,
+          touchZoom: true,
+          dragging: true,
+          zoomControl: false,
           attributionControl: false
         })
 
         mapInstanceRef.current = map
 
-        // Street Tiles (Google Maps Street Layer)
+        // High-performance OpenStreetMap / CartoDB Voyager tiles (smooth & reliable)
         const streetTiles = L.tileLayer(
-          'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+          'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
           {
-            subdomains: ['0', '1', '2', '3'],
-            maxZoom: 20
+            subdomains: ['a', 'b', 'c', 'd'],
+            maxZoom: 19,
+            attribution: '&copy; CartoDB &copy; OpenStreetMap'
           }
         )
 
@@ -143,7 +161,7 @@ export function InteractiveClinicMap({
               <div style="position: absolute; top: 12px; width: 64px; height: 64px; border-radius: 9999px; background: rgba(14, 165, 233, 0.35); animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite; pointer-events: none;"></div>
               <div style="position: absolute; top: 20px; width: 48px; height: 48px; border-radius: 9999px; background: rgba(56, 189, 248, 0.45); pointer-events: none;"></div>
               
-              <div style="position: relative; z-index: 10; padding: 6px 14px; border-radius: 14px; background: #071529; color: #ffffff; font-size: 11px; font-weight: 800; border: 1.5px solid #38bdf8; box-shadow: 0 10px 25px -5px rgba(0, 102, 220, 0.5); display: flex; items-center; gap: 6px; white-space: nowrap;">
+              <div style="position: relative; z-index: 10; padding: 6px 14px; border-radius: 14px; background: #071529; color: #ffffff; font-size: 11px; font-weight: 800; border: 1.5px solid #38bdf8; box-shadow: 0 10px 25px -5px rgba(0, 102, 220, 0.5); display: flex; align-items: center; gap: 6px; white-space: nowrap;">
                 <span style="display: inline-block; width: 8px; height: 8px; border-radius: 9999px; background: #ef4444; box-shadow: 0 0 8px #ef4444;"></span>
                 <span>${safeTitle}</span>
               </div>
@@ -154,11 +172,11 @@ export function InteractiveClinicMap({
           iconAnchor: [0, 0]
         })
 
-        const marker = L.marker([lat, lng], { icon: customIcon }).addTo(map)
+        const marker = L.marker([validLat, validLng], { icon: customIcon }).addTo(map)
         markerRef.current = marker
 
         // Interactive Popup
-        const safeAddress = address.replace(/</g, '&lt;')
+        const safeAddress = (address || 'مقر العيادة').replace(/</g, '&lt;')
         const popupContent = `
           <div style="font-family: 'Cairo', sans-serif; text-align: right; padding: 4px; min-width: 190px;">
             <div style="font-weight: 900; font-size: 13px; color: #0284c7; margin-bottom: 4px;">${safeTitle}</div>
@@ -176,6 +194,13 @@ export function InteractiveClinicMap({
         })
 
         setIsLoaded(true)
+
+        // Trigger size invalidation after render
+        setTimeout(() => {
+          try {
+            map.invalidateSize()
+          } catch (e) {}
+        }, 150)
       })
       .catch((err) => {
         console.warn('Could not initialize Leaflet map, falling back to Google embed iframe:', err)
@@ -204,14 +229,21 @@ export function InteractiveClinicMap({
     const nextType = mapType === 'street' ? 'satellite' : 'street'
     const newLayer =
       nextType === 'satellite'
-        ? window.L.tileLayer('https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-            subdomains: ['0', '1', '2', '3'],
-            maxZoom: 20
-          })
-        : window.L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
-            subdomains: ['0', '1', '2', '3'],
-            maxZoom: 20
-          })
+        ? window.L.tileLayer(
+            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+            {
+              maxZoom: 19,
+              attribution: '&copy; Esri World Imagery'
+            }
+          )
+        : window.L.tileLayer(
+            'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+            {
+              subdomains: ['a', 'b', 'c', 'd'],
+              maxZoom: 19,
+              attribution: '&copy; CartoDB &copy; OpenStreetMap'
+            }
+          )
 
     newLayer.addTo(map)
     tileLayerRef.current = newLayer

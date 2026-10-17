@@ -357,6 +357,7 @@ export function ClinicLocationMap({
         {/* Map Render Mode */}
         {mapViewMode === 'interactive' ? (
           <InteractiveClinicMap
+            key={`map-${current?.id || current?.name || 'main'}-${effectiveLat}-${effectiveLng}`}
             lat={effectiveLat}
             lng={effectiveLng}
             clinicName={clinic?.clinicName || 'عيادة الطبيب'}
