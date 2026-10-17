@@ -94,6 +94,9 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
           id: 'main',
           name: isRtl ? 'الفرع الرئيسي' : 'Main Branch',
           address: clinic?.clinicAddress || (isRtl ? 'مدينة نصر - القاهرة' : 'Nasr City - Cairo'),
+          latitude: clinic?.latitude,
+          longitude: clinic?.longitude,
+          mapsLink: clinic?.mapsLink,
           image: clinic?.branchImage || 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=800&auto=format&fit=crop',
           available: true
         }

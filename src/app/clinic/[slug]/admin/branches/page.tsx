@@ -31,6 +31,7 @@ import {
   checkScheduleConflicts
 } from '@/lib/branchService'
 import { useLanguage } from '@/context/LanguageContext'
+import { extractCoordsFromLink } from '@/lib/mapsHelper'
 
 export default function BranchesPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -554,10 +555,32 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                   </div>
 
                   <div className="space-y-1">
-                    <Label className="text-xs font-bold text-muted-foreground">{language === 'en' ? 'Google Maps Link' : 'رابط Google Maps'}</Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-bold text-muted-foreground">{language === 'en' ? 'Google Maps Link' : 'رابط Google Maps'}</Label>
+                      <span className="text-[10px] text-sky-500 font-bold">استخراج تلقائي للإحداثيات 📍</span>
+                    </div>
                     <Input
                       value={mapsLink}
-                      onChange={(e) => setMapsLink(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        setMapsLink(val)
+                        const coords = extractCoordsFromLink(val)
+                        if (coords) {
+                          setLatitude(String(coords.lat))
+                          setLongitude(String(coords.lng))
+                        } else if (val.includes('maps.app.goo.gl') || val.includes('goo.gl')) {
+                          fetch(`/api/resolve-maps-coords?url=${encodeURIComponent(val)}`)
+                            .then((res) => res.json())
+                            .then((data) => {
+                              if (data.success && data.lat && data.lng) {
+                                setLatitude(String(data.lat))
+                                setLongitude(String(data.lng))
+                                toast.success('تم استخراج إحداثيات الفرع تلقائياً من الرابط المختصر')
+                              }
+                            })
+                            .catch(() => {})
+                        }
+                      }}
                       placeholder="https://maps.google.com/..."
                       className="h-10 text-xs rounded-xl"
                       dir="ltr"
@@ -566,7 +589,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
 
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
-                      <Label className="text-[11px] font-bold text-muted-foreground">Latitude</Label>
+                      <Label className="text-[11px] font-bold text-muted-foreground">Latitude (خط العرض)</Label>
                       <Input
                         value={latitude}
                         onChange={(e) => setLatitude(e.target.value)}
@@ -576,7 +599,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[11px] font-bold text-muted-foreground">Longitude</Label>
+                      <Label className="text-[11px] font-bold text-muted-foreground">Longitude (خط الطول)</Label>
                       <Input
                         value={longitude}
                         onChange={(e) => setLongitude(e.target.value)}

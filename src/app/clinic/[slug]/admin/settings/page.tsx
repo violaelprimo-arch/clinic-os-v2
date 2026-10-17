@@ -22,6 +22,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { PremiumLanding } from '@/components/clinic/PremiumLanding'
 import { MessageCircle } from 'lucide-react'
 import { useLanguage } from '@/context/LanguageContext'
+import { extractCoordsFromLink } from '@/lib/mapsHelper'
 
 export default function ClinicSettings({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -91,6 +92,8 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const [doctorPhone, setDoctorPhone] = useState('')
   const [clinicPhone, setClinicPhone] = useState('')
   const [mapsLink, setMapsLink] = useState('')
+  const [latitude, setLatitude] = useState<string>('')
+  const [longitude, setLongitude] = useState<string>('')
   const [phones, setPhones] = useState<string[]>(['01012345678'])
 
   // Services
@@ -178,6 +181,8 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           setDoctorPhone(data.doctorPhone || '')
           setClinicPhone(data.clinicPhone || (data.clinicPhones?.[0] || ''))
           setMapsLink(data.mapsLink || '')
+          setLatitude(data.latitude ? String(data.latitude) : '')
+          setLongitude(data.longitude ? String(data.longitude) : '')
           setPhones(data.clinicPhones?.length ? data.clinicPhones : [data.clinicPhone || ''])
           setAiEnabled(data.aiEnabled !== false)
           setAiLockedByOwner(data.aiLockedByOwner === true)
@@ -257,6 +262,8 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         clinicPhone: phones[0] || '',
         doctorPhone: doctorPhone || '',
         mapsLink: mapsLink || '',
+        latitude: latitude ? parseFloat(latitude) : undefined,
+        longitude: longitude ? parseFloat(longitude) : undefined,
         clinicPhones: phones.filter(p => typeof p === 'string' && p.trim() !== ''),
         onlinePaymentEnabled: Boolean(onlinePaymentEnabled),
         walletNumber: walletNumber || '',
@@ -996,14 +1003,59 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                 </div>
 
                 <div className="space-y-1.5 col-span-2">
-                  <Label className="text-xs font-bold text-muted-foreground">{t('google_maps_link', 'رابط موقع العيادة (Google Maps)')}</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold text-muted-foreground">{t('google_maps_link', 'رابط موقع العيادة (Google Maps)')}</Label>
+                    <span className="text-[10px] text-sky-500 font-bold">استخراج تلقائي للإحداثيات 📍</span>
+                  </div>
                   <Input
                     value={mapsLink}
-                    onChange={e => setMapsLink(e.target.value)}
+                    onChange={e => {
+                      const val = e.target.value
+                      setMapsLink(val)
+                      const coords = extractCoordsFromLink(val)
+                      if (coords) {
+                        setLatitude(String(coords.lat))
+                        setLongitude(String(coords.lng))
+                      } else if (val.includes('maps.app.goo.gl') || val.includes('goo.gl')) {
+                        fetch(`/api/resolve-maps-coords?url=${encodeURIComponent(val)}`)
+                          .then((res) => res.json())
+                          .then((data) => {
+                            if (data.success && data.lat && data.lng) {
+                              setLatitude(String(data.lat))
+                              setLongitude(String(data.lng))
+                              toast.success('تم استخراج إحداثيات العيادة تلقائياً من الرابط المختصر')
+                            }
+                          })
+                          .catch(() => {})
+                      }
+                    }}
                     placeholder="https://maps.google.com/..."
                     className={`h-10 text-xs rounded-xl font-mono ${isRtl ? 'text-right' : 'text-left'}`}
                     dir="ltr"
                   />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 col-span-2">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-bold text-muted-foreground">Latitude (خط العرض)</Label>
+                    <Input
+                      value={latitude}
+                      onChange={(e) => setLatitude(e.target.value)}
+                      placeholder="30.1294"
+                      className="h-10 text-xs rounded-xl font-mono"
+                      dir="ltr"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-bold text-muted-foreground">Longitude (خط الطول)</Label>
+                    <Input
+                      value={longitude}
+                      onChange={(e) => setLongitude(e.target.value)}
+                      placeholder="31.2485"
+                      className="h-10 text-xs rounded-xl font-mono"
+                      dir="ltr"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -1111,6 +1163,8 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                             clinicPhones: phones.filter(p => typeof p === 'string' && p.trim() !== ''),
                             clinicAddress: address || '90th St, New Cairo',
                             mapsLink: mapsLink || '',
+                            latitude: latitude ? parseFloat(latitude) : undefined,
+                            longitude: longitude ? parseFloat(longitude) : undefined,
                             isClinicOpen: isClinicOpen !== false,
                             showPrices: showPrices !== false,
                             hidePrices: !showPrices,
@@ -1154,6 +1208,8 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                           clinicPhones: phones.filter(p => typeof p === 'string' && p.trim() !== ''),
                           clinicAddress: address || '90th St, New Cairo',
                           mapsLink: mapsLink || '',
+                          latitude: latitude ? parseFloat(latitude) : undefined,
+                          longitude: longitude ? parseFloat(longitude) : undefined,
                           isClinicOpen: isClinicOpen !== false,
                           showPrices: showPrices !== false,
                           hidePrices: !showPrices,

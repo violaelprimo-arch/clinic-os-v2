@@ -16,10 +16,15 @@ import {
   Share2,
   Calendar,
   Compass,
-  Check
+  Check,
+  Layers,
+  Map as MapIcon,
+  Maximize2
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { getClinicBranches } from '@/lib/branchService'
+import { resolveEffectiveLocation, isPlaceholderAddress } from '@/lib/mapsHelper'
+import { InteractiveClinicMap } from '@/components/clinic/InteractiveClinicMap'
 
 export interface ClinicLocationMapProps {
   clinic: any
@@ -44,6 +49,8 @@ export function ClinicLocationMap({
       id: 'main',
       name: 'الفرع الرئيسي',
       address: clinic?.clinicAddress || 'شارع النصر - مدينة نصر - القاهرة',
+      latitude: clinic?.latitude || 30.0521,
+      longitude: clinic?.longitude || 31.3422,
       mapsLink: clinic?.mapsLink || 'https://maps.google.com/?q=Nasr+City+Cairo',
       phone: clinic?.clinicPhone || '01012345678',
       whatsapp: clinic?.whatsappNumber || clinic?.clinicPhone || '01012345678',
@@ -51,28 +58,6 @@ export function ClinicLocationMap({
       landmark: 'بجوار محطة المترو والبنك الأهلي • متوفر أماكن انتظار سيارات',
       isOpen: true,
       isMain: true
-    },
-    {
-      id: 'tagamoa',
-      name: 'فرع التجمع الخامس',
-      address: 'شارع التسعين الشمالي - مديكال سنتر 1 - القاهرة الجديدة',
-      mapsLink: 'https://maps.google.com/?q=New+Cairo+Medical+Center',
-      phone: clinic?.clinicPhone || '01012345678',
-      whatsapp: clinic?.whatsappNumber || clinic?.clinicPhone || '01012345678',
-      workingHours: 'الأحد والثلاثاء والخميس: 4:00 م - 9:00 م',
-      landmark: 'أمام الجامعة الأمريكية • عيادات مجهزة بأحدث التقنيات',
-      isOpen: true
-    },
-    {
-      id: 'zayed',
-      name: 'فرع الشيخ زايد',
-      address: 'محور 26 يوليو - مجمع العيادات التخصصية - الشيخ زايد',
-      mapsLink: 'https://maps.google.com/?q=Sheikh+Zayed+City',
-      phone: clinic?.clinicPhone || '01012345678',
-      whatsapp: clinic?.whatsappNumber || clinic?.clinicPhone || '01012345678',
-      workingHours: 'السبت والاثنين والأربعاء: 1:00 م - 8:00 م',
-      landmark: 'بجوار مول العرب • بوابة 2',
-      isOpen: true
     }
   ]
 
@@ -90,7 +75,8 @@ export function ClinicLocationMap({
     return initialList[0]
   })
   const [isCopied, setIsCopied] = useState<boolean>(false)
-  const [mapLoaded, setMapLoaded] = useState<boolean>(false)
+  const [mapViewMode, setMapViewMode] = useState<'interactive' | 'iframe'>('interactive')
+  const [asyncResolvedCoords, setAsyncResolvedCoords] = useState<{ lat: number; lng: number } | null>(null)
 
   // Load branches from Firestore if not provided as prop
   useEffect(() => {
@@ -112,11 +98,13 @@ export function ClinicLocationMap({
         const active = dbBranches.filter((b: any) => !b.isArchived)
         if (active.length > 0 && isMounted) {
           const mapped = active.map((b: any) => {
-            const addr = (b.address || clinic?.clinicAddress || '').trim() || 'مقر العيادة'
+            const rawAddr = b.address || clinic?.clinicAddress || ''
+            const addr = !isPlaceholderAddress(rawAddr) ? rawAddr.trim() : clinic?.clinicAddress || 'مقر العيادة'
             return {
               ...b,
               address: addr,
-              // Strictly rely on address only for maps - never clinic or branch name
+              latitude: b.latitude || clinic?.latitude,
+              longitude: b.longitude || clinic?.longitude,
               mapsLink: b.mapsLink || clinic?.mapsLink || `https://maps.google.com/?q=${encodeURIComponent(addr)}`,
               phone: b.phone || clinic?.clinicPhone || '01012345678',
               whatsapp: b.whatsapp || clinic?.whatsappNumber || b.phone || clinic?.clinicPhone || '01012345678',
@@ -140,7 +128,6 @@ export function ClinicLocationMap({
       }
 
       if (isMounted) {
-        // Fallback
         setBranches(defaultBranches)
         const match = defaultBranches.find(
           (b) =>
@@ -159,34 +146,62 @@ export function ClinicLocationMap({
 
   // Current active branch data
   const current = selectedBranch || branches[0] || defaultBranches[0]
-  // Strictly use the address registered in settings only - NEVER search by clinic name!
-  const currentAddress = (current?.address || clinic?.clinicAddress || '').trim() || 'القاهرة - مصر'
-  const currentMapsLink =
-    current?.mapsLink ||
-    clinic?.mapsLink ||
-    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(currentAddress)}`
-  const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(currentAddress)}`
 
-  // Safe Google Maps Embed Query - Strictly Address Only
-  const embedQuery = encodeURIComponent(currentAddress)
-  const embedUrl = `https://maps.google.com/maps?q=${embedQuery}&t=&z=15&ie=UTF8&iwloc=&output=embed`
+  // Resolve location using multi-tier hierarchy
+  const effective = resolveEffectiveLocation(current, clinic)
+  const effectiveLat = asyncResolvedCoords?.lat ?? effective.lat ?? 30.1294522
+  const effectiveLng = asyncResolvedCoords?.lng ?? effective.lng ?? 31.2485622
+  const effectiveAddress = effective.address
+  const effectiveDirectionsUrl = effective.directionsUrl
+  const effectiveMapsLink = effective.mapsLink
+
+  // Attempt async resolution if coordinates are completely missing
+  useEffect(() => {
+    if (effective.lat !== null && effective.lng !== null) {
+      setAsyncResolvedCoords(null)
+      return
+    }
+
+    let isMounted = true
+    const resolveAsync = async () => {
+      try {
+        const queryParam = current?.mapsLink || clinic?.mapsLink
+        const addrParam = effectiveAddress
+        const res = await fetch(
+          `/api/resolve-maps-coords?${queryParam ? `url=${encodeURIComponent(queryParam)}` : `address=${encodeURIComponent(addrParam)}`}`
+        )
+        const data = await res.json()
+        if (data.success && typeof data.lat === 'number' && typeof data.lng === 'number' && isMounted) {
+          setAsyncResolvedCoords({ lat: data.lat, lng: data.lng })
+        }
+      } catch (e) {}
+    }
+
+    resolveAsync()
+    return () => {
+      isMounted = false
+    }
+  }, [current?.mapsLink, clinic?.mapsLink, effectiveAddress, effective.lat, effective.lng])
+
+  // Safe Google Maps Embed Query for iFrame fallback
+  const iframeEmbedUrl = `https://maps.google.com/maps?q=${effectiveLat},${effectiveLng}&t=&z=16&ie=UTF8&iwloc=&output=embed`
 
   const handleCopyAddress = () => {
-    if (!currentAddress) return
-    navigator.clipboard.writeText(currentAddress)
+    if (!effectiveAddress) return
+    navigator.clipboard.writeText(effectiveAddress)
     setIsCopied(true)
     toast.success('تم نسخ عنوان العيادة إلى الحافظة بنجاح')
     setTimeout(() => setIsCopied(false), 2000)
   }
 
   const handleShareLocation = async () => {
-    const text = `📍 موقع ${clinic?.clinicName || 'العيادة'}:\n${current?.name} - ${currentAddress}\nرابط خرائط جوجل:\n${currentMapsLink}`
+    const text = `📍 موقع ${clinic?.clinicName || 'العيادة'}:\n${current?.name || 'الفرع الرئيسي'} - ${effectiveAddress}\nرابط خرائط جوجل:\n${effectiveMapsLink}`
     if (navigator.share) {
       try {
         await navigator.share({
           title: `موقع ${clinic?.clinicName || 'العيادة'}`,
           text: text,
-          url: currentMapsLink
+          url: effectiveMapsLink
         })
       } catch (e) {}
     } else {
@@ -218,7 +233,7 @@ export function ClinicLocationMap({
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
               </span>
-              <span>نظام الملاحة الذكي للعيادة</span>
+              <span>نظام الملاحة الذكي للعيادة (GPS مباشر)</span>
             </div>
             <h3 className="text-lg font-black tracking-tight pt-1">
               {clinic?.clinicName || 'عيادة الطبيب المعالج'}
@@ -232,7 +247,7 @@ export function ClinicLocationMap({
             whileHover={{ scale: 1.08, rotate: 6 }}
             className="w-12 h-12 rounded-2xl bg-white/15 backdrop-blur-md border border-white/25 flex items-center justify-center shrink-0 shadow-inner"
           >
-            <Compass className="w-6 h-6 text-white animate-spin-slow" />
+            <Compass className="w-6 h-6 text-white" />
           </motion.div>
         </div>
 
@@ -259,7 +274,7 @@ export function ClinicLocationMap({
           {branches.map((b) => {
             const isSelected = selectedBranch?.id === b.id || selectedBranch?.name === b.name
             const isPatientBranch =
-              patientUpcomingAppt?.branchName && b.name.includes(patientUpcomingAppt.branchName)
+              patientUpcomingAppt?.branchName && b.name?.includes(patientUpcomingAppt.branchName)
 
             return (
               <motion.button
@@ -267,7 +282,6 @@ export function ClinicLocationMap({
                 whileTap={{ scale: 0.95 }}
                 onClick={() => {
                   setSelectedBranch(b)
-                  setMapLoaded(false)
                 }}
                 className={`py-2 px-3.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer border ${
                   isSelected
@@ -290,72 +304,81 @@ export function ClinicLocationMap({
 
       {/* Interactive Map Frame Card */}
       <div className="relative rounded-[28px] overflow-hidden bg-slate-900 border border-sky-200 dark:border-slate-700 shadow-lg">
-        {/* Map Top Bar */}
-        <div className="bg-slate-950/85 backdrop-blur-md px-4 py-2.5 flex items-center justify-between border-b border-white/10 z-10 relative">
+        {/* Map Top Bar with Mode Switcher */}
+        <div className="bg-slate-950/90 backdrop-blur-md px-4 py-2.5 flex items-center justify-between border-b border-white/10 z-10 relative flex-wrap gap-2">
           <div className="flex items-center gap-2 truncate">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
             <span className="text-xs font-bold text-white truncate">
-              خريطة: {current?.name || 'مقر العيادة'}
+              موقع: {current?.name || 'مقر العيادة'}
             </span>
           </div>
 
-          <a
-            href={currentMapsLink}
-            target="_blank"
-            rel="noreferrer"
-            className="text-[11px] font-bold text-sky-400 hover:text-sky-300 flex items-center gap-1 transition-colors shrink-0"
-          >
-            <span>تكبير الخريطة</span>
-            <ExternalLink className="w-3 h-3" />
-          </a>
-        </div>
-
-        {/* Embedded Map iFrame */}
-        <div className="relative w-full h-64 sm:h-72 bg-slate-950">
-          <iframe
-            title={`خريطة موقع ${current?.name}`}
-            src={embedUrl}
-            onLoad={() => setMapLoaded(true)}
-            width="100%"
-            height="100%"
-            style={{ border: 0, filter: 'contrast(1.05) saturate(1.1)' }}
-            allowFullScreen={false}
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-            className="w-full h-full"
-          />
-
-          {/* Floating Live Radar Pin Animation Overlay */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
-            <div className="relative flex items-center justify-center">
-              {/* Radar pulse rings */}
-              <div className="w-20 h-20 rounded-full bg-sky-500/25 animate-ping absolute" />
-              <div className="w-12 h-12 rounded-full bg-sky-400/35 animate-pulse absolute" />
-              
-              {/* Center Pin Badge */}
-              <div className="relative z-10 flex flex-col items-center">
-                <div className="px-3 py-1.5 rounded-xl bg-slate-950/90 text-white text-[11px] font-black shadow-xl border border-sky-400/50 flex items-center gap-1.5 whitespace-nowrap">
-                  <MapPin className="w-3.5 h-3.5 text-rose-500 fill-rose-500 animate-bounce" />
-                  <span>{current?.name}</span>
-                </div>
-                <div className="w-2 h-2 bg-slate-950 rotate-45 -mt-1 border-r border-b border-sky-400/50" />
-              </div>
+          <div className="flex items-center gap-2">
+            {/* View Mode Toggle */}
+            <div className="flex items-center bg-slate-800 p-0.5 rounded-lg border border-white/10 text-[10px]">
+              <button
+                type="button"
+                onClick={() => setMapViewMode('interactive')}
+                className={`px-2 py-1 rounded-md font-bold transition-colors cursor-pointer ${
+                  mapViewMode === 'interactive'
+                    ? 'bg-sky-600 text-white'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                خريطة تفاعلية (سكرول)
+              </button>
+              <button
+                type="button"
+                onClick={() => setMapViewMode('iframe')}
+                className={`px-2 py-1 rounded-md font-bold transition-colors cursor-pointer ${
+                  mapViewMode === 'iframe'
+                    ? 'bg-sky-600 text-white'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                إطار Google
+              </button>
             </div>
-          </div>
 
-          {/* Direct Navigation Floating Button */}
-          <motion.a
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.96 }}
-            href={directionsUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="absolute bottom-3 right-3 left-3 sm:left-auto py-2.5 px-4 rounded-2xl bg-gradient-to-r from-[#0066dc] to-[#00a8e8] text-white font-black text-xs flex items-center justify-center gap-2 shadow-xl hover:shadow-2xl transition-all cursor-pointer z-10"
-          >
-            <Navigation className="w-4 h-4 text-white animate-pulse" />
-            <span>ابدأ الملاحة خطوة بخطوة (GPS)</span>
-          </motion.a>
+            <a
+              href={effectiveMapsLink}
+              target="_blank"
+              rel="noreferrer"
+              className="text-[11px] font-bold text-sky-400 hover:text-sky-300 flex items-center gap-1 transition-colors shrink-0"
+            >
+              <span>تكبير</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
         </div>
+
+        {/* Map Render Mode */}
+        {mapViewMode === 'interactive' ? (
+          <InteractiveClinicMap
+            lat={effectiveLat}
+            lng={effectiveLng}
+            clinicName={clinic?.clinicName || 'عيادة الطبيب'}
+            branchName={current?.name}
+            address={effectiveAddress}
+            directionsUrl={effectiveDirectionsUrl}
+            googleMapsUrl={effectiveMapsLink}
+            height="h-72 sm:h-80"
+          />
+        ) : (
+          <div className="relative w-full h-72 sm:h-80 bg-slate-950">
+            <iframe
+              title={`خريطة موقع ${current?.name}`}
+              src={iframeEmbedUrl}
+              width="100%"
+              height="100%"
+              style={{ border: 0 }}
+              allowFullScreen={false}
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              className="w-full h-full"
+            />
+          </div>
+        )}
       </div>
 
       {/* Branch Detailed Information Card */}
@@ -372,7 +395,7 @@ export function ClinicLocationMap({
             <div>
               <span className="text-[11px] font-bold text-slate-400 block">العنوان الدقيق:</span>
               <p className="text-xs font-black text-slate-800 dark:text-white leading-relaxed mt-0.5">
-                {currentAddress}
+                {effectiveAddress}
               </p>
               {current?.landmark && (
                 <span className="inline-block text-[10px] text-sky-600 dark:text-sky-400 font-bold mt-1 bg-sky-50 dark:bg-sky-950/60 px-2 py-0.5 rounded-md">
@@ -416,13 +439,13 @@ export function ClinicLocationMap({
           <motion.a
             whileHover={{ y: -2 }}
             whileTap={{ scale: 0.96 }}
-            href={directionsUrl}
+            href={effectiveDirectionsUrl}
             target="_blank"
             rel="noreferrer"
             className="py-2.5 px-2 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-extrabold flex flex-col items-center justify-center gap-1 shadow-sm transition-all text-center"
           >
             <Navigation className="w-4 h-4" />
-            <span>الاتجاهات</span>
+            <span>الاتجاهات (GPS)</span>
           </motion.a>
 
           {/* 2. WhatsApp Location */}
@@ -430,7 +453,7 @@ export function ClinicLocationMap({
             whileHover={{ y: -2 }}
             whileTap={{ scale: 0.96 }}
             href={`https://wa.me/${whatsappNum}?text=${encodeURIComponent(
-              `مرحباً، أود الاستفسار عن تفاصيل الوصول وموقع العيادة (${current?.name}) - العنوان: ${currentAddress}`
+              `مرحباً، أود الاستفسار عن تفاصيل الوصول وموقع العيادة (${current?.name || 'العيادة'}) - العنوان: ${effectiveAddress}`
             )}`}
             target="_blank"
             rel="noreferrer"
