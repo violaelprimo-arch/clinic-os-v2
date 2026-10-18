@@ -72,7 +72,7 @@ export default function RootLayout({
               (function() {
                 try {
                   var t = localStorage.getItem('clinic_os_theme');
-                  if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                  if (t === 'dark') {
                     document.documentElement.classList.add('dark');
                     document.documentElement.style.colorScheme = 'dark';
                   } else {

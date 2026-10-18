@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { db } from '@/lib/firebase'
-import { collection, query, where, getDocs, addDoc, onSnapshot } from 'firebase/firestore'
+import { collection, query, where, getDocs, addDoc, onSnapshot, doc, deleteDoc } from 'firebase/firestore'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -21,7 +21,7 @@ import { exportPatientsToExcel } from '@/lib/excelExport'
 import { printHtmlViaIframe, generatePatientsReportHtml } from '@/lib/printService'
 import { useLanguage } from '@/context/LanguageContext'
 import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
-import { cleanPhoneForWhatsApp, validatePhoneNumber, DEFAULT_COUNTRY, CountryInfo } from '@/lib/countryPhoneHelper'
+import { cleanPhoneForWhatsApp, validatePhoneNumber, DEFAULT_COUNTRY, CountryInfo, getPhoneSearchVariants } from '@/lib/countryPhoneHelper'
 
 export default function PatientsPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -230,38 +230,104 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
   
   const handleDeleteAllPatients = async () => {
     if (!confirm('هل أنت متأكد من حذف جميع المرضى من السجل بشكل نهائي؟ لا يمكن التراجع عن هذا الإجراء.')) return
-    if (!confirm('تأكيد أخير: هل تريد مسح كل السجلات فعلاً؟')) return
+    if (!confirm('تأكيد أخير: سيتم مسح جميع سجلات المرضى والروشتات وحسابات المرضى والزيارات بالكامل. هل تريد المتابعة؟')) return
 
     try {
-      if (clinicId) {
-        const { deleteDoc, doc } = await import('firebase/firestore')
-        const q = query(collection(db, 'appointments'), where('clinic_id', '==', clinicId))
-        const snap = await getDocs(q)
-        for (const document of snap.docs) {
-          await deleteDoc(doc(db, 'appointments', document.id))
+      const targetClinicIds = Array.from(new Set([clinicId, slug].filter(Boolean) as string[]))
+
+      for (const cId of targetClinicIds) {
+        // 1. Delete all appointments
+        const apptSnap = await getDocs(query(collection(db, 'appointments'), where('clinic_id', '==', cId)))
+        for (const docSnap of apptSnap.docs) {
+          await deleteDoc(doc(db, 'appointments', docSnap.id))
+        }
+
+        // 2. Delete all prescriptions
+        const rxSnap = await getDocs(query(collection(db, 'prescriptions'), where('clinic_id', '==', cId)))
+        for (const docSnap of rxSnap.docs) {
+          await deleteDoc(doc(db, 'prescriptions', docSnap.id))
+        }
+
+        // 3. Delete all patient accounts
+        const paSnap = await getDocs(query(collection(db, 'patient_accounts'), where('clinic_id', '==', cId)))
+        for (const docSnap of paSnap.docs) {
+          await deleteDoc(doc(db, 'patient_accounts', docSnap.id))
+        }
+
+        // 4. Delete patient notifications
+        const notifSnap = await getDocs(query(
+          collection(db, 'notifications'),
+          where('clinicId', '==', cId),
+          where('recipientType', '==', 'patient')
+        ))
+        for (const docSnap of notifSnap.docs) {
+          await deleteDoc(doc(db, 'notifications', docSnap.id))
         }
       }
+
       setPatients([])
-      toast.success('تم مسح جميع المرضى من السجل بنجاح')
+      toast.success('تم مسح جميع المرضى وسجلات الروشتات والحسابات والزيارات بنجاح')
     } catch (err) {
+      console.error(err)
       toast.error('حدث خطأ أثناء المسح')
     }
   }
 
   const handleDeletePatient = async (phone: string, name: string) => {
-    if (!confirm(`هل أنت متأكد من حذف المريض ${name} وجميع زياراته؟`)) return
+    if (!confirm(`هل أنت متأكد من حذف المريض ${name} وجميع زياراته وروشتاته وحسابه نهائياً؟`)) return
     try {
-      if (clinicId) {
-        const { deleteDoc, doc } = await import('firebase/firestore')
-        const q = query(collection(db, 'appointments'), where('clinic_id', '==', clinicId), where('phone', '==', phone))
-        const snap = await getDocs(q)
-        for (const document of snap.docs) {
-          await deleteDoc(doc(db, 'appointments', document.id))
+      const targetClinicIds = Array.from(new Set([clinicId, slug].filter(Boolean) as string[]))
+      const phoneVariants = getPhoneSearchVariants(phone)
+      const searchPhones = phoneVariants.length > 0 ? phoneVariants.slice(0, 10) : [phone]
+
+      for (const cId of targetClinicIds) {
+        // 1. Delete patient appointments
+        const apptSnap = await getDocs(query(
+          collection(db, 'appointments'),
+          where('clinic_id', '==', cId),
+          where('phone', 'in', searchPhones)
+        ))
+        for (const docSnap of apptSnap.docs) {
+          await deleteDoc(doc(db, 'appointments', docSnap.id))
+        }
+
+        // 2. Delete patient prescriptions
+        const rxSnap = await getDocs(query(
+          collection(db, 'prescriptions'),
+          where('clinic_id', '==', cId),
+          where('patientPhone', 'in', searchPhones)
+        ))
+        for (const docSnap of rxSnap.docs) {
+          await deleteDoc(doc(db, 'prescriptions', docSnap.id))
+        }
+
+        // 3. Delete patient account
+        const paSnap = await getDocs(query(
+          collection(db, 'patient_accounts'),
+          where('clinic_id', '==', cId),
+          where('phone', 'in', searchPhones)
+        ))
+        for (const docSnap of paSnap.docs) {
+          await deleteDoc(doc(db, 'patient_accounts', docSnap.id))
+        }
+
+        // 4. Delete patient notifications
+        for (const p of searchPhones) {
+          const notifSnap = await getDocs(query(
+            collection(db, 'notifications'),
+            where('clinicId', '==', cId),
+            where('recipientTarget', '==', p)
+          ))
+          for (const docSnap of notifSnap.docs) {
+            await deleteDoc(doc(db, 'notifications', docSnap.id))
+          }
         }
       }
+
       setPatients(prev => prev.filter(p => p.phone !== phone))
-      toast.success('تم حذف المريض بنجاح')
+      toast.success(`تم حذف المريض ${name} وكافة سجلاته بنجاح`)
     } catch (err) {
+      console.error(err)
       toast.error('حدث خطأ أثناء الحذف')
     }
   }

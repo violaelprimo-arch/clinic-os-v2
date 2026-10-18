@@ -19,15 +19,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setMounted(true)
     const storedTheme = localStorage.getItem('clinic_os_theme') as Theme | null
-    if (storedTheme === 'dark' || storedTheme === 'light') {
-      setThemeState(storedTheme)
-      applyTheme(storedTheme)
+    if (storedTheme === 'dark') {
+      setThemeState('dark')
+      applyTheme('dark')
     } else {
-      // Check system preference
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-      const initialTheme = prefersDark ? 'dark' : 'light'
-      setThemeState(initialTheme)
-      applyTheme(initialTheme)
+      setThemeState('light')
+      applyTheme('light')
     }
   }, [])
 

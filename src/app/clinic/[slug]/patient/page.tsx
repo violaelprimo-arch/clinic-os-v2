@@ -217,6 +217,14 @@ export default function PatientPortalPage() {
               }
             } catch (e) {}
           }
+        } else if (appts.length === 0) {
+          // Both account and appointments are missing (wiped by clinic)
+          try {
+            localStorage.removeItem('patient_auth')
+          } catch (e) {}
+          toast.info('تم إنهاء الجلسة لتحديث أو مسح سجلات العيادة، يرجى تسجيل الدخول أو إنشاء حساب جديد')
+          router.push(`/clinic/${slug}/patient/login`)
+          return
         }
       } catch (err) {
         console.error('Error loading patient records:', err)
@@ -392,6 +400,7 @@ export default function PatientPortalPage() {
 
   const upcomingAppointments = appointments.filter((a) => a.status !== 'completed' && a.status !== 'cancelled')
   const completedAppointments = appointments.filter((a) => a.status === 'completed')
+  const invoiceAppointments = appointments.filter((a) => a.status !== 'cancelled')
 
   if (loading) {
     return (
@@ -530,7 +539,7 @@ export default function PatientPortalPage() {
           {[
             { id: 'appointments', label: 'مواعيدي', Icon: CalendarCheck, count: upcomingAppointments.length },
             { id: 'prescriptions', label: 'روشتاتي', Icon: FileText, count: prescriptions.length },
-            { id: 'invoices', label: 'فواتيري', Icon: Receipt, count: completedAppointments.length },
+            { id: 'invoices', label: 'فواتيري', Icon: Receipt, count: invoiceAppointments.length },
             { id: 'medical', label: 'ملفي الطبي', Icon: ClipboardList },
             { id: 'location', label: 'الخريطة', Icon: MapPin }
           ].map(({ id, label, Icon, count }) => {
@@ -788,14 +797,16 @@ export default function PatientPortalPage() {
           <div className="space-y-3">
             <h4 className="font-black text-slate-900 dark:text-white text-sm">الفواتير وسندات الدفع</h4>
 
-            {completedAppointments.length === 0 ? (
+            {invoiceAppointments.length === 0 ? (
               <div className="p-8 text-center bg-white dark:bg-slate-800/90 rounded-[24px] border border-sky-100 dark:border-slate-700 space-y-2">
                 <Receipt className="w-10 h-10 text-slate-300 mx-auto" />
-                <p className="text-xs font-bold text-slate-600 dark:text-slate-300">لا توجد فواتير صادرة حتى الآن</p>
-                <p className="text-[11px] text-slate-400">تظهر الإيصالات الإلكترونية هنا بعد تأكيد دفع الكشف بالعيادة.</p>
+                <p className="text-xs font-bold text-slate-600 dark:text-slate-300">لا توجد فواتير أو حجوزات مسجلة حتى الآن</p>
+                <p className="text-[11px] text-slate-400">تظهر الإيصالات الإلكترونية وفواتير الكشف هنا فور تأكيد أي حجز بالعيادة.</p>
               </div>
             ) : (
-              completedAppointments.map((appt) => {
+              invoiceAppointments.map((appt) => {
+                const isPaid = appt.paymentStatus === 'paid' || appt.status === 'completed'
+                const isPendingVerification = appt.paymentStatus === 'pending_verification'
                 const invData: InvoiceData = {
                   invoiceNumber: appt.invoiceNumber || `INV-${appt.id.slice(0, 8).toUpperCase()}`,
                   clinicName: clinic?.clinicName || 'العيادة الطبية',
@@ -805,13 +816,13 @@ export default function PatientPortalPage() {
                   clinicPhone: clinic?.clinicPhone,
                   patientName: appt.patientName || patientName,
                   patientPhone: appt.phone || patientPhone,
-                  date: appt.date,
+                  date: appt.date || new Date().toISOString().split('T')[0],
                   serviceName: appt.serviceName || 'كشف طبي',
                   servicePrice: Number(appt.servicePrice) || 250,
                   discount: Number(appt.discountApplied) || 0,
                   netTotal: Number(appt.netTotal) || Number(appt.servicePrice) || 250,
                   paymentMethod: appt.paymentMethod || 'cash',
-                  paymentStatus: (appt.paymentStatus === 'paid' ? 'paid' : 'pending') as any,
+                  paymentStatus: (isPaid ? 'paid' : 'pending') as any,
                   appointmentId: appt.id,
                   queueNumber: appt.queue_number
                 }
@@ -827,22 +838,28 @@ export default function PatientPortalPage() {
                           فاتورة #{invData.invoiceNumber}
                         </div>
                         <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                          {appt.date} • {appt.serviceName || 'كشف'}
+                          {appt.date} • {appt.serviceName || 'كشف'} {appt.branchName ? `(${appt.branchName})` : ''}
                         </div>
                       </div>
                       <div className="text-left">
                         <span className="font-black text-sm text-sky-600 dark:text-sky-400 font-mono">
                           {invData.netTotal} ج.م
                         </span>
-                        <span className="block text-[10px] text-emerald-600 font-bold">
-                          {appt.paymentStatus === 'paid' ? 'تم السداد' : 'سداد نقدي بالعيادة'}
+                        <span className={`block text-[10px] font-bold ${
+                          isPaid
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : isPendingVerification
+                            ? 'text-amber-600 dark:text-amber-400'
+                            : 'text-sky-600 dark:text-sky-400'
+                        }`}>
+                          {isPaid ? 'تم السداد' : isPendingVerification ? 'بانتظار تأكيد التحويل' : 'سداد نقدي بالعيادة'}
                         </span>
                       </div>
                     </div>
 
                     <button
                       onClick={() => setSelectedInvoice(invData)}
-                      className="w-full py-2.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-sky-50 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-slate-600 font-extrabold text-xs transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="w-full py-2.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-sky-50 dark:hover:bg-slate-700 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-slate-600 font-extrabold text-xs transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <Receipt className="w-3.5 h-3.5" />
                       <span>عرض وطباعة الفاتورة PDF</span>
