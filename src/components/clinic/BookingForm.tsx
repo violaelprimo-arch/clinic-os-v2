@@ -245,8 +245,9 @@ export function BookingForm({
     const maxLimit = Number(selectedBranch?.maxDailyBookings || clinic?.maxDailyBookings) || 0
     const isTodayOnly = clinic?.bookingAvailability === 'today_only' || clinic?.allowFutureBookings === false
 
-    // Scan up to 14 days ahead (or 1 day only if today_only is configured)
-    const maxDaysToScan = isTodayOnly ? 1 : 14
+    // Scan up to 14 days ahead (or 7 days if today_only is configured to find nearest working day if today is closed)
+    const maxDaysToScan = isTodayOnly ? 7 : 14
+    const targetCount = isTodayOnly ? 1 : 6
     for (let i = 0; i < maxDaysToScan; i++) {
       const d = new Date()
       d.setDate(d.getDate() + i)
@@ -283,8 +284,20 @@ export function BookingForm({
 
       list.push({ iso, label, formattedDate })
 
-      // Show up to 6 active available days
-      if (list.length >= 6) break
+      // Show up to targetCount active available days
+      if (list.length >= targetCount) break
+    }
+
+    // Safety fallback: if list is empty, provide today
+    if (list.length === 0) {
+      const d = new Date()
+      const year = d.getFullYear()
+      const month = String(d.getMonth() + 1).padStart(2, '0')
+      const dayNum = String(d.getDate()).padStart(2, '0')
+      const iso = `${year}-${month}-${dayNum}`
+      const monthName = isRtl ? monthNamesAr[d.getMonth()] : monthNamesEn[d.getMonth()]
+      const formattedDate = isRtl ? `${d.getDate()} ${monthName}` : `${monthName} ${d.getDate()}`
+      list.push({ iso, label: isRtl ? 'اليوم' : 'Today', formattedDate })
     }
 
     return list

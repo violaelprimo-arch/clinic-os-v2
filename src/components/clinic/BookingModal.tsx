@@ -61,38 +61,20 @@ export function BookingModal({
   // Step 1: Branch, 2: Service, 3: Date & Queue Estimate, 4: Patient Info, 5: Payment, 6: Review
   const [step, setStep] = useState<number>(1)
 
-  // Default medical branch images (Hospital/Clinic building, NOT doctor photo)
-  const defaultBranches = [
-    {
-      id: 'main',
-      name: 'الفرع الرئيسي',
-      sub: 'المقر الرئيسي',
-      address: clinic?.clinicAddress || 'مقر العيادة الرئيسي',
-      image: clinic?.branchImage || clinic?.clinicPhoto || 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=600&auto=format&fit=crop',
-      available: true
-    },
-    {
-      id: 'tagamoa',
-      name: 'التجمع الخامس',
-      sub: 'التجمع الخامس',
-      address: 'التجمع الخامس - القاهرة الجديدة',
-      image: 'https://images.unsplash.com/photo-1586773860418-d37222d8fce3?q=80&w=600&auto=format&fit=crop',
-      available: true
-    },
-    {
-      id: 'zayed',
-      name: 'الشيخ زايد',
-      sub: 'الشيخ زايد',
-      address: 'الشيخ زايد - الجيزة',
-      image: 'https://images.unsplash.com/photo-1538108149393-fbbd81895907?q=80&w=600&auto=format&fit=crop',
-      available: true
-    }
-  ]
-
   const fallbackMainImage =
     clinic?.branchImage ||
     clinic?.clinicPhoto ||
     'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=600&auto=format&fit=crop'
+
+  // Default fallback branch (Single main clinic branch - never inject fake dummy branches!)
+  const defaultMainBranch = {
+    id: 'main',
+    name: clinic?.clinicName || 'الفرع الرئيسي',
+    sub: 'المقر الرئيسي',
+    address: clinic?.clinicAddress || 'مقر العيادة الرئيسي',
+    image: fallbackMainImage,
+    available: true
+  }
 
   // Pre-calculate initial branches synchronously for instant 0ms rendering
   const computeInitialBranches = () => {
@@ -108,7 +90,7 @@ export function BookingModal({
         image: b.image || b.imageUrl || fallbackMainImage
       }))
     }
-    return defaultBranches
+    return [defaultMainBranch]
   }
 
   const [branches, setBranches] = useState<any[]>(computeInitialBranches)
@@ -200,7 +182,8 @@ export function BookingModal({
     ]
 
     const branchSchedule = selectedBranch?.weeklySchedule || clinic?.weeklySchedule || []
-    const maxDaysToScan = isTodayOnly ? 1 : 14
+    // If today_only is enabled, scan up to 7 days to find the nearest working day if today is a scheduled off-day
+    const maxDaysToScan = isTodayOnly ? 7 : 14
     const targetCount = isTodayOnly ? 1 : 6
     const now = new Date()
 
@@ -238,10 +221,40 @@ export function BookingModal({
 
       if (list.length >= targetCount) break
     }
+
+    // Ultimate fallback: if all days were filtered out by schedule, always provide today's slot
+    if (list.length === 0) {
+      const d = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+      const iso = d.toISOString().split('T')[0]
+      const dayIndex = d.getDay()
+      const dayName = dayNamesAr[dayIndex]
+      const dayNum = d.getDate()
+      const monthName = monthNamesAr[d.getMonth()]
+      list.push({
+        iso,
+        label: 'اليوم',
+        subLabel: `${dayNum} ${monthName}`,
+        isFull: false
+      })
+    }
+
     return list
   }, [dailyBookingCounts, maxLimit, isTodayOnly, selectedBranch?.weeklySchedule, clinic?.weeklySchedule])
 
   const [selectedDate, setSelectedDate] = useState<string>('')
+
+  // Auto-select first available date whenever availableDays updates
+  useEffect(() => {
+    if (availableDays.length > 0) {
+      const isCurrentSelectedValid = availableDays.some(d => d.iso === selectedDate && !d.isFull)
+      if (!isCurrentSelectedValid) {
+        const firstAvailable = availableDays.find(d => !d.isFull) || availableDays[0]
+        if (firstAvailable) {
+          setSelectedDate(firstAvailable.iso)
+        }
+      }
+    }
+  }, [availableDays, selectedDate])
 
   // Load daily counts for available days to enforce maxDailyBookings
   useEffect(() => {
@@ -250,7 +263,7 @@ export function BookingModal({
 
     const branchSchedule = selectedBranch?.weeklySchedule || clinic?.weeklySchedule || []
     const dayKeys = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-    const maxDaysToScan = isTodayOnly ? 1 : 14
+    const maxDaysToScan = isTodayOnly ? 7 : 14
     const targetCount = isTodayOnly ? 1 : 6
     const now = new Date()
     const daysToScan: string[] = []
@@ -271,6 +284,11 @@ export function BookingModal({
 
       daysToScan.push(iso)
       if (daysToScan.length >= targetCount) break
+    }
+
+    if (daysToScan.length === 0) {
+      const d = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+      daysToScan.push(d.toISOString().split('T')[0])
     }
 
     Promise.all(
@@ -730,7 +748,7 @@ export function BookingModal({
             {step === 1 && (
               <div className="space-y-4">
                 <h4 className="text-center font-extrabold text-slate-800 dark:text-slate-100 text-sm">اختر الفرع المناسب</h4>
-                <div className="grid grid-cols-3 gap-2.5">
+                <div className={`grid ${branches.length === 1 ? 'grid-cols-1 max-w-[240px] mx-auto' : branches.length === 2 ? 'grid-cols-2 max-w-[360px] mx-auto' : 'grid-cols-3'} gap-2.5`}>
                   {branches.map((b: any) => {
                     const isSelected = selectedBranch?.id === b.id || selectedBranch?.name === b.name
                     return (
