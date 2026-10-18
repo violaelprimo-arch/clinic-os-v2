@@ -8,7 +8,7 @@ import {
   formatEstimatedTime
 } from '@/lib/queueCalculations'
 import { checkAndTriggerQueuePositionAlert, playNotificationSound } from '@/lib/notificationService'
-import { doc, onSnapshot, collection, query, where } from 'firebase/firestore'
+import { doc, getDoc, onSnapshot, collection, query, where } from 'firebase/firestore'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -35,6 +35,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
   const [allQueueAppts, setAllQueueAppts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [clinic, setClinic] = useState<any>(null)
+  const [branchData, setBranchData] = useState<any>(null)
   const [showInvoiceModal, setShowInvoiceModal] = useState(false)
 
   useEffect(() => {
@@ -53,6 +54,15 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
       if (docSnap.exists()) {
         const apptData = { id: docSnap.id, ...docSnap.data() } as any
         setAppointment(apptData)
+
+        // Fetch branch data for isolated duration
+        if (apptData.branch_id) {
+          getDoc(doc(db, 'branches', apptData.branch_id)).then((bSnap) => {
+            if (bSnap.exists()) {
+              setBranchData({ id: bSnap.id, ...bSnap.data() })
+            }
+          }).catch(() => {})
+        }
 
         // 3. Listen to today's branch queue live
         if (unsubQueue) {
@@ -171,7 +181,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
   const isSkippedOrNoShow = liveQueue.status === 'skipped' || liveQueue.status === 'no_show'
   const isCancelled = liveQueue.status === 'cancelled'
 
-  const avgVisitMins = liveQueue.averageVisitMins || Number(clinic?.averageVisitTime) || 15
+  const avgVisitMins = branchData?.slotDuration || branchData?.averageVisitTime || liveQueue.averageVisitMins || Number(clinic?.averageVisitTime) || 15
   const totalWaitMins = Math.max(0, liveQueue.aheadCount * avgVisitMins)
 
   const formatWaitText = (mins: number) => {

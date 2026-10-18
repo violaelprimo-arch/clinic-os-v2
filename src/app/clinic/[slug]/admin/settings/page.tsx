@@ -118,8 +118,11 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
   // Assistants & Permissions
   const [assistants, setAssistants] = useState<any[]>([])
+  const [newAssistantName, setNewAssistantName] = useState('')
   const [newAssistantEmail, setNewAssistantEmail] = useState('')
   const [newAssistantPassword, setNewAssistantPassword] = useState('')
+  const [newAssistantBranchId, setNewAssistantBranchId] = useState('')
+  const [branches, setBranches] = useState<any[]>([])
   const [assistantPermissions, setAssistantPermissions] = useState<string[]>(['appointments'])
 
   // AI Config & Toggle
@@ -207,6 +210,19 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           setAssistants(data.assistants || [])
           if (data.services && data.services.length > 0) {
             setServices(data.services)
+          }
+
+          // Fetch clinic branches for assistant assignment
+          try {
+            const bQ = query(collection(db, 'branches'), where('clinicId', '==', cDoc.id))
+            const bSnap = await getDocs(bQ)
+            const bList = bSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter((b: any) => !b.isArchived)
+            setBranches(bList)
+            if (bList.length > 0) {
+              setNewAssistantBranchId(bList[0].id)
+            }
+          } catch (bErr) {
+            console.warn('Error fetching branches in settings:', bErr)
           }
         }
       } catch (err) {
@@ -354,15 +370,20 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
     if (!newAssistantEmail.trim() || !newAssistantPassword.trim()) {
       return toast.error('يرجى إدخال البريد الإلكتروني وكلمة المرور')
     }
+    const targetBranch = branches.find(b => b.id === newAssistantBranchId) || branches[0]
     const newAss = {
       id: String(Date.now()),
-      email: newAssistantEmail,
-      password: newAssistantPassword
+      name: newAssistantName.trim() || 'مساعد العيادة',
+      email: newAssistantEmail.trim(),
+      password: newAssistantPassword.trim(),
+      branchId: targetBranch?.id || 'main',
+      branchName: targetBranch?.name || 'الفرع الرئيسي'
     }
     setAssistants([...assistants, newAss])
     setNewAssistantEmail('')
     setNewAssistantPassword('')
-    toast.success('تمت إضافة المساعد')
+    setNewAssistantName('')
+    toast.success(`تمت إضافة المساعد وتخصيصه لـ (${newAss.branchName})`)
   }
 
   const removeAssistant = (id: string) => {
@@ -1731,8 +1752,18 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           </div>
 
           {/* Add Assistant Form */}
-          <div className="flex flex-col sm:flex-row gap-3 items-end">
-            <div className="flex-1 space-y-1 w-full">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end p-4 bg-muted/30 rounded-2xl border border-border">
+            <div className="space-y-1">
+              <Label className="text-xs font-bold text-muted-foreground">{t('assistant_name', 'اسم المساعد')}</Label>
+              <Input
+                type="text"
+                value={newAssistantName}
+                onChange={e => setNewAssistantName(e.target.value)}
+                placeholder="مثال: أحمد مصطفى"
+                className="h-10 text-xs rounded-xl"
+              />
+            </div>
+            <div className="space-y-1">
               <Label className="text-xs font-bold text-muted-foreground">{t('assistant_email', 'بريد المساعد')}</Label>
               <Input
                 type="email"
@@ -1742,7 +1773,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                 className="h-10 text-xs rounded-xl"
               />
             </div>
-            <div className="flex-1 space-y-1 w-full">
+            <div className="space-y-1">
               <Label className="text-xs font-bold text-muted-foreground">{t('assistant_password', 'كلمة المرور')}</Label>
               <Input
                 type="password"
@@ -1752,13 +1783,32 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                 className="h-10 text-xs rounded-xl"
               />
             </div>
-            <Button
-              onClick={addAssistant}
-              className="h-10 px-5 text-xs font-bold yalla-gradient-btn text-white rounded-xl shadow-xs"
-            >
-              <Plus className={`w-4 h-4 ${isRtl ? 'ml-1' : 'mr-1'}`} />
-              {t('add_assistant', 'إضافة مساعد')}
-            </Button>
+            <div className="space-y-1">
+              <Label className="text-xs font-bold text-muted-foreground">{t('assistant_branch', 'الفرع المخصص للمساعد')}</Label>
+              <select
+                value={newAssistantBranchId}
+                onChange={e => setNewAssistantBranchId(e.target.value)}
+                className="w-full h-10 px-3 text-xs font-bold bg-background border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                {branches.length === 0 && (
+                  <option value="main">الفرع الرئيسي</option>
+                )}
+                {branches.map(b => (
+                  <option key={b.id} value={b.id}>
+                    {b.name || 'فرع العيادة'}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="sm:col-span-2 lg:col-span-4 flex justify-end pt-1">
+              <Button
+                onClick={addAssistant}
+                className="h-10 px-6 text-xs font-bold yalla-gradient-btn text-white rounded-xl shadow-xs"
+              >
+                <Plus className={`w-4 h-4 ${isRtl ? 'ml-1' : 'mr-1'}`} />
+                {t('add_assistant', 'إضافة مساعد وتخصيص الفرع')}
+              </Button>
+            </div>
           </div>
 
           {/* Assistants List */}
@@ -1766,8 +1816,13 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
             {assistants.map((ass) => (
               <div key={ass.id} className="py-3 flex items-center justify-between">
                 <div>
-                  <p className="font-bold text-xs text-foreground">{ass.email}</p>
-                  <span className="text-[10px] text-muted-foreground">{t('assistant_role_tag', 'صلاحية: مساعد عيادة')}</span>
+                  <div className="flex items-center gap-2">
+                    <p className="font-bold text-xs text-foreground">{ass.name ? `${ass.name} (${ass.email})` : ass.email}</p>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
+                      فرع: {ass.branchName || 'الفرع الرئيسي'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground mt-0.5 block">{t('assistant_role_tag', 'صلاحية: مساعد عيادة (مقيد بهذا الفرع فقط)')}</span>
                 </div>
                 <Button
                   size="icon"

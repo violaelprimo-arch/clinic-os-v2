@@ -10,6 +10,7 @@ import {
   onSnapshot
 } from 'firebase/firestore'
 import { ClinicNotification } from '@/types/clinic'
+import { getPhoneSearchVariants } from './countryPhoneHelper'
 
 let sharedAudioCtx: any = null
 
@@ -118,11 +119,15 @@ export async function createClinicNotification({
       }
     }
 
+    const targetClean = recipientType === 'patient' && recipientTarget
+      ? recipientTarget.trim().replace(/\s+/g, '')
+      : recipientTarget
+
     const docRef = await addDoc(collection(db, 'notifications'), {
       clinicId,
       branchId: branchId || null,
       recipientType,
-      recipientTarget,
+      recipientTarget: targetClean,
       title,
       body,
       type,
@@ -131,22 +136,6 @@ export async function createClinicNotification({
       isRead: false,
       createdAt: new Date().toISOString()
     })
-
-    // Play chime locally if permitted
-    playNotificationSound(type === 'turn_ready' ? 'turn_ready' : 'chime')
-
-    // Trigger browser Web Push or Notification API if permitted
-    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-      try {
-        new Notification(title, {
-          body,
-          icon: '/favicon.ico',
-          dir: 'rtl'
-        })
-      } catch (err) {
-        console.warn('Web notification display error:', err)
-      }
-    }
 
     return docRef.id
   } catch (err) {
@@ -174,14 +163,21 @@ export async function requestBrowserNotificationPermission(): Promise<boolean> {
 
 /**
  * Subscribes to real-time notifications for a recipient (patient phone).
+ * Strictly filters by recipientType === 'patient' and phone variants.
  */
 export function subscribeToRecipientNotifications(
   recipientTarget: string,
   onUpdate: (notifications: ClinicNotification[]) => void
 ) {
+  if (!recipientTarget) return () => {}
+  const cleanPhone = recipientTarget.trim().replace(/\s+/g, '')
+  const phoneVariants = getPhoneSearchVariants(cleanPhone)
+  const searchPhones = Array.from(new Set([cleanPhone, ...phoneVariants])).filter(Boolean).slice(0, 10)
+
   const q = query(
     collection(db, 'notifications'),
-    where('recipientTarget', '==', recipientTarget)
+    where('recipientType', '==', 'patient'),
+    where('recipientTarget', 'in', searchPhones)
   )
 
   return onSnapshot(
@@ -196,30 +192,30 @@ export function subscribeToRecipientNotifications(
       onUpdate(list)
     },
     (err) => {
-      console.warn('Notification snapshot warning:', err)
+      console.warn('Patient notification snapshot warning:', err)
     }
   )
 }
 
 /**
  * Comprehensive real-time subscription for Clinic Doctor / Staff bell.
- * Merges clinicId, slug, and staff target notifications.
+ * Strictly filters by recipientType in ['staff', 'doctor'] and optional branchId.
  */
 export function subscribeToClinicStaffNotifications(
   clinicId: string,
   slug: string,
-  onUpdate: (notifications: ClinicNotification[]) => void
+  onUpdate: (notifications: ClinicNotification[]) => void,
+  branchId?: string
 ) {
-  const targets = Array.from(new Set([clinicId, slug, 'all_staff'].filter(Boolean)))
   const notificationsMap = new Map<string, ClinicNotification>()
-
   const unsubscribers: (() => void)[] = []
 
   // 1. Listen by clinicId
   if (clinicId) {
     const q1 = query(
       collection(db, 'notifications'),
-      where('clinicId', '==', clinicId)
+      where('clinicId', '==', clinicId),
+      where('recipientType', 'in', ['staff', 'doctor'])
     )
     unsubscribers.push(
       onSnapshot(q1, (snap) => {
@@ -235,7 +231,8 @@ export function subscribeToClinicStaffNotifications(
   if (slug && slug !== clinicId) {
     const q2 = query(
       collection(db, 'notifications'),
-      where('clinicId', '==', slug)
+      where('clinicId', '==', slug),
+      where('recipientType', 'in', ['staff', 'doctor'])
     )
     unsubscribers.push(
       onSnapshot(q2, (snap) => {
@@ -247,27 +244,17 @@ export function subscribeToClinicStaffNotifications(
     )
   }
 
-  // 3. Listen by recipientTarget
-  targets.forEach((target) => {
-    const qTarget = query(
-      collection(db, 'notifications'),
-      where('recipientTarget', '==', target)
-    )
-    unsubscribers.push(
-      onSnapshot(qTarget, (snap) => {
-        snap.docs.forEach((d) => {
-          notificationsMap.set(d.id, { id: d.id, ...(d.data() as any) })
-        })
-        emitList()
-      }, (e) => console.warn('qTarget warn:', e))
-    )
-  })
-
   function emitList() {
-    const list = Array.from(notificationsMap.values())
-      // Only staff/doctor or clinic-level notifications
-      .filter((n) => n.recipientType === 'staff' || n.recipientType === 'doctor' || !n.recipientType)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    let list = Array.from(notificationsMap.values())
+      // Only staff/doctor notifications
+      .filter((n) => n.recipientType === 'staff' || n.recipientType === 'doctor')
+
+    // Branch isolation if selected
+    if (branchId && branchId !== 'all') {
+      list = list.filter((n) => !n.branchId || n.branchId === branchId)
+    }
+
+    list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     onUpdate(list)
   }
 

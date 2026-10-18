@@ -108,18 +108,34 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     return () => unsubscribe()
   }, [clinic?.id, selectedDashboardDate])
 
+  const [branches, setBranches] = useState<any[]>([])
+
+  // Subscribe to clinic branches
+  useEffect(() => {
+    if (!clinic?.id) return
+    const qB = query(collection(db, 'branches'), where('clinicId', '==', clinic.id))
+    const unsub = onSnapshot(qB, (snap) => {
+      setBranches(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
+    })
+    return () => unsub()
+  }, [clinic?.id])
+
   // Filter by selected branch
   const branchFilteredAppointments = useMemo(() => {
     if (!selectedBranchId || selectedBranchId === 'all') {
       return rawAppointments
     }
+    const currentBranchObj = branches.find(b => b.id === selectedBranchId)
+    const isMainBranchSelected = selectedBranchId === 'main' || currentBranchObj?.isMain
+
     return rawAppointments.filter(appt => {
-      if (appt.branch_id) {
-        return appt.branch_id === selectedBranchId
+      const apptBranch = appt.branch_id || appt.branchId
+      if (apptBranch) {
+        return apptBranch === selectedBranchId
       }
-      return selectedBranchId === 'main'
+      return isMainBranchSelected
     })
-  }, [rawAppointments, selectedBranchId])
+  }, [rawAppointments, selectedBranchId, branches])
 
   // Intelligent Queue Sorting adhering to clinic settings
   const bookings = useMemo(() => {
@@ -157,17 +173,23 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     )
   }, [bookings])
 
-  // Dynamic Average Visit Duration calculation from completed exams today
+  // Dynamic Average Visit Duration: strictly isolated per branch
   const dynamicAverageVisitTime = useMemo(() => {
-    const completedWithDuration = rawAppointments.filter(
+    const completedWithDuration = branchFilteredAppointments.filter(
       (a: any) => a.status === 'completed' && a.durationMinutes && a.durationMinutes > 0
     )
     if (completedWithDuration.length > 0) {
       const sum = completedWithDuration.reduce((acc: number, curr: any) => acc + Number(curr.durationMinutes), 0)
       return Math.round(sum / completedWithDuration.length)
     }
+
+    const currentBranchObj = branches.find(b => b.id === selectedBranchId)
+    if (currentBranchObj) {
+      return Number(currentBranchObj.slotDuration || currentBranchObj.averageVisitTime) || 15
+    }
+
     return Number(clinic?.averageVisitTime) || 15
-  }, [rawAppointments, clinic?.averageVisitTime])
+  }, [branchFilteredAppointments, selectedBranchId, branches, clinic?.averageVisitTime])
 
   // Check 5-patient threshold and trigger notification
   useEffect(() => {
@@ -457,17 +479,23 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
 
       await updateDoc(doc(db, 'appointments', patientId), updateData)
 
-      // Dynamically recalculate average visit time and update clinic document
+      // Dynamically recalculate average visit time for this branch only
       if (durationMinutes && clinic?.id) {
-        const allCompleted = rawAppointments
-          .filter(a => a.id !== patientId && a.status === 'completed' && a.durationMinutes)
-          .map(a => Number(a.durationMinutes))
-        allCompleted.push(durationMinutes)
-        const newAvg = Math.round(allCompleted.reduce((a, b) => a + b, 0) / allCompleted.length)
-        if (newAvg > 0) {
-          updateDoc(doc(db, 'clinics', clinic.id), {
-            averageVisitTime: newAvg
-          }).catch(() => {})
+        const targetAppt = rawAppointments.find(a => a.id === patientId)
+        const targetBranchId = targetAppt?.branch_id || targetAppt?.branchId || selectedBranchId
+
+        if (targetBranchId && targetBranchId !== 'all') {
+          const branchCompleted = rawAppointments
+            .filter(a => ((a.branch_id === targetBranchId || a.branchId === targetBranchId) || (!a.branch_id && !a.branchId && targetBranchId === 'main')) && a.id !== patientId && a.status === 'completed' && a.durationMinutes)
+            .map(a => Number(a.durationMinutes))
+          branchCompleted.push(durationMinutes)
+          const newAvg = Math.round(branchCompleted.reduce((a, b) => a + b, 0) / branchCompleted.length)
+          if (newAvg > 0) {
+            updateDoc(doc(db, 'branches', targetBranchId), {
+              slotDuration: newAvg,
+              averageVisitTime: newAvg
+            }).catch(() => {})
+          }
         }
       }
 
@@ -786,137 +814,6 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
           </div>
         )}
       </div>
-
-      {/* PENDING PAYMENTS SECTION: مدفوعات في انتظار التأكيد */}
-      {pendingPayments.length > 0 && (
-        <div className="yalla-card p-5 bg-amber-500/5 border-2 border-amber-500/30 rounded-2xl shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-amber-500/20">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black shadow-sm shrink-0">
-                <AlertCircle className="w-6 h-6" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-base text-foreground">
-                    {t('pending_payment', 'مدفوعات في انتظار التأكيد (انستاباي / محفظة)')}
-                  </h3>
-                  <Badge className="bg-amber-500 text-white font-bold text-xs">
-                    {pendingPayments.length} {t('transfer', 'تحويل')}
-                  </Badge>
-                </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {t('pending_payment_desc', 'يرجى مراجعة إشعار التحويل وصورة الإيصال وتأكيد الاستلام. التأكيد لا يغير ترتيب دور المريض.')}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid gap-3">
-            {pendingPayments.map((p) => {
-              const proofUrl = p.receiptProofUrl || p.receiptUrl
-              return (
-                <div
-                  key={p.id}
-                  className="p-4 bg-card border border-amber-500/20 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-2xs hover:border-amber-500/40 transition-colors"
-                >
-                  <div className="flex items-center gap-3.5 flex-1 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center font-black shrink-0 text-sm">
-                      #{p.queue_number || '--'}
-                    </div>
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-sm text-foreground">{p.patientName}</span>
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-secondary text-foreground">
-                          {tDynamic(p.serviceName)}
-                        </span>
-                        <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                          {p.servicePrice} {t('currency_egp', 'ج.م')}
-                        </span>
-                        {p.discount && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
-                            {t('discount', 'خصم')}: {p.discount.amount || p.discount.value} {p.discount.type === 'percentage' ? '%' : t('currency_egp', 'ج.م')}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-                        <span className="font-mono">{p.phone}</span>
-                        <span className="font-semibold text-amber-600 dark:text-amber-400">
-                          {t('transfer_method', 'طريقة التحويل')}: {p.paymentMethod === 'instapay' ? 'InstaPay' : tDynamic('محفظة إلكترونية')}
-                        </span>
-                        {p.transferNumber && (
-                          <span className="font-mono bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 text-amber-700 dark:text-amber-300 font-bold">
-                            {t('sender_number', 'رقم المحول منه')}: {p.transferNumber}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 flex-wrap self-end md:self-center">
-                    {/* View Proof Image Button */}
-                    {proofUrl && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setPreviewProofUrl(proofUrl)}
-                        className="h-8 px-2.5 text-xs font-bold text-primary border-primary/20 hover:bg-primary/10 rounded-xl"
-                      >
-                        <Eye className="w-3.5 h-3.5 ml-1 rtl:ml-1 ltr:mr-1" />
-                        {t('receipt_proof_img', 'صورة الإشعار')}
-                      </Button>
-                    )}
-
-                    {/* Confirm Payment Button */}
-                    <Button
-                      size="sm"
-                      onClick={() => handleConfirmPayment(p)}
-                      disabled={isProcessing}
-                      className="h-8 px-3 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs"
-                    >
-                      <Check className="w-3.5 h-3.5 ml-1 rtl:ml-1 ltr:mr-1" />
-                      {t('confirm_receipt', 'تأكيد الاستلام')}
-                    </Button>
-
-                    {/* Reject Payment Button */}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleRejectPayment(p)}
-                      disabled={isProcessing}
-                      className="h-8 px-2.5 text-xs font-bold text-rose-600 border-rose-500/20 hover:bg-rose-500/10 rounded-xl"
-                    >
-                      <X className="w-3.5 h-3.5 ml-1 rtl:ml-1 ltr:mr-1" />
-                      {t('reject', 'رفض')}
-                    </Button>
-
-                    {/* Print Thermal Receipt */}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setSelectedReceiptAppt(p)}
-                      className="h-8 px-2 text-xs font-bold text-foreground border-border hover:bg-secondary rounded-xl"
-                      title={t('print_receipt', 'طباعة إيصال حراري 80mm')}
-                    >
-                      <Printer className="w-3.5 h-3.5" />
-                    </Button>
-
-                    {/* WhatsApp confirmation */}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleManualWhatsAppPayment(p)}
-                      className="h-8 px-2 text-xs font-bold text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/10 rounded-xl"
-                      title={t('send_receipt_whatsapp', 'إرسال تأكيد الاستلام عبر واتساب')}
-                    >
-                      <MessageCircle className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
 
       {/* =========================================================================
           2. MIDDLE BENTO GRID (Current Patient, Next in Queue, Quick Stats Donut)

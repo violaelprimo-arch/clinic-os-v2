@@ -11,11 +11,15 @@ import { useLanguage } from '@/context/LanguageContext'
 export function BranchSelector({
   clinic,
   selectedBranchId,
-  onSelectBranch
+  onSelectBranch,
+  role,
+  lockedBranchId
 }: {
   clinic: any
   selectedBranchId: string // 'all' or branch id
   onSelectBranch: (branchId: string) => void
+  role?: string | null
+  lockedBranchId?: string | null
 }) {
   const { t, dir, isRtl } = useLanguage()
   const [branches, setBranches] = useState<Branch[]>([])
@@ -39,6 +43,31 @@ export function BranchSelector({
     }
     fetchBranches()
   }, [clinic])
+
+  const effectiveLockedBranchId = lockedBranchId || (typeof window !== 'undefined' ? localStorage.getItem('clinic_locked_branch') : null)
+
+  // If user is assistant and locked to a branch, render only static badge with no dropdown or other branches
+  if (role === 'assistant' || effectiveLockedBranchId) {
+    const assignedBranch = branches.find((b) => b.id === (effectiveLockedBranchId || selectedBranchId))
+    const lockedName = typeof window !== 'undefined' ? localStorage.getItem('clinic_locked_branch_name') : null
+    const branchName = assignedBranch?.name || lockedName || t('main_branch', 'الفرع الرئيسي')
+
+    return (
+      <div className="h-10 px-3.5 rounded-xl bg-card border border-primary/20 text-foreground flex items-center gap-2.5 shadow-2xs font-bold text-xs" dir={dir}>
+        <div className="w-6 h-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+          <Building2 className="w-3.5 h-3.5" />
+        </div>
+        <div className="text-start">
+          <span className="text-[10px] text-muted-foreground block leading-tight font-medium">
+            {t('assigned_branch', 'الفرع المخصص')}
+          </span>
+          <span className="text-xs text-primary font-black truncate max-w-[150px] block">
+            {branchName}
+          </span>
+        </div>
+      </div>
+    )
+  }
 
   const currentBranch = branches.find((b) => b.id === selectedBranchId)
 

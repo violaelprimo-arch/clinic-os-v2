@@ -123,9 +123,33 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
     }
   }
 
-  // Filtered transactions (with search, method, status, and date range)
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('all')
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('clinic_selected_branch') || 'all'
+      setSelectedBranchId(saved)
+
+      const handleBranchChanged = (e: any) => {
+        const bId = e.detail?.branchId || 'all'
+        setSelectedBranchId(bId)
+      }
+      window.addEventListener('clinic_branch_changed', handleBranchChanged)
+      return () => window.removeEventListener('clinic_branch_changed', handleBranchChanged)
+    }
+  }, [])
+
+  // Filtered transactions (with search, method, status, date range, and branch)
   const filtered = useMemo(() => {
     return appointments.filter(a => {
+      // Branch filter
+      if (selectedBranchId && selectedBranchId !== 'all') {
+        const apptBranch = a.branch_id || a.branchId
+        const isMainBranchSelected = selectedBranchId === 'main' || clinic?.branches?.find((b: any) => b.isMain)?.id === selectedBranchId
+        const belongsToBranch = apptBranch ? apptBranch === selectedBranchId : isMainBranchSelected
+        if (!belongsToBranch) return false
+      }
+
       const matchSearch =
         !search ||
         (a.patientName && a.patientName.includes(search)) ||
@@ -143,7 +167,7 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
 
       return matchSearch && matchMethod && matchStatus && matchFrom && matchTo
     })
-  }, [appointments, search, methodFilter, statusFilter, fromDate, toDate])
+  }, [appointments, selectedBranchId, clinic, search, methodFilter, statusFilter, fromDate, toDate])
 
   // Aggregate metrics for filtered data
   const metrics = useMemo(() => {

@@ -159,7 +159,10 @@ export function calculatePatientLivePosition({
   allTodayAppointments: any[]
   clinic?: any
 }): PatientQueueStatusResult {
-  const avgMins = Number(clinic?.averageVisitTime) || Number(clinic?.average_consultation_time) || 15
+  const targetBranch = targetAppointment?.branch_id && clinic?.branches
+    ? clinic.branches.find((b: any) => b.id === targetAppointment.branch_id)
+    : null
+  const avgMins = Number(targetBranch?.slotDuration || targetBranch?.averageVisitTime || clinic?.averageVisitTime || clinic?.average_consultation_time) || 15
 
   if (!targetAppointment) {
     return {

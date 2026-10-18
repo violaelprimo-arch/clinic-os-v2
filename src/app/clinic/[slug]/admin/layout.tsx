@@ -80,6 +80,11 @@ export default function AdminLayout({
   }, [showPackagesInClinics])
 
   const handleSelectBranch = (bId: string) => {
+    // If assistant is locked to a specific branch, never permit switching
+    const locked = typeof window !== 'undefined' ? localStorage.getItem('clinic_locked_branch') : null
+    if (role === 'assistant' && locked) {
+      bId = locked
+    }
     setSelectedBranchId(bId)
     localStorage.setItem('clinic_selected_branch', bId)
     window.dispatchEvent(new CustomEvent('clinic_branch_changed', { detail: { branchId: bId } }))
@@ -88,6 +93,17 @@ export default function AdminLayout({
   useEffect(() => {
     const storedRole = localStorage.getItem('clinic_role') || 'doctor'
     setRole(storedRole)
+    const locked = localStorage.getItem('clinic_locked_branch')
+    if (storedRole === 'assistant' && locked) {
+      setSelectedBranchId(locked)
+      localStorage.setItem('clinic_selected_branch', locked)
+    }
+
+    // Block assistant from directly opening branches management page
+    if (storedRole === 'assistant' && pathname.includes('/admin/branches')) {
+      window.location.href = `/clinic/${slug}/admin`
+      return
+    }
 
     // Verify session token with server
     const token = localStorage.getItem('clinic_session_token')
@@ -100,6 +116,14 @@ export default function AdminLayout({
           if (data.authenticated && data.user?.role) {
             setRole(data.user.role)
             localStorage.setItem('clinic_role', data.user.role)
+            if (data.user.role === 'assistant' && data.user.branchId) {
+              setSelectedBranchId(data.user.branchId)
+              localStorage.setItem('clinic_selected_branch', data.user.branchId)
+              localStorage.setItem('clinic_locked_branch', data.user.branchId)
+              if (data.user.branchName) {
+                localStorage.setItem('clinic_locked_branch_name', data.user.branchName)
+              }
+            }
           }
         })
         .catch(() => {})
@@ -290,7 +314,7 @@ export default function AdminLayout({
 
     if (role === 'doctor') return true
     if (role === 'assistant') {
-      if (item.id === 'packages') return false
+      if (item.id === 'packages' || item.id === 'branches') return false
       return assistantPermissions.includes(item.id)
     }
     return false
@@ -609,7 +633,13 @@ export default function AdminLayout({
           {/* End side: Date, Branch, Language, Theme, Notifications, Profile */}
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Branch Selector */}
-            <BranchSelector clinic={clinic} selectedBranchId={selectedBranchId} onSelectBranch={handleSelectBranch} />
+            <BranchSelector
+              clinic={clinic}
+              selectedBranchId={selectedBranchId}
+              onSelectBranch={handleSelectBranch}
+              role={role}
+              lockedBranchId={role === 'assistant' ? (typeof window !== 'undefined' ? localStorage.getItem('clinic_locked_branch') : null) : null}
+            />
 
             {/* Realtime Date Badge */}
             <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-background border border-border text-xs font-bold text-muted-foreground">
@@ -639,8 +669,9 @@ export default function AdminLayout({
               clinicId={clinic?.id}
               slug={slug}
               recipientTarget={clinic?.id || slug}
-              recipientLabel="إدارة العيادة"
+              recipientLabel={role === 'assistant' ? 'مساعد العيادة' : 'إدارة العيادة'}
               recipientType="staff"
+              branchId={selectedBranchId !== 'all' ? selectedBranchId : undefined}
             />
 
             {/* User Avatar & Info */}

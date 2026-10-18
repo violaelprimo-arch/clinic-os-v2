@@ -23,7 +23,8 @@ export function NotificationCenter({
   slug,
   clinic,
   recipientLabel = 'المستخدم',
-  recipientType = 'staff'
+  recipientType = 'staff',
+  branchId
 }: {
   recipientTarget?: string
   clinicId?: string
@@ -31,6 +32,7 @@ export function NotificationCenter({
   clinic?: any
   recipientLabel?: string
   recipientType?: 'staff' | 'patient'
+  branchId?: string
 }) {
   const { t, isRtl, dir, language } = useLanguage()
   const [notifications, setNotifications] = useState<ClinicNotification[]>([])
@@ -100,11 +102,16 @@ export function NotificationCenter({
           const newest = merged[0]
           if (newest && !newest.isRead) {
             toast.info(`🔔 ${newest.title}: ${newest.body}`)
+            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+              try {
+                new Notification(newest.title, { body: newest.body, icon: '/favicon.ico', dir: 'rtl' })
+              } catch (e) {}
+            }
           }
         }
         prevCountRef.current = merged.length
         setNotifications(merged)
-      })
+      }, branchId)
     } else {
       // Patient notifications
       if (!recipientTarget) return
@@ -114,6 +121,11 @@ export function NotificationCenter({
           const newest = list[0]
           if (newest) {
             toast.info(`🔔 ${newest.title}: ${newest.body}`)
+            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+              try {
+                new Notification(newest.title, { body: newest.body, icon: '/favicon.ico', dir: 'rtl' })
+              } catch (e) {}
+            }
           }
         }
         prevCountRef.current = list.length
@@ -124,7 +136,7 @@ export function NotificationCenter({
     return () => {
       if (unsub) unsub()
     }
-  }, [recipientTarget, clinicId, slug, clinic?.id, clinic?.ownerMessage, clinic?.expirationDate, recipientType])
+  }, [recipientTarget, clinicId, slug, clinic?.id, clinic?.ownerMessage, clinic?.expirationDate, recipientType, branchId])
 
   const unreadCount = notifications.filter((n) => !n.isRead).length
 

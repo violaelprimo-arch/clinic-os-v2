@@ -28,7 +28,6 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
   const slug = resolvedParams.slug
   const { t, tDynamic, dir, isRtl } = useLanguage()
   const [clinic, setClinic] = useState<any>(null)
-  const [patients, setPatients] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
@@ -100,6 +99,23 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 8
 
+  const [rawAppointments, setRawAppointments] = useState<any[]>([])
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('all')
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('clinic_selected_branch') || 'all'
+      setSelectedBranchId(saved)
+
+      const handleBranchChanged = (e: any) => {
+        const bId = e.detail?.branchId || 'all'
+        setSelectedBranchId(bId)
+      }
+      window.addEventListener('clinic_branch_changed', handleBranchChanged)
+      return () => window.removeEventListener('clinic_branch_changed', handleBranchChanged)
+    }
+  }, [])
+
   useEffect(() => {
     let unsubAppts: any = null;
     const fetchPatients = async () => {
@@ -113,37 +129,8 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
 
         const apptQ = query(collection(db, 'appointments'), where('clinic_id', '==', cData.id))
         unsubAppts = onSnapshot(apptQ, (apptSnap) => {
-          const pMap = new Map()
-          apptSnap.docs.forEach(doc => {
-            const d = doc.data()
-            if (!d.phone) return
-            if (!pMap.has(d.phone)) {
-              pMap.set(d.phone, {
-                id: d.phone,
-                name: d.patientName,
-                phone: d.phone,
-                age: d.age || '',
-                visitsCount: 1,
-                lastVisit: d.date,
-                allVisits: [d.date],
-                lastService: d.serviceName || 'كشف',
-                status: 'نشط'
-              })
-            } else {
-              const existing = pMap.get(d.phone)
-              existing.visitsCount += 1
-              if (d.date && !existing.allVisits.includes(d.date)) {
-                existing.allVisits.push(d.date)
-              }
-              if (d.age && !existing.age) existing.age = d.age
-              if (new Date(d.date) > new Date(existing.lastVisit)) {
-                existing.lastVisit = d.date
-                existing.name = d.patientName
-                existing.lastService = d.serviceName || existing.lastService
-              }
-            }
-          })
-          setPatients(Array.from(pMap.values()).sort((a: any, b: any) => new Date(b.lastVisit).getTime() - new Date(a.lastVisit).getTime()))
+          const list = apptSnap.docs.map(doc => doc.data())
+          setRawAppointments(list)
           setLoading(false)
         })
       } catch (error) {
@@ -157,6 +144,48 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
       if (unsubAppts) unsubAppts()
     }
   }, [slug])
+
+  const patients = useMemo(() => {
+    const pMap = new Map()
+    rawAppointments.forEach(d => {
+      if (!d.phone) return
+
+      // Branch filter: if a specific branch is selected, ignore appointments not belonging to that branch
+      if (selectedBranchId && selectedBranchId !== 'all') {
+        const apptBranch = d.branch_id || d.branchId
+        const isMainBranchSelected = selectedBranchId === 'main' || clinic?.branches?.find((b: any) => b.isMain)?.id === selectedBranchId
+        const belongsToBranch = apptBranch ? apptBranch === selectedBranchId : isMainBranchSelected
+        if (!belongsToBranch) return
+      }
+
+      if (!pMap.has(d.phone)) {
+        pMap.set(d.phone, {
+          id: d.phone,
+          name: d.patientName,
+          phone: d.phone,
+          age: d.age || '',
+          visitsCount: 1,
+          lastVisit: d.date,
+          allVisits: [d.date],
+          lastService: d.serviceName || 'كشف',
+          status: 'نشط'
+        })
+      } else {
+        const existing = pMap.get(d.phone)
+        existing.visitsCount += 1
+        if (d.date && !existing.allVisits.includes(d.date)) {
+          existing.allVisits.push(d.date)
+        }
+        if (d.age && !existing.age) existing.age = d.age
+        if (new Date(d.date) > new Date(existing.lastVisit)) {
+          existing.lastVisit = d.date
+          existing.name = d.patientName
+          existing.lastService = d.serviceName || existing.lastService
+        }
+      }
+    })
+    return Array.from(pMap.values()).sort((a: any, b: any) => new Date(b.lastVisit).getTime() - new Date(a.lastVisit).getTime())
+  }, [rawAppointments, selectedBranchId, clinic])
 
   const filtered = useMemo(() => {
     return patients.filter(p => {
@@ -215,7 +244,6 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
         lastService: newService,
         status: 'نشط'
       }
-      setPatients(prev => [newP, ...prev])
       setIsAddOpen(false)
       setNewName('')
       setNewPhone('')
@@ -265,7 +293,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
         }
       }
 
-      setPatients([])
+      setRawAppointments([])
       toast.success('تم مسح جميع المرضى وسجلات الروشتات والحسابات والزيارات بنجاح')
     } catch (err) {
       console.error(err)
@@ -324,7 +352,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
         }
       }
 
-      setPatients(prev => prev.filter(p => p.phone !== phone))
+      setRawAppointments((prev: any[]) => prev.filter((a: any) => a.phone !== phone))
       toast.success(`تم حذف المريض ${name} وكافة سجلاته بنجاح`)
     } catch (err) {
       console.error(err)

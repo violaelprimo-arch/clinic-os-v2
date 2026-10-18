@@ -77,12 +77,17 @@ export async function POST(req: NextRequest) {
       ? (clinic.doctorName || 'دكتور العيادة')
       : (matchedSecondaryAss?.name || 'مساعد العيادة')
 
+    const assignedBranchId = isDoctorMatch ? undefined : (matchedSecondaryAss?.branchId || clinic.assistantBranchId || undefined)
+    const assignedBranchName = isDoctorMatch ? undefined : (matchedSecondaryAss?.branchName || clinic.assistantBranchName || undefined)
+
     // Create cryptographically signed session token
     const token = await createSessionToken({
       role,
       email: trimmedEmail,
       name: userName,
-      clinicId
+      clinicId,
+      branchId: assignedBranchId,
+      branchName: assignedBranchName
     })
 
     // Record audit log
@@ -91,7 +96,7 @@ export async function POST(req: NextRequest) {
       actorName: userName,
       actorRole: role,
       clinicId,
-      details: { email: trimmedEmail }
+      details: { email: trimmedEmail, branchId: assignedBranchId }
     })
 
     const response = NextResponse.json({
@@ -102,7 +107,9 @@ export async function POST(req: NextRequest) {
         name: userName,
         email: trimmedEmail,
         clinicId,
-        slug
+        slug,
+        branchId: assignedBranchId,
+        branchName: assignedBranchName
       }
     })
 

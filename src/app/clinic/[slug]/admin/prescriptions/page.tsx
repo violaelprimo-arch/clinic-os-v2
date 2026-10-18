@@ -131,6 +131,31 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     return () => unsubClinic()
   }, [slug, dateStr])
 
+  const [activeBranchId, setActiveBranchId] = useState<string>('all')
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('clinic_selected_branch') || 'all'
+      setActiveBranchId(saved)
+
+      const handleBranchChanged = (e: any) => {
+        const bId = e.detail?.branchId || 'all'
+        setActiveBranchId(bId)
+      }
+      window.addEventListener('clinic_branch_changed', handleBranchChanged)
+      return () => window.removeEventListener('clinic_branch_changed', handleBranchChanged)
+    }
+  }, [])
+
+  const filteredTodayPatients = useMemo(() => {
+    if (!activeBranchId || activeBranchId === 'all') return todayPatients
+    return todayPatients.filter(p => {
+      const pBranch = p.branch_id || p.branchId
+      const isMain = activeBranchId === 'main' || clinic?.branches?.find((b: any) => b.isMain)?.id === activeBranchId
+      return pBranch ? pBranch === activeBranchId : isMain
+    })
+  }, [todayPatients, activeBranchId, clinic])
+
   const isCustomTemplateEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'customTemplate'), [clinic])
   const isDrugsDbEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'drugs'), [clinic])
 
@@ -520,11 +545,11 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                 {t('patient_visit_info', 'بيانات المريض والزيارة')}
               </h3>
 
-              {todayPatients.length > 0 && (
+              {filteredTodayPatients.length > 0 && (
                 <select
                   className="text-xs font-bold border border-border rounded-xl px-2.5 py-1.5 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
                   onChange={(e) => {
-                    const selected = todayPatients.find(p => p.id === e.target.value)
+                    const selected = filteredTodayPatients.find(p => p.id === e.target.value)
                     if (selected) {
                       setPatientName(selected.patientName || '')
                       setAppointmentId(selected.id)
@@ -536,7 +561,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                   }}
                 >
                   <option value="">{t('select_from_today_patients', '-- اختر من كشوفات اليوم --')}</option>
-                  {todayPatients.map(p => (
+                  {filteredTodayPatients.map(p => (
                     <option key={p.id} value={p.id}>
                       #{p.queue_number} - {p.patientName} {p.branchName ? `(${tDynamic(p.branchName)})` : ''}
                     </option>

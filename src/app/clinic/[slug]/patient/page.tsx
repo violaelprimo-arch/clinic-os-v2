@@ -14,6 +14,7 @@ import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ClinicLocationMap } from '@/components/clinic/ClinicLocationMap'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
+import { NotificationCenter } from '@/components/clinic/NotificationCenter'
 import { getPhoneSearchVariants } from '@/lib/countryPhoneHelper'
 import {
   CalendarCheck,
@@ -427,15 +428,24 @@ export default function PatientPortalPage() {
       >
         {/* Top Header */}
         <div className="flex items-center justify-between">
-          <a
-            href={clinic?.clinicPhone ? `https://wa.me/20${clinic.clinicPhone.replace(/^0+/, '')}` : 'https://wa.me/201551007018'}
-            target="_blank"
-            rel="noreferrer"
-            className="w-9 h-9 rounded-xl bg-white dark:bg-slate-800 shadow-sm text-emerald-600 dark:text-emerald-400 flex items-center justify-center hover:bg-emerald-50 transition-colors"
-            title="تواصل واتساب مع العيادة"
-          >
-            <MessageCircle className="w-4 h-4" />
-          </a>
+          <div className="flex items-center gap-2">
+            <a
+              href={clinic?.clinicPhone ? `https://wa.me/20${clinic.clinicPhone.replace(/^0+/, '')}` : 'https://wa.me/201551007018'}
+              target="_blank"
+              rel="noreferrer"
+              className="w-9 h-9 rounded-xl bg-white dark:bg-slate-800 shadow-sm text-emerald-600 dark:text-emerald-400 flex items-center justify-center hover:bg-emerald-50 transition-colors"
+              title="تواصل واتساب مع العيادة"
+            >
+              <MessageCircle className="w-4 h-4" />
+            </a>
+            {patientPhone && (
+              <NotificationCenter
+                recipientTarget={patientPhone}
+                recipientLabel={patientName}
+                recipientType="patient"
+              />
+            )}
+          </div>
           <Link href={`/clinic/${slug}`} className="flex items-center shrink-0" dir="ltr">
             <ClinicLogo size="md" variant="auto" />
           </Link>

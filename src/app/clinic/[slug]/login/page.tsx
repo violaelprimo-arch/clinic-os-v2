@@ -164,6 +164,16 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
       if (res.ok && data.success) {
         localStorage.setItem('clinic_session_token', data.token)
         localStorage.setItem('clinic_role', data.user.role)
+        if (data.user.role === 'assistant' && data.user.branchId) {
+          localStorage.setItem('clinic_selected_branch', data.user.branchId)
+          localStorage.setItem('clinic_locked_branch', data.user.branchId)
+          if (data.user.branchName) {
+            localStorage.setItem('clinic_locked_branch_name', data.user.branchName)
+          }
+        } else if (data.user.role === 'doctor') {
+          localStorage.removeItem('clinic_locked_branch')
+          localStorage.removeItem('clinic_locked_branch_name')
+        }
         toast.success(isRtl ? `مرحباً ${data.user.name}، تم تسجيل الدخول بنجاح` : `Welcome ${data.user.name}, logged in successfully`)
         router.push(`/clinic/${slug}/admin`)
         return
