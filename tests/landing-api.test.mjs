@@ -4,8 +4,6 @@ import { NextRequest } from 'next/server.js'
 import {
   createOwnerSession,
   verifyOwnerSession,
-  hashOwnerPassword,
-  verifyOwnerPassword,
   OWNER_EMAIL,
 } from '../src/lib/owner-session.ts'
 import {
@@ -191,12 +189,6 @@ test('owner sessions reject tampering, clinic roles and a different email', asyn
     null,
   )
   assert.equal(await verifyOwnerSession(token, 'wrong'.repeat(10)), null)
-})
-test('owner password hashing verifies the password without storing plaintext', async () => {
-  const hash = await hashOwnerPassword('test-password-123')
-  assert.ok(!hash.includes('test-password'))
-  assert.equal(await verifyOwnerPassword('test-password-123', hash), true)
-  assert.equal(await verifyOwnerPassword('wrong', hash), false)
 })
 function testFirebaseToken(overrides = {}) {
   const now = Math.floor(Date.now() / 1000)

@@ -9,14 +9,19 @@ async function fixture(page: Page, owner = false) {
   page.on('pageerror', (error) => errors.push(error.message))
   const payload = Buffer.from(
     JSON.stringify({
-      sub: 'platform-owner',
-      user_id: 'platform-owner',
-      aud: 'build-test',
-      iss: 'https://securetoken.google.com/build-test',
+      sub: 'fixture-owner-uid',
+      user_id: 'fixture-owner-uid',
+      aud: 'clinic-os-d2d1b',
+      iss: 'https://securetoken.google.com/clinic-os-d2d1b',
       iat: Math.floor(Date.now() / 1000),
       exp: Math.floor(Date.now() / 1000) + 3600,
+      auth_time: Math.floor(Date.now() / 1000),
       email: 'yallacodex@gmail.com',
-      firebase: { sign_in_provider: 'custom' },
+      email_verified: true,
+      platformOwner: true,
+      ownerUid: 'fixture-owner-uid',
+      ownerEmail: 'yallacodex@gmail.com',
+      firebase: { sign_in_provider: 'password' },
     }),
   ).toString('base64url')
   const token =
@@ -36,6 +41,20 @@ async function fixture(page: Page, owner = false) {
       })
       return
     }
+    if (url.hostname === 'securetoken.googleapis.com') {
+      await route.fulfill({
+        json: {
+          access_token: token,
+          expires_in: '3600',
+          token_type: 'Bearer',
+          refresh_token: 'fixture-refresh',
+          id_token: token,
+          user_id: 'fixture-owner-uid',
+          project_id: 'clinic-os-d2d1b',
+        },
+      })
+      return
+    }
     if (url.hostname === 'identitytoolkit.googleapis.com') {
       await route.fulfill({
         json: url.pathname.includes('signInWithPassword')
@@ -43,13 +62,16 @@ async function fixture(page: Page, owner = false) {
               idToken: token,
               refreshToken: 'fixture-refresh',
               expiresIn: '3600',
-              localId: 'platform-owner',
+              localId: 'fixture-owner-uid',
+              emailVerified: true,
+              registered: true,
             }
           : {
               users: [
                 {
-                  localId: 'platform-owner',
+                  localId: 'fixture-owner-uid',
                   email: 'yallacodex@gmail.com',
+                  emailVerified: true,
                   providerUserInfo: [],
                 },
               ],
@@ -78,7 +100,7 @@ async function fixture(page: Page, owner = false) {
       await route.fulfill({
         status: owner ? 200 : 403,
         json: owner
-          ? { success: true, owner: { uid: 'platform-owner', email: 'yallacodex@gmail.com', role: 'owner' } }
+          ? { success: true, owner: { uid: 'fixture-owner-uid', email: 'yallacodex@gmail.com', role: 'owner' } }
           : { error: 'حساب غير مصرح له.', code: 'OWNER_ACCESS_DENIED' },
       })
       return

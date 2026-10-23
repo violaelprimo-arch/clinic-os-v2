@@ -267,16 +267,3 @@ export async function queryDocuments(collection: string, approvedOnly = false) {
   }[]
   return rows.flatMap((row) => (row.document ? [unpack(row.document)] : []))
 }
-export async function firebaseOwnerToken(email: string) {
-  const { email: serviceEmail } = getFirebaseServerCredentials(),
-    now = Math.floor(Date.now() / 1000)
-  return signServiceJwt({
-    iss: serviceEmail,
-    sub: serviceEmail,
-    aud: 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit',
-    iat: now,
-    exp: now + 3600,
-    uid: 'platform-owner',
-    claims: { platformOwner: true, ownerEmail: email },
-  })
-}
