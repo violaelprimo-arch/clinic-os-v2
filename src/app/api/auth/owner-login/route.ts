@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import {
-  OWNER_COOKIE,
-  OWNER_EMAIL,
-  createOwnerSession,
-  verifyOwnerPassword,
-} from '@/lib/owner-session'
-import { verifyPassword } from '@/lib/auth-crypto'
-import { readDocument, firebaseOwnerToken } from '@/lib/server/firebase-rest'
+import { OWNER_COOKIE, createOwnerSession } from '@/lib/owner-session'
+import { verifyFirebaseOwnerIdToken } from '@/lib/server/firebase-owner-auth'
 import {
   ApiError,
   apiFailure,
@@ -18,68 +12,39 @@ import {
 export async function POST(request: NextRequest) {
   try {
     assertSameOrigin(request)
-    const body = await readJson(request)
-    const email =
-      typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
-    const password = typeof body.password === 'string' ? body.password : ''
-    if (!email || !password || password.length > 256)
-      throw new ApiError(
-        400,
-        'INVALID_INPUT',
-        'أدخل البريد الإلكتروني وكلمة المرور.',
-      )
-    const secret =
-      process.env.OWNER_SESSION_SECRET || process.env.AUTH_SECRET || ''
+    const body = await readJson(request, 12500)
+    const secret = process.env.OWNER_SESSION_SECRET || process.env.AUTH_SECRET || ''
     if (secret.length < 32)
-      throw new ApiError(
-        503,
-        'OWNER_SETUP_REQUIRED',
-        'إعدادات دخول المالك غير مكتملة. راجع إعدادات الخادم.',
-      )
+      throw new ApiError(503, 'OWNER_SETUP_REQUIRED', 'إعدادات دخول المالك غير مكتملة.')
+
     await enforceSubmissionLimit(request, 'owner-login', 10000)
-    if (email !== OWNER_EMAIL)
-      throw new ApiError(
-        401,
-        'INVALID_CREDENTIALS',
-        'البريد الإلكتروني أو كلمة المرور غير صحيحة.',
-      )
-    // Only designated platform owner records are eligible. Clinic/assistant credentials never grant ownership.
-    const record =
-      (await readDocument('owners/' + OWNER_EMAIL)) ||
-      (await readDocument('owners/platform')) ||
-      (await readDocument('settings/global'))
-    const storedEmail = String(record?.email || record?.ownerEmail || '')
-      .trim()
-      .toLowerCase()
-    const stored =
-      record?.ownerPasswordHash || record?.passwordHash || record?.ownerPassword
-    const matched =
-      storedEmail === email &&
-      record?.disabled !== true &&
-      typeof stored === 'string' &&
-      (stored.startsWith('pbkdf2$')
-        ? await verifyOwnerPassword(password, stored)
-        : await verifyPassword(password, stored))
-    if (!matched)
-      throw new ApiError(
-        401,
-        'INVALID_CREDENTIALS',
-        'البريد الإلكتروني أو كلمة المرور غير صحيحة.',
-      )
-    const firebaseToken = await firebaseOwnerToken(email)
+    let owner: { uid: string; email: string }
+    try {
+      owner = await verifyFirebaseOwnerIdToken(body.idToken)
+    } catch (error) {
+      const code = error instanceof Error ? error.message : ''
+      if (code === 'OWNER_FIREBASE_SETUP_REQUIRED')
+        throw new ApiError(503, 'OWNER_SETUP_REQUIRED', 'إعداد Firebase أو معرف المالك غير مكتمل.')
+      if (code === 'OWNER_AUTH_SERVICE_UNAVAILABLE')
+        throw new ApiError(503, 'OWNER_AUTH_UNAVAILABLE', 'خدمة تسجيل الدخول غير متاحة مؤقتًا.')
+      if (code === 'OWNER_ACCESS_DENIED')
+        throw new ApiError(403, 'OWNER_ACCESS_DENIED', 'هذا الحساب لا يملك صلاحية مالك المنصة.')
+      throw new ApiError(401, 'OWNER_TOKEN_INVALID', 'جلسة Firebase غير صالحة. سجّل الدخول مرة أخرى.')
+    }
+
     const response = NextResponse.json(
-      { success: true, owner: { email, role: 'owner' }, firebaseToken },
+      { success: true, owner: { ...owner, role: 'owner' } },
       { headers: { 'Cache-Control': 'no-store' } },
     )
     response.cookies.set(
       OWNER_COOKIE,
-      await createOwnerSession(email, secret),
+      await createOwnerSession(owner.email, owner.uid, secret),
       {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
         path: '/',
-        maxAge: 7 * 86400,
+        maxAge: 3600,
       },
     )
     return response
