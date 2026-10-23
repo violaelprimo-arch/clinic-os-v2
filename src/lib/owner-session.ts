@@ -24,15 +24,16 @@ async function signingKey(secret: string) {
     ['sign', 'verify'],
   )
 }
-export async function createOwnerSession(email: string, secret: string) {
+export async function createOwnerSession(email: string, uid: string, secret: string) {
   const payload = to64(
     encoder.encode(
       JSON.stringify({
         role: 'owner',
         email,
+        uid,
         audience: 'yalla-owner',
         issuedAt: Date.now(),
-        expiresAt: Date.now() + 7 * 86400000,
+        expiresAt: Date.now() + 60 * 60 * 1000,
       }),
     ),
   )
@@ -53,7 +54,7 @@ export async function createOwnerSession(email: string, secret: string) {
 export async function verifyOwnerSession(
   token: string,
   secret: string,
-): Promise<{ email: string } | null> {
+): Promise<{ email: string; uid: string } | null> {
   try {
     const parts = token.split('.')
     if (parts.length !== 2 || token.length > 4096) return null
@@ -69,13 +70,14 @@ export async function verifyOwnerSession(
       data.role !== 'owner' ||
       data.audience !== 'yalla-owner' ||
       data.email !== OWNER_EMAIL ||
+      typeof data.uid !== 'string' || !data.uid ||
       !Number.isFinite(data.expiresAt) ||
       !Number.isFinite(data.issuedAt) ||
       data.expiresAt <= Date.now() ||
       data.issuedAt > Date.now() + 60000
     )
       return null
-    return { email: data.email }
+    return { email: data.email, uid: data.uid }
   } catch {
     return null
   }
