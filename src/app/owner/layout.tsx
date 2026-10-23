@@ -1,6 +1,7 @@
 'use client'
 
-import { ReactNode, useState, useEffect } from 'react'
+import { ReactNode, useState } from 'react'
+import { OwnerNavigationContext, type OwnerTab } from '@/components/owner/OwnerNavigationContext'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -19,23 +20,15 @@ export default function OwnerLayout({ children }: { children: ReactNode }) {
   const { dir, t, isRtl, language } = useLanguage()
   const pathname = usePathname()
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
-  const [activeOwnerTab, setActiveOwnerTab] = useState<'clinics' | 'doctors' | 'packages' | 'add' | 'settings'>('clinics')
+  const [activeOwnerTab, setActiveOwnerTab] = useState<OwnerTab>('clinics')
 
-  useEffect(() => {
-    const handleTabChange = (e: any) => {
-      if (e.detail?.tab) setActiveOwnerTab(e.detail.tab)
-    }
-    window.addEventListener('owner_tab_changed', handleTabChange)
-    return () => window.removeEventListener('owner_tab_changed', handleTabChange)
-  }, [])
-
-  const handleSelectTab = (tab: 'clinics' | 'doctors' | 'packages' | 'add' | 'settings') => {
+  const handleSelectTab = (tab: 'clinics' | 'doctors' | 'packages' | 'add' | 'settings' | 'landing') => {
     setActiveOwnerTab(tab)
-    window.dispatchEvent(new CustomEvent('owner_tab_change', { detail: { tab } }))
     setMobileDrawerOpen(false)
   }
 
   const navItems = [
+    { id: 'landing', label: isRtl ? 'الواجهة الرئيسية' : 'Landing page', icon: Sparkles },
     { id: 'clinics', label: isRtl ? 'إدارة العيادات والنظام' : 'Clinics Management', icon: Building },
     { id: 'doctors', label: isRtl ? 'حسابات الأطباء والمواعيد' : 'Doctors & Bookings', icon: Users },
     { id: 'packages', label: isRtl ? 'الباقات والاشتراكات' : 'Packages & Plans', icon: Package },
@@ -44,6 +37,7 @@ export default function OwnerLayout({ children }: { children: ReactNode }) {
   ]
 
   return (
+    <OwnerNavigationContext.Provider value={{ activeTab: activeOwnerTab, setActiveTab: setActiveOwnerTab }}>
     <div className="flex h-screen bg-background font-sans overflow-hidden text-foreground transition-colors duration-200" dir={dir}>
       
       {/* Ambient background glows for authentic glassmorphism */}
@@ -76,7 +70,7 @@ export default function OwnerLayout({ children }: { children: ReactNode }) {
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                   <span className="text-[10px] text-muted-foreground font-medium truncate">
-                    {isRtl ? 'الإدارة المركزية' : 'Central Admin'}
+                    yallacodex@gmail.com
                   </span>
                 </div>
               </div>
@@ -243,5 +237,6 @@ export default function OwnerLayout({ children }: { children: ReactNode }) {
       </div>
 
     </div>
+    </OwnerNavigationContext.Provider>
   )
 }

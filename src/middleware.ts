@@ -11,6 +11,7 @@ export function middleware(req: NextRequest) {
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api') ||
+    pathname === '/landing-preview' ||
     pathname.includes('.') ||
     pathname.startsWith('/icons')
   ) {

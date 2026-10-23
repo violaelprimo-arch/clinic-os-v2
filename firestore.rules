@@ -2,6 +2,26 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
+    function isPlatformOwner() {
+      return request.auth != null
+        && request.auth.token.platformOwner == true
+        && request.auth.token.ownerEmail == 'yallacodex@gmail.com';
+    }
+
+    // The platform owner can operate the existing administrative collections.
+    // Other existing clinic/patient rules below retain their current behavior.
+    match /{document=**} {
+      allow read, write: if isPlatformOwner();
+    }
+    match /site_settings/landing_page {
+      allow get: if true;
+      allow list, write: if false;
+    }
+    // Submissions use validated server routes; no public reads of pending reviews or leads.
+    match /landing_feedback/{id} { allow read, write: if isPlatformOwner(); }
+    match /trial_requests/{id} { allow read, write: if isPlatformOwner(); }
+    match /landing_rate_limits/{id} { allow read, write: if false; }
+
     // By default, deny all
     match /{document=**} {
       allow read, write: if false;

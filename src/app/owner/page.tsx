@@ -1,6 +1,9 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { LandingPageManager } from '@/components/owner/LandingPageManager'
+import { OwnerAccessGate } from '@/components/owner/OwnerAccessGate'
+import { useOwnerNavigation } from '@/components/owner/OwnerNavigationContext'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -154,25 +157,16 @@ function getDoctorExpirationInfo(expirationDate?: string, isActive?: boolean) {
   }
 }
 
-export default function OwnerDashboard() {
+export default function OwnerPage() {
+  return <OwnerAccessGate><OwnerDashboard /></OwnerAccessGate>
+}
+
+function OwnerDashboard() {
   const { dir, t, isRtl, language } = useLanguage()
   const [clinics, setClinics] = useState<any[]>([])
-  const [activeTab, setActiveTab] = useState<'clinics' | 'doctors' | 'packages' | 'add' | 'settings'>('clinics')
+  const { activeTab, setActiveTab } = useOwnerNavigation()
   const [searchQuery, setSearchQuery] = useState('')
   const [filterMode, setFilterMode] = useState<'all' | 'active' | 'inactive' | 'ai-on' | 'ai-off'>('all')
-
-  // Synchronize tabs with the Super Admin sidebar in OwnerLayout
-  useEffect(() => {
-    const handleTabChange = (e: any) => {
-      if (e.detail?.tab) setActiveTab(e.detail.tab)
-    }
-    window.addEventListener('owner_tab_change', handleTabChange)
-    return () => window.removeEventListener('owner_tab_change', handleTabChange)
-  }, [])
-
-  useEffect(() => {
-    window.dispatchEvent(new CustomEvent('owner_tab_changed', { detail: { tab: activeTab } }))
-  }, [activeTab])
 
   // Doctors Tab State
   const [doctorsSearchQuery, setDoctorsSearchQuery] = useState('')
@@ -1461,6 +1455,7 @@ export default function OwnerDashboard() {
 
       {/* 3. Navigation Tabs (iOS Segmented Pill Bar) */}
       <div className="p-1.5 rounded-2xl ios-glass-card border border-border/80 shadow-xs flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+        <button type="button" onClick={() => setActiveTab('landing')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs whitespace-nowrap ${activeTab === 'landing' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary'}`}><Sparkles className="size-4" />{isRtl ? 'الواجهة الرئيسية' : 'Landing page'}</button>
         <button
           onClick={() => setActiveTab('clinics')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer whitespace-nowrap ${
@@ -1537,6 +1532,8 @@ export default function OwnerDashboard() {
       </div>
 
       {/* 4. TAB 1: Clinics List with Instant AI Toggle */}
+      {activeTab === 'landing' && <LandingPageManager />}
+
       {activeTab === 'clinics' && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
