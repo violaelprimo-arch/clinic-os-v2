@@ -82,7 +82,7 @@ export const landingConfigSchema = z.object({
   heroHighlight: text,
   heroSubtitle: text,
   trialButtonText: short,
-  trialDaysCount: z.number().int().min(1).max(90),
+  trialDaysCount: z.number().int().min(0).max(90),
   demoButtonText: short,
   patientPortalButtonText: short,
   loginButtonText: short,
@@ -138,8 +138,8 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
   heroHighlight: 'ووقتك للمرضى.',
   heroSubtitle:
     'يلا كلينك يجمع الحجوزات والدور وملفات المرضى والروشتات والحسابات في تجربة واحدة، من أول حجز لآخر متابعة.',
-  trialButtonText: 'ابدأ تجربة مجانية',
-  trialDaysCount: 7,
+  trialButtonText: '',
+  trialDaysCount: 0,
   demoButtonText: 'استكشف لوحة الطبيب',
   patientPortalButtonText: 'جرّب بوابة المريض',
   loginButtonText: 'دخول العيادة',
@@ -155,7 +155,7 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
     heroHighlight: 'More time for care.',
     heroSubtitle:
       'Appointments, live queues, patient records, prescriptions and finances — connected in one experience, from first booking to follow-up.',
-    trialButtonText: 'Start your free trial',
+    trialButtonText: '',
     demoButtonText: 'Explore the doctor workspace',
     patientPortalButtonText: 'Try the patient portal',
     loginButtonText: 'Clinic login',
@@ -163,12 +163,6 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
       '© 2026 Yalla Clinic. Developed by YallaCodeX. All rights reserved.',
   },
   stats: [
-    {
-      value: '7 أيام',
-      valueEn: '7 days',
-      label: 'لتجربة النظام',
-      labelEn: 'to explore the system',
-    },
     {
       value: '4',
       valueEn: '4',
@@ -197,7 +191,7 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
     allowClientFeedbackSubmission: true,
     showContacts: true,
     showFloatingWhatsapp: true,
-    showTrialBanner: true,
+    showTrialBanner: false,
   },
   features: [
     {

@@ -72,6 +72,7 @@ export function LandingPageContent({
   const [slide, setSlide] = useState(0),
     [paused, setPaused] = useState(false),
     [trialOpen, setTrialOpen] = useState(false)
+  const showTrialBanner = false
   const [feedbackBusy, setFeedbackBusy] = useState(false),
     [feedbackMessage, setFeedbackMessage] = useState(''),
     [feedbackError, setFeedbackError] = useState('')
@@ -238,7 +239,7 @@ export function LandingPageContent({
             >
               {headline('loginButtonText')}
             </Link>
-            {config.visibility.showTrialBanner && (
+            {showTrialBanner && config.visibility.showTrialBanner && (
               <Button
                 className="h-10 rounded-xl px-4 text-xs"
                 onClick={() => setTrialOpen(true)}
@@ -270,7 +271,7 @@ export function LandingPageContent({
                 {headline('heroSubtitle')}
               </p>
               <div className="flex flex-wrap gap-3">
-                {config.visibility.showTrialBanner && (
+                {showTrialBanner && config.visibility.showTrialBanner && (
                   <Button
                     size="lg"
                     className="h-13 rounded-2xl px-6 shadow-lg shadow-primary/20"
@@ -288,7 +289,7 @@ export function LandingPageContent({
                   {copy('شوف النظام من جوه', 'Take a product tour')}
                 </a>
               </div>
-              {config.visibility.showTrialBanner && (
+              {showTrialBanner && config.visibility.showTrialBanner && (
                 <p className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Gift className="size-4 text-primary" />
                   {copy(
@@ -837,7 +838,7 @@ export function LandingPageContent({
             </div>
           </section>
         )}
-        {config.visibility.showTrialBanner && (
+        {showTrialBanner && config.visibility.showTrialBanner && (
           <section className="mx-auto max-w-7xl px-5 py-8 lg:px-8">
             <motion.div
               {...reveal}
@@ -969,7 +970,7 @@ export function LandingPageContent({
         </a>
       )}
       <Dialog
-        open={trialOpen && config.visibility.showTrialBanner}
+        open={trialOpen && showTrialBanner && config.visibility.showTrialBanner}
         onOpenChange={setTrialOpen}
       >
         <DialogContent

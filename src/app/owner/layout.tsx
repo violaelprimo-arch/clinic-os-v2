@@ -1,10 +1,12 @@
 'use client'
 
-import { ReactNode, useState } from 'react'
+import { ReactNode, useEffect, useState } from 'react'
 import { OwnerNavigationContext, type OwnerTab } from '@/components/owner/OwnerNavigationContext'
-import { Building, Users, Package, Plus, Bot, Menu, X, Sparkles } from 'lucide-react'
+import { Building, Users, Package, Plus, Bot, Menu, X, Sparkles, UserRound } from 'lucide-react'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { auth } from '@/lib/firebase'
+import { onAuthStateChanged } from 'firebase/auth'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { LanguageToggle } from '@/components/common/LanguageToggle'
 import { TechnicalSupportButton } from '@/components/clinic/TechnicalSupportButton'
@@ -14,6 +16,13 @@ export default function OwnerLayout({ children }: { children: ReactNode }) {
   const { dir, isRtl } = useLanguage()
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
   const [activeOwnerTab, setActiveOwnerTab] = useState<OwnerTab>('clinics')
+  const [ownerPhotoUrl, setOwnerPhotoUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    return onAuthStateChanged(auth, (user) => {
+      setOwnerPhotoUrl(user?.photoURL || null)
+    })
+  }, [])
 
   const handleSelectTab = (tab: OwnerTab) => {
     setActiveOwnerTab(tab)
@@ -97,9 +106,15 @@ export default function OwnerLayout({ children }: { children: ReactNode }) {
           </div>
 
           <div className="pt-2 border-t border-border/30 flex items-center gap-3 px-2">
-            <Avatar className="h-9 w-9 border border-primary/30">
-              <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
-                SA
+            <Avatar className="h-10 w-10 border-2 border-primary/25 bg-gradient-to-br from-primary/15 to-cyan-500/15 shadow-sm">
+              <AvatarImage
+                src={ownerPhotoUrl || undefined}
+                alt={isRtl ? 'صورة مالك المنصة' : 'Platform owner profile'}
+                referrerPolicy="no-referrer"
+                className="object-cover object-center"
+              />
+              <AvatarFallback className="bg-transparent text-primary">
+                <UserRound className="h-5 w-5" />
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 overflow-hidden">
@@ -169,7 +184,7 @@ export default function OwnerLayout({ children }: { children: ReactNode }) {
         )}
 
         {/* Dynamic Page Content */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-gradient-to-b from-background via-background/95 to-muted/20">
+        <main className="min-w-0 flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 xl:p-8 bg-gradient-to-b from-background via-background/95 to-muted/20">
           <div className="max-w-7xl mx-auto space-y-6">
             {children}
           </div>

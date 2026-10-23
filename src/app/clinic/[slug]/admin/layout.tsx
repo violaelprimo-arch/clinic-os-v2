@@ -35,6 +35,7 @@ export default function AdminLayout({
   const pathname = usePathname()
   const { t, language, dir, isRtl } = useLanguage()
   const [role, setRole] = useState<string | null>(null)
+  const [sessionVerified, setSessionVerified] = useState(false)
   const [clinic, setClinic] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
@@ -109,7 +110,8 @@ export default function AdminLayout({
     const token = localStorage.getItem('clinic_session_token')
     if (token) {
       fetch('/api/auth/session', {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
       })
         .then(res => res.json())
         .then(data => {
@@ -126,7 +128,12 @@ export default function AdminLayout({
             }
           }
         })
-        .catch(() => {})
+        .catch((error) => {
+          console.error('Could not verify clinic session:', error)
+        })
+        .finally(() => setSessionVerified(true))
+    } else {
+      setSessionVerified(true)
     }
 
     const q = query(collection(db, 'clinics'), where('slug', '==', slug))
@@ -460,7 +467,7 @@ export default function AdminLayout({
             </div>
           </div>
           <TechnicalSupportButton variant="block" className="bg-secondary/60 dark:bg-[#0E2342]/70 text-foreground border-sidebar-border/80 dark:border-white/10 hover:bg-secondary hover:text-foreground rounded-xl" />
-          <Link
+          {sessionVerified && role !== 'doctor' && <Link
             href={`/clinic/${slug}`}
             target="_blank"
             className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-muted-foreground hover:text-primary hover:bg-secondary/70 dark:hover:bg-white/5 transition-colors"
@@ -470,7 +477,7 @@ export default function AdminLayout({
               {t('patient_booking_page', 'صفحة الحجز للمرضى')}
             </span>
             <ChevronLeft className="w-3.5 h-3.5 rtl:rotate-0 ltr:rotate-180" />
-          </Link>
+          </Link>}
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
@@ -578,7 +585,7 @@ export default function AdminLayout({
 
             <div className="pt-3 border-t border-sidebar-border space-y-2">
               <TechnicalSupportButton variant="block" className="bg-secondary/60 dark:bg-card-elevated text-foreground border-sidebar-border hover:bg-secondary" />
-              <Link
+              {sessionVerified && role !== 'doctor' && <Link
                 href={`/clinic/${slug}`}
                 target="_blank"
                 className="flex items-center justify-between px-3 py-2 text-xs font-bold text-primary bg-secondary/80 dark:bg-card-elevated rounded-xl border border-sidebar-border"
@@ -586,7 +593,7 @@ export default function AdminLayout({
                 <span className="flex items-center gap-2">
                   <ExternalLink className="w-3.5 h-3.5" /> {t('patient_booking_page', 'صفحة حجز المرضى')}
                 </span>
-              </Link>
+              </Link>}
               <button
                 onClick={handleLogout}
                 className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-destructive hover:bg-destructive/10 rounded-xl"
@@ -654,14 +661,14 @@ export default function AdminLayout({
             <ThemeToggle />
 
             {/* Link to Patient Page */}
-            <Link
+            {sessionVerified && role !== 'doctor' && <Link
               href={`/clinic/${slug}`}
               target="_blank"
               className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-primary bg-secondary border border-primary/20 hover:bg-primary hover:text-white transition-all shadow-2xs"
             >
               <ExternalLink className="w-3.5 h-3.5" />
               {t('booking_page', 'صفحة الحجز')}
-            </Link>
+            </Link>}
 
             {/* Notification Center */}
             <NotificationCenter

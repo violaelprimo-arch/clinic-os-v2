@@ -2,8 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { DEFAULT_LANDING_CONFIG } from '../src/lib/landing-config'
 async function fixture(page: Page, owner = false) {
   let config = structuredClone(DEFAULT_LANDING_CONFIG),
-    saveFailure = false,
-    submissionFailure = false
+    saveFailure = false
   const requests: { path: string; body: Record<string, unknown> }[] = [],
     errors: string[] = []
   page.on('pageerror', (error) => errors.push(error.message))
@@ -143,10 +142,8 @@ async function fixture(page: Page, owner = false) {
     }
     if (url.pathname.startsWith('/api/landing/')) {
       await route.fulfill({
-        status: submissionFailure ? 503 : 201,
-        json: submissionFailure
-          ? { error: 'تعذر الاتصال بالخدمة' }
-          : { success: true, pending: true },
+        status: 201,
+        json: { success: true, pending: true },
       })
       return
     }
@@ -160,9 +157,6 @@ async function fixture(page: Page, owner = false) {
     },
     failSave() {
       saveFailure = true
-    },
-    failSubmission() {
-      submissionFailure = true
     },
   }
 }
@@ -228,49 +222,29 @@ test('feedback goes to moderation and does not appear immediately', async ({
   ).toHaveLength(1)
   await expect(page.locator('blockquote')).toHaveCount(0)
 })
-test('trial modal validates and saves contact information', async ({
+test('free-trial CTA stays hidden on the public landing page', async ({
   page,
 }) => {
-  const data = await fixture(page)
+  await fixture(page)
   await page.goto('/')
-  await page.getByRole('button', { name: 'ابدأ تجربة مجانية' }).first().click()
-  const dialog = page.getByRole('dialog')
-  for (const [name, value] of Object.entries({
-    doctorName: 'طبيب اختبار',
-    clinicName: 'عيادة اختبار',
-    specialty: 'أسنان',
-    phone: '01551007018',
-    email: 'test@example.test',
-  }))
-    await dialog.locator(`[name="${name}"]`).fill(value)
-  await dialog.getByRole('button', { name: 'إرسال طلب التجربة' }).click()
-  await expect(dialog.getByRole('status')).toContainText('تم تسجيل طلبك')
-  await expect(
-    dialog.getByRole('link', { name: 'متابعة الطلب على واتساب' }),
-  ).toHaveAttribute('href', /wa\.me\/201551007018/)
-  expect(
-    data.requests.filter((item) => item.path === '/api/landing/trials'),
-  ).toHaveLength(1)
+  await expect(page.getByRole('button', { name: /تجربة مجانية|free trial/i })).toHaveCount(0)
+  await expect(page.getByText(/7 أيام|7 days/i)).toHaveCount(0)
+  await expect(page.getByRole('dialog')).toHaveCount(0)
 })
-test('failed submission is visible and never reports a saved trial', async ({
+test('doctor sessions are redirected away from public clinic pages', async ({
   page,
 }) => {
-  const data = await fixture(page)
-  data.failSubmission()
-  await page.goto('/')
-  await page.getByRole('button', { name: 'ابدأ تجربة مجانية' }).first().click()
-  const dialog = page.getByRole('dialog')
-  for (const [name, value] of Object.entries({
-    doctorName: 'طبيب اختبار',
-    clinicName: 'عيادة اختبار',
-    specialty: 'أسنان',
-    phone: '01551007018',
-    email: 'test@example.test',
-  }))
-    await dialog.locator(`[name="${name}"]`).fill(value)
-  await dialog.getByRole('button', { name: 'إرسال طلب التجربة' }).click()
-  await expect(dialog.getByRole('alert')).toContainText('تعذر الاتصال')
-  await expect(dialog.getByRole('status')).toHaveCount(0)
+  await fixture(page)
+  await page.route('**/api/auth/session', (route) =>
+    route.fulfill({
+      json: {
+        authenticated: true,
+        user: { role: 'doctor', clinicId: 'demo' },
+      },
+    }),
+  )
+  await page.goto('/clinic/demo')
+  await expect(page).toHaveURL(/\/clinic\/demo\/admin$/)
 })
 test('owner dashboard stays behind the login gate', async ({ page }) => {
   const data = await fixture(page)
@@ -295,6 +269,7 @@ test('owner edits remain in preview until explicitly published', async ({
   page,
 }) => {
   const data = await fixture(page, true)
+  data.config.visibility.showTrialBanner = true
   await page.goto('/owner')
   await logIntoOwner(page)
   await page
@@ -313,6 +288,13 @@ test('owner edits remain in preview until explicitly published', async ({
   await expect(frame.getByRole('heading', { level: 1 })).toContainText(
     'عنوان اختبار غير منشور',
   )
+  await expect(
+    page.getByRole('button', { name: /تجربة مجانية|free trial/i }),
+  ).toHaveCount(0)
+  await expect(
+    page.getByLabel('زر طلب التجربة', { exact: true }),
+  ).toHaveCount(0)
+  await expect(frame.getByText(/7 أيام|7 days/i)).toHaveCount(0)
   await page.getByRole('button', { name: 'موبايل', exact: true }).click()
   expect(
     await page
@@ -339,6 +321,15 @@ test('owner edits remain in preview until explicitly published', async ({
   await expect(
     frame.getByRole('img', { name: 'عرض توضيحي للوحة يلا كلينك' }),
   ).toHaveAttribute('src', imageUrl)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByRole('button', { name: 'عرض المعاينة' }).click()
+  const mobilePreview = page.locator('iframe[title="بروفة الواجهة الرئيسية"]').last()
+  await expect(mobilePreview).toBeVisible()
+  expect(
+    await mobilePreview.evaluate((node) => (node as HTMLIFrameElement).style.width),
+  ).toBe('390px')
+  await page.getByRole('button', { name: 'إغلاق المعاينة' }).click()
+  await page.setViewportSize({ width: 1440, height: 1000 })
   await page.getByRole('button', { name: 'حفظ ونشر', exact: true }).click()
   await expect(page.getByRole('status')).toContainText('تم حفظ ونشر')
   expect(data.config.heroTitle).toBe('عنوان اختبار غير منشور')

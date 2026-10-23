@@ -14,6 +14,7 @@ import {
   Trash2,
   Monitor,
   Smartphone,
+  X,
   Eye,
   EyeOff,
   RefreshCw,
@@ -256,10 +257,16 @@ function ListEditor<T extends object>({
     </div>
   )
 }
-function LivePreview({ config }: { config: LandingPageConfig }) {
+function LivePreview({
+  config,
+  initialDevice = 'desktop',
+}: {
+  config: LandingPageConfig
+  initialDevice?: 'desktop' | 'mobile'
+}) {
   const frame = useRef<HTMLIFrameElement>(null),
     box = useRef<HTMLDivElement>(null)
-  const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop'),
+  const [device, setDevice] = useState<'desktop' | 'mobile'>(initialDevice),
     [width, setWidth] = useState(700)
   const target = device === 'desktop' ? 1280 : 390,
     scale = Math.min(1, width / target)
@@ -346,8 +353,7 @@ function LivePreview({ config }: { config: LandingPageConfig }) {
     </section>
   )
 }
-const visibilityLabels: Record<keyof LandingPageConfig['visibility'], string> =
-  {
+const visibilityLabels = {
     showStats: 'الأرقام والإحصائيات',
     showFeatures: 'المميزات',
     showScreenshots: 'معرض الصور',
@@ -356,8 +362,10 @@ const visibilityLabels: Record<keyof LandingPageConfig['visibility'], string> =
     allowClientFeedbackSubmission: 'نموذج إرسال الرأي',
     showContacts: 'أرقام التواصل',
     showFloatingWhatsapp: 'واتساب العائم',
-    showTrialBanner: 'التجربة المجانية',
-  }
+  } satisfies Record<
+    Exclude<keyof LandingPageConfig['visibility'], 'showTrialBanner'>,
+    string
+  >
 const tabs = [
   ['hero', 'النصوص والإحصائيات'],
   ['features', 'المميزات'],
@@ -365,8 +373,7 @@ const tabs = [
   ['clients', 'العملاء'],
   ['feedback', 'الآراء'],
   ['contacts', 'التواصل'],
-  ['trials', 'طلبات التجربة'],
-  ['preview', 'البروفة'],
+  ['trials', 'طلبات التواصل'],
 ] as const
 type Tab = (typeof tabs)[number][0]
 export function LandingPageManager() {
@@ -384,6 +391,7 @@ export function LandingPageManager() {
     [error, setError] = useState(''),
     [message, setMessage] = useState('')
   const [inboxError, setInboxError] = useState('')
+  const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false)
   const dirty = loaded && saved !== JSON.stringify(config)
   const set = <K extends keyof LandingPageConfig>(
     key: K,
@@ -398,7 +406,7 @@ export function LandingPageManager() {
     if (results[0].status === 'fulfilled') setFeedback(results[0].value)
     else failures.push('تعذر تحميل الآراء: ' + results[0].reason.message)
     if (results[1].status === 'fulfilled') setTrials(results[1].value)
-    else failures.push('تعذر تحميل طلبات التجربة: ' + results[1].reason.message)
+    else failures.push('تعذر تحميل طلبات التواصل: ' + results[1].reason.message)
     setInboxError(failures.join(' — '))
   }
   useEffect(() => {
@@ -406,8 +414,12 @@ export function LandingPageManager() {
     getLandingPageConfig()
       .then((value) => {
         if (!cancelled) {
-          setConfig(value)
-          setSaved(JSON.stringify(value))
+          const safeValue = {
+            ...value,
+            visibility: { ...value.visibility, showTrialBanner: false },
+          }
+          setConfig(safeValue)
+          setSaved(JSON.stringify(safeValue))
           setLoaded(true)
         }
       })
@@ -513,8 +525,8 @@ export function LandingPageManager() {
     },
   ]
   return (
-    <div className="space-y-6" dir="rtl">
-      <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-card/95 p-5 backdrop-blur-xl">
+    <div className="space-y-5" dir="rtl">
+      <div className="sticky top-2 z-20 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border/80 bg-card/95 p-4 shadow-lg shadow-black/5 backdrop-blur-xl sm:p-5">
         <div>
           <h2 className="text-xl font-black">
             {isRtl ? 'إدارة الواجهة الرئيسية' : 'Landing page management'}
@@ -528,6 +540,14 @@ export function LandingPageManager() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            className="xl:hidden"
+            onClick={() => setMobilePreviewOpen(true)}
+          >
+            <Eye />
+            عرض المعاينة
+          </Button>
           <a
             href="/"
             target="_blank"
@@ -570,19 +590,23 @@ export function LandingPageManager() {
           إعادة المحاولة
         </Button>
       )}
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.85fr)] xl:items-start">
       <fieldset
         disabled={!loaded || busy}
-        className="space-y-6 disabled:opacity-60"
+        className="min-w-0 space-y-6 disabled:opacity-60"
       >
         <section className="rounded-3xl border border-border bg-card p-5">
           <h3 className="mb-4 text-sm font-black">
             إظهار الأقسام وإخفاؤها (تُنشر عند الحفظ)
           </h3>
-          <div className="grid gap-2 sm:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-3">
             {(
               Object.keys(
                 visibilityLabels,
-              ) as (keyof LandingPageConfig['visibility'])[]
+              ) as Exclude<
+                keyof LandingPageConfig['visibility'],
+                'showTrialBanner'
+              >[]
             ).map((key) => (
               <button
                 key={key}
@@ -606,7 +630,7 @@ export function LandingPageManager() {
             ))}
           </div>
         </section>
-        <div className="flex flex-wrap gap-2" aria-label="أقسام محرر الواجهة">
+        <div className="flex gap-2 overflow-x-auto pb-2" aria-label="أقسام محرر الواجهة">
           {tabs.map(([id, label]) => (
             <Button
               key={id}
@@ -619,7 +643,7 @@ export function LandingPageManager() {
             </Button>
           ))}
         </div>
-        {tab !== 'preview' && tab !== 'trials' && (
+        {tab !== 'trials' && (
           <div className="flex items-center gap-3 text-xs font-bold">
             <span>لغة المحتوى:</span>
             <Button
@@ -651,7 +675,6 @@ export function LandingPageManager() {
                   ['heroTitle', 'العنوان الرئيسي'],
                   ['heroHighlight', 'العنوان المميز'],
                   ['heroSubtitle', 'وصف المنصة'],
-                  ['trialButtonText', 'زر طلب التجربة'],
                   ['demoButtonText', 'زر لوحة الدكتور'],
                   ['patientPortalButtonText', 'زر المريض'],
                   ['loginButtonText', 'زر الدخول'],
@@ -677,18 +700,6 @@ export function LandingPageManager() {
                   />
                 </FieldEditor>
               ))}
-              <FieldEditor label="عدد أيام التجربة">
-                <input
-                  type="number"
-                  min={1}
-                  max={90}
-                  value={config.trialDaysCount}
-                  onChange={(e) =>
-                    set('trialDaysCount', Number(e.target.value))
-                  }
-                  className="landing-input"
-                />
-              </FieldEditor>
               {(
                 [
                   ['loginUrl', 'رابط الدخول'],
@@ -946,7 +957,7 @@ export function LandingPageManager() {
           <section className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-black">طلبات التجربة المجانية</h3>
+                <h3 className="font-black">طلبات التواصل الواردة</h3>
                 <p className="mt-1 text-xs text-muted-foreground">
                   آخر ٢٠٠ طلب · تفعيل العيادة يتم من قسم العيادات بعد التواصل.
                 </p>
@@ -1058,7 +1069,28 @@ export function LandingPageManager() {
           </section>
         )}
       </fieldset>
-      <LivePreview config={config} />
+      <aside className="hidden min-w-0 xl:sticky xl:top-4 xl:block xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto">
+        <LivePreview config={config} />
+      </aside>
+      </div>
+      {mobilePreviewOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-background/90 p-3 backdrop-blur-sm xl:hidden">
+          <div className="mx-auto flex max-w-2xl items-center justify-between pb-3">
+            <h3 className="font-black">معاينة الواجهة</h3>
+            <Button
+              variant="outline"
+              aria-label="إغلاق المعاينة"
+              onClick={() => setMobilePreviewOpen(false)}
+            >
+              <X />
+              إغلاق
+            </Button>
+          </div>
+          <div className="mx-auto max-w-2xl">
+            <LivePreview config={config} initialDevice="mobile" />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

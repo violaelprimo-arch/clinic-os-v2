@@ -2,9 +2,21 @@ import { NextRequest, NextResponse } from 'next/server'
 import { collection, query, where, getDocs, addDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { createClinicNotification } from '@/lib/notificationService'
+import { verifySessionToken } from '@/lib/auth-crypto'
 
 export async function POST(req: NextRequest) {
   try {
+    const sessionToken = req.cookies.get('clinic_session')?.value
+    if (sessionToken) {
+      const session = await verifySessionToken(sessionToken)
+      if (session.valid && session.payload?.role === 'doctor') {
+        return NextResponse.json(
+          { error: 'حساب الطبيب لا يمكنه استخدام بوابة حجز المرضى.' },
+          { status: 403 },
+        )
+      }
+    }
+
     const body = await req.json().catch(() => ({}))
     const {
       clinicId: rawClinicId,

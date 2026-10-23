@@ -297,7 +297,7 @@ test('disabled forms reject direct submissions', async () => {
   assert.equal(response.status, 403)
   config.visibility.allowClientFeedbackSubmission = true
 })
-test('trial phone normalization and validation survive reload and contain server-owned status', async () => {
+test('trial submissions are closed by default and validation still rejects bad phones', async () => {
   const data = {
     doctorName: 'طبيب اختبار',
     clinicName: 'عيادة اختبار',
@@ -307,10 +307,12 @@ test('trial phone normalization and validation survive reload and contain server
     status: 'activated',
   }
   const response = await submitTrial(req('/api/landing/trials', data))
-  assert.equal(response.status, 201)
-  const row = [...records].find(([key]) => key.startsWith('trial_requests/'))
-  assert.equal(row[1].status, 'new')
-  assert.equal(row[1].phone, '201551007018')
+  assert.equal(DEFAULT_LANDING_CONFIG.visibility.showTrialBanner, false)
+  assert.equal(response.status, 403)
+  assert.equal(
+    [...records].some(([key]) => key.startsWith('trial_requests/')),
+    false,
+  )
   assert.equal(whatsappNumber('01551007018'), '201551007018')
   assert.equal(
     trialSubmissionSchema.safeParse({ ...data, phone: 'abc' }).success,
