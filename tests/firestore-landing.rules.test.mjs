@@ -15,6 +15,10 @@ import {
 } from 'firebase/firestore'
 
 const environments = []
+const emulatorUrl = new URL(
+  `http://${process.env.FIRESTORE_EMULATOR_HOST ?? '127.0.0.1:8789'}`,
+)
+
 before(async () => {
   for (const [name, rulesFile] of [
     ['canonical', 'firestore.rules'],
@@ -23,8 +27,8 @@ before(async () => {
     const env = await initializeTestEnvironment({
       projectId: 'demo-clinic-landing-' + name,
       firestore: {
-        host: '127.0.0.1',
-        port: 8789,
+        host: emulatorUrl.hostname,
+        port: Number(emulatorUrl.port),
         rules: await readFile(
           new URL('../' + rulesFile, import.meta.url),
           'utf8',
@@ -105,6 +109,8 @@ test('the server-issued platform owner claim can manage the CMS and existing adm
       .authenticatedContext('platform-owner', {
         platformOwner: true,
         ownerEmail: 'yallacodex@gmail.com',
+        ownerUid: 'platform-owner',
+        email_verified: true,
       })
       .firestore()
     for (const path of [
@@ -120,11 +126,9 @@ test('the server-issued platform owner claim can manage the CMS and existing adm
     }
   }
 })
-test('compatibility rules retain the existing clinic behavior only before its original expiry', async () => {
+test('compatibility rules deny unauthenticated access to appointments', async () => {
   const { env } = environments.find((item) => item.name === 'compat')
   const db = env.unauthenticatedContext().firestore()
-  const verify =
-    Date.now() < Date.UTC(2026, 10, 3) ? assertSucceeds : assertFails
-  await verify(getDoc(doc(db, 'appointments/fixture')))
-  await verify(setDoc(doc(db, 'appointments/fixture'), { fixture: true }))
+  await assertFails(getDoc(doc(db, 'appointments/fixture')))
+  await assertFails(setDoc(doc(db, 'appointments/fixture'), { fixture: true }))
 })
