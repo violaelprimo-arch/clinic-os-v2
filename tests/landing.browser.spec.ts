@@ -174,6 +174,13 @@ test('public page supports Arabic, English, themes and mobile layout', async ({
   await expect(page.getByRole('heading', { level: 1 })).toContainText(
     'عيادتك منظمة.',
   )
+  await expect(
+    page.getByRole('link', { name: 'طلب ديمو مجاني' }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('link', { name: 'تواصل مع الدعم الفني' }),
+  ).toBeVisible()
+  await expect(page.getByText(/استكشف لوحة الطبيب|جرب بوابة المريض/)).toHaveCount(0)
   await page.screenshot({
     path: 'test-results/landing-desktop-ar.png',
     fullPage: true,
@@ -347,6 +354,56 @@ test('owner edits remain in preview until explicitly published', async ({
   await expect(publishedImage).toHaveAttribute('src', imageUrl)
   await expect(publishedImage).toHaveJSProperty('naturalWidth', 100)
   expect(data.errors).toEqual([])
+})
+test('owner can manage collaborators and publish linked client cards', async ({
+  page,
+}) => {
+  const data = await fixture(page, true)
+  data.config.clients = [
+    {
+      id: 'existing-client',
+      name: 'مركز الشفاء',
+      specialty: '',
+      city: '',
+      logoUrl: '',
+      link: '',
+      collaborationNote: 'رعاية طبية متخصصة',
+      nameEn: '',
+      specialtyEn: '',
+    },
+  ]
+  await page.goto('/owner')
+  await logIntoOwner(page)
+  await page
+    .getByRole('button', { name: 'الواجهة الرئيسية', exact: true })
+    .last()
+    .click()
+  await page.getByRole('button', { name: 'العملاء', exact: true }).click()
+
+  const editor = page.locator('fieldset')
+  await editor.getByRole('button', { name: 'إضافة', exact: true }).click()
+  await editor.getByRole('textbox', { name: 'اسم العميل' }).last().fill('مركز النور')
+  await editor.getByRole('textbox', { name: 'رابط الصورة' }).last().fill('https://images.example.test/clinic.svg')
+  await editor.getByRole('textbox', { name: 'رابط الموقع (اختياري)' }).last().fill('https://noor.example.test')
+  await editor.getByRole('textbox', { name: 'وصف اختياري' }).last().fill('خدمات صحية متكاملة')
+  await editor.getByRole('button', { name: 'نقل لأعلى' }).last().click()
+
+  await page.getByRole('button', { name: 'حفظ ونشر', exact: true }).click()
+  await expect(page.getByRole('status')).toContainText('تم حفظ ونشر')
+  expect(data.config.clients.map((client) => client.name)).toEqual([
+    'مركز النور',
+    'مركز الشفاء',
+  ])
+
+  await page.goto('/')
+  await expect(
+    page.getByRole('heading', { name: 'العملاء المتعاونون' }),
+  ).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'مركز النور' })).toBeVisible()
+  await expect(page.getByRole('link', { name: /زيارة الموقع/ })).toHaveAttribute(
+    'href',
+    'https://noor.example.test',
+  )
 })
 test('failed CMS save keeps the draft and reports the failure', async ({
   page,

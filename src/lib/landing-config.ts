@@ -10,6 +10,13 @@ const image = z
     (v) => !v || /^https:\/\//.test(v) || /^\/(?!\/)/.test(v),
     'استخدم رابط صورة HTTPS أو مسارًا داخل الموقع',
   )
+const externalOrLocalLink = z
+  .string()
+  .max(500)
+  .refine(
+    (value) => !value || /^https:\/\//.test(value) || /^\/(?!\/)/.test(value),
+    'استخدم رابط HTTPS أو مسارًا داخل الموقع',
+  )
 const link = z
   .string()
   .max(500)
@@ -42,6 +49,7 @@ const client = z.object({
   specialty: short.default(''),
   city: short.default(''),
   logoUrl: image.default(''),
+  link: externalOrLocalLink.default(''),
   collaborationNote: text.default(''),
   nameEn: short.default(''),
   specialtyEn: short.default(''),
@@ -140,8 +148,8 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
     'يلا كلينك يجمع الحجوزات والدور وملفات المرضى والروشتات والحسابات في تجربة واحدة، من أول حجز لآخر متابعة.',
   trialButtonText: '',
   trialDaysCount: 0,
-  demoButtonText: 'استكشف لوحة الطبيب',
-  patientPortalButtonText: 'جرّب بوابة المريض',
+  demoButtonText: 'طلب ديمو مجاني',
+  patientPortalButtonText: 'تواصل مع الدعم الفني',
   loginButtonText: 'دخول العيادة',
   loginUrl: '/clinic/demo/login',
   demoUrl: '/clinic/demo/admin',
@@ -156,8 +164,8 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
     heroSubtitle:
       'Appointments, live queues, patient records, prescriptions and finances — connected in one experience, from first booking to follow-up.',
     trialButtonText: '',
-    demoButtonText: 'Explore the doctor workspace',
-    patientPortalButtonText: 'Try the patient portal',
+    demoButtonText: 'Request a free demo',
+    patientPortalButtonText: 'Contact technical support',
     loginButtonText: 'Clinic login',
     footerText:
       '© 2026 Yalla Clinic. Developed by YallaCodeX. All rights reserved.',

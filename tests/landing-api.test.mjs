@@ -361,4 +361,22 @@ test('configuration rejects javascript URLs and invalid review ratings', () => {
     }).success,
     false,
   )
+  assert.equal(
+    landingConfigSchema.safeParse({
+      ...DEFAULT_LANDING_CONFIG,
+      clients: [
+        {
+          id: 'client-1',
+          name: 'عيادة اختبار',
+          link: 'javascript:alert(1)',
+        },
+      ],
+    }).success,
+    false,
+  )
+  assert.equal(DEFAULT_LANDING_CONFIG.demoButtonText, 'طلب ديمو مجاني')
+  assert.equal(
+    DEFAULT_LANDING_CONFIG.patientPortalButtonText,
+    'تواصل مع الدعم الفني',
+  )
 })

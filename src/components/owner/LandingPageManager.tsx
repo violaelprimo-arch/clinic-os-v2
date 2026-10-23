@@ -675,8 +675,6 @@ export function LandingPageManager() {
                   ['heroTitle', 'العنوان الرئيسي'],
                   ['heroHighlight', 'العنوان المميز'],
                   ['heroSubtitle', 'وصف المنصة'],
-                  ['demoButtonText', 'زر لوحة الدكتور'],
-                  ['patientPortalButtonText', 'زر المريض'],
                   ['loginButtonText', 'زر الدخول'],
                   ['footerText', 'الحقوق أسفل الصفحة'],
                 ] as const
@@ -700,11 +698,17 @@ export function LandingPageManager() {
                   />
                 </FieldEditor>
               ))}
+              <div className="rounded-2xl border border-primary/15 bg-primary/5 p-4 sm:col-span-2">
+                <p className="text-xs font-black text-primary">
+                  أزرار الواجهة الرئيسية
+                </p>
+                <p className="mt-1 text-xs leading-6 text-muted-foreground">
+                  طلب ديمو مجاني · تواصل مع الدعم الفني
+                </p>
+              </div>
               {(
                 [
                   ['loginUrl', 'رابط الدخول'],
-                  ['demoUrl', 'رابط لوحة الدكتور التجريبية'],
-                  ['patientUrl', 'رابط بوابة المريض'],
                 ] as const
               ).map(([key, label]) => (
                 <FieldEditor label={label} key={key}>
@@ -780,13 +784,13 @@ export function LandingPageManager() {
           <ListEditor
             title="العملاء المتعاونون"
             fields={[
-              { key: translated('name'), label: 'اسم العيادة / المركز' },
-              { key: translated('specialty'), label: 'التخصص أو الوصف' },
-              { key: 'city', label: 'المدينة' },
+              { key: 'name', label: translated('اسم العميل', 'Client name') },
+              { key: 'nameEn', label: 'الاسم بالإنجليزية (اختياري)' },
               { key: 'logoUrl', label: 'الشعار', type: 'image' },
+              { key: 'link', label: 'رابط الموقع (اختياري)' },
               {
                 key: 'collaborationNote',
-                label: 'ملاحظة التعاون',
+                label: 'وصف اختياري',
                 type: 'textarea',
               },
             ]}
@@ -798,6 +802,7 @@ export function LandingPageManager() {
               specialty: '',
               city: '',
               logoUrl: '',
+              link: '',
               collaborationNote: '',
               nameEn: '',
               specialtyEn: '',

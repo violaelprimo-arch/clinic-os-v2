@@ -91,6 +91,12 @@ export function LandingPageContent({
     primary?.whatsappNumber || config.primaryWhatsapp,
   )
   const whatsapp = number ? `https://wa.me/${number}` : ''
+  const demoHref = whatsapp
+    ? `${whatsapp}?text=${encodeURIComponent(copy('مرحبًا، أرغب في طلب ديمو مجاني لمنصة Yalla Clinic.', 'Hello, I would like to request a free Yalla Clinic demo.'))}`
+    : '#contact'
+  const supportHref = whatsapp
+    ? `${whatsapp}?text=${encodeURIComponent(copy('مرحبًا، أحتاج إلى التواصل مع الدعم الفني لمنصة Yalla Clinic.', 'Hello, I need to contact Yalla Clinic technical support.'))}`
+    : '#contact'
   const move = (offset: number) =>
     setSlide(
       (value) => (value + offset + screenshots.length) % screenshots.length,
@@ -104,10 +110,10 @@ export function LandingPageContent({
     return () => clearInterval(timer)
   }, [screenshots.length, paused, reduced])
   const reveal = {
-    initial: reduced ? (false as const) : { opacity: 1, y: 12 },
+    initial: reduced ? (false as const) : { opacity: 0, y: 22 },
     whileInView: { opacity: 1, y: 0 },
     viewport: { once: true, amount: 0.12 },
-    transition: { duration: 0.45 },
+    transition: { duration: 0.6, ease: 'easeOut' as const },
   }
   const previewLink = (event: React.MouseEvent) => {
     if (isPreview) event.preventDefault()
@@ -261,9 +267,9 @@ export function LandingPageContent({
                 <span className="size-2 rounded-full bg-primary" />
                 {headline('heroBadge')}
               </p>
-              <h1 className="text-[clamp(2.6rem,5.3vw,4.8rem)] font-black leading-[1.22] tracking-tight">
+              <h1 className="text-[clamp(2.6rem,5.3vw,4.8rem)] font-black leading-[1.18] tracking-tight">
                 {headline('heroTitle')}
-                <span className="mt-2 block text-primary">
+                <span className="mt-2 block bg-gradient-to-l from-primary via-primary to-cyan-500 bg-clip-text text-transparent">
                   {headline('heroHighlight')}
                 </span>
               </h1>
@@ -271,22 +277,25 @@ export function LandingPageContent({
                 {headline('heroSubtitle')}
               </p>
               <div className="flex flex-wrap gap-3">
-                {showTrialBanner && config.visibility.showTrialBanner && (
-                  <Button
-                    size="lg"
-                    className="h-13 rounded-2xl px-6 shadow-lg shadow-primary/20"
-                    onClick={() => setTrialOpen(true)}
-                  >
-                    {headline('trialButtonText')}
-                    <ArrowUpRight />
-                  </Button>
-                )}
                 <a
-                  href="#showcase"
-                  className="flex items-center gap-2 rounded-2xl border border-border bg-card px-5 py-3 font-bold text-sm"
+                  href={demoHref}
+                  onClick={previewLink}
+                  target={whatsapp ? '_blank' : undefined}
+                  rel={whatsapp ? 'noopener noreferrer' : undefined}
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-3 text-sm font-black text-primary-foreground shadow-lg shadow-primary/20 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/25 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
                 >
-                  <Play className="size-4 text-primary" />
-                  {copy('شوف النظام من جوه', 'Take a product tour')}
+                  {copy('طلب ديمو مجاني', 'Request a free demo')}
+                  <ArrowUpRight className="size-4" />
+                </a>
+                <a
+                  href={supportHref}
+                  onClick={previewLink}
+                  target={whatsapp ? '_blank' : undefined}
+                  rel={whatsapp ? 'noopener noreferrer' : undefined}
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-card px-6 py-3 text-sm font-black transition-all duration-300 hover:-translate-y-1 hover:border-primary/35 hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+                >
+                  <MessageCircle className="size-4 text-primary" />
+                  {copy('تواصل مع الدعم الفني', 'Contact technical support')}
                 </a>
               </div>
               {showTrialBanner && config.visibility.showTrialBanner && (
@@ -314,7 +323,7 @@ export function LandingPageContent({
             </motion.div>
             <motion.div {...reveal} className="relative min-w-0 py-6">
               <div className="absolute inset-0 rounded-full bg-gradient-to-bl from-primary/15 to-cyan-400/10 blur-3xl" />
-              <div className="relative overflow-hidden rounded-3xl border border-border bg-card p-2 shadow-2xl shadow-primary/10 sm:rotate-[-2deg]">
+              <div className="relative overflow-hidden rounded-3xl border border-border bg-card p-2 shadow-2xl shadow-primary/10 transition-transform duration-700 hover:rotate-0 hover:scale-[1.01] sm:rotate-[-2deg]">
                 <div className="mb-2 flex items-center justify-between px-4 py-3 text-[10px] text-muted-foreground">
                   <span className="font-bold">YALLA CLINIC / WORKSPACE</span>
                   <span className="flex gap-1">
@@ -374,56 +383,89 @@ export function LandingPageContent({
         </section>
         {config.visibility.showClients && config.clients.length > 0 && (
           <section
-            aria-label={copy('شركاء النجاح', 'Our partners')}
-            className="overflow-hidden border-b border-border py-10"
+            id="clients"
+            aria-label={copy('العملاء المتعاونون', 'Our collaborators')}
+            className="mx-auto max-w-7xl px-5 py-16 lg:px-8"
           >
-            <p className="mb-7 text-center text-xs font-bold tracking-wide text-muted-foreground">
-              {copy(
-                'عيادات ومراكز تشاركنا الرحلة',
-                'Clinics and centers sharing the journey',
-              )}
-            </p>
-            <div className="landing-marquee" dir="ltr">
-              <div className="landing-marquee-track">
-                {[0, 1].map((duplicate) => (
-                  <div
-                    key={duplicate}
-                    className="flex shrink-0 items-center gap-10 pe-10"
-                    aria-hidden={duplicate === 1}
+            <motion.div {...reveal} className="mb-8 text-center">
+              <p className="landing-eyebrow">
+                {copy('شركاء النجاح', 'OUR PARTNERS')}
+              </p>
+              <h2 className="landing-title">
+                {copy('العملاء المتعاونون', 'Our collaborators')}
+              </h2>
+              <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-muted-foreground">
+                {copy(
+                  'نعتز بثقة العيادات والمراكز التي اختارت يلا كلينك لتنظيم عملها.',
+                  'We value the clinics and centers that trust Yalla Clinic to support their work.',
+                )}
+              </p>
+            </motion.div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {config.clients.map((client, clientIndex) => {
+                const name =
+                  !isRtl && client.nameEn ? client.nameEn : client.name
+                const description =
+                  client.collaborationNote || client.specialty
+                const card = (
+                  <>
+                    <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-2xl border border-border/70 bg-secondary/60 p-2 transition-transform duration-300 group-hover:scale-105">
+                      {client.logoUrl ? (
+                        <img
+                          src={client.logoUrl}
+                          alt={name}
+                          className="size-full object-contain"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <Building2 className="size-8 text-primary/70" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="truncate font-black">{name}</h3>
+                      {description && (
+                        <p className="mt-1 line-clamp-2 text-xs leading-6 text-muted-foreground">
+                          {description}
+                        </p>
+                      )}
+                      {client.link && (
+                        <span className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-primary">
+                          {copy('زيارة الموقع', 'Visit website')}
+                          <ArrowUpRight className="size-3.5" />
+                        </span>
+                      )}
+                    </div>
+                  </>
+                )
+                const className =
+                  'group flex min-h-28 items-center gap-4 rounded-3xl border border-border/70 bg-card/80 p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/35 hover:shadow-xl hover:shadow-primary/5'
+
+                return client.link ? (
+                  <a
+                    key={client.id}
+                    href={client.link}
+                    target={client.link.startsWith('https://') ? '_blank' : undefined}
+                    rel={client.link.startsWith('https://') ? 'noopener noreferrer' : undefined}
+                    className={className}
+                    dir={dir}
                   >
-                    {config.clients.map((client) => (
-                      <div
-                        key={client.id}
-                        className="flex min-w-44 items-center gap-3"
-                        dir={dir}
-                      >
-                        {client.logoUrl ? (
-                          <img
-                            src={client.logoUrl}
-                            alt=""
-                            className="size-12 rounded-xl object-contain"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <Building2 className="size-9 text-primary/60" />
-                        )}
-                        <div>
-                          <p className="text-sm font-black">
-                            {!isRtl && client.nameEn
-                              ? client.nameEn
-                              : client.name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {!isRtl && client.specialtyEn
-                              ? client.specialtyEn
-                              : client.specialty}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
+                    {card}
+                  </a>
+                ) : (
+                  <motion.article
+                    key={client.id}
+                    {...reveal}
+                    transition={{
+                      ...reveal.transition,
+                      delay: reduced ? 0 : Math.min(clientIndex * 0.06, 0.3),
+                    }}
+                    className={className}
+                    dir={dir}
+                  >
+                    {card}
+                  </motion.article>
+                )
+              })}
             </div>
           </section>
         )}
@@ -636,22 +678,6 @@ export function LandingPageContent({
                     )}
                   </p>
                 </div>
-              </div>
-              <div className="mt-8 flex flex-wrap justify-center gap-3">
-                <Link
-                  href={config.demoUrl}
-                  onClick={previewLink}
-                  className="rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground"
-                >
-                  {headline('demoButtonText')}
-                </Link>
-                <Link
-                  href={config.patientUrl}
-                  onClick={previewLink}
-                  className="rounded-xl border border-border bg-card px-5 py-3 text-sm font-bold"
-                >
-                  {headline('patientPortalButtonText')}
-                </Link>
               </div>
             </div>
           </section>

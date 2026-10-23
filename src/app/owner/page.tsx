@@ -22,7 +22,7 @@ import {
 import { db } from '@/lib/firebase'
 import { collection, addDoc, getDocs, deleteDoc, updateDoc, doc, setDoc, onSnapshot } from 'firebase/firestore'
 import { Switch } from '@/components/ui/switch'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { SINGLE_CLINIC_SLUG } from '@/lib/single-clinic'
 import { hashPassword } from '@/lib/auth-crypto'
@@ -163,6 +163,7 @@ export default function OwnerPage() {
 
 function OwnerDashboard() {
   const { dir, t, isRtl, language } = useLanguage()
+  const reducedMotion = useReducedMotion()
   const [clinics, setClinics] = useState<any[]>([])
   const { activeTab, setActiveTab } = useOwnerNavigation()
   const [searchQuery, setSearchQuery] = useState('')
@@ -1361,27 +1362,36 @@ function OwnerDashboard() {
   const customTemplateCount = clinics.filter(c => !!c.prescriptionTemplateUrl).length
 
   return (
-    <div className="space-y-8 font-sans pb-16 text-[#182230] dark:text-slate-100 transition-colors" dir={dir}>
+    <div className="space-y-7 pb-16 font-sans text-[#182230] transition-colors dark:text-slate-100" dir={dir}>
       
       {/* 1. Header Overview & Title */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <motion.div
+        initial={reducedMotion ? false : { opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, ease: 'easeOut' }}
+        className="relative flex flex-col justify-between gap-5 overflow-hidden rounded-[2rem] border border-primary/15 bg-gradient-to-br from-card via-card to-primary/5 p-5 shadow-sm sm:p-7 md:flex-row md:items-center"
+      >
+        <div className="pointer-events-none absolute -end-16 -top-24 size-64 rounded-full bg-primary/10 blur-3xl" />
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-[#092145] dark:text-[#F3FAFF] flex items-center gap-2.5">
-            <ShieldCheck className="w-8 h-8 text-[#087CF4]" />
+          <p className="mb-2 text-xs font-black tracking-[0.16em] text-primary">
+            YALLA CLINIC · PLATFORM OWNER
+          </p>
+          <h1 className="flex items-center gap-2.5 text-2xl font-black text-[#092145] dark:text-[#F3FAFF] sm:text-3xl">
+            <ShieldCheck className="size-7 shrink-0 text-[#087CF4] sm:size-8" />
             {t('owner_dashboard_title')}
           </h1>
-          <p className="text-xs sm:text-sm text-slate-400 dark:text-slate-400 mt-1">
+          <p className="mt-2 max-w-2xl text-xs leading-6 text-slate-500 dark:text-slate-400 sm:text-sm">
             {t('owner_dashboard_subtitle')}
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="relative z-10 flex shrink-0 items-center gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={loadClinics}
             disabled={isRefreshing}
-            className="h-10 text-xs font-bold rounded-xl border-[#DCE9F5] dark:border-[#254565] text-slate-700 dark:text-slate-200 hover:bg-[#F4FAFF] dark:hover:bg-[#0E2342]"
+            className="h-11 rounded-xl border-[#DCE9F5] text-xs font-bold text-slate-700 transition-all hover:-translate-y-0.5 hover:bg-[#F4FAFF] dark:border-[#254565] dark:text-slate-200 dark:hover:bg-[#0E2342]"
           >
             <RefreshCw className={`w-3.5 h-3.5 ml-1.5 ${isRefreshing ? 'animate-spin text-[#087CF4]' : ''}`} />
             {t('refresh_data')}
@@ -1393,19 +1403,19 @@ function OwnerDashboard() {
               setEditingId(null)
               setActiveTab('add')
             }}
-            className="h-10 px-4 text-xs font-black yalla-gradient-btn text-white rounded-xl shadow-md cursor-pointer"
+            className="yalla-gradient-btn h-11 cursor-pointer rounded-xl px-4 text-xs font-black text-white shadow-md transition-all hover:-translate-y-0.5 hover:shadow-lg"
           >
             <Plus className="w-4 h-4 ml-1.5" />
             {t('add_new_clinic')}
           </Button>
         </div>
-      </div>
+        </motion.div>
 
       {/* 2. KPI Metrics Cards (Apple Vision / iOS Glassmorphism) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         
         {/* Card 1: Total Clinics */}
-        <div className="ios-glass-card p-5 border border-border/80 rounded-3xl flex items-center gap-4 relative overflow-hidden group hover:border-primary/50 hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
+        <motion.div initial={reducedMotion ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: reducedMotion ? 0 : 0.04 }} className="ios-glass-card group relative flex items-center gap-4 overflow-hidden rounded-3xl border border-border/80 p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 hover:shadow-xl">
           <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-primary/25 to-primary/10 text-primary border border-primary/30 flex items-center justify-center shrink-0 shadow-md shadow-primary/20 group-hover:scale-105 transition-transform">
             <Building className="w-6 h-6" />
           </div>
@@ -1413,10 +1423,10 @@ function OwnerDashboard() {
             <span className="text-xs font-bold text-muted-foreground block">{isRtl ? 'إجمالي العيادات' : 'Total Clinics'}</span>
             <span className="text-2xl sm:text-3xl font-black text-foreground font-mono">{totalClinics}</span>
           </div>
-        </div>
+        </motion.div>
 
         {/* Card 2: Active Clinics */}
-        <div className="ios-glass-card p-5 border border-border/80 rounded-3xl flex items-center gap-4 relative overflow-hidden group hover:border-emerald-500/50 hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
+        <motion.div initial={reducedMotion ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: reducedMotion ? 0 : 0.1 }} className="ios-glass-card group relative flex items-center gap-4 overflow-hidden rounded-3xl border border-border/80 p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-emerald-500/50 hover:shadow-xl">
           <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-emerald-500/25 to-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0 shadow-md shadow-emerald-500/20 group-hover:scale-105 transition-transform">
             <CheckCircle2 className="w-6 h-6" />
           </div>
@@ -1424,10 +1434,10 @@ function OwnerDashboard() {
             <span className="text-xs font-bold text-muted-foreground block">{isRtl ? 'العيادات النشطة' : 'Active Clinics'}</span>
             <span className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 font-mono">{activeClinicsCount}</span>
           </div>
-        </div>
+        </motion.div>
 
         {/* Card 3: AI Chatbot Enabled */}
-        <div className="ios-glass-card p-5 border border-border/80 rounded-3xl flex items-center gap-4 relative overflow-hidden group hover:border-purple-500/50 hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
+        <motion.div initial={reducedMotion ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: reducedMotion ? 0 : 0.16 }} className="ios-glass-card group relative flex items-center gap-4 overflow-hidden rounded-3xl border border-border/80 p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-purple-500/50 hover:shadow-xl">
           <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-purple-500/25 to-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/30 flex items-center justify-center shrink-0 shadow-md shadow-purple-500/20 group-hover:scale-105 transition-transform">
             <Bot className="w-6 h-6" />
           </div>
@@ -1438,10 +1448,10 @@ function OwnerDashboard() {
               <span className="text-[11px] text-muted-foreground font-bold">{isRtl ? `من ${totalClinics}` : `of ${totalClinics}`}</span>
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Card 4: Custom Prescription Template */}
-        <div className="ios-glass-card p-5 border border-border/80 rounded-3xl flex items-center gap-4 relative overflow-hidden group hover:border-cyan-500/50 hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
+        <motion.div initial={reducedMotion ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: reducedMotion ? 0 : 0.22 }} className="ios-glass-card group relative flex items-center gap-4 overflow-hidden rounded-3xl border border-border/80 p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-cyan-500/50 hover:shadow-xl">
           <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-cyan-500/25 to-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 flex items-center justify-center shrink-0 shadow-md shadow-cyan-500/20 group-hover:scale-105 transition-transform">
             <FileSignature className="w-6 h-6" />
           </div>
@@ -1449,12 +1459,12 @@ function OwnerDashboard() {
             <span className="text-xs font-bold text-muted-foreground block">{isRtl ? 'روشتات مخصصة' : 'Custom Templates'}</span>
             <span className="text-2xl sm:text-3xl font-black text-cyan-600 dark:text-cyan-400 font-mono">{customTemplateCount}</span>
           </div>
-        </div>
+        </motion.div>
 
       </div>
 
       {/* 3. Navigation Tabs (iOS Segmented Pill Bar) */}
-      <div className="p-1.5 rounded-2xl ios-glass-card border border-border/80 shadow-xs flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+      <div className="ios-glass-card flex items-center gap-1.5 overflow-x-auto rounded-2xl border border-border/80 p-2 shadow-sm no-scrollbar">
         <button type="button" onClick={() => setActiveTab('landing')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs whitespace-nowrap ${activeTab === 'landing' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary'}`}><Sparkles className="size-4" />{isRtl ? 'الواجهة الرئيسية' : 'Landing page'}</button>
         <button
           onClick={() => setActiveTab('clinics')}
@@ -1539,10 +1549,10 @@ function OwnerDashboard() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
-          className="space-y-4"
+          className="space-y-5"
         >
           {/* Search and Filters Strip */}
-          <div className="ios-glass-card p-4 border border-border/80 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-3 shadow-xs">
+          <div className="ios-glass-card flex flex-col items-stretch justify-between gap-4 rounded-2xl border border-border/80 p-4 shadow-sm sm:p-5 md:flex-row md:items-center">
             <div className="relative w-full md:w-96">
               <Search className={`w-4 h-4 absolute ${isRtl ? 'right-3.5' : 'left-3.5'} top-1/2 -translate-y-1/2 text-muted-foreground`} />
               <Input
@@ -1553,7 +1563,7 @@ function OwnerDashboard() {
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-1.5 w-full md:w-auto">
+            <div className="flex w-full flex-wrap items-center gap-2 md:w-auto">
               {[
                 { id: 'all', label: isRtl ? 'الكل' : 'All' },
                 { id: 'active', label: isRtl ? 'النشطة' : 'Active' },
@@ -1564,7 +1574,7 @@ function OwnerDashboard() {
                 <button
                   key={f.id}
                   onClick={() => setFilterMode(f.id as any)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  className={`cursor-pointer rounded-xl border px-3.5 py-2 text-xs font-bold transition-all duration-200 hover:-translate-y-0.5 ${
                     filterMode === f.id
                       ? 'bg-[#0066FF] text-white shadow-xs'
                       : 'bg-secondary/70 text-foreground hover:bg-secondary'
@@ -1577,9 +1587,9 @@ function OwnerDashboard() {
           </div>
 
           {/* Clinics Data Table (Glassmorphism Translucent Container) */}
-          <div className="ios-glass-card border border-border/80 rounded-3xl overflow-hidden shadow-sm">
+          <div className="ios-glass-card overflow-hidden rounded-3xl border border-border/80 shadow-md shadow-slate-900/5">
             <div className="overflow-x-auto">
-              <table className={`w-full ${isRtl ? 'text-right' : 'text-left'} text-xs`}>
+              <table className={`w-full min-w-[1050px] ${isRtl ? 'text-right' : 'text-left'} text-xs`}>
                 <thead className="bg-secondary/40 text-muted-foreground font-bold border-b border-border/80 select-none">
                   <tr>
                     <th className="py-4 px-4">العيادة والطبيب</th>
