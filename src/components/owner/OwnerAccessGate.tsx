@@ -1,10 +1,10 @@
 'use client'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import {
-  signInWithCustomToken,
+  signInWithEmailAndPassword,
   signOut,
   setPersistence,
-  inMemoryPersistence,
+  browserSessionPersistence,
 } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import { OWNER_EMAIL } from '@/lib/owner-session'
@@ -18,62 +18,80 @@ export function OwnerAccessGate({ children }: { children: ReactNode }) {
     [password, setPassword] = useState(''),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false)
+  async function exchangeFirebaseToken(idToken: string) {
+    const response = await fetch('/api/auth/owner-login', {
+      method: 'POST',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken }),
+    })
+    const data = await response.json()
+    if (!response.ok)
+      throw Error((data.error || 'تعذر تسجيل الدخول.') + (data.code ? ` [${data.code}]` : ''))
+    return data
+  }
+
   useEffect(() => {
     let cancelled = false
-    fetch('/api/auth/owner-session', {
-      cache: 'no-store',
-      credentials: 'same-origin',
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          if (response.status !== 401) {
-            const data = await response.json()
-            throw Error(data.error)
-          }
-          return false
+    async function restore() {
+      try {
+        await auth.authStateReady()
+        const user = auth.currentUser
+        if (!user || user.email?.toLowerCase() !== OWNER_EMAIL) {
+          if (!cancelled) setState('login')
+          return
         }
-        const data = await response.json()
-        await setPersistence(auth, inMemoryPersistence)
-        await signInWithCustomToken(auth, data.firebaseToken)
-        return true
-      })
-      .then((ok) => {
-        if (!cancelled) setState(ok ? 'ready' : 'login')
-      })
-      .catch((e) => {
+        await exchangeFirebaseToken(await user.getIdToken(true))
+        if (!cancelled) setState('ready')
+      } catch (e) {
         if (!cancelled) {
-          setError(e.message || 'تعذر التحقق من الجلسة.')
+          setError(e instanceof Error ? e.message : 'تعذر التحقق من جلسة المالك.')
           setState('login')
         }
-      })
-    return () => {
-      cancelled = true
+      }
     }
+    void restore()
+    return () => { cancelled = true }
   }, [])
+
   async function login(event: FormEvent) {
     event.preventDefault()
     setBusy(true)
     setError('')
+    let firebaseSignedIn = false
     try {
-      const response = await fetch('/api/auth/owner-login', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      })
-      const data = await response.json()
-      if (!response.ok)
-        throw Error(data.error + (data.code ? ` [${data.code}]` : ''))
-      await setPersistence(auth, inMemoryPersistence)
-      await signInWithCustomToken(auth, data.firebaseToken)
+      await setPersistence(auth, browserSessionPersistence)
+      const credential = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password)
+      firebaseSignedIn = true
+      await exchangeFirebaseToken(await credential.user.getIdToken(true))
       setPassword('')
       setState('ready')
     } catch (e) {
+      if (firebaseSignedIn) await signOut(auth).catch(() => undefined)
       setError(e instanceof Error ? e.message : 'تعذر تسجيل الدخول.')
     } finally {
       setBusy(false)
     }
   }
+
+  useEffect(() => {
+    if (state !== 'ready') return
+    // Renew the short-lived server cookie using the existing Firebase session.
+    const renewal = setInterval(async () => {
+      try {
+        const user = auth.currentUser
+        if (!user || user.email?.toLowerCase() !== OWNER_EMAIL)
+          throw Error('انتهت جلسة المالك. سجّل الدخول مرة أخرى.')
+        await exchangeFirebaseToken(await user.getIdToken(true))
+      } catch {
+        setState('login')
+        setError('انتهت صلاحية جلسة المالك. سجّل الدخول مرة أخرى.')
+      }
+    }, 45 * 60 * 1000)
+    return () => clearInterval(renewal)
+  }, [state])
+
   async function logout() {
     setBusy(true)
     try {
