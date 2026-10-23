@@ -5,7 +5,9 @@ service cloud.firestore {
     function isPlatformOwner() {
       return request.auth != null
         && request.auth.token.platformOwner == true
-        && request.auth.token.ownerEmail == 'yallacodex@gmail.com';
+        && request.auth.token.ownerEmail == 'yallacodex@gmail.com'
+        && request.auth.token.ownerUid == request.auth.uid
+        && request.auth.token.email_verified == true;
     }
 
     // The platform owner can operate the existing administrative collections.
