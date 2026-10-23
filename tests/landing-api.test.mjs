@@ -85,7 +85,9 @@ function req(path, body, owner = false, extra = {}) {
 }
 before(async () => {
   process.env.OWNER_SESSION_SECRET = secret
-  process.env.FIREBASE_PROJECT_ID = 'test-project'
+  process.env.FIREBASE_PROJECT_ID = 'clinic-os-d2d1b'
+  process.env.NEXT_PUBLIC_FIREBASE_API_KEY = 'fixture-public-key'
+  process.env.PLATFORM_OWNER_UID = 'fixture-owner-uid'
   process.env.FIREBASE_CLIENT_EMAIL =
     'fixture@test-project.iam.gserviceaccount.com'
   const pair = await crypto.subtle.generateKey(
@@ -103,9 +105,17 @@ before(async () => {
     '-----BEGIN PRIVATE KEY-----\n' +
     Buffer.from(key).toString('base64') +
     '\n-----END PRIVATE KEY-----'
-  token = await createOwnerSession(OWNER_EMAIL, secret)
+  token = await createOwnerSession(OWNER_EMAIL, 'fixture-owner-uid', secret)
   globalThis.fetch = async (url, options = {}) => {
     url = String(url)
+    if (url.startsWith('https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=')) {
+      const idToken = JSON.parse(options.body).idToken
+      if (idToken === 'invalid') return Response.json({}, { status: 401 })
+      return Response.json({ users: [{
+        localId: 'fixture-owner-uid', email: OWNER_EMAIL,
+        emailVerified: true, disabled: false, validSince: '0',
+      }] })
+    }
     if (url === 'https://oauth2.googleapis.com/token')
       return Response.json({
         access_token: 'fixture-service-access',
@@ -175,7 +185,7 @@ test('owner sessions reject tampering, clinic roles and a different email', asyn
   assert.equal(await verifyOwnerSession(token + 'x', secret), null)
   assert.equal(
     await verifyOwnerSession(
-      await createOwnerSession('doctor@example.test', secret),
+      await createOwnerSession('doctor@example.test', 'fixture-owner-uid', secret),
       secret,
     ),
     null,
@@ -188,37 +198,50 @@ test('owner password hashing verifies the password without storing plaintext', a
   assert.equal(await verifyOwnerPassword('test-password-123', hash), true)
   assert.equal(await verifyOwnerPassword('wrong', hash), false)
 })
-test('doctor credentials cannot be used to sign in as the platform owner', async () => {
-  records.set('clinics/example', {
-    doctorEmail: OWNER_EMAIL,
-    doctorPassword: 'test-password-123',
-  })
-  const response = await login(
-    req('/api/auth/owner-login', {
-      email: OWNER_EMAIL,
-      password: 'test-password-123',
-    }),
+function testFirebaseToken(overrides = {}) {
+  const now = Math.floor(Date.now() / 1000)
+  const payload = {
+    aud: 'clinic-os-d2d1b',
+    iss: 'https://securetoken.google.com/clinic-os-d2d1b',
+    sub: 'fixture-owner-uid',
+    email: OWNER_EMAIL,
+    email_verified: true,
+    ownerEmail: OWNER_EMAIL,
+    platformOwner: true,
+    iat: now - 60,
+    auth_time: now - 60,
+    exp: now + 3600,
+    ...overrides,
+  }
+  return (
+    Buffer.from(JSON.stringify({ alg: 'RS256', kid: 'fixture' })).toString('base64url') +
+    '.' + Buffer.from(JSON.stringify(payload)).toString('base64url') + '.signature'
   )
-  assert.equal(response.status, 401)
+}
+test('doctor ID tokens cannot be used to sign in as platform owner', async () => {
+  const response = await login(req('/api/auth/owner-login', {
+    idToken: testFirebaseToken({ sub: 'doctor-user-id' }),
+  }))
+  assert.equal(response.status, 403)
   assert.ok(!response.headers.has('set-cookie'))
 })
-test('exact owner record produces a signed, HttpOnly owner cookie', async () => {
-  records.set('owners/' + OWNER_EMAIL, {
-    email: OWNER_EMAIL,
-    passwordHash: await hashOwnerPassword('test-password-123'),
-  })
-  const response = await login(
-    req('/api/auth/owner-login', {
-      email: OWNER_EMAIL,
-      password: 'test-password-123',
-    }),
-  )
+test('owner authentication requires server-issued custom claims', async () => {
+  const response = await login(req('/api/auth/owner-login', {
+    idToken: testFirebaseToken({ platformOwner: false }),
+  }))
+  assert.equal(response.status, 403)
+  assert.ok(!response.headers.has('set-cookie'))
+})
+test('verified Firebase owner ID token produces a signed, HttpOnly cookie', async () => {
+  const response = await login(req('/api/auth/owner-login', {
+    idToken: testFirebaseToken(),
+  }))
   assert.equal(response.status, 200)
   assert.match(response.headers.get('set-cookie'), /HttpOnly/i)
   const body = await response.json()
+  assert.equal(body.owner.uid, 'fixture-owner-uid')
   assert.equal(body.owner.role, 'owner')
-  assert.ok(body.firebaseToken)
-  assert.ok(!JSON.stringify(body).includes('test-password-123'))
+  assert.ok(!('firebaseToken' in body))
 })
 test('anonymous and cross-site requests cannot change landing config', async () => {
   assert.equal(
