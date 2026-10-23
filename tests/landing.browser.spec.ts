@@ -38,7 +38,7 @@ async function fixture(page: Page, owner = false) {
     }
     if (url.hostname === 'identitytoolkit.googleapis.com') {
       await route.fulfill({
-        json: url.pathname.includes('signInWithCustomToken')
+        json: url.pathname.includes('signInWithPassword')
           ? {
               idToken: token,
               refreshToken: 'fixture-refresh',
@@ -72,6 +72,15 @@ async function fixture(page: Page, owner = false) {
     requests.push({ path: url.pathname, body })
     if (url.pathname === '/api/landing') {
       await route.fulfill({ json: { config } })
+      return
+    }
+    if (url.pathname === '/api/auth/owner-login') {
+      await route.fulfill({
+        status: owner ? 200 : 403,
+        json: owner
+          ? { success: true, owner: { uid: 'platform-owner', email: 'yallacodex@gmail.com', role: 'owner' } }
+          : { error: 'حساب غير مصرح له.', code: 'OWNER_ACCESS_DENIED' },
+      })
       return
     }
     if (url.pathname === '/api/auth/owner-session') {
@@ -134,6 +143,12 @@ async function fixture(page: Page, owner = false) {
       submissionFailure = true
     },
   }
+}
+async function logIntoOwner(page: Page) {
+  await expect(page.getByRole('heading', { name: 'دخول مالك المنصة' })).toBeVisible()
+  await page.locator('[name="password"]').fill('fixture-owner-password')
+  await page.getByRole('button', { name: 'تسجيل الدخول', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'تسجيل الخروج' })).toBeVisible()
 }
 test('public page supports Arabic, English, themes and mobile layout', async ({
   page,
@@ -259,6 +274,7 @@ test('owner edits remain in preview until explicitly published', async ({
 }) => {
   const data = await fixture(page, true)
   await page.goto('/owner')
+  await logIntoOwner(page)
   await page
     .getByRole('button', { name: 'الواجهة الرئيسية', exact: true })
     .last()
@@ -325,6 +341,7 @@ test('failed CMS save keeps the draft and reports the failure', async ({
   const data = await fixture(page, true)
   data.failSave()
   await page.goto('/owner')
+  await logIntoOwner(page)
   await page
     .getByRole('button', { name: 'الواجهة الرئيسية', exact: true })
     .last()
