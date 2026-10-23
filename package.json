@@ -8,7 +8,8 @@
     "deploy:cloudflare": "npx @opennextjs/cloudflare build && npx wrangler deploy",
     "start": "next start",
     "lint": "eslint",
-    "test:landing": "node --import ./scripts/register-test-loader.mjs --test tests/landing-api.test.mjs",
+    "test:landing": "node --import ./scripts/register-test-loader.mjs --test tests/landing-api.test.mjs tests/firebase-credentials.test.mjs",
+    "test:landing:rules": "npx --yes firebase-tools@13.35.1 emulators:exec --only firestore --project demo-clinic-landing --config firebase.landing.compat.json 'node --test tests/firestore-landing.rules.test.mjs'",
     "test:landing:browser": "playwright test --config playwright.landing.config.ts"
   },
   "dependencies": {
@@ -35,6 +36,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "5.0.0",
     "@opennextjs/cloudflare": "^1.20.8",
     "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",

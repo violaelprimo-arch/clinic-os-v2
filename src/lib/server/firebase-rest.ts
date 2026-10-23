@@ -18,23 +18,48 @@ type FirestoreDocument = {
 let cachedToken: { value: string; expires: number } | undefined
 let pendingToken: Promise<string> | undefined
 
-function credentials() {
-  const email = process.env.FIREBASE_CLIENT_EMAIL
-  const key = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n')
+export function getFirebaseServerCredentials() {
+  let account: Record<string, unknown> = {}
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw)
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+        throw new Error('INVALID_ACCOUNT')
+      account = parsed
+    } catch {
+      throw new Error('FIREBASE_SERVICE_ACCOUNT_INVALID')
+    }
+  }
+  const email = process.env.FIREBASE_CLIENT_EMAIL || account.client_email
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY || account.private_key
+  const key =
+    typeof privateKey === 'string' ? privateKey.replace(/\\n/g, '\n') : ''
   const project =
     process.env.FIREBASE_PROJECT_ID ||
-    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
-  if (!email || !key || !project)
+    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
+    account.project_id
+  if (
+    typeof email !== 'string' ||
+    !email ||
+    !key ||
+    typeof project !== 'string' ||
+    !project
+  )
     throw new Error('FIREBASE_SERVER_NOT_CONFIGURED')
+  if (account.project_id && account.project_id !== project)
+    throw new Error('FIREBASE_PROJECT_MISMATCH')
+  if (account.client_email && account.client_email !== email)
+    throw new Error('FIREBASE_SERVICE_ACCOUNT_MISMATCH')
   return { email, key, project }
 }
 export function firebaseServerConfigured() {
-  return Boolean(
-    process.env.FIREBASE_CLIENT_EMAIL &&
-      process.env.FIREBASE_PRIVATE_KEY &&
-      (process.env.FIREBASE_PROJECT_ID ||
-        process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID),
-  )
+  try {
+    getFirebaseServerCredentials()
+    return true
+  } catch {
+    return false
+  }
 }
 function base64url(bytes: Uint8Array) {
   return btoa(String.fromCharCode(...bytes))
@@ -43,7 +68,7 @@ function base64url(bytes: Uint8Array) {
     .replace(/\//g, '_')
 }
 export async function signServiceJwt(payload: Record<string, unknown>) {
-  const { key } = credentials()
+  const { key } = getFirebaseServerCredentials()
   const body =
     base64url(
       new TextEncoder().encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })),
@@ -73,12 +98,11 @@ export async function googleAccessToken(): Promise<string> {
     return cachedToken.value
   if (pendingToken) return pendingToken
   pendingToken = (async () => {
-    const { email } = credentials(),
+    const { email } = getFirebaseServerCredentials(),
       now = Math.floor(Date.now() / 1000)
     const assertion = await signServiceJwt({
       iss: email,
-      scope:
-        'https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/devstorage.read_write',
+      scope: 'https://www.googleapis.com/auth/datastore',
       aud: 'https://oauth2.googleapis.com/token',
       iat: now,
       exp: now + 3600,
@@ -155,7 +179,7 @@ function unpack(doc: FirestoreDocument) {
   } as Fields & { id: string }
 }
 function documentUrl(path: string) {
-  const { project } = credentials()
+  const { project } = getFirebaseServerCredentials()
   return `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(project)}/databases/(default)/documents/${path.split('/').map(encodeURIComponent).join('/')}`
 }
 async function request(url: string, init: RequestInit = {}) {
@@ -198,7 +222,9 @@ export async function createDocument(
     documentUrl(collection) + '?documentId=' + encodeURIComponent(documentId),
     {
       method: 'POST',
-      body: JSON.stringify({ fields: (encode(data).mapValue || {}).fields }),
+      body: JSON.stringify({
+        fields: (encode(data).mapValue || {}).fields,
+      }),
     },
   )
   if (response.status === 409) throw new Error('RATE_LIMITED')
@@ -236,11 +262,13 @@ export async function queryDocuments(collection: string, approvedOnly = false) {
     }),
   })
   if (!response.ok) throw new Error('FIRESTORE_QUERY_FAILED')
-  const rows = (await response.json()) as { document?: FirestoreDocument }[]
+  const rows = (await response.json()) as {
+    document?: FirestoreDocument
+  }[]
   return rows.flatMap((row) => (row.document ? [unpack(row.document)] : []))
 }
 export async function firebaseOwnerToken(email: string) {
-  const { email: serviceEmail } = credentials(),
+  const { email: serviceEmail } = getFirebaseServerCredentials(),
     now = Math.floor(Date.now() / 1000)
   return signServiceJwt({
     iss: serviceEmail,

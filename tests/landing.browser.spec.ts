@@ -29,6 +29,13 @@ async function fixture(page: Page, owner = false) {
   await page.context().route('**/*', async (route) => {
     const request = route.request(),
       url = new URL(request.url())
+    if (url.href === 'https://images.example.test/clinic.svg') {
+      await route.fulfill({
+        contentType: 'image/svg+xml',
+        body: '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="72"><rect width="100" height="72" fill="#0d9488"/></svg>',
+      })
+      return
+    }
     if (url.hostname === 'identitytoolkit.googleapis.com') {
       await route.fulfill({
         json: url.pathname.includes('signInWithCustomToken')
@@ -136,7 +143,10 @@ test('public page supports Arabic, English, themes and mobile layout', async ({
   await expect(page.getByRole('heading', { level: 1 })).toContainText(
     'عيادتك منظمة.',
   )
-  await page.screenshot({ path: 'test-results/landing-desktop-ar.png', fullPage: true })
+  await page.screenshot({
+    path: 'test-results/landing-desktop-ar.png',
+    fullPage: true,
+  })
   await page.getByRole('button', { name: 'Toggle Theme', exact: true }).click()
   await expect(page.locator('html')).toHaveClass(/dark/)
   await page.getByRole('button', { name: 'Toggle Theme', exact: true }).click()
@@ -235,7 +245,10 @@ test('owner dashboard stays behind the login gate', async ({ page }) => {
     'yallacodex@gmail.com',
   )
   await expect(
-    page.getByRole('heading', { name: 'إدارة الواجهة الرئيسية', exact: true }),
+    page.getByRole('heading', {
+      name: 'إدارة الواجهة الرئيسية',
+      exact: true,
+    }),
   ).toHaveCount(0)
   expect(
     data.requests.some((item) => item.path.startsWith('/api/owner/')),
@@ -272,15 +285,38 @@ test('owner edits remain in preview until explicitly published', async ({
     .getByRole('button', { name: 'المميزات', exact: true, pressed: true })
     .click()
   await expect(frame.locator('#features')).toHaveCount(0)
+  await page.getByRole('button', { name: 'الصور', exact: true }).click()
+  await expect(page.locator('input[type="file"]')).toHaveCount(0)
+  const imageUrl = 'https://images.example.test/clinic.svg'
+  await page
+    .getByRole('textbox', { name: 'رابط الصورة' })
+    .first()
+    .fill(imageUrl)
+  await expect(
+    page.getByRole('img', { name: 'معاينة الصورة', exact: true }).first(),
+  ).toHaveAttribute('src', imageUrl)
+  expect(data.config.screenshots[0].imageUrl).toBe(
+    DEFAULT_LANDING_CONFIG.screenshots[0].imageUrl,
+  )
+  await expect(
+    frame.getByRole('img', { name: 'عرض توضيحي للوحة يلا كلينك' }),
+  ).toHaveAttribute('src', imageUrl)
   await page.getByRole('button', { name: 'حفظ ونشر', exact: true }).click()
   await expect(page.getByRole('status')).toContainText('تم حفظ ونشر')
   expect(data.config.heroTitle).toBe('عنوان اختبار غير منشور')
   expect(data.config.visibility.showFeatures).toBe(false)
+  expect(data.config.screenshots[0].imageUrl).toBe(imageUrl)
   await page.goto('/')
   await expect(page.getByRole('heading', { level: 1 })).toContainText(
     'عنوان اختبار غير منشور',
   )
   await expect(page.locator('#features')).toHaveCount(0)
+  const publishedImage = page.getByRole('img', {
+    name: 'عرض توضيحي للوحة يلا كلينك',
+    exact: true,
+  })
+  await expect(publishedImage).toHaveAttribute('src', imageUrl)
+  await expect(publishedImage).toHaveJSProperty('naturalWidth', 100)
   expect(data.errors).toEqual([])
 })
 test('failed CMS save keeps the draft and reports the failure', async ({
@@ -297,7 +333,9 @@ test('failed CMS save keeps the draft and reports the failure', async ({
     .getByLabel('العنوان الرئيسي', { exact: true })
     .fill('مسودة لا تضيع')
   await page.getByRole('button', { name: 'حفظ ونشر', exact: true }).click()
-  await expect(page.getByRole('alert').filter({ hasText: 'تعذر الحفظ' })).toBeVisible()
+  await expect(
+    page.getByRole('alert').filter({ hasText: 'تعذر الحفظ' }),
+  ).toBeVisible()
   await expect(page.getByLabel('العنوان الرئيسي', { exact: true })).toHaveValue(
     'مسودة لا تضيع',
   )

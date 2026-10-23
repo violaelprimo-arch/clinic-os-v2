@@ -105,15 +105,3 @@ export async function getClientFeedback() {
     )
   ).feedback
 }
-export async function uploadLandingImage(file: File) {
-  const form = new FormData()
-  form.set('file', file)
-  const response = await fetch('/api/owner/landing/media', {
-    method: 'POST',
-    credentials: 'same-origin',
-    body: form,
-  })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.error || 'تعذر رفع الصورة.')
-  return data.url as string
-}

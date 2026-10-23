@@ -1,0 +1,24 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isPlatformOwner() {
+      return request.auth != null
+        && request.auth.token.platformOwner == true
+        && request.auth.token.ownerEmail == 'yallacodex@gmail.com';
+    }
+    function isPrivateLandingRoot(root) {
+      return root in ['owners', 'settings', 'landing_feedback', 'trial_requests',
+        'landing_rate_limits', 'site_settings'];
+    }
+    // Compatibility with the test-mode rule observed in the deployed project.
+    // This does NOT provide clinic/tenant isolation. The original expiry is not extended.
+    match /{root}/{document=**} {
+      allow read, write: if isPlatformOwner();
+      allow read, write: if !isPrivateLandingRoot(root)
+        && request.time < timestamp.date(2026, 11, 3);
+    }
+    match /site_settings/landing_page {
+      allow get: if true;
+    }
+  }
+}

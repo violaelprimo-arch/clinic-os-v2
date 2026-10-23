@@ -17,7 +17,6 @@ import {
   Eye,
   EyeOff,
   RefreshCw,
-  Upload,
   ArrowUpRight,
   LoaderCircle,
   CheckCircle2,
@@ -38,7 +37,6 @@ import {
   getFreeTrialRequests,
   getClientFeedback,
   landingApi,
-  uploadLandingImage,
 } from '@/lib/landing-service'
 import '@/components/landing/landing.css'
 
@@ -69,8 +67,6 @@ function ImageEditor({
   value: string
   onChange: (value: string) => void
 }) {
-  const [busy, setBusy] = useState(false),
-    [error, setError] = useState('')
   return (
     <div className="space-y-2">
       <input
@@ -82,47 +78,17 @@ function ImageEditor({
         onChange={(e) => onChange(e.target.value)}
         placeholder="https://…"
       />
+      <p className="text-xs leading-6 text-muted-foreground">
+        ضع رابط HTTPS مباشرًا للصورة. تأكد أن الصورة متاحة للجميع دون تسجيل
+        دخول.
+      </p>
       {value && (
         <img
           src={value}
           alt="معاينة الصورة"
+          referrerPolicy="no-referrer"
           className="h-24 max-w-full rounded-xl border border-border object-contain"
         />
-      )}
-      <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border px-3 py-2 text-xs">
-        {busy ? (
-          <LoaderCircle className="size-4 animate-spin" />
-        ) : (
-          <Upload className="size-4" />
-        )}
-        رفع صورة
-        <input
-          type="file"
-          accept="image/png,image/jpeg,image/webp"
-          disabled={busy}
-          className="sr-only"
-          onChange={async (e) => {
-            const file = e.target.files?.[0]
-            if (!file) return
-            e.target.value = ''
-            setBusy(true)
-            setError('')
-            try {
-              onChange(await uploadLandingImage(file))
-            } catch (error) {
-              setError(
-                error instanceof Error ? error.message : 'تعذر رفع الصورة.',
-              )
-            } finally {
-              setBusy(false)
-            }
-          }}
-        />
-      </label>
-      {error && (
-        <p role="alert" className="text-xs text-destructive">
-          {error}
-        </p>
       )}
     </div>
   )
@@ -576,8 +542,8 @@ export function LandingPageManager() {
             disabled={!loaded || busy}
             className="h-11 rounded-xl px-5"
           >
-            {busy ? <LoaderCircle className="animate-spin" /> : <Save />}حفظ
-            ونشر
+            {busy ? <LoaderCircle className="animate-spin" /> : <Save />}
+            حفظ ونشر
           </Button>
         </div>
       </div>
@@ -840,9 +806,15 @@ export function LandingPageManager() {
             <ListEditor
               title="أرقام التواصل"
               fields={[
-                { key: translated('roleTitle'), label: 'وظيفة الرقم / القسم' },
+                {
+                  key: translated('roleTitle'),
+                  label: 'وظيفة الرقم / القسم',
+                },
                 { key: 'number', label: 'رقم الاتصال' },
-                { key: 'whatsappNumber', label: 'رقم واتساب بالرمز الدولي' },
+                {
+                  key: 'whatsappNumber',
+                  label: 'رقم واتساب بالرمز الدولي',
+                },
                 {
                   key: 'whatsappEnabled',
                   label: 'يدعم واتساب',
@@ -896,7 +868,11 @@ export function LandingPageManager() {
                 { key: 'clinicName', label: 'العيادة' },
                 { key: 'rating', label: 'التقييم (١–٥)', type: 'number' },
                 { key: 'comment', label: 'الرأي', type: 'textarea' },
-                { key: 'approved', label: 'ظاهر على الموقع', type: 'checkbox' },
+                {
+                  key: 'approved',
+                  label: 'ظاهر على الموقع',
+                  type: 'checkbox',
+                },
               ]}
               items={config.feedbacks}
               onChange={(items) => set('feedbacks', items)}
