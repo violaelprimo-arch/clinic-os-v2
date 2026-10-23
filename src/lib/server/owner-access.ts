@@ -34,6 +34,10 @@ export async function requireOwner(request: NextRequest) {
       'OWNER_LOGIN_REQUIRED',
       'سجّل الدخول بحساب مالك المنصة أولًا.',
     )
+  // The cookie is tied to one Firebase Authentication UID.
+  // Old email-only cookies are rejected after migration.
+  if (!process.env.PLATFORM_OWNER_UID || owner.uid !== process.env.PLATFORM_OWNER_UID)
+    throw new ApiError(403, 'OWNER_ACCESS_DENIED', 'حساب المالك غير مصرح به.')
   if (request.method !== 'GET') assertSameOrigin(request)
   return owner
 }
