@@ -13,25 +13,23 @@ Keep the existing NEXT_PUBLIC_FIREBASE_* settings. They must be present in the *
 
 Instead of entering the email and PEM separately, set `FIREBASE_SERVICE_ACCOUNT_JSON` as one encrypted Secret containing the service-account JSON file. The server reads `client_email`, `private_key` and `project_id`; a JSON account for a different configured project is rejected. This JSON is a private credential, never a `NEXT_PUBLIC_` variable, repository file or chat attachment. `OWNER_SESSION_SECRET` is still required. Do not generate a new key or change an existing owner password without the account owner's authorization.
 
-The service account needs Firestore data access. Firebase Authentication must be enabled for custom-token sign-in. Landing-page images use public HTTPS URLs, so this feature needs no Storage bucket or Storage OAuth permission. Keep these credentials off GitHub and out of any `NEXT_PUBLIC_` variable. The REST integration uses Web Crypto and fetch to support Cloudflare Workers without the Firestore Node gRPC/eval path.
+The service account needs Firestore data access. Firebase Authentication Email/Password must be enabled for the existing owner account. Landing-page images use public HTTPS URLs, so this feature needs no Storage bucket or Storage OAuth permission. Keep these credentials off GitHub and out of any `NEXT_PUBLIC_` variable. The REST integration uses Web Crypto and fetch to support Cloudflare Workers without the Firestore Node gRPC/eval path.
 
 Without server credentials the public page displays its default marketing content. Forms return an explicit unavailable error; they do not pretend to save. Owner login and protected CMS writes fail closed. The feature must be configured before merging to a production deployment that depends on `/owner`.
 
-## Owner account
+## Owner account — Firebase Authentication (not a Firestore password)
 
-The only platform owner email accepted by the new flow is `yallacodex@gmail.com`.
+The owner signs in at `/owner` using the **same email/password already created in Firebase Authentication** for `yallacodex@gmail.com`. The app uses `signInWithEmailAndPassword` and sends a Firebase ID token to `/api/auth/owner-login`. The Cloudflare backend validates it against the Firebase Auth `accounts:lookup` endpoint and requires the exact configured Firebase project, verified email, matching `PLATFORM_OWNER_UID`, and custom claims `platformOwner: true` and `ownerEmail: yallacodex@gmail.com`. The server sets a short-lived, HttpOnly, UID-bound owner cookie. Existing clinic/patient data is not migrated.
 
-Lookup order:
+**Manual owner setup (do not share credentials in chat):**
 
-1. Firestore document `owners/yallacodex@gmail.com`.
-2. `owners/platform`.
-3. `settings/global`.
+1. In Firebase Console → Authentication → Users, find `yallacodex@gmail.com`, confirm email verification and that the account is enabled, and copy its UID.
+2. Install `firebase-admin` locally if needed (`npm install --no-save --package-lock=false firebase-admin`). Keep the matching service-account JSON outside the repo and configure `GOOGLE_APPLICATION_CREDENTIALS` and `OWNER_UID` locally. Run `node scripts/grant-platform-owner.mjs`. The script checks email, UID and verification before assigning `platformOwner`, `ownerEmail`, `ownerUid` claims.
+3. Set Cloudflare **server-side** `PLATFORM_OWNER_UID` to the exact UID. Keep the existing `FIREBASE_SERVICE_ACCOUNT_JSON`, `OWNER_SESSION_SECRET`, and correct `NEXT_PUBLIC_FIREBASE_*` values. The last group must be available at build time.
+4. Sign out of Firebase and sign back in (or force refresh the ID token) so the new claims appear. Test sign-in on an isolated preview first.
+5. Do not create or use `owners/ownerPasswordHash` for login. The old Firestore password lookup has been removed from the new owner login route; do not delete any existing owner record until the new flow is tested end-to-end.
 
-Set `email` or `ownerEmail` to the exact owner email. Supply `ownerPasswordHash` (or `passwordHash`). Existing `ownerPassword` values and hashes made by the existing application verifier remain readable for compatibility; do not create new plaintext passwords.
-
-For a new owner record, run `node scripts/owner-password-hash.mjs` in a local interactive terminal. It prompts for a password without echoing it and prints only a salted PBKDF2 hash. Save that value as `ownerPasswordHash` in the private owner document using Firebase Console. This script does not modify the database or reset an existing account. Never use a doctor or assistant record as the platform owner's credentials.
-
-A successful login issues a signed HttpOnly `owner_session` cookie and a Firebase custom token with server-issued `platformOwner` and `ownerEmail` claims. Firebase sign-in enables the existing owner dashboard's direct Firestore operations. An unauthenticated request never mounts the owner dashboard and does not start clinic/settings listeners.
+The **published** Firestore security rules must be reviewed separately: the repository includes legacy permissive rules for clinics/patients and a time-limited compatibility file. Do not deploy either wholesale to a live medical dataset before isolation and authorization tests.
 
 ## Firestore rules and index
 
