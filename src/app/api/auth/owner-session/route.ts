@@ -1,22 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { OWNER_COOKIE } from '@/lib/owner-session'
-import { firebaseOwnerToken } from '@/lib/server/firebase-rest'
-import {
-  requireOwner,
-  apiFailure,
-  assertSameOrigin,
-} from '@/lib/server/owner-access'
+import { requireOwner, apiFailure, assertSameOrigin } from '@/lib/server/owner-access'
+
 export async function GET(request: NextRequest) {
   try {
     const owner = await requireOwner(request)
-    return NextResponse.json(
-      { owner, firebaseToken: await firebaseOwnerToken(owner.email) },
-      { headers: { 'Cache-Control': 'no-store' } },
-    )
+    return NextResponse.json({ owner }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {
     return apiFailure(error)
   }
 }
+
 export async function DELETE(request: NextRequest) {
   try {
     assertSameOrigin(request)
