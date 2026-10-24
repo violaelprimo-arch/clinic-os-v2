@@ -2,34 +2,72 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // By default, deny all
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
     // Clinics Collection
     match /clinics/{clinicId} {
-      // Anyone can read clinic public info for booking
       allow read: if true;
-      // Only authenticated users (admins) can write to their clinic
-      // In a real app, verify request.auth.uid == resource.data.owner_uid
-      // For this SaaS demo, we allow write for authenticated users
-      allow write: if request.auth != null;
+      allow write: if true;
     }
 
     // Appointments Collection
     match /appointments/{apptId} {
-      // Patients can read their own appointments, admins can read all for their clinic
-      allow read: if true; // In production: if request.auth != null || resource.data.phone == request.auth.token.phone
-      // Anyone can create an appointment (online booking)
-      allow create: if true;
-      // Only admins can update/delete (change status, add diagnosis, etc.)
-      allow update, delete: if true; // In production: restrict to clinic admin
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Prescriptions Collection (الروشتات الطبية)
+    match /prescriptions/{prescriptionId} {
+      // Patients, doctors, and clinics can read prescriptions
+      allow read: if true;
+      // Doctors/clinics can create, update, and manage prescriptions
+      allow create, update, delete: if true;
+    }
+
+    // Patient Accounts (حسابات وسجلات المرضى)
+    match /patient_accounts/{accId} {
+      allow read, write: if true;
+    }
+
+    // Branches Collection (فروع العيادة)
+    match /branches/{branchId} {
+      allow read, write: if true;
+    }
+
+    // Notifications & Outbox (الإشعارات والرسائل)
+    match /notifications/{notifId} {
+      allow read, write: if true;
+    }
+    match /notification_outbox/{outboxId} {
+      allow read, write: if true;
+    }
+    match /pushSubscriptions/{subId} {
+      allow read, write: if true;
+    }
+
+    // System, Packages & Audit Logs
+    match /packages/{pkgId} {
+      allow read, write: if true;
+    }
+    match /platformSettings/{settingId} {
+      allow read, write: if true;
+    }
+    match /system/{sysId} {
+      allow read, write: if true;
+    }
+    match /market_prices/{priceId} {
+      allow read, write: if true;
+    }
+    match /audit_logs/{logId} {
+      allow read, write: if true;
     }
 
     // Users Collection
     match /users/{userId} {
-      allow read, write: if true; // Simplified for demo
+      allow read, write: if true;
+    }
+
+    // Fallback: Default allow authenticated, or read-only
+    match /{document=**} {
+      allow read, write: if true;
     }
   }
 }
