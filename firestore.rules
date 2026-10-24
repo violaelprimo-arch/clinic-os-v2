@@ -2,6 +2,23 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
+    function isPlatformOwner() {
+      return request.auth != null
+        && request.auth.token.platformOwner == true
+        && request.auth.token.ownerEmail == 'yallacodex@gmail.com'
+        && request.auth.token.ownerUid == request.auth.uid
+        && request.auth.token.email_verified == true;
+    }
+
+    // Platform Owner & Site Settings
+    match /site_settings/landing_page {
+      allow get: if true;
+      allow list, write: if isPlatformOwner();
+    }
+    match /landing_feedback/{id} { allow read, write: if isPlatformOwner(); }
+    match /trial_requests/{id} { allow read, write: if isPlatformOwner(); }
+    match /landing_rate_limits/{id} { allow read, write: if false; }
+
     // Clinics Collection
     match /clinics/{clinicId} {
       allow read: if true;
@@ -65,7 +82,7 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Fallback: Default allow authenticated, or read-only
+    // Fallback: Default allow
     match /{document=**} {
       allow read, write: if true;
     }

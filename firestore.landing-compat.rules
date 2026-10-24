@@ -1,0 +1,18 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isPlatformOwner() {
+      return request.auth != null
+        && request.auth.token.platformOwner == true
+        && request.auth.token.ownerEmail == 'yallacodex@gmail.com'
+        && request.auth.token.ownerUid == request.auth.uid
+        && request.auth.token.email_verified == true;
+    }
+    match /{root}/{document=**} {
+      allow read, write: if isPlatformOwner();
+    }
+    match /site_settings/landing_page {
+      allow get: if true;
+    }
+  }
+}
