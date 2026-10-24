@@ -21,6 +21,7 @@ import {
   ArrowUpRight,
   LoaderCircle,
   CheckCircle2,
+  ExternalLink,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/LanguageContext'
@@ -269,38 +270,42 @@ function LivePreview({
   const [device, setDevice] = useState<'desktop' | 'mobile'>(initialDevice),
     [width, setWidth] = useState(700)
   const target = device === 'desktop' ? 1280 : 390,
+    previewHeight = device === 'desktop' ? 850 : 700,
     scale = Math.min(1, width / target)
-  const send = () =>
+
+  const send = () => {
     frame.current?.contentWindow?.postMessage(
       { type: 'landing-draft', config },
       location.origin,
     )
+  }
+
   useEffect(() => {
-    const observer = new ResizeObserver((entries) =>
-      setWidth(entries[0].contentRect.width),
-    )
+    if (box.current?.clientWidth) {
+      setWidth(box.current.clientWidth)
+    }
+    const observer = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect?.width
+      if (w && w > 0) setWidth(w)
+    })
     if (box.current) observer.observe(box.current)
     return () => observer.disconnect()
   }, [])
+
   useEffect(() => {
-    frame.current?.contentWindow?.postMessage(
-      { type: 'landing-draft', config },
-      location.origin,
-    )
+    send()
     const ready = (event: MessageEvent) => {
       if (
         event.origin === location.origin &&
         event.source === frame.current?.contentWindow &&
         event.data?.type === 'landing-preview-ready'
       )
-        frame.current?.contentWindow?.postMessage(
-          { type: 'landing-draft', config },
-          location.origin,
-        )
+        send()
     }
     window.addEventListener('message', ready)
     return () => window.removeEventListener('message', ready)
   }, [config])
+
   return (
     <section className="rounded-3xl border border-border bg-secondary/25 p-3 sm:p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -310,13 +315,13 @@ function LivePreview({
             تعديلات غير منشورة · النماذج معطلة في المعاينة
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant={device === 'desktop' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setDevice('desktop')}
           >
-            <Monitor />
+            <Monitor className="h-4 w-4" />
             كمبيوتر
           </Button>
           <Button
@@ -324,27 +329,40 @@ function LivePreview({
             size="sm"
             onClick={() => setDevice('mobile')}
           >
-            <Smartphone />
+            <Smartphone className="h-4 w-4" />
             موبايل
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.open('/landing-preview', '_blank')}
+            title="فتح المعاينة في نافذة جديدة"
+          >
+            <ExternalLink className="h-4 w-4" />
+            نافذة جديدة
           </Button>
         </div>
       </div>
-      <div ref={box} className="min-w-0 overflow-hidden">
+      <div ref={box} className="w-full min-w-0 overflow-hidden">
         <div
-          className="mx-auto overflow-hidden rounded-2xl border-2 border-border bg-background"
-          style={{ width: target * scale, height: 800 * scale }}
+          dir="ltr"
+          className="relative mx-auto overflow-hidden rounded-2xl border-2 border-border bg-background shadow-md transition-all duration-200"
+          style={{ width: target * scale, height: previewHeight * scale }}
         >
           <iframe
             ref={frame}
             src="/landing-preview"
             title="بروفة الواجهة الرئيسية"
             onLoad={send}
+            className="border-0 bg-background"
             style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
               width: target,
-              height: 800,
+              height: previewHeight,
               transform: `scale(${scale})`,
               transformOrigin: 'top left',
-              border: 0,
               display: 'block',
             }}
           />
