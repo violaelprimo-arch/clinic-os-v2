@@ -88,9 +88,11 @@ export function LandingPageContent({
     config.contacts.find((c) => c.isPrimary && c.whatsappEnabled) ||
     config.contacts.find((c) => c.whatsappEnabled)
   const number = whatsappNumber(
-    primary?.whatsappNumber || config.primaryWhatsapp,
+    primary?.whatsappNumber || config.primaryWhatsapp || '201551007018',
   )
-  const whatsapp = number ? `https://wa.me/${number}` : ''
+  const whatsapp = number ? `https://wa.me/${number}` : 'https://wa.me/201551007018'
+  const trialWhatsappHref =
+    `${whatsapp}?text=${encodeURIComponent(copy('اريد طلب نسخة مجانية تجريبية', 'I want to request a free trial version'))}`
   const demoHref = whatsapp
     ? `${whatsapp}?text=${encodeURIComponent(copy('مرحبًا، أرغب في طلب ديمو مجاني لمنصة Yalla Clinic.', 'Hello, I would like to request a free Yalla Clinic demo.'))}`
     : '#contact'
@@ -245,6 +247,16 @@ export function LandingPageContent({
             >
               {headline('loginButtonText')}
             </Link>
+            <a
+              href={trialWhatsappHref}
+              onClick={previewLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:inline-flex h-10 items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-4 text-xs font-black text-white shadow-xs transition-all hover:scale-105"
+            >
+              <Gift className="size-3.5" />
+              {copy('تجربة مجانية 7 أيام', '7-Day Free Trial')}
+            </a>
             {showTrialBanner && config.visibility.showTrialBanner && (
               <Button
                 className="h-10 rounded-xl px-4 text-xs"
@@ -276,25 +288,34 @@ export function LandingPageContent({
               <p className="max-w-xl text-base leading-8 text-muted-foreground sm:text-lg sm:leading-9">
                 {headline('heroSubtitle')}
               </p>
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <a
-                  href={demoHref}
+                  href={trialWhatsappHref}
                   onClick={previewLink}
-                  target={whatsapp ? '_blank' : undefined}
-                  rel={whatsapp ? 'noopener noreferrer' : undefined}
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-3 text-sm font-black text-primary-foreground shadow-lg shadow-primary/20 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/25 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-12 items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-emerald-600/25 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-emerald-600/35 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-600"
                 >
-                  {copy('طلب ديمو مجاني', 'Request a free demo')}
+                  <MessageCircle className="size-4.5" />
+                  {copy('طلب نسخة مجانية تجريبية لمدة 7 أيام', 'Request a 7-day free trial')}
                   <ArrowUpRight className="size-4" />
+                </a>
+                <a
+                  href="#showcase"
+                  onClick={previewLink}
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-card px-5 py-3 text-sm font-bold transition-all duration-300 hover:-translate-y-1 hover:border-primary/35 hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+                >
+                  <Play className="size-4 text-primary" />
+                  {copy('شوف النظام من جوه', 'Take a product tour')}
                 </a>
                 <a
                   href={supportHref}
                   onClick={previewLink}
                   target={whatsapp ? '_blank' : undefined}
                   rel={whatsapp ? 'noopener noreferrer' : undefined}
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-card px-6 py-3 text-sm font-black transition-all duration-300 hover:-translate-y-1 hover:border-primary/35 hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-card px-5 py-3 text-sm font-bold text-muted-foreground transition-all duration-300 hover:-translate-y-1 hover:border-primary/35 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
                 >
-                  <MessageCircle className="size-4 text-primary" />
+                  <Phone className="size-4 text-primary" />
                   {copy('تواصل مع الدعم الفني', 'Contact technical support')}
                 </a>
               </div>
@@ -380,6 +401,43 @@ export function LandingPageContent({
               ))}
             </div>
           )}
+        </section>
+
+        {/* Dedicated 7-day Free Trial Section directly below the Hero & Stats */}
+        <section className="border-b border-border/60 bg-gradient-to-b from-emerald-500/[0.04] via-transparent to-transparent py-8">
+          <div className="relative mx-auto max-w-7xl px-5 lg:px-8">
+            <motion.div
+              {...reveal}
+              className="relative overflow-hidden rounded-3xl border border-emerald-500/30 bg-gradient-to-r from-emerald-950/40 via-card to-background p-6 sm:p-8 shadow-xl shadow-emerald-950/5 flex flex-col md:flex-row items-center justify-between gap-6"
+            >
+              <div className="space-y-1.5 text-center md:text-start">
+                <span className="inline-flex items-center gap-2 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                  <Gift className="size-4" />
+                  {copy('عرض تجريبي خاص بالأطباء والعيادات', 'Special trial for doctors and clinics')}
+                </span>
+                <h3 className="text-xl sm:text-2xl font-black text-foreground">
+                  {copy('طلب نسخة مجانية تجريبية لمدة 7 أيام', 'Request a 7-day free trial')}
+                </h3>
+                <p className="text-xs sm:text-sm text-muted-foreground">
+                  {copy(
+                    'تواصل فوري ومباشر مع الدعم الفني عبر واتساب لتفعيل نسختك وتجهيز بيانات العيادة مجانًا بالكامل.',
+                    'Direct contact with technical support on WhatsApp to activate your trial and configure your clinic at zero cost.',
+                  )}
+                </p>
+              </div>
+              <a
+                href={trialWhatsappHref}
+                onClick={previewLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-13 shrink-0 items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 px-8 py-3.5 text-sm sm:text-base font-black text-white shadow-lg shadow-emerald-600/25 transition-all duration-300 hover:scale-105 active:scale-95"
+              >
+                <MessageCircle className="size-5" />
+                {copy('طلب نسخة مجانية تجريبية لمدة 7 أيام', 'Request a 7-day free trial')}
+                <ArrowUpRight className="size-4" />
+              </a>
+            </motion.div>
+          </div>
         </section>
         {config.visibility.showClients && config.clients.length > 0 && (
           <section
