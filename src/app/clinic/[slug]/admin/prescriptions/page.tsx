@@ -33,6 +33,9 @@ import {
 } from '@/lib/whatsappShare'
 import { getClinicUrl } from '@/lib/clinic-url'
 import { useLanguage } from '@/context/LanguageContext'
+import { VoiceDictationButton } from '@/components/clinic/VoiceDictationButton'
+import { stopGlobalVoiceDictation } from '@/hooks/useVoiceDictation'
+import { DictationLanguage } from '@/types/speech'
 
 export default function PrescriptionsPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -46,6 +49,9 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const [diagnosis, setDiagnosis] = useState('')
   const [age, setAge] = useState(searchParams?.get('age') || '')
   const [instructions, setInstructions] = useState('')
+  const [dictationLang, setDictationLang] = useState<DictationLanguage>('ar-EG')
+  const diagnosisInputRef = useRef<HTMLInputElement>(null)
+  const instructionsInputRef = useRef<HTMLInputElement>(null)
   const [selectedBranchId, setSelectedBranchId] = useState('')
   const [selectedBranchName, setSelectedBranchName] = useState('')
   const [whatsappTarget, setWhatsappTarget] = useState<'auto' | 'app' | 'web'>('auto')
@@ -156,6 +162,12 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     })
   }, [todayPatients, activeBranchId, clinic])
 
+  // Stop active speech dictation if doctor leaves the prescription page
+  useEffect(() => {
+    return () => {
+      stopGlobalVoiceDictation()
+    }
+  }, [])
   const isCustomTemplateEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'customTemplate'), [clinic])
   const isDrugsDbEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'drugs'), [clinic])
 
@@ -183,6 +195,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
 
   // TASK 6 & 7: Save Prescription without automated WhatsApp message
   const handleSave = async () => {
+    stopGlobalVoiceDictation()
     if (!patientName.trim()) return toast.error('يرجى إدخال اسم المريض')
     if (!patientPhone.trim()) return toast.error('يرجى إدخال رقم هاتف المريض')
 
@@ -376,6 +389,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
 
   // Clean Isolated Print via iframe
   const handlePrint = () => {
+    stopGlobalVoiceDictation()
     const html = generateA4PrescriptionHtml({
       clinicName: clinic?.clinicName || 'Yalla Clinic',
       doctorName: clinic?.doctorName || 'طبيب العيادة',
@@ -549,6 +563,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                 <select
                   className="text-xs font-bold border border-border rounded-xl px-2.5 py-1.5 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
                   onChange={(e) => {
+                    stopGlobalVoiceDictation()
                     const selected = filteredTodayPatients.find(p => p.id === e.target.value)
                     if (selected) {
                       setPatientName(selected.patientName || '')
@@ -601,9 +616,22 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
               </div>
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs font-bold text-muted-foreground">{t('clinical_diagnosis', 'التشخيص الطبي')}</Label>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-bold text-muted-foreground">{t('clinical_diagnosis', 'التشخيص الطبي')}</Label>
+                <VoiceDictationButton
+                  fieldId="diagnosis"
+                  fieldLabel={t('clinical_diagnosis', 'التشخيص الطبي')}
+                  value={diagnosis}
+                  onChange={setDiagnosis}
+                  inputRef={diagnosisInputRef}
+                  language={dictationLang}
+                  onLanguageChange={setDictationLang}
+                  size="sm"
+                />
+              </div>
               <Input
+                ref={diagnosisInputRef}
                 value={diagnosis}
                 onChange={e => setDiagnosis(e.target.value)}
                 placeholder={t('diagnosis_placeholder', 'التشخيص الإكلينيكي للحالة')}
@@ -611,9 +639,22 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
               />
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs font-bold text-muted-foreground">{t('doctor_instructions', 'تعليمات وإرشادات الطبيب للمريض')}</Label>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-bold text-muted-foreground">{t('doctor_instructions', 'تعليمات وإرشادات الطبيب للمريض')}</Label>
+                <VoiceDictationButton
+                  fieldId="instructions"
+                  fieldLabel={t('doctor_instructions', 'تعليمات وإرشادات الطبيب للمريض')}
+                  value={instructions}
+                  onChange={setInstructions}
+                  inputRef={instructionsInputRef}
+                  language={dictationLang}
+                  onLanguageChange={setDictationLang}
+                  size="sm"
+                />
+              </div>
               <Input
+                ref={instructionsInputRef}
                 value={instructions}
                 onChange={e => setInstructions(e.target.value)}
                 placeholder={t('doctor_instructions_placeholder', 'مثال: شرب سوائل دافئة، الراحة التامة، العودة للاستشارة بعد أسبوع')}
@@ -624,20 +665,53 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
 
           {/* Medicines Prescription Section */}
           <div className="yalla-card p-5 space-y-4 border border-border">
-            <div className="flex items-center justify-between pb-3 border-b border-border">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-border">
               <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
                 <FileText className="w-4 h-4 text-primary" />
                 {t('rx_medications', 'الأدوية والعلاج المطلوب (Rx)')}
               </h3>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => addDrug()}
-                className="h-8 text-xs font-bold border-primary text-primary hover:bg-primary/10 rounded-lg gap-1.5"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                {t('add_new_drug', 'إضافة دواء جديد')}
-              </Button>
+              <div className="flex items-center gap-2">
+                {/* Global Prescription Dictation Language Pill */}
+                <div
+                  className="flex items-center gap-1 bg-secondary/80 px-2 py-1 rounded-xl border border-border text-[11px]"
+                  title="تغيير لغة الإملاء الصوتي لكافة الحقول (عربي / إنجليزي)"
+                >
+                  <span className="text-muted-foreground font-medium">الإملاء:</span>
+                  <button
+                    type="button"
+                    onClick={() => setDictationLang('ar-EG')}
+                    className={`px-1.5 py-0.5 rounded-md font-bold transition-colors cursor-pointer ${
+                      dictationLang === 'ar-EG'
+                        ? 'bg-primary text-primary-foreground shadow-2xs'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    عربي
+                  </button>
+                  <span className="text-border">|</span>
+                  <button
+                    type="button"
+                    onClick={() => setDictationLang('en-US')}
+                    className={`px-1.5 py-0.5 rounded-md font-bold transition-colors cursor-pointer ${
+                      dictationLang === 'en-US'
+                        ? 'bg-primary text-primary-foreground shadow-2xs'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    EN
+                  </button>
+                </div>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => addDrug()}
+                  className="h-8 text-xs font-bold border-primary text-primary hover:bg-primary/10 rounded-lg gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  {t('add_new_drug', 'إضافة دواء جديد')}
+                </Button>
+              </div>
             </div>
 
             {/* Quick Favorites Bar & Drug Search */}
@@ -658,15 +732,28 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                   </div>
                 </div>
 
-                {/* Drug Search Input */}
-                <div className="relative">
+                {/* Drug Search Input with Voice */}
+                <div className="relative flex items-center">
                   <Search className="w-4 h-4 absolute end-3 top-3 text-muted-foreground pointer-events-none" />
                   <Input
                     value={drugSearch}
                     onChange={e => setDrugSearch(e.target.value)}
                     placeholder={t('search_egyptian_drugs', 'ابحث في قاعدة الأدوية المصرية...')}
-                    className="h-10 pe-9 text-xs rounded-xl bg-background border-border text-foreground"
+                    className="h-10 pe-16 text-xs rounded-xl bg-background border-border text-foreground"
                   />
+                  <div className="absolute end-8 flex items-center">
+                    <VoiceDictationButton
+                      fieldId="drug-search"
+                      fieldLabel="البحث في الأدوية"
+                      value={drugSearch}
+                      onChange={setDrugSearch}
+                      language={dictationLang}
+                      onLanguageChange={setDictationLang}
+                      size="sm"
+                      showLanguagePill={false}
+                      showStatusBadge={false}
+                    />
+                  </div>
                   {filteredSearchDrugs.length > 0 && (
                     <div className="absolute top-full start-0 w-full mt-1 bg-card border border-border shadow-xl rounded-xl z-50 overflow-hidden divide-y divide-border">
                       {filteredSearchDrugs.map((d, idx) => (
@@ -700,7 +787,20 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                   className="p-3.5 rounded-xl border border-border bg-secondary/30 space-y-2.5"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-muted-foreground">{t('drug_num', 'دواء')} #{index + 1}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black text-muted-foreground">{t('drug_num', 'دواء')} #{index + 1}</span>
+                      <VoiceDictationButton
+                        fieldId={`drug-row-${drug.id}`}
+                        fieldLabel={`الدواء #${index + 1}`}
+                        value={drug.name}
+                        onChange={val => updateDrug(drug.id, 'name', val)}
+                        language={dictationLang}
+                        onLanguageChange={setDictationLang}
+                        size="sm"
+                        showLanguagePill={true}
+                        showStatusBadge={true}
+                      />
+                    </div>
                     <button
                       onClick={() => removeDrug(drug.id)}
                       className="text-muted-foreground hover:text-rose-500 transition-colors cursor-pointer"
@@ -712,32 +812,88 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
 
                   <div className="grid sm:grid-cols-12 gap-2">
                     <div className="sm:col-span-5">
-                      <Input
-                        value={drug.name}
-                        onChange={e => updateDrug(drug.id, 'name', e.target.value)}
-                        placeholder={t('trade_drug_name', 'اسم الدواء التجاري')}
-                        className="h-9 text-xs rounded-lg bg-background border-border text-foreground"
-                      />
+                      <div className="relative flex items-center">
+                        <Input
+                          value={drug.name}
+                          onChange={e => updateDrug(drug.id, 'name', e.target.value)}
+                          placeholder={t('trade_drug_name', 'اسم الدواء التجاري')}
+                          className="h-9 pe-8 text-xs rounded-lg bg-background border-border text-foreground"
+                        />
+                        <div className="absolute end-1 flex items-center">
+                          <VoiceDictationButton
+                            fieldId={`drug-name-${drug.id}`}
+                            fieldLabel={`${t('trade_drug_name', 'اسم الدواء')} #${index + 1}`}
+                            value={drug.name}
+                            onChange={val => updateDrug(drug.id, 'name', val)}
+                            language={dictationLang}
+                            onLanguageChange={setDictationLang}
+                            size="sm"
+                            showLanguagePill={false}
+                            showStatusBadge={false}
+                          />
+                        </div>
+                      </div>
                     </div>
                     <div className="sm:col-span-4">
-                      <Input
-                        value={drug.dosage}
-                        onChange={e => updateDrug(drug.id, 'dosage', e.target.value)}
-                        placeholder={t('dosage_label', 'الجرعة (مثال: قرص كل 12 ساعة)')}
-                        className="h-9 text-xs rounded-lg bg-background border-border text-foreground"
-                      />
+                      <div className="relative flex items-center">
+                        <Input
+                          value={drug.dosage}
+                          onChange={e => updateDrug(drug.id, 'dosage', e.target.value)}
+                          placeholder={t('dosage_label', 'الجرعة (مثال: قرص كل 12 ساعة)')}
+                          className="h-9 pe-8 text-xs rounded-lg bg-background border-border text-foreground"
+                        />
+                        <div className="absolute end-1 flex items-center">
+                          <VoiceDictationButton
+                            fieldId={`drug-dosage-${drug.id}`}
+                            fieldLabel={`${t('dosage_label', 'الجرعة')} #${index + 1}`}
+                            value={drug.dosage}
+                            onChange={val => updateDrug(drug.id, 'dosage', val)}
+                            language={dictationLang}
+                            onLanguageChange={setDictationLang}
+                            size="sm"
+                            showLanguagePill={false}
+                            showStatusBadge={false}
+                          />
+                        </div>
+                      </div>
                     </div>
                     <div className="sm:col-span-3">
-                      <Input
-                        value={drug.duration}
-                        onChange={e => updateDrug(drug.id, 'duration', e.target.value)}
-                        placeholder={t('duration_label', 'المدة (مثال: 5 أيام)')}
-                        className="h-9 text-xs rounded-lg bg-background border-border text-foreground"
-                      />
+                      <div className="relative flex items-center">
+                        <Input
+                          value={drug.duration}
+                          onChange={e => updateDrug(drug.id, 'duration', e.target.value)}
+                          placeholder={t('duration_label', 'المدة (مثال: 5 أيام)')}
+                          className="h-9 pe-8 text-xs rounded-lg bg-background border-border text-foreground"
+                        />
+                        <div className="absolute end-1 flex items-center">
+                          <VoiceDictationButton
+                            fieldId={`drug-duration-${drug.id}`}
+                            fieldLabel={`${t('duration_label', 'المدة')} #${index + 1}`}
+                            value={drug.duration}
+                            onChange={val => updateDrug(drug.id, 'duration', val)}
+                            language={dictationLang}
+                            onLanguageChange={setDictationLang}
+                            size="sm"
+                            showLanguagePill={false}
+                            showStatusBadge={false}
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* Medical Review Disclaimer / Reminder Banner */}
+            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2.5">
+              <ShieldCheck className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <p className="font-bold">تنبيه طبي لمراجعة الأدوية والجرعات:</p>
+                <p className="text-[11px] opacity-90 leading-relaxed">
+                  يتم تحويل الصوت كما نُطق تماماً دون اختراع أو تعديل تلقائي للجرعات أو الأسماء. يُرجى دائمًا مراجعة وتدقيق أسماء الأدوية والجرعات والتأكد منها قبل اعتماد الروشتة وحفظها.
+                </p>
+              </div>
             </div>
           </div>
 
