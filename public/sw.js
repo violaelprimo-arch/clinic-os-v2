@@ -1,6 +1,6 @@
 // Clinic OS / Yalla Clinic - Service Worker for Background Web Push Notifications
 
-const CACHE_NAME = 'clinic-os-pwa-v2';
+const CACHE_NAME = 'clinic-os-pwa-v3';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -63,22 +63,15 @@ self.addEventListener('push', (event) => {
   const notificationPromise = self.clients
     .matchAll({ type: 'window', includeUncontrolled: true })
     .then((windowClients) => {
-      // Broadcast to any open tabs so in-app state/bell updates immediately
+      // Broadcast to open tabs so in-app state updates immediately
       windowClients.forEach((client) => {
-        client.postMessage({
-          type: 'PUSH_NOTIFICATION_RECEIVED',
-          payload: { ...payload, url: safeUrl },
-        });
+        try {
+          client.postMessage({
+            type: 'PUSH_NOTIFICATION_RECEIVED',
+            payload: { ...payload, url: safeUrl },
+          });
+        } catch (_) {}
       });
-
-      // If the patient is actively looking at this exact tracking page, suppress visual duplicate unless urgent
-      const isActivelyViewing = windowClients.some(
-        (c) => c.visibilityState === 'visible' && c.url.includes(safeUrl)
-      );
-
-      if (isActivelyViewing && !isTurnReady) {
-        return;
-      }
 
       const options = {
         body: payload.body,
@@ -104,6 +97,7 @@ self.addEventListener('push', (event) => {
         ],
       };
 
+      // Always show OS system notification so it appears in mobile tray & lockscreen
       return self.registration.showNotification(payload.title, options);
     });
 

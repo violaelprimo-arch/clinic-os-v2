@@ -175,11 +175,11 @@ export function PatientPushNotificationManager({
             </div>
             <div>
               <div className="font-extrabold text-sm text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
-                <span>تنبيهات الحجز مفعّلة على هذا الجهاز</span>
+                <span>تنبيهات الموبايل مفعّلة على هذا الجهاز</span>
                 <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               </div>
               <p className="text-[11px] text-emerald-700 dark:text-emerald-300/80 mt-0.5">
-                ستصلك تنبيهات حية باقتراب دورك، وحلول وقت الدخول، وجاهزية الروشتة في الخلفية.
+                ستصلك إشعارات حقيقية على شاشة القفل وشريط الإشعارات باقتراب دورك وحلوله وجاهزية الروشتة حتى أثناء إغلاق الصفحة.
               </p>
             </div>
           </div>
@@ -195,7 +195,7 @@ export function PatientPushNotificationManager({
             className="h-8 text-xs font-bold gap-1.5 rounded-xl border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/40"
           >
             {testing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-            <span>إرسال إشعار تجريبي لهذا الجهاز</span>
+            <span>إرسال إشعار تجريبي لموبايلك الآن</span>
           </Button>
 
           <Button
@@ -254,16 +254,16 @@ export function PatientPushNotificationManager({
               تفعيل التنبيهات على أجهزة iPhone / iPad
             </h5>
             <p className="text-xs text-sky-800 dark:text-sky-200 leading-relaxed">
-              يتطلب نظام Apple خطوة واحدة لتفعيل إشعارات الخلفية:
+              يتطلب نظام Apple (iOS) إضافة الصفحة للشاشة الرئيسية أولاً لتشغيل إشعارات الخلفية وشاشة القفل:
             </p>
             <ol className="text-xs text-slate-700 dark:text-slate-300 space-y-1 list-decimal list-inside pr-1">
               <li>
                 اضغط على زر المشاركة <Share2 className="w-3.5 h-3.5 inline mx-1 text-sky-600" /> في أسفل متصفح Safari.
               </li>
               <li>
-                اختر <strong>«إضافة إلى الصفحة الرئيسية»</strong> (Add to Home Screen) <PlusSquare className="w-3.5 h-3.5 inline mx-1 text-sky-600" />.
+                مرر لأسفل واختر <strong>«إضافة إلى الصفحة الرئيسية»</strong> (Add to Home Screen) <PlusSquare className="w-3.5 h-3.5 inline mx-1 text-sky-600" />.
               </li>
-              <li>افتح التطبيق من شاشة هاتفك واضغط «فعّل تنبيهات حجزك».</li>
+              <li>افتح الأيقونة من شاشة هاتفك واضغط زر <strong>«فعّل التنبيهات على موبايلك»</strong>.</li>
             </ol>
             {capability.isStandalone && (
               <Button
@@ -274,7 +274,7 @@ export function PatientPushNotificationManager({
                 className="mt-2 text-xs font-bold rounded-xl"
               >
                 {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BellRing className="w-3.5 h-3.5" />}
-                <span>طلب الإذن الآن</span>
+                <span>فعّل التنبيهات على موبايلك الآن</span>
               </Button>
             )}
           </div>
@@ -301,10 +301,10 @@ export function PatientPushNotificationManager({
           </div>
           <div>
             <h5 className="font-extrabold text-sm text-slate-900 dark:text-white">
-              فعّل تنبيهات حجزك المباشرة
+              تنبيهات الموبايل وشاشة القفل
             </h5>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
-              لتصلك إشعارات فورية عند اقتراب دورك، وحلول وقت دخولك، وجاهزية روشتتك حتى لو كانت الصفحة مغلقة.
+              لتصلك إشعارات حقيقية على شاشة القفل وشريط إشعارات هاتفك باقتراب دورك والروشتة حتى لو كانت الصفحة مغلقة.
             </p>
           </div>
         </div>
@@ -324,7 +324,7 @@ export function PatientPushNotificationManager({
           ) : (
             <>
               <BellRing className="w-4 h-4" />
-              <span>فعّل تنبيهات حجزك</span>
+              <span>فعّل التنبيهات على موبايلك</span>
             </>
           )}
         </Button>
