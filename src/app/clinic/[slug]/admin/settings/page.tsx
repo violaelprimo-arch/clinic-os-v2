@@ -1,8 +1,9 @@
 'use client'
 
-import { use, useState, useEffect, useRef, useMemo } from 'react'
+import React, { use, useState, useEffect, useRef, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PasswordInput } from '@/components/ui/password-input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -12,7 +13,8 @@ import {
   Save, Plus, Trash2, Palette, Phone, MapPin, Bot,
   Wallet, Users, Clock, Printer, ShieldCheck, Settings, Lock,
   CheckCircle2, Bell, Sparkles, Building2, Copy, ExternalLink,
-  Monitor, Tablet, Smartphone, User, RefreshCw
+  Monitor, Tablet, Smartphone, User, RefreshCw,
+  ArrowUp, ArrowDown, Zap
 } from 'lucide-react'
 import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 import { db } from '@/lib/firebase'
@@ -90,6 +92,8 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const [queueNormal, setQueueNormal] = useState(2)
   const [queueConsult, setQueueConsult] = useState(1)
   const [queueUrgent, setQueueUrgent] = useState(0)
+  const [queuePattern, setQueuePattern] = useState<Array<{ serviceId: string; serviceName?: string; quota: number }>>([])
+  const [selectedServiceToAdd, setSelectedServiceToAdd] = useState<string>('')
   const [bookingAvailability, setBookingAvailability] = useState<'all_days' | 'today_only'>('all_days')
 
   // Contacts & Location
@@ -204,8 +208,36 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           setIsWalletEnabled(data.isWalletEnabled || false)
           setIsInstapayEnabled(data.isInstapayEnabled || false)
           setQueueNormal(data.queueNormal ?? 3)
-        setQueueConsult(data.queueConsult ?? 2)
-        setQueueUrgent(data.queueUrgent ?? 1)
+          setQueueConsult(data.queueConsult ?? 2)
+          setQueueUrgent(data.queueUrgent ?? 0)
+
+          const loadedServices = (data.services && data.services.length > 0) ? data.services : services
+          if (Array.isArray(data.queuePattern) && data.queuePattern.length > 0) {
+            setQueuePattern(data.queuePattern)
+          } else {
+            // Intelligent migration from legacy 3 settings into service-bound queuePattern
+            const initialPattern: Array<{ serviceId: string; serviceName?: string; quota: number }> = []
+            const urg = loadedServices.find((s: any) => s.isUrgent || s.name?.includes('مستعجل') || String(s.id) === '3')
+            const nrm = loadedServices.find((s: any) => s.name?.includes('عادي') || s.name?.includes('عام') || String(s.id) === '1')
+            const cns = loadedServices.find((s: any) => s.name?.includes('استشارة') || String(s.id) === '2')
+
+            if (urg) {
+              initialPattern.push({ serviceId: String(urg.id), serviceName: urg.name, quota: Number(data.queueUrgent ?? 0) })
+            }
+            if (nrm) {
+              initialPattern.push({ serviceId: String(nrm.id), serviceName: nrm.name, quota: Number(data.queueNormal ?? 3) })
+            }
+            if (cns) {
+              initialPattern.push({ serviceId: String(cns.id), serviceName: cns.name, quota: Number(data.queueConsult ?? 2) })
+            }
+
+            if (initialPattern.length === 0 && loadedServices.length > 0) {
+              loadedServices.forEach((s: any, idx: number) => {
+                initialPattern.push({ serviceId: String(s.id), serviceName: s.name, quota: idx === 0 ? 3 : 2 })
+              })
+            }
+            setQueuePattern(initialPattern)
+          }
           
           setAssistants(data.assistants || [])
           if (data.services && data.services.length > 0) {
@@ -301,8 +333,13 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         isWalletEnabled,
         isInstapayEnabled,
         queueNormal: Number(queueNormal) ?? 3,
-      queueConsult: Number(queueConsult) ?? 2,
-      queueUrgent: Number(queueUrgent) ?? 1,
+        queueConsult: Number(queueConsult) ?? 2,
+        queueUrgent: Number(queueUrgent) ?? 0,
+        queuePattern: queuePattern.map(p => ({
+          serviceId: String(p.serviceId),
+          serviceName: p.serviceName || '',
+          quota: Math.max(0, Number(p.quota) || 0)
+        })),
         
         assistants: assistants || [],
         updatedAt: new Date().toISOString()
@@ -575,8 +612,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-slate-600">{t('new_doctor_password', 'كلمة المرور الجديدة')}</Label>
-              <Input
-                type="password"
+              <PasswordInput
                 value={newDoctorPassword}
                 onChange={e => setNewDoctorPassword(e.target.value)}
                 placeholder="••••••••"
@@ -586,8 +622,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-slate-600">{t('confirm_new_password', 'تأكيد كلمة المرور الجديدة')}</Label>
-              <Input
-                type="password"
+              <PasswordInput
                 value={newDoctorPasswordConfirm}
                 onChange={e => setNewDoctorPasswordConfirm(e.target.value)}
                 placeholder="••••••••"
@@ -1556,42 +1591,269 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               </div>
             </div>
 
-            <div className="space-y-3 pt-4 border-t border-border">
-              <h4 className="font-bold text-sm text-foreground">{t('queue_ordering_pattern', 'نظام ترتيب الأدوار (نمط الدخول)')}</h4>
-              <p className="text-xs text-muted-foreground">{t('queue_ordering_desc', 'حدد عدد الحالات التي تدخل بالترتيب قبل إعادة الدورة. اكتب (0) للمستعجل ليدخل فوراً قبل أي خدمة أخرى.')}</p>
-              
-              <div className="grid grid-cols-3 gap-4 max-w-lg">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-rose-500">{t('urgent_consultation', 'كشف مستعجل')}</Label>
-                  <Input
-                    type="number"
-                    value={queueUrgent}
-                    onChange={e => setQueueUrgent(Number(e.target.value))}
-                    className="h-10 text-sm rounded-xl font-bold border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400"
-                    min={0}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-muted-foreground">{t('normal_consultation', 'كشف عادي')}</Label>
-                  <Input
-                    type="number"
-                    value={queueNormal}
-                    onChange={e => setQueueNormal(Number(e.target.value))}
-                    className="h-10 text-sm rounded-xl font-bold"
-                    min={0}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-primary">{t('consultation', 'استشارة')}</Label>
-                  <Input
-                    type="number"
-                    value={queueConsult}
-                    onChange={e => setQueueConsult(Number(e.target.value))}
-                    className="h-10 text-sm rounded-xl font-bold border-primary/30 bg-primary/10 text-primary"
-                    min={0}
-                  />
+            <div className="space-y-4 pt-4 border-t border-border">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                <div>
+                  <h4 className="font-bold text-sm text-foreground flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-primary" />
+                    <span>{t('queue_ordering_pattern', 'نظام ترتيب الأدوار (نمط الدخول الديناميكي)')}</span>
+                  </h4>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {t('queue_ordering_dynamic_desc', 'اربط الأدوار بخدمات العيادة الفعلية. الحصص الموجبة تتناوب بالتتابع ضمن الدورة، والقيمة (0) تعني أولوية فورية عند الكشف التالي.')}
+                  </p>
                 </div>
               </div>
+
+              {/* Add Service Rule Toolbar */}
+              <div className="p-3.5 bg-muted/40 rounded-2xl border border-border flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                <select
+                  value={selectedServiceToAdd}
+                  onChange={e => setSelectedServiceToAdd(e.target.value)}
+                  className="flex-1 h-10 px-3 rounded-xl border border-border bg-background text-xs font-bold text-foreground outline-none"
+                >
+                  <option value="">-- اختر خدمة من خدمات العيادة لإضافتها للدورة --</option>
+                  {services.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.price} ج.م) {s.isUrgent ? '— [كشف مستعجل]' : ''}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    if (!selectedServiceToAdd) {
+                      toast.error('يرجى اختيار خدمة لإضافتها إلى نمط الدخول')
+                      return
+                    }
+                    const s = services.find(x => String(x.id) === String(selectedServiceToAdd))
+                    if (!s) return
+                    const already = queuePattern.some(p => String(p.serviceId) === String(s.id))
+                    if (already) {
+                      toast.info('هذه الخدمة موجودة بالفعل في نمط الدخول')
+                      return
+                    }
+                    const isUrg = s.isUrgent || s.name?.includes('مستعجل') || String(s.id) === '3'
+                    setQueuePattern(prev => [
+                      ...prev,
+                      { serviceId: String(s.id), serviceName: s.name, quota: isUrg ? 0 : 2 }
+                    ])
+                    setSelectedServiceToAdd('')
+                    toast.success(`تمت إضافة خدمة (${s.name}) إلى نمط الدخول بنجاح`)
+                  }}
+                  className="h-10 px-4 text-xs font-bold yalla-gradient-btn text-white rounded-xl shadow-xs shrink-0 flex items-center gap-1.5"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>إضافة للقاعدة</span>
+                </Button>
+              </div>
+
+              {/* Dynamic Queue Rules Table / Cards */}
+              <div className="space-y-2">
+                {queuePattern.length === 0 ? (
+                  <div className="p-6 text-center rounded-2xl border border-dashed border-border bg-muted/20 text-muted-foreground text-xs font-medium">
+                    لم يتم تحديد نمط دخول حتى الآن. سيتم ترتيب المرضى حسب أولوية الحجز الزمني الافتراضية.
+                  </div>
+                ) : (
+                  queuePattern.map((rule, idx) => {
+                    const matchedService = services.find(s => String(s.id) === String(rule.serviceId))
+                    const displayName = matchedService?.name || rule.serviceName || `خدمة #${rule.serviceId}`
+                    const isImmediate = Number(rule.quota) === 0
+
+                    return (
+                      <div
+                        key={rule.serviceId + '_' + idx}
+                        className={`p-3 rounded-2xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
+                          isImmediate
+                            ? 'bg-rose-500/5 border-rose-500/30'
+                            : 'bg-card border-border hover:border-primary/40'
+                        }`}
+                      >
+                        {/* Position & Name */}
+                        <div className="flex items-center gap-2.5 min-w-[200px]">
+                          <span className="w-6 h-6 rounded-lg bg-muted text-muted-foreground font-mono text-xs font-black flex items-center justify-center shrink-0">
+                            {idx + 1}
+                          </span>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-black text-foreground">{displayName}</span>
+                              {matchedService?.price !== undefined && (
+                                <span className="text-[10px] text-muted-foreground font-bold font-mono">
+                                  ({matchedService.price} ج.م)
+                                </span>
+                              )}
+                            </div>
+                            <span className={`text-[10px] font-bold inline-flex items-center gap-1 mt-0.5 ${
+                              isImmediate ? 'text-rose-600 dark:text-rose-400' : 'text-primary'
+                            }`}>
+                              {isImmediate ? (
+                                <>
+                                  <Zap className="w-3 h-3 fill-rose-500 text-rose-500" />
+                                  <span>أولوية فورية (تدخل فوراً قبل أي خدمة أخرى)</span>
+                                </>
+                              ) : (
+                                <>
+                                  <RefreshCw className="w-3 h-3" />
+                                  <span>ضمن الدورة ({rule.quota} حالات متتالية)</span>
+                                </>
+                              )}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Quota Setting & Reorder Controls */}
+                        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                          <div className="flex items-center gap-1.5 bg-muted/50 px-2 py-1 rounded-xl border border-border">
+                            <Label className="text-[10px] font-bold text-muted-foreground whitespace-nowrap">
+                              عدد الحالات:
+                            </Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              max={50}
+                              value={rule.quota}
+                              onChange={e => {
+                                const val = Math.max(0, parseInt(e.target.value) || 0)
+                                setQueuePattern(prev =>
+                                  prev.map((item, i) => (i === idx ? { ...item, quota: val } : item))
+                                )
+                              }}
+                              className={`h-7 w-16 text-center text-xs font-black rounded-lg ${
+                                isImmediate
+                                  ? 'border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                                  : 'bg-background font-mono'
+                              }`}
+                            />
+                            <span className="text-[10px] text-muted-foreground">
+                              {isImmediate ? '(0=فوري)' : 'حالات'}
+                            </span>
+                          </div>
+
+                          {/* Up Button */}
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            disabled={idx === 0}
+                            onClick={() => {
+                              if (idx === 0) return
+                              setQueuePattern(prev => {
+                                const next = [...prev]
+                                const temp = next[idx - 1]
+                                next[idx - 1] = next[idx]
+                                next[idx] = temp
+                                return next
+                              })
+                            }}
+                            className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground disabled:opacity-30"
+                            title="تحريك لأعلى"
+                          >
+                            <ArrowUp className="w-3.5 h-3.5" />
+                          </Button>
+
+                          {/* Down Button */}
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            disabled={idx === queuePattern.length - 1}
+                            onClick={() => {
+                              if (idx >= queuePattern.length - 1) return
+                              setQueuePattern(prev => {
+                                const next = [...prev]
+                                const temp = next[idx + 1]
+                                next[idx + 1] = next[idx]
+                                next[idx] = temp
+                                return next
+                              })
+                            }}
+                            className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground disabled:opacity-30"
+                            title="تحريك لأسفل"
+                          >
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          </Button>
+
+                          {/* Delete Button */}
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => {
+                              setQueuePattern(prev => prev.filter((_, i) => i !== idx))
+                              toast.info(`تم حذف قاعدة (${displayName}) من نمط الدخول`)
+                            }}
+                            className="h-8 w-8 rounded-lg text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10"
+                            title="حذف من النمط"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+
+              {/* Live Preview of Expected Entry Sequence */}
+              {queuePattern.length > 0 && (
+                <div className="p-4 rounded-2xl bg-secondary/30 border border-border space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                    <Sparkles className="w-3.5 h-3.5 text-primary" />
+                    <span>المعاينة التوضيحية لتسلسل الدخول المتوقع:</span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
+                    {/* Immediate Priority Notice */}
+                    {queuePattern.some(r => Number(r.quota) === 0) && (
+                      <span className="px-2.5 py-1 rounded-xl bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30 font-bold flex items-center gap-1">
+                        <Zap className="w-3 h-3 fill-rose-500 text-rose-500" />
+                        <span>
+                          أولوية فورية:{' '}
+                          {queuePattern
+                            .filter(r => Number(r.quota) === 0)
+                            .map(r => services.find(s => String(s.id) === String(r.serviceId))?.name || r.serviceName)
+                            .join('، ')}
+                        </span>
+                      </span>
+                    )}
+
+                    {/* Cycle Sequence */}
+                    {(() => {
+                      const cycleItems = queuePattern.filter(r => Number(r.quota) > 0)
+                      if (cycleItems.length === 0) return null
+
+                      const pills: Array<{ name: string; num: number }> = []
+                      cycleItems.forEach(r => {
+                        const sName = services.find(s => String(s.id) === String(r.serviceId))?.name || r.serviceName || 'خدمة'
+                        for (let c = 1; c <= Math.min(Number(r.quota) || 1, 5); c++) {
+                          pills.push({ name: sName, num: c })
+                        }
+                      })
+
+                      return (
+                        <>
+                          {pills.map((p, i) => (
+                            <React.Fragment key={i}>
+                              <span className="px-2 py-0.5 rounded-lg bg-card border border-border font-bold text-foreground">
+                                {p.name} #{p.num}
+                              </span>
+                              {i < pills.length - 1 && (
+                                <span className="text-muted-foreground font-bold">←</span>
+                              )}
+                            </React.Fragment>
+                          ))}
+                          <span className="text-primary font-black px-1.5 py-0.5 bg-primary/10 rounded-md">
+                            (ثم تتكرر الدورة 🔁)
+                          </span>
+                        </>
+                      )
+                    })()}
+                  </div>
+
+                  <p className="text-[11px] text-muted-foreground pt-1">
+                    * ملاحظة: يتم تجاوز أي خدمة فارغة تلقائياً بدون إيقاف الطابور، مع الحفاظ الكامل على أرقام التذاكر الثابتة للمرضى.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1775,8 +2037,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
             </div>
             <div className="space-y-1">
               <Label className="text-xs font-bold text-muted-foreground">{t('assistant_password', 'كلمة المرور')}</Label>
-              <Input
-                type="password"
+              <PasswordInput
                 value={newAssistantPassword}
                 onChange={e => setNewAssistantPassword(e.target.value)}
                 placeholder="••••••••"

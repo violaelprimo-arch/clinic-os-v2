@@ -7,6 +7,7 @@ import { db } from '@/lib/firebase'
 import { collection, query, where, getDocs, addDoc } from 'firebase/firestore'
 import { toast } from 'sonner'
 import { Eye, EyeOff, Loader2, ArrowRight } from 'lucide-react'
+import { PasswordInput } from '@/components/ui/password-input'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import {
@@ -309,31 +310,20 @@ export default function PatientLoginPage() {
 
           <div>
             <label className="block text-xs font-bold mb-1 text-slate-700 dark:text-slate-200">كلمة المرور *</label>
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                required
-                dir="ltr"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500 pl-11"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
+            <PasswordInput
+              required
+              dir="ltr"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+            />
           </div>
 
           {mode === 'register' && (
             <div>
               <label className="block text-xs font-bold mb-1 text-slate-700 dark:text-slate-200">تأكيد كلمة المرور *</label>
-              <input
-                type={showPassword ? 'text' : 'password'}
+              <PasswordInput
                 required
                 dir="ltr"
                 value={confirmPassword}

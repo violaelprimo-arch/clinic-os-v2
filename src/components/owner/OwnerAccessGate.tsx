@@ -10,6 +10,7 @@ import { auth } from '@/lib/firebase'
 import { OWNER_EMAIL } from '@/lib/owner-session'
 import { ShieldCheck, LoaderCircle, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { PasswordInput } from '@/components/ui/password-input'
 import { useLanguage } from '@/context/LanguageContext'
 export function OwnerAccessGate({ children }: { children: ReactNode }) {
   const { isRtl } = useLanguage()
@@ -163,9 +164,8 @@ export function OwnerAccessGate({ children }: { children: ReactNode }) {
         </label>
         <label className="grid gap-2 text-sm font-bold">
           {isRtl ? 'كلمة المرور' : 'Password'} *
-          <input
+          <PasswordInput
             name="password"
-            type="password"
             dir="ltr"
             autoComplete="current-password"
             required

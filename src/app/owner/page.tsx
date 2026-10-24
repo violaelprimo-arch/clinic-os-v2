@@ -5,6 +5,7 @@ import { LandingPageManager } from '@/components/owner/LandingPageManager'
 import { OwnerAccessGate } from '@/components/owner/OwnerAccessGate'
 import { useOwnerNavigation } from '@/components/owner/OwnerNavigationContext'
 import { Input } from '@/components/ui/input'
+import { PasswordInput } from '@/components/ui/password-input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
@@ -478,13 +479,23 @@ function OwnerDashboard() {
       }
     )
 
-    const unsubSettings = onSnapshot(doc(db, 'platformSettings', 'main'), (docSnap) => {
+    const unsubSettings = onSnapshot(doc(db, 'system', 'platformSettings'), (docSnap) => {
       if (docSnap.exists()) {
         const pData = docSnap.data()
         if (typeof pData.showPackagesInClinics === 'boolean') {
           setShowPackagesInClinics(pData.showPackagesInClinics)
         }
       }
+    }, () => {
+      // Fallback
+      onSnapshot(doc(db, 'platformSettings', 'main'), (fallbackSnap) => {
+        if (fallbackSnap.exists()) {
+          const pData = fallbackSnap.data()
+          if (typeof pData.showPackagesInClinics === 'boolean') {
+            setShowPackagesInClinics(pData.showPackagesInClinics)
+          }
+        }
+      })
     })
 
     return () => {
@@ -730,7 +741,10 @@ function OwnerDashboard() {
   const handleToggleShowPackagesInClinics = async (checked: boolean) => {
     setIsTogglingPackagesVisibility(true)
     try {
-      await setDoc(doc(db, 'platformSettings', 'main'), { showPackagesInClinics: checked }, { merge: true })
+      await Promise.all([
+        setDoc(doc(db, 'system', 'platformSettings'), { showPackagesInClinics: checked }, { merge: true }),
+        setDoc(doc(db, 'platformSettings', 'main'), { showPackagesInClinics: checked }, { merge: true }).catch(() => {})
+      ])
       setShowPackagesInClinics(checked)
       if (checked) {
         toast.success('تم تفعيل عرض الباقات والترقيات في لوحات العيادات بنجاح!')
@@ -3706,8 +3720,7 @@ function OwnerDashboard() {
 
                       <div className="pt-2 border-t border-slate-100">
                         <Label className="text-[11px] font-bold text-slate-500">مفتاح API مخصص للعيادة (اختياري)</Label>
-                        <Input
-                          type="password"
+                        <PasswordInput
                           value={aiApiKey}
                           onChange={e => setAiApiKey(e.target.value)}
                           dir="ltr"
@@ -3969,8 +3982,7 @@ function OwnerDashboard() {
                       placeholder="doctor@clinic.com"
                       className="h-10 text-xs rounded-xl bg-white"
                     />
-                    <Input
-                      type="password"
+                    <PasswordInput
                       value={doctorPassword}
                       onChange={e => setDoctorPassword(e.target.value)}
                       placeholder="كلمة المرور"
@@ -3987,8 +3999,7 @@ function OwnerDashboard() {
                       placeholder="assistant@clinic.com"
                       className="h-10 text-xs rounded-xl bg-white"
                     />
-                    <Input
-                      type="password"
+                    <PasswordInput
                       value={assistantPassword}
                       onChange={e => setAssistantPassword(e.target.value)}
                       placeholder="كلمة المرور"
@@ -4324,8 +4335,7 @@ function OwnerDashboard() {
 
             <div className="space-y-3">
               <Label className="text-xs font-bold text-slate-700">مفتاح الـ API المركزي (API Key)</Label>
-              <Input
-                type="password"
+              <PasswordInput
                 value={globalApiKey}
                 onChange={e => setGlobalApiKey(e.target.value)}
                 dir="ltr"
@@ -4339,8 +4349,7 @@ function OwnerDashboard() {
 
             <div className="space-y-3 pt-3">
               <Label className="text-xs font-bold text-slate-700">مفتاح إرسال الإيميلات (Resend API Key لرمز OTP)</Label>
-              <Input
-                type="password"
+              <PasswordInput
                 value={resendApiKey}
                 onChange={e => setResendApiKey(e.target.value)}
                 dir="ltr"

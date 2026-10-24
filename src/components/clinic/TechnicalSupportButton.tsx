@@ -33,15 +33,19 @@ export function TechnicalSupportButton({
   useEffect(() => {
     const fetchSupport = async () => {
       try {
-        const snap = await getDocs(collection(db, 'platformSettings'))
-        if (!snap.empty) {
-          const data = snap.docs[0].data()
-          const rawNumbers: SupportNumber[] = data.supportNumbers || []
-          const activeOnly = rawNumbers.filter(n => n.isActive !== false && n.phone)
-          setSupportNumbers(activeOnly.length > 0 ? activeOnly : [{ phone: '01551007018', label: 'فريق الدعم الفني', isActive: true }])
+        const { getDoc, doc } = await import('firebase/firestore')
+        const sysDoc = await getDoc(doc(db, 'system', 'platformSettings')).catch(() => null)
+        let rawNumbers: SupportNumber[] = []
+        if (sysDoc && sysDoc.exists()) {
+          rawNumbers = sysDoc.data().supportNumbers || []
         } else {
-          setSupportNumbers([{ phone: '01551007018', label: 'فريق الدعم الفني', isActive: true }])
+          const snap = await getDocs(collection(db, 'platformSettings')).catch(() => null)
+          if (snap && !snap.empty) {
+            rawNumbers = snap.docs[0].data().supportNumbers || []
+          }
         }
+        const activeOnly = rawNumbers.filter(n => n.isActive !== false && n.phone)
+        setSupportNumbers(activeOnly.length > 0 ? activeOnly : [{ phone: '01551007018', label: 'فريق الدعم الفني', isActive: true }])
       } catch (e) {
         setSupportNumbers([{ phone: '01551007018', label: 'فريق الدعم الفني', isActive: true }])
       } finally {

@@ -58,6 +58,7 @@ interface ActiveSession {
 }
 
 let globalActiveSession: ActiveSession | null = null
+let globalActiveStatus: DictationStatus = 'idle'
 let globalEpoch = 0
 const listeners = new Set<() => void>()
 
@@ -83,6 +84,7 @@ export function stopGlobalVoiceDictation() {
       } catch {}
     }
     globalActiveSession = null
+    globalActiveStatus = 'idle'
     globalEpoch++
     notifyListeners()
   }

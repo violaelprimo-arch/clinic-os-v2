@@ -9,7 +9,8 @@ import { Badge } from '@/components/ui/badge'
 import {
   Plus, Printer, Trash2, Search, FileSignature, MapPin,
   Phone, User as UserIcon, Star, Check, MessageCircle,
-  FileText, ShieldCheck, ChevronDown, Sparkles, Download, Palette, Image as ImageIcon, Lock
+  FileText, ShieldCheck, ChevronDown, Sparkles, Download, Palette, Image as ImageIcon, Lock,
+  Eye, ZoomIn, ZoomOut
 } from 'lucide-react'
 import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 import { toast } from 'sonner'
@@ -98,6 +99,39 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const dateStr = new Date().toISOString().split('T')[0]
 
   const sheetRef = useRef<HTMLDivElement>(null)
+  const previewContainerRef = useRef<HTMLDivElement>(null)
+  const [zoomMode, setZoomMode] = useState<'fit' | 'custom'>('fit')
+  const [manualScale, setManualScale] = useState(1)
+  const [containerWidth, setContainerWidth] = useState(600)
+
+  // Natural paper dimensions in CSS pixels (at 96 DPI: A4 is 794x1123, A5 is 560x792)
+  const naturalWidth = pageSize === 'a5' ? 560 : 794
+  const naturalHeight = pageSize === 'a5' ? 792 : 1123
+
+  useEffect(() => {
+    if (!previewContainerRef.current) return
+    const el = previewContainerRef.current
+    setContainerWidth(el.clientWidth)
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          if (entry.contentRect.width > 0) {
+            setContainerWidth(entry.contentRect.width)
+          }
+        }
+      })
+      observer.observe(el)
+      return () => observer.disconnect()
+    }
+  }, [])
+
+  const fitScale = useMemo(() => {
+    const available = Math.max(200, containerWidth - 24)
+    return Math.min(1, Number((available / naturalWidth).toFixed(3)))
+  }, [containerWidth, naturalWidth])
+
+  const currentScale = zoomMode === 'fit' ? fitScale : manualScale
 
   useEffect(() => {
     const q = query(collection(db, 'clinics'), where('slug', '==', slug))
@@ -417,16 +451,39 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     printHtmlViaIframe(html, pageSize)
   }
 
-  // Filtered drugs for quick search
+  // Precomputed unique drug list for ultra-fast autocomplete with zero keystroke lag
+  const allDrugOptions = useMemo(() => {
+    const list: string[] = []
+    const seen = new Set<string>()
+    for (const d of apiDrugs) {
+      const name = (d.commercial_name_en || d.commercial_name_ar || '').trim()
+      if (name && !seen.has(name.toLowerCase())) {
+        seen.add(name.toLowerCase())
+        list.push(name)
+      }
+    }
+    for (const name of EGYPTIAN_DRUGS) {
+      if (!seen.has(name.toLowerCase())) {
+        seen.add(name.toLowerCase())
+        list.push(name)
+      }
+    }
+    return list
+  }, [apiDrugs])
+
+  // Filtered drugs for quick search (instant response with early exit)
   const filteredSearchDrugs = useMemo(() => {
-    if (!drugSearch.trim()) return []
-    const queryTerm = drugSearch.toLowerCase()
-    return Array.from(
-      new Set([...EGYPTIAN_DRUGS, ...apiDrugs.map(a => a.commercial_name_en || a.commercial_name_ar)])
-    )
-      .filter(d => d.toLowerCase().includes(queryTerm))
-      .slice(0, 8)
-  }, [drugSearch, apiDrugs])
+    const term = drugSearch.trim().toLowerCase()
+    if (!term) return []
+    const matched: string[] = []
+    for (let i = 0; i < allDrugOptions.length; i++) {
+      if (allDrugOptions[i].toLowerCase().includes(term)) {
+        matched.push(allDrugOptions[i])
+        if (matched.length >= 8) break
+      }
+    }
+    return matched
+  }, [drugSearch, allDrugOptions])
 
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto" dir={dir}>
@@ -1060,25 +1117,126 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             )}
           </div>
 
-          {/* Render High-Fidelity Prescription Sheet (Live Preview) */}
-          <div ref={sheetRef} className="overflow-hidden rounded-2xl shadow-xl border border-border">
-            <A4Prescription
-              clinic={clinic}
-              patientName={patientName || t('patient_name', 'اسم المريض')}
-              age={age ? String(age) : ''}
-              date={dateStr}
-              diagnosis={diagnosis}
-              drugs={drugs.filter(d => d.name && d.name.trim() !== '')}
-              instructions={instructions}
-              templateMode={templateMode}
-              topOffset={topOffset}
-              primaryColor={primaryColor}
-              secondaryColor={secondaryColor}
-              branchName={selectedBranchName || clinic?.branchName}
-              pageSize={pageSize}
-              showHeaderFooter={showHeaderFooter}
-              printBackground={printBackground}
-            />
+          {/* Prescription Preview Zoom & Scale Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl border border-border bg-card shadow-2xs text-xs">
+            <div className="flex items-center gap-2 font-bold text-foreground">
+              <Eye className="w-4 h-4 text-primary" />
+              <span>{t('preview_scaling', 'معاينة الروشتة:')}</span>
+              <Badge variant="outline" className="font-mono text-[10px] px-1.5 py-0">
+                {pageSize.toUpperCase()} ({naturalWidth}×{naturalHeight}px)
+              </Badge>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setZoomMode('fit')}
+                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  zoomMode === 'fit'
+                    ? 'bg-primary text-primary-foreground shadow-xs'
+                    : 'bg-secondary hover:bg-secondary/80 text-muted-foreground'
+                }`}
+                title={t('fit_width_tooltip', 'ملاءمة العرض بنسبة وتناسب مع الشاشة')}
+              >
+                {t('fit_width', 'ملاءمة العرض')}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setZoomMode('custom')
+                  setManualScale(1)
+                }}
+                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  zoomMode === 'custom' && manualScale === 1
+                    ? 'bg-primary text-primary-foreground shadow-xs'
+                    : 'bg-secondary hover:bg-secondary/80 text-muted-foreground'
+                }`}
+                title={t('actual_size_tooltip', 'الحجم الطبيعي الأصلي 100%')}
+              >
+                100%
+              </button>
+
+              <div className="flex items-center bg-secondary rounded-lg p-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setZoomMode('custom')
+                    setManualScale(prev => Math.max(0.3, Number((prev - 0.1).toFixed(2))))
+                  }}
+                  className="p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  title={t('zoom_out', 'تصغير')}
+                  aria-label={t('zoom_out', 'تصغير')}
+                >
+                  <ZoomOut className="w-3.5 h-3.5" />
+                </button>
+                <span className="font-mono text-[11px] font-bold text-foreground px-1.5 min-w-[42px] text-center">
+                  {Math.round(currentScale * 100)}%
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setZoomMode('custom')
+                    setManualScale(prev => Math.min(1.5, Number((prev + 0.1).toFixed(2))))
+                  }}
+                  className="p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  title={t('zoom_in', 'تكبير')}
+                  aria-label={t('zoom_in', 'تكبير')}
+                >
+                  <ZoomIn className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Scaled Preview Viewport */}
+          <div
+            ref={previewContainerRef}
+            className="w-full rounded-2xl border border-border bg-slate-100/70 dark:bg-slate-900/40 p-2 sm:p-3 overflow-auto flex justify-center transition-all shadow-inner"
+          >
+            <div
+              style={{
+                width: `${Math.round(naturalWidth * currentScale)}px`,
+                height: `${Math.round(naturalHeight * currentScale)}px`,
+                position: 'relative',
+                overflow: 'hidden',
+                flexShrink: 0,
+                transition: 'width 0.12s ease-out, height 0.12s ease-out',
+              }}
+              className="rounded-xl shadow-xl border border-border/80 bg-white"
+            >
+              <div
+                style={{
+                  width: `${naturalWidth}px`,
+                  minHeight: `${naturalHeight}px`,
+                  transform: `scale(${currentScale})`,
+                  transformOrigin: 'top left',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                }}
+              >
+                <div ref={sheetRef} className="bg-white">
+                  <A4Prescription
+                    clinic={clinic}
+                    patientName={patientName || t('patient_name', 'اسم المريض')}
+                    age={age ? String(age) : ''}
+                    date={dateStr}
+                    diagnosis={diagnosis}
+                    drugs={drugs.filter(d => d.name && d.name.trim() !== '')}
+                    instructions={instructions}
+                    templateMode={templateMode}
+                    topOffset={topOffset}
+                    primaryColor={primaryColor}
+                    secondaryColor={secondaryColor}
+                    branchName={selectedBranchName || clinic?.branchName}
+                    pageSize={pageSize}
+                    showHeaderFooter={showHeaderFooter}
+                    printBackground={printBackground}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

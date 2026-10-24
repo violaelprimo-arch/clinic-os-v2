@@ -1,6 +1,6 @@
 'use client'
 /* eslint-disable @next/next/no-img-element */
-import { useEffect, useState, type FormEvent, type ComponentType } from 'react'
+import { useEffect, useState, useRef, type FormEvent, type ComponentType } from 'react'
 import Link from 'next/link'
 import { motion, useReducedMotion } from 'framer-motion'
 import {
@@ -26,7 +26,9 @@ import {
   ShieldCheck,
   Gift,
   LoaderCircle,
+  ZoomIn,
 } from 'lucide-react'
+import { ShowcaseLightbox } from '@/components/landing/ShowcaseLightbox'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { LanguageToggle } from '@/components/common/LanguageToggle'
@@ -71,7 +73,8 @@ export function LandingPageContent({
     isRtl ? String(config[key]) : config.english[key] || String(config[key])
   const [slide, setSlide] = useState(0),
     [paused, setPaused] = useState(false),
-    [trialOpen, setTrialOpen] = useState(false)
+    [trialOpen, setTrialOpen] = useState(false),
+    [lightboxOpen, setLightboxOpen] = useState(false)
   const showTrialBanner = false
   const [feedbackBusy, setFeedbackBusy] = useState(false),
     [feedbackMessage, setFeedbackMessage] = useState(''),
@@ -103,14 +106,77 @@ export function LandingPageContent({
     setSlide(
       (value) => (value + offset + screenshots.length) % screenshots.length,
     )
+
+  // Drag and swipe handling for showcase gallery
+  const showcaseDragStart = useRef<{ x: number; y: number; time: number } | null>(null)
+  const isDraggingShowcaseRef = useRef(false)
+
+  const handleShowcaseMouseDown = (e: React.MouseEvent) => {
+    showcaseDragStart.current = { x: e.clientX, y: e.clientY, time: Date.now() }
+    isDraggingShowcaseRef.current = false
+    setPaused(true)
+  }
+
+  const handleShowcaseMouseMove = (e: React.MouseEvent) => {
+    if (!showcaseDragStart.current) return
+    const dist = Math.hypot(e.clientX - showcaseDragStart.current.x, e.clientY - showcaseDragStart.current.y)
+    if (dist > 8) {
+      isDraggingShowcaseRef.current = true
+    }
+  }
+
+  const handleShowcaseMouseUp = (e: React.MouseEvent) => {
+    if (!showcaseDragStart.current) return
+    const deltaX = e.clientX - showcaseDragStart.current.x
+    const deltaY = e.clientY - showcaseDragStart.current.y
+    const elapsed = Date.now() - showcaseDragStart.current.time
+    const wasDragging = isDraggingShowcaseRef.current
+
+    showcaseDragStart.current = null
+    isDraggingShowcaseRef.current = false
+
+    if (wasDragging && Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY)) {
+      move(deltaX < 0 ? 1 : -1)
+    } else if (!wasDragging && elapsed < 400 && Math.hypot(deltaX, deltaY) < 10) {
+      setLightboxOpen(true)
+      setPaused(true)
+    }
+  }
+
+  const handleShowcaseTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      const touch = e.touches[0]
+      showcaseDragStart.current = { x: touch.clientX, y: touch.clientY, time: Date.now() }
+      isDraggingShowcaseRef.current = false
+      setPaused(true)
+    }
+  }
+
+  const handleShowcaseTouchEnd = (e: React.TouchEvent) => {
+    if (!showcaseDragStart.current || e.changedTouches.length === 0) return
+    const touch = e.changedTouches[0]
+    const deltaX = touch.clientX - showcaseDragStart.current.x
+    const deltaY = touch.clientY - showcaseDragStart.current.y
+    const elapsed = Date.now() - showcaseDragStart.current.time
+
+    showcaseDragStart.current = null
+
+    if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY)) {
+      move(deltaX < 0 ? 1 : -1)
+    } else if (Math.hypot(deltaX, deltaY) < 15 && elapsed < 500) {
+      setLightboxOpen(true)
+      setPaused(true)
+    }
+  }
+
   useEffect(() => {
-    if (paused || reduced || screenshots.length < 2) return
+    if (paused || lightboxOpen || reduced || screenshots.length < 2) return
     const timer = setInterval(() => {
       if (!document.hidden)
         setSlide((value) => (value + 1) % screenshots.length)
     }, 6500)
     return () => clearInterval(timer)
-  }, [screenshots.length, paused, reduced])
+  }, [screenshots.length, paused, lightboxOpen, reduced])
   const reveal = {
     initial: reduced ? (false as const) : { opacity: 0, y: 22 },
     whileInView: { opacity: 1, y: 0 },
@@ -656,17 +722,43 @@ export function LandingPageContent({
                 aria-labelledby={'shot-tab-' + index}
                 className="grid items-center gap-8 rounded-3xl border border-border bg-card p-5 sm:p-8 lg:grid-cols-[1.5fr_1fr]"
               >
-                <img
-                  key={current.id}
-                  src={current.imageUrl}
-                  alt={
-                    !isRtl && current.titleEn ? current.titleEn : current.title
-                  }
-                  width="1000"
-                  height="720"
-                  loading="lazy"
-                  className="aspect-[1.4] w-full rounded-2xl border border-border object-contain bg-secondary/20"
-                />
+                <div
+                  className="relative aspect-[1.4] w-full overflow-hidden rounded-2xl border border-border bg-secondary/20 group cursor-pointer select-none"
+                  onMouseDown={handleShowcaseMouseDown}
+                  onMouseMove={handleShowcaseMouseMove}
+                  onMouseUp={handleShowcaseMouseUp}
+                  onTouchStart={handleShowcaseTouchStart}
+                  onTouchEnd={handleShowcaseTouchEnd}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={copy('عرض الصورة وتكبيرها (اضغط أو اسحب)', 'View and enlarge image (Click or swipe)')}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      setLightboxOpen(true)
+                      setPaused(true)
+                    }
+                  }}
+                >
+                  <img
+                    key={current.id}
+                    src={current.imageUrl}
+                    alt={
+                      !isRtl && current.titleEn ? current.titleEn : current.title
+                    }
+                    width="1000"
+                    height="720"
+                    loading="lazy"
+                    draggable={false}
+                    className="h-full w-full rounded-2xl object-contain pointer-events-none transition-transform duration-300 group-hover:scale-[1.02]"
+                  />
+
+                  {/* Zoom Hint Badge */}
+                  <div className="absolute bottom-3 end-3 flex items-center gap-1.5 rounded-xl bg-background/85 px-3 py-1.5 text-xs font-semibold text-foreground shadow-md backdrop-blur-sm border border-border transition-all group-hover:bg-background group-hover:scale-105 pointer-events-none">
+                    <ZoomIn className="size-3.5 text-primary" />
+                    <span>{copy('تكبير الصورة', 'Enlarge view')}</span>
+                  </div>
+                </div>
                 <div className="space-y-5">
                   <span className="text-xs font-mono text-primary">
                     {String(index + 1).padStart(2, '0')} /{' '}
@@ -738,6 +830,17 @@ export function LandingPageContent({
                 </div>
               </div>
             </div>
+            <ShowcaseLightbox
+              open={lightboxOpen}
+              onClose={() => setLightboxOpen(false)}
+              screenshots={screenshots}
+              currentIndex={index}
+              onNavigate={(i) => {
+                setSlide(i)
+                setPaused(true)
+              }}
+              isRtl={isRtl}
+            />
           </section>
         )}
         {config.visibility.showFeedback && (

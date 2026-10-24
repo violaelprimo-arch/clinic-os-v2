@@ -377,7 +377,7 @@ export function BookingModal({
   // Payment Method State
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'instapay' | 'wallet'>('cash')
   const [transferAccount, setTransferAccount] = useState<string>('')
-  const [isCopied, setIsCopied] = useState<boolean>(false)
+  const [copiedKey, setCopiedKey] = useState<string | null>(null)
 
   const [submitting, setSubmitting] = useState<boolean>(false)
   const [bookingSuccess, setBookingSuccess] = useState<{
@@ -424,12 +424,14 @@ export function BookingModal({
     return valid
   }
 
-  const handleCopyText = (text: string) => {
+  const handleCopyText = (text: string, keyName: string = 'text') => {
     if (!text) return
-    navigator.clipboard.writeText(text)
-    setIsCopied(true)
-    toast.success('تم النسخ إلى الحافظة بنجاح')
-    setTimeout(() => setIsCopied(false), 2000)
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text)
+    }
+    setCopiedKey(keyName)
+    toast.success(keyName === 'amount' ? 'تم نسخ المبلغ بنجاح ✓' : 'تم نسخ رقم / حساب الاستلام بنجاح ✓')
+    setTimeout(() => setCopiedKey(null), 2000)
   }
 
   const handleNext = async () => {
@@ -478,9 +480,25 @@ export function BookingModal({
     }
 
     if (step === 5) {
-      if ((paymentMethod === 'instapay' || paymentMethod === 'wallet') && !transferAccount.trim()) {
-        toast.error(paymentMethod === 'instapay' ? 'يرجى إدخال اسم الحساب أو رقم الهاتف المحول منه' : 'يرجى إدخال رقم المحفظة المحول منها')
-        return
+      if (paymentMethod === 'instapay') {
+        if (!targetInstapayHandle) {
+          toast.error('لم يتم إعداد بيانات InstaPay لهذا الفرع بالعيادة بعد. يرجى اختيار الدفع نقداً بالعيادة.')
+          return
+        }
+        if (!transferAccount.trim()) {
+          toast.error('يرجى إدخال اسم الحساب أو رقم الهاتف المحول منه')
+          return
+        }
+      }
+      if (paymentMethod === 'wallet') {
+        if (!targetWalletNumber) {
+          toast.error('لم يتم إعداد رقم المحفظة الإلكترونية لهذا الفرع بالعيادة بعد. يرجى اختيار الدفع نقداً بالعيادة.')
+          return
+        }
+        if (!transferAccount.trim()) {
+          toast.error('يرجى إدخال رقم المحفظة المحول منها')
+          return
+        }
       }
       setStep(6)
       return
@@ -528,6 +546,7 @@ export function BookingModal({
 
       const isOnlinePay = paymentMethod === 'instapay' || paymentMethod === 'wallet'
       const paymentStatus = isOnlinePay ? 'pending_verification' : 'unpaid'
+      const resolvedReceiver = paymentMethod === 'instapay' ? targetInstapayHandle : paymentMethod === 'wallet' ? targetWalletNumber : null
 
       const newAppt = {
         clinic_id: clinicId,
@@ -539,14 +558,19 @@ export function BookingModal({
         gender: gender || 'أنثى',
         serviceId: selectedService?.id || '1',
         serviceName: serviceName,
-        servicePrice: selectedService?.price || 0,
+        servicePrice: payableAmount,
         isUrgent,
         date: selectedDate,
         queue_number: myQueueNumber,
         status: 'waiting',
         paymentMethod,
         paymentStatus,
-        paymentDetails: transferAccount.trim() ? { senderAccount: transferAccount.trim() } : null,
+        paymentDetails: transferAccount.trim() ? {
+          senderAccount: transferAccount.trim(),
+          expectedAmount: payableAmount,
+          receiverAccount: resolvedReceiver,
+          paymentMethod
+        } : null,
         createdAt: new Date().toISOString()
       }
 
@@ -628,9 +652,10 @@ export function BookingModal({
     { id: 6, label: 'تأكيد الحجز', Icon: ClipboardCheck }
   ]
 
-  // Clinic payment credentials
-  const clinicInstapayHandle = clinic?.instapayHandle || clinic?.instapayAccount || clinic?.clinicPhone || '01121320507'
-  const clinicWalletNumber = clinic?.walletNumber || clinic?.vodafoneCashNumber || clinic?.clinicPhone || '01121320507'
+  // Calculate payable amount and resolve receiver credentials per branch / clinic without static dummy fallbacks
+  const payableAmount = Number(selectedService?.price) || 0
+  const targetInstapayHandle = (selectedBranch?.instapayHandle || clinic?.instapayHandle || clinic?.instapayAccount || '').trim()
+  const targetWalletNumber = (selectedBranch?.walletNumber || clinic?.walletNumber || clinic?.vodafoneCashNumber || '').trim()
 
   return (
     <div dir="rtl" className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
@@ -1049,97 +1074,141 @@ export function BookingModal({
 
                 {/* InstaPay Details Box */}
                 {paymentMethod === 'instapay' && (
-                  <div className="p-3.5 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 space-y-3">
-                    {/* 1. سعر التحويل */}
-                    {showPrices && (
-                      <div className="flex items-center justify-between pb-2 border-b border-purple-200/60 dark:border-purple-800">
-                        <span className="text-xs font-bold text-purple-700 dark:text-purple-300">
-                          المبلغ المطلوب تحويله (سعر الكشف):
-                        </span>
-                        <span className="text-base font-black text-purple-900 dark:text-white font-mono">
-                          {selectedService?.price} ج.م
-                        </span>
+                  <div className="p-4 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border-2 border-purple-200 dark:border-purple-800 space-y-3.5">
+                    {!targetInstapayHandle ? (
+                      <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-bold leading-relaxed space-y-1">
+                        <p className="flex items-center gap-1.5 font-black">
+                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span>بيانات InstaPay غير متوفرة لهذا الفرع</span>
+                        </p>
+                        <p className="text-[11px] font-medium">لم يتم إعداد حساب InstaPay خاص بهذا الفرع بالعيادة. يرجى اختيار الدفع نقداً بالعيادة أو التواصل مع الاستقبال.</p>
                       </div>
-                    )}
+                    ) : (
+                      <>
+                        {/* Prominent Transfer Notice Callout */}
+                        <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 shadow-xs space-y-2.5">
+                          <p className="text-xs sm:text-sm font-black text-purple-950 dark:text-purple-100 leading-relaxed text-center">
+                            برجاء تحويل مبلغ{' '}
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 font-mono font-black text-sm sm:text-base">
+                              {payableAmount}
+                            </span>{' '}
+                            جنيه مصري إلى {targetInstapayHandle.includes('@') ? 'حساب' : 'رقم'} الاستلام:
+                          </p>
+                          <div className="text-center">
+                            <span className="inline-block font-mono text-base font-black text-purple-700 dark:text-purple-300 px-3 py-1 bg-purple-50 dark:bg-purple-900/40 border border-purple-200 dark:border-purple-800 rounded-xl tracking-wider select-all" dir="ltr">
+                              {targetInstapayHandle}
+                            </span>
+                          </div>
 
-                    {/* 2. رقم التحويل للعيادة */}
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-[10px] font-bold text-purple-600 dark:text-purple-300">رقم / عنوان InstaPay للعيادة:</div>
-                        <div className="text-sm font-black font-mono text-slate-900 dark:text-white" dir="ltr">
-                          {clinicInstapayHandle}
+                          {/* Quick Action Copy Buttons */}
+                          <div className="flex items-center justify-center gap-2 pt-2 border-t border-purple-100 dark:border-purple-900/50">
+                            <button
+                              type="button"
+                              onClick={() => handleCopyText(String(payableAmount), 'amount')}
+                              className="px-3 py-1.5 rounded-xl bg-purple-100 hover:bg-purple-200 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>{copiedKey === 'amount' ? 'تم نسخ المبلغ ✓' : `نسخ المبلغ (${payableAmount} ج.م)`}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyText(targetInstapayHandle, 'target')}
+                              className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>{copiedKey === 'target' ? 'تم نسخ الحساب ✓' : 'نسخ حساب الاستلام'}</span>
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleCopyText(clinicInstapayHandle)}
-                        className="px-2.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
-                      >
-                        <Copy className="w-3 h-3" />
-                        <span>{isCopied ? 'تم النسخ ✓' : 'نسخ'}</span>
-                      </button>
-                    </div>
 
-                    {/* 3. الرقم المحول منه */}
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        اسم الحساب أو رقم الهاتف الذي تحول منه: <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={transferAccount}
-                        onChange={(e) => setTransferAccount(e.target.value)}
-                        placeholder="مثال: أحمد محمد أو 01012345678"
-                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-purple-200 dark:border-purple-700 text-xs font-bold outline-none"
-                      />
-                    </div>
+                        <p className="text-[11px] text-purple-800 dark:text-purple-300 font-bold text-center leading-relaxed">
+                          ⚠️ تظل حالة الدفع الإلكتروني «بانتظار التأكيد» إلى أن يؤكدها الطبيب أو الموظف المختص.
+                        </p>
+
+                        {/* Sender Account Input */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                            اسم الحساب أو رقم الهاتف الذي قمت بالتحويل منه: <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={transferAccount}
+                            onChange={(e) => setTransferAccount(e.target.value)}
+                            placeholder="مثال: أحمد محمد أو 01012345678"
+                            className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-purple-200 dark:border-purple-700 text-xs font-bold outline-none"
+                          />
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
 
                 {/* Electronic Wallet Details Box */}
                 {paymentMethod === 'wallet' && (
-                  <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 space-y-3">
-                    {/* 1. سعر التحويل */}
-                    {showPrices && (
-                      <div className="flex items-center justify-between pb-2 border-b border-rose-200/60 dark:border-rose-800">
-                        <span className="text-xs font-bold text-rose-700 dark:text-rose-300">
-                          المبلغ المطلوب تحويله (سعر الكشف):
-                        </span>
-                        <span className="text-base font-black text-rose-900 dark:text-white font-mono">
-                          {selectedService?.price} ج.م
-                        </span>
+                  <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border-2 border-rose-200 dark:border-rose-800 space-y-3.5">
+                    {!targetWalletNumber ? (
+                      <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-bold leading-relaxed space-y-1">
+                        <p className="flex items-center gap-1.5 font-black">
+                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span>رقم المحفظة الإلكترونية غير متوفر لهذا الفرع</span>
+                        </p>
+                        <p className="text-[11px] font-medium">لم يتم إعداد رقم محفظة إلكترونية خاص بهذا الفرع بالعيادة. يرجى اختيار الدفع نقداً بالعيادة أو التواصل مع الاستقبال.</p>
                       </div>
-                    )}
+                    ) : (
+                      <>
+                        {/* Prominent Transfer Notice Callout */}
+                        <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-800 shadow-xs space-y-2.5">
+                          <p className="text-xs sm:text-sm font-black text-rose-950 dark:text-rose-100 leading-relaxed text-center">
+                            برجاء تحويل مبلغ{' '}
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-rose-100 dark:bg-rose-900/60 text-rose-700 dark:text-rose-300 font-mono font-black text-sm sm:text-base">
+                              {payableAmount}
+                            </span>{' '}
+                            جنيه مصري إلى رقم الاستلام:
+                          </p>
+                          <div className="text-center">
+                            <span className="inline-block font-mono text-base font-black text-rose-700 dark:text-rose-300 px-3 py-1 bg-rose-50 dark:bg-rose-900/40 border border-rose-200 dark:border-rose-800 rounded-xl tracking-wider select-all" dir="ltr">
+                              {targetWalletNumber}
+                            </span>
+                          </div>
 
-                    {/* 2. رقم التحويل للعيادة */}
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-[10px] font-bold text-rose-600 dark:text-rose-300">رقم محفظة العيادة (فودافون كاش / محافظ):</div>
-                        <div className="text-sm font-black font-mono text-slate-900 dark:text-white" dir="ltr">
-                          {clinicWalletNumber}
+                          {/* Quick Action Copy Buttons */}
+                          <div className="flex items-center justify-center gap-2 pt-2 border-t border-rose-100 dark:border-rose-900/50">
+                            <button
+                              type="button"
+                              onClick={() => handleCopyText(String(payableAmount), 'amount')}
+                              className="px-3 py-1.5 rounded-xl bg-rose-100 hover:bg-rose-200 dark:bg-rose-900/50 text-rose-800 dark:text-rose-200 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>{copiedKey === 'amount' ? 'تم نسخ المبلغ ✓' : `نسخ المبلغ (${payableAmount} ج.م)`}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyText(targetWalletNumber, 'target')}
+                              className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>{copiedKey === 'target' ? 'تم نسخ الرقم ✓' : 'نسخ رقم الاستلام'}</span>
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleCopyText(clinicWalletNumber)}
-                        className="px-2.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
-                      >
-                        <Copy className="w-3 h-3" />
-                        <span>{isCopied ? 'تم النسخ ✓' : 'نسخ'}</span>
-                      </button>
-                    </div>
 
-                    {/* 3. الرقم المحول منه */}
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        رقم المحفظة التي قمت بالتحويل منها: <span className="text-rose-500">*</span>
-                      </label>
-                      <PhoneInputWithCountry
-                        value={transferAccount}
-                        onChange={(fullNumber) => setTransferAccount(fullNumber)}
-                        size="sm"
-                      />
-                    </div>
+                        <p className="text-[11px] text-rose-800 dark:text-rose-300 font-bold text-center leading-relaxed">
+                          ⚠️ تظل حالة الدفع الإلكتروني «بانتظار التأكيد» إلى أن يؤكدها الطبيب أو الموظف المختص.
+                        </p>
+
+                        {/* Sender Account Input */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                            رقم المحفظة التي قمت بالتحويل منها: <span className="text-rose-500">*</span>
+                          </label>
+                          <PhoneInputWithCountry
+                            value={transferAccount}
+                            onChange={(fullNumber) => setTransferAccount(fullNumber)}
+                            size="sm"
+                          />
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

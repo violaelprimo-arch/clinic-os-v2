@@ -62,9 +62,16 @@ export const isConsultCase = (d: any): boolean =>
 
 export const isNormalCase = (d: any): boolean => Boolean(!isUrgentCase(d) && !isConsultCase(d))
 
+export interface QueuePatternRule {
+  serviceId: string
+  serviceName?: string
+  quota: number // 0 = Immediate Priority, >0 = Cases per cycle
+}
+
 /**
  * Sorts active waiting appointments into deterministic entry order.
- * Follows doctor's triage ratio (Urgent, Normal, Consultation).
+ * Follows doctor's custom dynamic Queue Pattern (tied to actual clinic services)
+ * or falls back to legacy triage ratio (Urgent, Normal, Consultation).
  */
 export function sortQueue(appointments: any[], clinic?: any): any[] {
   // Only patients in 'waiting' state belong in the dynamic line
@@ -72,6 +79,69 @@ export function sortQueue(appointments: any[], clinic?: any): any[] {
     .filter((d: any) => d.status === 'waiting' || !d.status)
     .sort((a: any, b: any) => (Number(a.queue_number) || 0) - (Number(b.queue_number) || 0))
 
+  const pattern: QueuePatternRule[] =
+    Array.isArray(clinic?.queuePattern) && clinic.queuePattern.length > 0
+      ? clinic.queuePattern
+      : []
+
+  if (pattern.length > 0) {
+    const orderedWaiting: any[] = []
+    const placedIds = new Set<string>()
+
+    // 1. Immediate Priority (quota === 0): Cases enter immediately at next turn before any cycle
+    const immediateRules = pattern.filter(r => Number(r.quota) === 0)
+    for (const p of waiting) {
+      if (placedIds.has(p.id)) continue
+      const isPriority =
+        immediateRules.some(r => String(r.serviceId) === String(p.serviceId)) ||
+        (immediateRules.length > 0 && isUrgentCase(p))
+      if (isPriority) {
+        orderedWaiting.push(p)
+        placedIds.add(p.id)
+      }
+    }
+
+    // 2. In-cycle services (quota > 0)
+    const cycleRules = pattern.filter(r => Number(r.quota) > 0)
+    if (cycleRules.length > 0) {
+      const groupsByService = new Map<string, any[]>()
+      for (const p of waiting) {
+        if (placedIds.has(p.id)) continue
+        const sId = String(p.serviceId || 'default')
+        if (!groupsByService.has(sId)) groupsByService.set(sId, [])
+        groupsByService.get(sId)!.push(p)
+      }
+
+      let anyAddedInCycle = true
+      while (anyAddedInCycle) {
+        anyAddedInCycle = false
+        for (const rule of cycleRules) {
+          const list = groupsByService.get(String(rule.serviceId))
+          if (list && list.length > 0) {
+            const countToTake = Math.min(Number(rule.quota) || 1, list.length)
+            for (let i = 0; i < countToTake; i++) {
+              const patient = list.shift()!
+              orderedWaiting.push(patient)
+              placedIds.add(patient.id)
+              anyAddedInCycle = true
+            }
+          }
+        }
+      }
+    }
+
+    // 3. Guarantee safety: Any remaining waiting patient not in pattern is appended in booking order
+    for (const p of waiting) {
+      if (!placedIds.has(p.id)) {
+        orderedWaiting.push(p)
+        placedIds.add(p.id)
+      }
+    }
+
+    return orderedWaiting
+  }
+
+  // Legacy Fallback
   const qUrgent = clinic?.queueUrgent !== undefined ? Number(clinic.queueUrgent) : 0
   const qNormal = clinic?.queueNormal !== undefined ? Number(clinic.queueNormal) : 3
   const qConsult = clinic?.queueConsult !== undefined ? Number(clinic.queueConsult) : 2

@@ -43,7 +43,8 @@ export default function AdminLayout({
   const [selectedBranchId, setSelectedBranchId] = useState<string>('all')
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const [packages, setPackages] = useState<any[]>([])
-  const [showPackagesInClinics, setShowPackagesInClinics] = useState<boolean>(true)
+  // Default to false so packages / upgrade buttons never flash during load if hidden by owner
+  const [showPackagesInClinics, setShowPackagesInClinics] = useState<boolean>(false)
 
   useEffect(() => {
     const saved = localStorage.getItem('clinic_selected_branch') || 'all'
@@ -53,16 +54,35 @@ export default function AdminLayout({
       setPackages(snap.docs.map(d => ({ id: d.id, ...d.data() })))
     })
 
-    const unsubSettings = onSnapshot(doc(db, 'platformSettings', 'main'), (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data()
-        if (typeof data.showPackagesInClinics === 'boolean') {
-          setShowPackagesInClinics(data.showPackagesInClinics)
+    // Listen to unified public system/platformSettings first, fallback to platformSettings/main
+    const unsubSettings = onSnapshot(
+      doc(db, 'system', 'platformSettings'),
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data()
+          if (typeof data.showPackagesInClinics === 'boolean') {
+            setShowPackagesInClinics(data.showPackagesInClinics)
+            if (!data.showPackagesInClinics) {
+              setShowUpgradeModal(false)
+            }
+          }
         }
+      },
+      () => {
+        // Fallback listener
+        onSnapshot(doc(db, 'platformSettings', 'main'), (fallbackSnap) => {
+          if (fallbackSnap.exists()) {
+            const data = fallbackSnap.data()
+            if (typeof data.showPackagesInClinics === 'boolean') {
+              setShowPackagesInClinics(data.showPackagesInClinics)
+              if (!data.showPackagesInClinics) {
+                setShowUpgradeModal(false)
+              }
+            }
+          }
+        }, () => {})
       }
-    }, (err) => {
-      console.warn('Could not subscribe to platformSettings:', err)
-    })
+    )
 
     return () => {
       unsubPackages()
@@ -72,8 +92,10 @@ export default function AdminLayout({
 
   useEffect(() => {
     const handleOpenModal = () => {
-      if (showPackagesInClinics !== false) {
+      if (showPackagesInClinics) {
         setShowUpgradeModal(true)
+      } else {
+        setShowUpgradeModal(false)
       }
     }
     window.addEventListener('open_upgrade_modal', handleOpenModal)
@@ -260,7 +282,7 @@ export default function AdminLayout({
       href: `/clinic/${slug}/admin/branches`,
       icon: Building2
     },
-    ...(showPackagesInClinics !== false ? [{
+    ...(showPackagesInClinics ? [{
       id: 'packages',
       name: t('nav_packages', 'الباقات والاشتراك'),
       href: '#packages',
@@ -390,7 +412,7 @@ export default function AdminLayout({
             </div>
 
             {/* Upgrade Account Button right under the doctor's name */}
-            {showPackagesInClinics !== false && (
+            {showPackagesInClinics && (
               <button
                 type="button"
                 onClick={() => setShowUpgradeModal(true)}
@@ -726,7 +748,7 @@ export default function AdminLayout({
             <LockedFeatureScreen
               featureKey={currentLockedFeature}
               clinic={clinic}
-              onRequestUpgrade={() => setShowUpgradeModal(true)}
+              onRequestUpgrade={showPackagesInClinics ? () => setShowUpgradeModal(true) : undefined}
             />
           ) : (
             children
@@ -772,7 +794,7 @@ export default function AdminLayout({
       </div>
 
       {/* Subscription Upgrade Modal */}
-      {showPackagesInClinics !== false && (
+      {showPackagesInClinics && (
         <SubscriptionUpgradeModal
           isOpen={showUpgradeModal}
           onClose={() => setShowUpgradeModal(false)}

@@ -49,6 +49,7 @@ next-env.d.ts
 
 # database backups with confidential patient data
 backup/
+backups/
 
 # Local browser verification artifacts
 /test-results/

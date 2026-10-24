@@ -16,6 +16,7 @@ import { db } from '@/lib/firebase'
 import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore'
 import { DrugItem } from '@/lib/egyptian-drugs'
 import { useEgyptianDrugs } from '@/hooks/useEgyptianDrugs'
+import { canonicalDrugIdentifier } from '@/lib/drugUtils'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { useLanguage } from '@/context/LanguageContext'
@@ -135,22 +136,38 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
     }
   }
 
-  // Merge the massive API db with the custom clinic drugs
+  // Merge the API db with the custom clinic drugs, strictly eliminating duplicates
   const allDrugs = useMemo(() => {
-    const mappedApi: DrugItem[] = apiDrugs.map((api, idx) => ({
-      id: `api-${idx}`,
-      name: api.commercial_name_en || api.commercial_name_ar,
-      activeIngredient: api.scientific_name || 'غير متوفر',
-      company: api.manufacturer || 'غير محددة',
-      form: (api.route || 'غير محدد') as any,
-      price: api.price_egp || 0,
-      isFavorite: false,
-      isMarketUpdated: api.isMarketUpdated,
-      lastMarketUpdate: api.lastMarketUpdate,
-      oldPrice: api.oldPrice
-    }))
-    
-    return [...customDrugs, ...mappedApi]
+    const drugMap = new Map<string, DrugItem>()
+
+    // 1. Custom clinic drugs take highest priority
+    for (const d of customDrugs) {
+      const key = canonicalDrugIdentifier(d.name) || d.id
+      drugMap.set(key, d)
+    }
+
+    // 2. Add API drugs from authoritative market catalog if not already set by custom
+    for (let idx = 0; idx < apiDrugs.length; idx++) {
+      const api = apiDrugs[idx]
+      const name = api.commercial_name_en || api.commercial_name_ar
+      const key = canonicalDrugIdentifier(name) || `api-${idx}`
+      if (!drugMap.has(key)) {
+        drugMap.set(key, {
+          id: `api-${idx}`,
+          name: name,
+          activeIngredient: api.scientific_name || 'غير متوفر',
+          company: api.manufacturer || 'غير محددة',
+          form: (api.route || 'غير محدد') as any,
+          price: api.price_egp || 0,
+          isFavorite: false,
+          isMarketUpdated: api.isMarketUpdated,
+          lastMarketUpdate: api.lastMarketUpdate,
+          oldPrice: api.oldPrice
+        })
+      }
+    }
+
+    return Array.from(drugMap.values())
   }, [apiDrugs, customDrugs])
 
   const toggleFavorite = async (drugName: string) => {
