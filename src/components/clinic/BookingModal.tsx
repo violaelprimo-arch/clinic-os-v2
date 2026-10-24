@@ -28,6 +28,7 @@ import { createClinicNotification } from '@/lib/notificationService'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
+import { PatientPushNotificationManager } from '@/components/clinic/PatientPushNotificationManager'
 import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import {
   CountryInfo,
@@ -740,6 +741,15 @@ export function BookingModal({
                 طريقة الدفع: {bookingSuccess.paymentMethod}
               </div>
             </div>
+
+            {/* Real Web Push Notification Activation */}
+            <PatientPushNotificationManager
+              clinicId={clinic?.id}
+              clinicSlug={slug}
+              appointmentId={bookingSuccess.appointmentId}
+              patientPhone={patientPhone}
+              compact
+            />
 
             <div className="space-y-2 pt-2">
               <Link

@@ -291,6 +291,20 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
           eventId: `pay_conf_${patient.id}`,
           appointmentId: patient.id
         })
+
+        // Real Web Push dispatch
+        import('@/lib/patientNotificationHelper').then(({ triggerPatientEventPush }) => {
+          triggerPatientEventPush({
+            type: 'payment_confirmed',
+            appointmentId: patient.id,
+            clinicId: clinic?.id || patient.clinic_id,
+            clinicSlug: clinic?.slug,
+            clinicName: clinic?.clinicName || 'العيادة',
+            patientPhone: patient.phone,
+            queueNumber: patient.queue_number,
+            eventId: `push_pay_conf_${patient.id}`,
+          }).catch(() => {})
+        });
       }
       toast.success(`تم تأكيد استلام الدفع للمريض ${patient.patientName} بنجاح`)
     } catch (err) {
@@ -417,6 +431,20 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
           eventId: `turn_ready_${patient.id}`,
           appointmentId: patient.id
         })
+
+        // Real Web Push dispatch to the called patient
+        import('@/lib/patientNotificationHelper').then(({ triggerPatientEventPush }) => {
+          triggerPatientEventPush({
+            type: 'turn_ready',
+            appointmentId: patient.id,
+            clinicId: clinic?.id || patient.clinic_id,
+            clinicSlug: clinic?.slug,
+            clinicName: clinic?.clinicName || 'العيادة',
+            patientPhone: patient.phone,
+            queueNumber: patient.queue_number,
+            eventId: `push_turn_ready_${patient.id}`,
+          }).catch(() => {})
+        });
       }
 
       // Notify all other waiting patients about the entry & remaining turn count
@@ -447,6 +475,20 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
           eventId,
           appointmentId: wp.id
         }).catch(() => {})
+        if (aheadCount <= 5 && aheadCount > 0) {
+          import('@/lib/patientNotificationHelper').then(({ triggerPatientEventPush }) => {
+            triggerPatientEventPush({
+              type: 'approaching_turn',
+              appointmentId: wp.id,
+              clinicId: clinic?.id || wp.clinic_id,
+              clinicSlug: clinic?.slug,
+              clinicName: clinic?.clinicName || 'العيادة',
+              patientPhone: wp.phone,
+              aheadCount,
+              eventId: `push_approaching_${aheadCount}_${wp.id}`,
+            }).catch(() => {})
+          });
+        }
       }
 
       toast.success(`بدأ كشف المريض: ${patient.patientName}`)
@@ -478,7 +520,6 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
       }
 
       await updateDoc(doc(db, 'appointments', patientId), updateData)
-
       // Dynamically recalculate average visit time for this branch only
       if (durationMinutes && clinic?.id) {
         const targetAppt = rawAppointments.find(a => a.id === patientId)
@@ -659,9 +700,20 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
             if (isProcessing) return
             setIsProcessing(true)
             try {
+              const nextIsOpen = clinic?.isClinicOpen === false ? true : false
               await updateDoc(doc(db, 'clinics', clinic.id), {
-                isClinicOpen: clinic?.isClinicOpen === false ? true : false,
+                isClinicOpen: nextIsOpen,
                 updatedAt: new Date().toISOString()
+              })
+
+              import('@/lib/patientNotificationHelper').then(({ triggerPatientEventPush }) => {
+                triggerPatientEventPush({
+                  type: nextIsOpen ? 'clinic_intake_resumed' : 'clinic_intake_paused',
+                  clinicId: clinic.id,
+                  clinicSlug: clinic?.slug,
+                  clinicName: clinic?.clinicName || 'العيادة',
+                  eventId: `push_intake_${clinic.id}_${Date.now()}`,
+                }).catch(() => {})
               })
               toast.success(clinic?.isClinicOpen === false ? t('open_clinic', 'تم فتح العيادة وتفعيل الحجوزات') : t('close_clinic', 'تم إغلاق العيادة وإيقاف الحجوزات'))
             } catch (err) {

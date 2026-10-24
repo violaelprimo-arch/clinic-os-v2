@@ -294,6 +294,18 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
               eventId: `rx_ready_${docRef.id}`,
               appointmentId: appointmentId || undefined
             })
+
+            // Dispatch Real Web Push Notification to patient device
+            const { triggerPatientEventPush } = await import('@/lib/patientNotificationHelper')
+            triggerPatientEventPush({
+              type: 'prescription_ready',
+              appointmentId: appointmentId || undefined,
+              clinicId,
+              clinicSlug: slug,
+              clinicName: clinic?.clinicName || 'العيادة',
+              patientPhone,
+              eventId: `push_rx_ready_${docRef.id}`,
+            }).catch(() => {})
           } catch (e) {}
         }
 

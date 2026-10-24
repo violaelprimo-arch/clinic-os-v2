@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { collection, query, where, getDocs, addDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { createClinicNotification } from '@/lib/notificationService'
+import { dispatchPatientPushNotification } from '@/lib/pushDispatcher'
 import { verifySessionToken } from '@/lib/auth-crypto'
 
 export async function POST(req: NextRequest) {
@@ -151,6 +152,20 @@ export async function POST(req: NextRequest) {
       body: `حجز جديد للمريض ${cleanName} برقم دور #${queueNumber}.`,
       type: 'new_booking',
       appointmentId: docRef.id
+    }).catch(() => {})
+
+    // Real Web Push dispatch to patient device
+    dispatchPatientPushNotification({
+      type: 'booking_confirmed',
+      appointmentId: docRef.id,
+      clinicId,
+      branchId: branchId || undefined,
+      patientPhone: cleanPhone,
+      title: 'تم تأكيد حجزك بنجاح!',
+      body: `تم تأكيد حجزك لدى العيادة برقم دور #${queueNumber} (${branchName || 'الفرع الرئيسي'}).`,
+      url: `/clinic/${slug}/track/${docRef.id}`,
+      tag: `booking-confirmed-${docRef.id}`,
+      eventId: `booking_confirmed_${docRef.id}`,
     }).catch(() => {})
 
     return NextResponse.json(

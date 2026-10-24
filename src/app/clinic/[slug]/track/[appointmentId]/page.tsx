@@ -21,6 +21,7 @@ import { ClinicLoading } from '@/components/clinic/ClinicLoading'
 import { formatCairo12Hour } from '@/lib/queue-calculator'
 import { InvoiceView } from '@/components/clinic/InvoiceView'
 import { NotificationCenter } from '@/components/clinic/NotificationCenter'
+import { PatientPushNotificationManager } from '@/components/clinic/PatientPushNotificationManager'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { LanguageToggle } from '@/components/common/LanguageToggle'
 import { useLanguage } from '@/context/LanguageContext'
@@ -235,6 +236,14 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
             )}
           </div>
         </div>
+
+        {/* Real Web Push Notification Activation */}
+        <PatientPushNotificationManager
+          clinicId={appointment.clinic_id}
+          clinicSlug={slug}
+          appointmentId={appointmentId}
+          patientPhone={appointment.phone}
+        />
 
         {/* Live Status Content Rendering */}
         {isCompleted ? (

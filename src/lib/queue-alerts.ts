@@ -9,6 +9,7 @@ import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/fire
 import { db } from '@/lib/firebase'
 import { sortWaitingQueue, calculateWaitTime, QueuePatient } from '@/lib/queue-calculator'
 import { sendWhatsAppNotification } from '@/lib/whatsapp'
+import { dispatchPatientPushNotification } from '@/lib/pushDispatcher'
 
 export async function checkAndSendFiveAheadAlerts(
   clinicId: string,
@@ -64,6 +65,27 @@ export async function checkAndSendFiveAheadAlerts(
           fivePatientsAlertSent: true,
           fivePatientsAlertSentAt: new Date().toISOString()
         })
+
+        // Dispatch Real Web Push Notification
+        try {
+          await dispatchPatientPushNotification({
+            type: 'approaching_turn',
+            appointmentId: patient.id,
+            clinicId,
+            patientPhone: patient.phone,
+            title: peopleAhead <= 1 ? '⚡ أنت المريض التالي للدخول!' : `تنبيه: اقترب دورك (متبقي ${peopleAhead} أدوار)`,
+            body: peopleAhead <= 1
+              ? `متبقي مريض واحد فقط أمامك في ${clinicName || 'العيادة'}. يرجى التواجد أمام غرفة الكشف الآن.`
+              : `متبقي أمامك ${peopleAhead} مرضى في انتظار الكشف لدى ${clinicName || 'العيادة'}. يرجى التواجد بالعيادة.`,
+            url: `/clinic/${clinicSlug}/track/${patient.id}`,
+            tag: `approaching-${patient.id}`,
+            eventId: `push_${idempotencyKey}`,
+            ttl: 300,
+            urgency: 'high',
+          })
+        } catch (pushErr) {
+          console.warn('Failed to send push alert for patient:', patient.id, pushErr)
+        }
 
         // Dispatch WhatsApp notification
         try {

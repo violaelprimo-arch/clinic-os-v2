@@ -1,3 +1,4 @@
+import { PatientPushNotificationManager } from '@/components/clinic/PatientPushNotificationManager'
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
@@ -517,6 +518,14 @@ export function BookingForm({
           <Bell className="w-4 h-4 text-primary shrink-0" />
           <span>{t('notification_notice', 'ستصلك تنبيهات صوتية ومباشرة فور اقتراب دورك (من أول متبقي 5 أدوار) ومع كل دخول مريض')}</span>
         </div>
+
+        {/* Real Web Push Notification Activation */}
+        <PatientPushNotificationManager
+          clinicId={clinic?.id}
+          clinicSlug={clinic?.slug}
+          appointmentId={successInfo.trackingId}
+          patientPhone={phone}
+        />
 
         {/* Action CTAs */}
         <div className="space-y-2.5 pt-2">
