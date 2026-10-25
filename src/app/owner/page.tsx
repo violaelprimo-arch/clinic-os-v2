@@ -1479,7 +1479,7 @@ function OwnerDashboard() {
 
       {/* 3. Navigation Tabs (iOS Segmented Pill Bar) */}
       <div className="ios-glass-card flex items-center gap-1.5 overflow-x-auto rounded-2xl border border-border/80 p-2 shadow-sm no-scrollbar">
-        <button type="button" onClick={() => setActiveTab('landing')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs whitespace-nowrap ${activeTab === 'landing' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary'}`}><Sparkles className="size-4" />{isRtl ? 'الواجهة الرئيسية' : 'Landing page'}</button>
+        <button type="button" onClick={() => setActiveTab('landing')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs whitespace-nowrap ${activeTab === 'landing' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary'}`}><Sparkles className="size-4" />{isRtl ? 'الواجهة الرئيسية واستطلاع الرأي' : 'Landing & Reviews'}</button>
         <button
           onClick={() => setActiveTab('clinics')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer whitespace-nowrap ${

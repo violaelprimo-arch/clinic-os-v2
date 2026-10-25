@@ -22,6 +22,9 @@ import {
   LoaderCircle,
   CheckCircle2,
   ExternalLink,
+  Star,
+  Check,
+  MessageSquare,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/LanguageContext'
@@ -389,7 +392,7 @@ const tabs = [
   ['features', 'المميزات'],
   ['screenshots', 'الصور'],
   ['clients', 'العملاء'],
-  ['feedback', 'الآراء'],
+  ['feedback', 'استطلاع الآراء'],
   ['contacts', 'التواصل'],
   ['trials', 'طلبات التواصل'],
 ] as const
@@ -458,6 +461,15 @@ export function LandingPageManager() {
           )
       },
     )
+
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const targetSubtab = params.get('section') || params.get('subtab')
+      if (targetSubtab && tabs.some(([id]) => id === targetSubtab)) {
+        setTab(targetSubtab as Tab)
+      }
+    }
+
     return () => {
       cancelled = true
     }
@@ -649,17 +661,36 @@ export function LandingPageManager() {
           </div>
         </section>
         <div className="flex gap-2 overflow-x-auto pb-2" aria-label="أقسام محرر الواجهة">
-          {tabs.map(([id, label]) => (
-            <Button
-              key={id}
-              size="sm"
-              variant={tab === id ? 'default' : 'outline'}
-              onClick={() => setTab(id)}
-            >
-              {label}
-              {id === 'trials' ? ` (${trials.length})` : ''}
-            </Button>
-          ))}
+          {tabs.map(([id, label]) => {
+            const pendingFeedbackCount = feedback.filter((f) => !f.approved).length
+            return (
+              <Button
+                key={id}
+                size="sm"
+                variant={tab === id ? 'default' : 'outline'}
+                onClick={() => setTab(id)}
+                className="relative gap-1.5"
+              >
+                <span>{label}</span>
+                {id === 'trials' && trials.length > 0 && (
+                  <span className="rounded-full bg-primary/20 text-primary px-1.5 py-0.5 text-[10px] font-black">
+                    {trials.length}
+                  </span>
+                )}
+                {id === 'feedback' && feedback.length > 0 && (
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[10px] font-black ${
+                      pendingFeedbackCount > 0
+                        ? 'bg-amber-500 text-white animate-pulse'
+                        : 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+                    }`}
+                  >
+                    {pendingFeedbackCount > 0 ? `${pendingFeedbackCount} بانتظار الموافقة` : feedback.length}
+                  </span>
+                )}
+              </Button>
+            )
+          })}
         </div>
         {tab !== 'trials' && (
           <div className="flex items-center gap-3 text-xs font-bold">
@@ -895,85 +926,193 @@ export function LandingPageManager() {
         )}
         {tab === 'feedback' && (
           <section className="space-y-6">
-            <ListEditor
-              title="آراء يضيفها المالك"
-              fields={[
-                { key: 'authorName', label: 'الاسم' },
-                { key: 'clinicName', label: 'العيادة' },
-                { key: 'rating', label: 'التقييم (١–٥)', type: 'number' },
-                { key: 'comment', label: 'الرأي', type: 'textarea' },
-                {
-                  key: 'approved',
-                  label: 'ظاهر على الموقع',
-                  type: 'checkbox',
-                },
-              ]}
-              items={config.feedbacks}
-              onChange={(items) => set('feedbacks', items)}
-              create={() => ({
-                id: crypto.randomUUID(),
-                authorName: '',
-                clinicName: '',
-                specialty: '',
-                rating: 5,
-                comment: '',
-                approved: false,
-                createdAt: new Date().toISOString(),
-              })}
-            />
-            <div className="flex items-center justify-between">
-              <h3 className="font-black">آراء الزوار (آخر ٢٠٠ رأي)</h3>
-              <Button variant="outline" onClick={() => void loadInbox()}>
-                <RefreshCw />
-                تحديث
-              </Button>
+            {/* 1. آراء واستطلاعات الزوار الواردة عبر نموذج "قول لنا رأيك" */}
+            <div className="rounded-3xl border border-border bg-card p-5 sm:p-6 space-y-5 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <MessageSquare className="size-5 text-primary" />
+                    <h3 className="font-black text-lg">آراء واستطلاعات الزوار الواردة من الموقع</h3>
+                    {feedback.filter((i) => !i.approved).length > 0 && (
+                      <span className="rounded-full bg-amber-500 text-white text-xs px-2.5 py-0.5 font-bold shadow-xs animate-pulse">
+                        {feedback.filter((i) => !i.approved).length} بانتظار الموافقة
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    الآراء والتقييمات التي أرسلها الأطباء والزوار عبر نموذج «قول لنا رأيك». اضغط «موافقة ونشر» لإظهار الرأي فورًا على الصفحة الرئيسية، أو «إخفاء» أو «حذف».
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void loadInbox()}
+                  disabled={busy}
+                  className="gap-2 shrink-0 font-bold"
+                >
+                  <RefreshCw className={`size-4 ${busy ? 'animate-spin' : ''}`} />
+                  تحديث الآراء
+                </Button>
+              </div>
+
+              {inboxError && (
+                <div role="alert" className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs font-bold">
+                  {inboxError}
+                </div>
+              )}
+
+              {!feedback.length && (
+                <div className="text-center py-10 border border-dashed border-border rounded-2xl bg-secondary/20">
+                  <MessageSquare className="size-8 mx-auto text-muted-foreground mb-2 opacity-50" />
+                  <p className="text-sm font-bold text-muted-foreground">
+                    لا توجد آراء أو استطلاعات واردة حاليًا.
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
+                    عندما يقوم أي دكتور أو زائر بإرسال رأيه عبر نموذج «قول لنا رأيك» على الواجهة الرئيسية للموقع، سيصل رأيه هنا فورًا لتتمكن من الموافقة عليه ونشره أو حذفه.
+                  </p>
+                </div>
+              )}
+
+              <div className="grid gap-4">
+                {feedback.map((item) => (
+                  <article
+                    key={item.id}
+                    className={`space-y-4 rounded-2xl border p-5 transition-all ${
+                      item.approved
+                        ? 'border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/30 dark:bg-emerald-950/20'
+                        : 'border-amber-200 dark:border-amber-800/60 bg-amber-50/40 dark:bg-amber-950/20 shadow-sm'
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <strong className="text-base font-black text-foreground">
+                            {item.authorName}
+                          </strong>
+                          {item.clinicName && (
+                            <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-lg border border-primary/20">
+                              عيادة: {item.clinicName}
+                            </span>
+                          )}
+                          {item.specialty && (
+                            <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-lg">
+                              التخصص: {item.specialty}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Star Rating Visualization */}
+                        <div className="flex items-center gap-1 text-amber-500 pt-0.5" dir="ltr">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              className={`size-4 ${
+                                star <= Number(item.rating || 5)
+                                  ? 'fill-amber-400 text-amber-400'
+                                  : 'text-slate-300 dark:text-slate-700'
+                              }`}
+                            />
+                          ))}
+                          <span className="text-xs font-bold text-muted-foreground ms-1">
+                            ({item.rating}/5)
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Status Badge */}
+                      <div>
+                        {item.approved ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                            <CheckCircle2 className="size-3.5 text-emerald-600" />
+                            منشور على الموقع
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800 animate-pulse">
+                            بانتظار موافقة الإدارة (مخفي حاليًا)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-card border border-border/80 text-sm leading-relaxed text-foreground whitespace-pre-wrap font-sans">
+                      &quot;{item.comment}&quot;
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-border/50">
+                      <span className="text-[11px] text-muted-foreground">
+                        تاريخ الإرسال: {item.createdAt ? new Date(item.createdAt).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'غير محدد'}
+                      </span>
+
+                      <div className="flex items-center gap-2">
+                        {item.approved ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void moderate('hide', item)}
+                            disabled={busy}
+                            className="text-xs font-bold gap-1.5 text-muted-foreground hover:text-foreground"
+                          >
+                            <EyeOff className="size-3.5" />
+                            إلغاء النشر (إخفاء)
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => void moderate('approve', item)}
+                            disabled={busy}
+                            className="text-xs font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                          >
+                            <Check className="size-3.5" />
+                            موافقة ونشر على الموقع
+                          </Button>
+                        )}
+
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => void moderate('delete', item)}
+                          disabled={busy}
+                          className="text-xs font-bold gap-1.5"
+                        >
+                          <Trash2 className="size-3.5" />
+                          رفض وحذف
+                        </Button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
             </div>
-            {inboxError && (
-              <p role="alert" className="text-sm text-destructive">
-                {inboxError}
-              </p>
-            )}
-            {!feedback.length && (
-              <p className="text-sm text-muted-foreground">
-                لا توجد آراء واردة.
-              </p>
-            )}
-            {feedback.map((item) => (
-              <article
-                key={item.id}
-                className="space-y-3 rounded-2xl border border-border bg-card p-5"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <strong>
-                    {item.authorName} · {item.clinicName}
-                  </strong>
-                  <span className="text-xs text-muted-foreground">
-                    {item.rating}/5 —{' '}
-                    {item.approved ? 'منشور' : 'بانتظار المراجعة'}
-                  </span>
-                </div>
-                <p className="whitespace-pre-wrap text-sm leading-7">
-                  {item.comment}
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() =>
-                      void moderate(item.approved ? 'hide' : 'approve', item)
-                    }
-                  >
-                    {item.approved ? 'إخفاء' : 'موافقة ونشر'}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => void moderate('delete', item)}
-                  >
-                    حذف
-                  </Button>
-                </div>
-              </article>
-            ))}
+
+            {/* 2. شهادات وآراء يضيفها المالك يدويًا */}
+            <div className="pt-4 border-t border-border">
+              <ListEditor
+                title="شهادات وآراء يضيفها المالك يدويًا"
+                fields={[
+                  { key: 'authorName', label: 'الاسم' },
+                  { key: 'clinicName', label: 'العيادة' },
+                  { key: 'rating', label: 'التقييم (١–٥)', type: 'number' },
+                  { key: 'comment', label: 'الرأي', type: 'textarea' },
+                  {
+                    key: 'approved',
+                    label: 'ظاهر على الموقع',
+                    type: 'checkbox',
+                  },
+                ]}
+                items={config.feedbacks}
+                onChange={(items) => set('feedbacks', items)}
+                create={() => ({
+                  id: crypto.randomUUID(),
+                  authorName: '',
+                  clinicName: '',
+                  specialty: '',
+                  rating: 5,
+                  comment: '',
+                  approved: false,
+                  createdAt: new Date().toISOString(),
+                })}
+              />
+            </div>
           </section>
         )}
         {tab === 'trials' && (

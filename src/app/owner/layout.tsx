@@ -31,7 +31,7 @@ export default function OwnerLayout({ children }: { children: ReactNode }) {
 
   const navItems = [
     { id: 'clinics', label: isRtl ? 'إدارة العيادات والاشتراكات' : 'Clinics Management', icon: Building },
-    { id: 'landing', label: isRtl ? 'الواجهة الرئيسية' : 'Main Landing Page', icon: Sparkles },
+    { id: 'landing', label: isRtl ? 'الواجهة الرئيسية واستطلاع الرأي' : 'Landing & Reviews', icon: Sparkles },
     { id: 'doctors', label: isRtl ? 'الأطباء والحجوزات' : 'Doctors & Bookings', icon: Users },
     { id: 'packages', label: isRtl ? 'الباقات والاشتراكات' : 'Packages & Plans', icon: Package },
     { id: 'add', label: isRtl ? 'إضافة عيادة جديدة' : 'Add New Clinic', icon: Plus },

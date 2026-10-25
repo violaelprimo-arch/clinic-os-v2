@@ -183,16 +183,22 @@ function documentUrl(path: string) {
   return `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(project)}/databases/(default)/documents/${path.split('/').map(encodeURIComponent).join('/')}`
 }
 async function request(url: string, init: RequestInit = {}) {
-  return fetch(url, {
+  const token = await googleAccessToken()
+  const res = await fetch(url, {
     ...init,
     headers: {
-      Authorization: 'Bearer ' + (await googleAccessToken()),
+      Authorization: 'Bearer ' + token,
       'Content-Type': 'application/json',
       ...init.headers,
     },
     cache: 'no-store',
     signal: AbortSignal.timeout(15000),
   })
+  if (!res.ok && res.status !== 404) {
+    const errorBody = await res.clone().text().catch(() => '')
+    console.error(`[firebase-rest] Request to ${url} failed with status ${res.status}: ${errorBody}`)
+  }
+  return res
 }
 export async function readDocument(path: string) {
   const response = await request(documentUrl(path))
@@ -237,33 +243,65 @@ export async function deleteDocument(path: string) {
     throw new Error('FIRESTORE_DELETE_FAILED')
 }
 export async function queryDocuments(collection: string, approvedOnly = false) {
-  const url = documentUrl('') + ':runQuery'
-  const response = await request(url.replace('/documents/:', '/documents:'), {
-    method: 'POST',
-    body: JSON.stringify({
-      structuredQuery: {
-        from: [{ collectionId: collection }],
-        ...(approvedOnly
-          ? {
-              where: {
-                fieldFilter: {
-                  field: { fieldPath: 'approved' },
-                  op: 'EQUAL',
-                  value: { booleanValue: true },
+  // 1. Attempt structured runQuery (without remote composite orderBy to avoid missing-index errors)
+  try {
+    const url = documentUrl('') + ':runQuery'
+    const response = await request(url.replace('/documents/:', '/documents:'), {
+      method: 'POST',
+      body: JSON.stringify({
+        structuredQuery: {
+          from: [{ collectionId: collection }],
+          ...(approvedOnly
+            ? {
+                where: {
+                  fieldFilter: {
+                    field: { fieldPath: 'approved' },
+                    op: 'EQUAL',
+                    value: { booleanValue: true },
+                  },
                 },
-              },
-            }
-          : {}),
-        orderBy: [
-          { field: { fieldPath: 'createdAt' }, direction: 'DESCENDING' },
-        ],
-        limit: 200,
-      },
-    }),
-  })
-  if (!response.ok) throw new Error('FIRESTORE_QUERY_FAILED')
-  const rows = (await response.json()) as {
-    document?: FirestoreDocument
-  }[]
-  return rows.flatMap((row) => (row.document ? [unpack(row.document)] : []))
+              }
+            : {}),
+          limit: 200,
+        },
+      }),
+    })
+    if (response.ok) {
+      const rows = (await response.json()) as {
+        document?: FirestoreDocument
+      }[]
+      const docs = rows.flatMap((row) => (row.document ? [unpack(row.document)] : []))
+      docs.sort((a, b) => {
+        const timeA = new Date(String(a.createdAt || 0)).getTime()
+        const timeB = new Date(String(b.createdAt || 0)).getTime()
+        return timeB - timeA
+      })
+      return docs
+    }
+  } catch (err) {
+    console.warn(`[firebase-rest] runQuery failed for collection ${collection}, trying list fallback:`, err)
+  }
+
+  // 2. Direct Collection List Fallback (Standard Firestore REST endpoint, requires 0 indexes)
+  try {
+    const listUrl = documentUrl(collection) + '?pageSize=200'
+    const listResponse = await request(listUrl)
+    if (listResponse.ok) {
+      const data = (await listResponse.json()) as { documents?: FirestoreDocument[] }
+      let docs = (data.documents || []).map(unpack)
+      if (approvedOnly) {
+        docs = docs.filter((d) => d.approved === true)
+      }
+      docs.sort((a, b) => {
+        const timeA = new Date(String(a.createdAt || 0)).getTime()
+        const timeB = new Date(String(b.createdAt || 0)).getTime()
+        return timeB - timeA
+      })
+      return docs
+    }
+  } catch (err) {
+    console.error(`[firebase-rest] listDocuments fallback failed for collection ${collection}:`, err)
+  }
+
+  throw new Error('FIRESTORE_QUERY_FAILED')
 }
