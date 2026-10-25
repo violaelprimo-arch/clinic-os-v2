@@ -30,9 +30,10 @@ import {
   Award,
   Check
 } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { openManualWhatsAppChat } from '@/lib/whatsappShare'
 import { useLanguage } from '@/context/LanguageContext'
+import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 
 export interface PackageItem {
   id?: string
@@ -54,6 +55,12 @@ export interface PackageItem {
   isRecommended?: boolean
   badge?: string
   color?: string
+  allowAi?: boolean
+  allowBranches?: boolean
+  allowFinance?: boolean
+  allowDrugs?: boolean
+  allowPrescriptions?: boolean
+  allowOnlineBooking?: boolean
   logoUrl?: string
   icon?: string
 }
@@ -267,10 +274,11 @@ export function SubscriptionUpgradeModal({
     if (daysLeft < 0) isExpired = true
   }
 
-  // AI Usage
-  const aiLimit = Number(clinic?.aiResponsesLimit ?? 100)
+  // Strict AI Feature Gating Check for Clinic
+  const isClinicAiEnabled = isClinicFeatureEnabled(clinic, 'ai')
+  const aiLimit = isClinicAiEnabled ? Number(clinic?.aiResponsesLimit ?? 100) : 0
   const aiCount = Number(clinic?.aiResponsesCount ?? 0)
-  const aiPercent = Math.min(100, Math.round((aiCount / Math.max(1, aiLimit)) * 100))
+  const aiPercent = isClinicAiEnabled && aiLimit > 0 ? Math.min(100, Math.round((aiCount / aiLimit) * 100)) : 0
 
   // Helper to normalize clinic package name
   const currentClinicPkgName = (clinic?.packageName || '').trim().toLowerCase()
@@ -322,9 +330,43 @@ Please provide available payment methods to confirm activation. Thank you!`
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       {/* Expanded Dialog Width with sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl to guarantee wide, spacious rendering */}
       <DialogContent
-        className="w-[96vw] sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl max-h-[92vh] overflow-y-auto p-5 sm:p-8 bg-card/95 backdrop-blur-2xl text-card-foreground rounded-3xl border border-border shadow-2xl"
+        className="w-[96vw] sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl max-h-[92vh] overflow-y-auto p-5 sm:p-8 bg-card/90 backdrop-blur-2xl text-card-foreground rounded-3xl border border-border/80 shadow-2xl relative overflow-hidden"
         dir={dir}
       >
+        {/* Animated Moving Ambient Glow Orbs (خلفية متحركة فائقة الجمال) */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
+          <motion.div
+            animate={{
+              x: [0, 80, -40, 0],
+              y: [0, -60, 40, 0],
+              scale: [1, 1.25, 0.9, 1],
+              opacity: [0.25, 0.45, 0.3, 0.25]
+            }}
+            transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
+            className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-gradient-to-br from-cyan-500/35 to-blue-600/30 blur-3xl"
+          />
+          <motion.div
+            animate={{
+              x: [0, -70, 50, 0],
+              y: [0, 50, -40, 0],
+              scale: [1, 1.2, 0.85, 1],
+              opacity: [0.2, 0.4, 0.25, 0.2]
+            }}
+            transition={{ duration: 16, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+            className="absolute -bottom-24 -left-24 w-96 h-96 rounded-full bg-gradient-to-tr from-purple-600/35 to-pink-500/25 blur-3xl"
+          />
+          <motion.div
+            animate={{
+              x: [0, 60, -50, 0],
+              y: [0, -40, 60, 0],
+              scale: [0.9, 1.15, 1, 0.9],
+              opacity: [0.15, 0.3, 0.2, 0.15]
+            }}
+            transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
+            className="absolute top-1/2 left-1/3 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full bg-gradient-to-r from-emerald-500/25 to-teal-500/25 blur-3xl"
+          />
+          <div className="absolute inset-0 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:24px_24px] opacity-[0.08] dark:opacity-[0.14]" />
+        </div>
         <DialogHeader className={`${isRtl ? 'text-right' : 'text-left'} space-y-1.5 pb-4 border-b border-border`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -370,35 +412,54 @@ Please provide available payment methods to confirm activation. Thank you!`
             </p>
           </div>
 
-          {/* AI Quota Meter */}
-          <div className="w-full md:w-72 bg-[#0E2342]/90 p-3.5 rounded-xl border border-white/10 space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-300 font-bold flex items-center gap-1.5">
-                <Bot className="w-3.5 h-3.5 text-cyan-400" />
-                {isRtl ? 'استهلاك الذكاء الاصطناعي:' : 'AI Usage:'}
-              </span>
-              <span className="font-mono font-bold text-cyan-300 text-[11px]" dir="ltr">
-                {aiCount} / {aiLimit}
-              </span>
+          {/* AI Quota Meter / Disabled Indicator */}
+          {isClinicAiEnabled ? (
+            <div className="w-full md:w-72 bg-[#0E2342]/90 p-3.5 rounded-2xl border border-white/10 space-y-1.5 shadow-inner">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-300 font-bold flex items-center gap-1.5">
+                  <Bot className="w-3.5 h-3.5 text-cyan-400" />
+                  {isRtl ? 'استهلاك الذكاء الاصطناعي:' : 'AI Usage:'}
+                </span>
+                <span className="font-mono font-bold text-cyan-300 text-[11px]" dir="ltr">
+                  {aiCount} / {aiLimit}
+                </span>
+              </div>
+              <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    aiPercent >= 100
+                      ? 'bg-rose-500'
+                      : aiPercent >= 80
+                      ? 'bg-amber-400'
+                      : 'bg-primary'
+                  }`}
+                  style={{ width: `${aiPercent}%` }}
+                />
+              </div>
+              {aiCount >= aiLimit && (
+                <span className="text-[10px] text-rose-300 font-bold block">
+                  {isRtl ? '⚠️ انتهى رصيد الردود! المساعد معطل حالياً.' : '⚠️ Quota reached! AI assistant paused.'}
+                </span>
+              )}
             </div>
-            <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${
-                  aiPercent >= 100
-                    ? 'bg-rose-500'
-                    : aiPercent >= 80
-                    ? 'bg-amber-400'
-                    : 'bg-primary'
-                }`}
-                style={{ width: `${aiPercent}%` }}
-              />
+          ) : (
+            <div className="w-full md:w-80 bg-gradient-to-br from-rose-950/40 via-[#0A1B33] to-[#081226] p-3.5 rounded-2xl border border-rose-500/30 space-y-1 shadow-inner">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-rose-300 font-bold flex items-center gap-1.5">
+                  <Bot className="w-3.5 h-3.5 text-rose-400" />
+                  {isRtl ? 'المساعد الذكي AI:' : 'AI Assistant:'}
+                </span>
+                <span className="text-[10px] font-black text-rose-300 bg-rose-500/20 border border-rose-500/40 px-2.5 py-0.5 rounded-full">
+                  {isRtl ? '🚫 معطل في باقتك' : '🚫 Disabled in plan'}
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-400 leading-tight">
+                {isRtl
+                  ? 'باقتك الحالية لا تتضمن ميزة المساعد الذكي. يمكنك ترقية الباقة لتفعيله.'
+                  : 'Your current plan does not include the AI assistant. Upgrade to activate.'}
+              </p>
             </div>
-            {aiCount >= aiLimit && (
-              <span className="text-[10px] text-rose-300 font-bold block">
-                {isRtl ? '⚠️ انتهى رصيد الردود! المساعد معطل حالياً.' : '⚠️ Quota reached! AI assistant paused.'}
-              </span>
-            )}
-          </div>
+          )}
         </div>
 
         {/* Billing Cycle 3-Plan Switcher (شهري - 6 شهور - سنوي) */}
@@ -549,18 +610,27 @@ Please provide available payment methods to confirm activation. Thank you!`
                       </p>
                     )}
 
-                    {/* Dynamic Pricing Box */}
-                    <div className="mt-4 p-3.5 rounded-2xl bg-secondary/50 border border-border space-y-1">
-                      <div className="flex items-baseline justify-center gap-1.5">
-                        <span className="text-3xl sm:text-4xl font-black text-primary font-mono tracking-tight">
-                          {activePrice.toLocaleString()}
-                        </span>
-                        <span className="text-xs font-bold text-muted-foreground">
-                          {isRtl ? 'ج.م' : 'EGP'} / {cycleLabel}
-                        </span>
-                      </div>
+                    {/* Dynamic Pricing Box with Smooth Motion Flip */}
+                    <div className="mt-4 p-4 rounded-2xl bg-secondary/60 dark:bg-card-elevated/90 border border-border/80 backdrop-blur-md space-y-1.5 shadow-inner">
+                      <AnimatePresence mode="wait">
+                        <motion.div
+                          key={`${pkg.id || idx}-${activeCycle}`}
+                          initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                          transition={{ duration: 0.2 }}
+                          className="flex items-baseline justify-center gap-1.5"
+                        >
+                          <span className="text-3xl sm:text-4xl font-black text-primary font-mono tracking-tight drop-shadow-xs">
+                            {activePrice.toLocaleString()}
+                          </span>
+                          <span className="text-xs font-bold text-muted-foreground">
+                            {isRtl ? 'ج.م' : 'EGP'} / {cycleLabel}
+                          </span>
+                        </motion.div>
+                      </AnimatePresence>
                       {activeCycle !== 'monthly' && (
-                        <span className="inline-block text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md">
+                        <span className="inline-block text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-0.5 rounded-lg border border-emerald-200 dark:border-emerald-800">
                           ({isRtl ? `يعادل ${equivalentMonthly.toLocaleString()} ج.م شهرياً` : `${equivalentMonthly.toLocaleString()} EGP/month`})
                         </span>
                       )}
@@ -589,16 +659,23 @@ Please provide available payment methods to confirm activation. Thank you!`
                     </div>
                   </div>
 
-                  {/* Highlights Specs: AI + Branches */}
-                  <div className="py-3 space-y-2 border-b border-border text-xs">
+                  {/* Highlights Specs: AI + Branches with Strict Feature Gating */}
+                  <div className="py-3 space-y-2 border-b border-border/80 text-xs">
                     <div className="flex items-center justify-between text-muted-foreground font-bold">
                       <span className="flex items-center gap-1.5">
                         <Bot className="w-4 h-4 text-purple-500" />
                         {isRtl ? 'ردود المساعد الذكي AI:' : 'AI Responses:'}
                       </span>
-                      <span className="text-purple-600 dark:text-purple-400 font-black font-mono">
-                        {pkg.aiResponsesLimit ? `${pkg.aiResponsesLimit} ${isRtl ? 'رد' : 'replies'}` : (isRtl ? 'غير محدود' : 'Unlimited')}
-                      </span>
+                      {pkg.allowAi === false ? (
+                        <span className="text-rose-600 dark:text-rose-400 font-black text-xs flex items-center gap-1">
+                          <span>🚫</span>
+                          <span>{isRtl ? 'معطل تماماً' : 'Disabled'}</span>
+                        </span>
+                      ) : (
+                        <span className="text-purple-600 dark:text-purple-400 font-black font-mono">
+                          {pkg.aiResponsesLimit ? `${Number(pkg.aiResponsesLimit).toLocaleString()} ${isRtl ? 'رد' : 'replies'}` : (isRtl ? 'غير محدود' : 'Unlimited')}
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex items-center justify-between text-muted-foreground font-bold">
@@ -607,7 +684,9 @@ Please provide available payment methods to confirm activation. Thank you!`
                         {isRtl ? 'الفروع المسموح بها:' : 'Allowed Branches:'}
                       </span>
                       <span className="text-primary font-black font-mono">
-                        {pkg.maxBranches ? `${pkg.maxBranches} ${isRtl ? 'فرع' : 'branch(es)'}` : (isRtl ? 'فرع واحد' : '1 Branch')}
+                        {pkg.allowBranches === false || Number(pkg.maxBranches) <= 1
+                          ? (isRtl ? 'فرع رئيسي فقط' : '1 Main Branch')
+                          : `${pkg.maxBranches} ${isRtl ? 'فروع' : 'Branches'}`}
                       </span>
                     </div>
                   </div>
@@ -634,17 +713,19 @@ Please provide available payment methods to confirm activation. Thank you!`
                       <span>{isRtl ? 'أنت مشترك في هذه الباقة حالياً' : 'Your Current Active Plan'}</span>
                     </Button>
                   ) : (
-                    <Button
-                      onClick={() => handleRequestUpgrade(pkg)}
-                      className={`w-full h-11 rounded-xl text-xs font-black shadow-md cursor-pointer transition-all active:scale-95 ${
-                        isPop
-                          ? 'yalla-gradient-btn text-white'
-                          : 'bg-primary/90 hover:bg-primary text-white'
-                      }`}
-                    >
-                      <MessageSquare className={`w-4 h-4 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
-                      <span>{isRtl ? 'طلب الترقية الآن (واتساب)' : 'Upgrade via WhatsApp'}</span>
-                    </Button>
+                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                      <Button
+                        onClick={() => handleRequestUpgrade(pkg)}
+                        className={`w-full h-12 rounded-2xl text-xs font-black shadow-lg cursor-pointer transition-all relative overflow-hidden before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2.5s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/25 before:to-transparent ${
+                          isPop
+                            ? 'yalla-gradient-btn text-white shadow-primary/30'
+                            : 'bg-gradient-to-r from-primary to-blue-600 hover:from-primary/95 hover:to-blue-700 text-white shadow-primary/20'
+                        }`}
+                      >
+                        <MessageSquare className={`w-4 h-4 ${isRtl ? 'ml-2' : 'mr-2'}`} />
+                        <span>{isRtl ? 'طلب الترقية الآن (واتساب)' : 'Upgrade via WhatsApp'}</span>
+                      </Button>
+                    </motion.div>
                   )}
                 </div>
               </motion.div>

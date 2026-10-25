@@ -2642,8 +2642,42 @@ function OwnerDashboard() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
-          className="space-y-6"
+          className="space-y-6 relative overflow-hidden"
         >
+          {/* Animated Floating Ambient Background Mesh (خلفية متحركة متدفقة) */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
+            <motion.div
+              animate={{
+                x: [0, 90, -50, 0],
+                y: [0, -70, 50, 0],
+                scale: [1, 1.25, 0.9, 1],
+                opacity: [0.15, 0.35, 0.2, 0.15]
+              }}
+              transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
+              className="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-gradient-to-br from-cyan-400/30 to-blue-600/30 blur-3xl"
+            />
+            <motion.div
+              animate={{
+                x: [0, -80, 60, 0],
+                y: [0, 60, -50, 0],
+                scale: [1, 1.2, 0.85, 1],
+                opacity: [0.12, 0.3, 0.18, 0.12]
+              }}
+              transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+              className="absolute top-1/2 -left-32 w-96 h-96 rounded-full bg-gradient-to-tr from-purple-600/30 to-pink-500/25 blur-3xl"
+            />
+            <motion.div
+              animate={{
+                x: [0, 70, -60, 0],
+                y: [0, -50, 70, 0],
+                scale: [0.9, 1.15, 1, 0.9],
+                opacity: [0.1, 0.25, 0.15, 0.1]
+              }}
+              transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
+              className="absolute -bottom-32 right-1/3 w-96 h-96 rounded-full bg-gradient-to-r from-emerald-500/25 to-teal-500/20 blur-3xl"
+            />
+            <div className="absolute inset-0 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:24px_24px] opacity-[0.06] dark:opacity-[0.12]" />
+          </div>
           {/* Header & Add Button */}
           <div className="yalla-card p-6 border border-border rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
             <div>
@@ -2809,7 +2843,7 @@ function OwnerDashboard() {
               return (
                 <motion.div
                   key={pkg.id}
-                  whileHover={{ y: -6, scale: 1.01 }}
+                  whileHover={{ y: -8, scale: 1.02 }}
                   transition={{ type: 'spring', stiffness: 350, damping: 25 }}
                   className={`yalla-card relative border rounded-3xl p-6 flex flex-col justify-between transition-all duration-300 ${
                     isPop
@@ -2847,15 +2881,24 @@ function OwnerDashboard() {
                       </div>
                     </div>
 
-                    {/* Main Dynamic Price Display */}
-                    <div className="my-3 p-4 rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100/80 dark:from-slate-800/50 dark:to-slate-900/50 border border-slate-200/80 dark:border-white/10 space-y-1.5">
+                    {/* Main Dynamic Price Display with Motion Flip */}
+                    <div className="my-3 p-4 rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100/80 dark:from-slate-800/50 dark:to-slate-900/50 border border-slate-200/80 dark:border-white/10 space-y-1.5 shadow-inner">
                       <div className="flex items-baseline justify-between gap-2" dir="rtl">
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="text-3xl sm:text-4xl font-black text-foreground font-mono tracking-tight">
-                            {activePrice.toLocaleString()}
-                          </span>
-                          <span className="text-xs font-bold text-muted-foreground">ج.م / {cycleLabel}</span>
-                        </div>
+                        <AnimatePresence mode="wait">
+                          <motion.div
+                            key={`${pkg.id}-${activeBillingCycle}`}
+                            initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                            transition={{ duration: 0.2 }}
+                            className="flex items-baseline gap-1.5"
+                          >
+                            <span className="text-3xl sm:text-4xl font-black text-foreground font-mono tracking-tight drop-shadow-xs">
+                              {activePrice.toLocaleString()}
+                            </span>
+                            <span className="text-xs font-bold text-muted-foreground">ج.م / {cycleLabel}</span>
+                          </motion.div>
+                        </AnimatePresence>
                         {activeBillingCycle !== 'monthly' && (
                           <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-lg border border-emerald-200 dark:border-emerald-800">
                             (يعادل {equivalentMonthly.toLocaleString()} ج.م/شهرياً)
