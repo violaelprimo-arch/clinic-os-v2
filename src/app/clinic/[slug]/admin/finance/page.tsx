@@ -20,6 +20,7 @@ import {
   FinancialReportPrintData
 } from '@/lib/printService'
 import { exportComprehensiveFinancialReportExcel } from '@/lib/excelExport'
+import { ShiftClosingModal } from '@/components/clinic/ShiftClosingModal'
 import { useLanguage } from '@/context/LanguageContext'
 
 export default function FinancePage({ params }: { params: Promise<{ slug: string }> }) {
@@ -30,6 +31,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
   const [clinic, setClinic] = useState<any>(null)
   const [branches, setBranches] = useState<any[]>([])
   const [selectedBranchId, setSelectedBranchId] = useState<string>('all')
+  const [isShiftClosingOpen, setIsShiftClosingOpen] = useState(false)
 
   const formatLocalYMD = (d: Date) => {
     const y = d.getFullYear()
@@ -1074,6 +1076,17 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
             </table>
           </div>
         </div>
+      )}
+
+          {/* Shift Closing & Cash Reconciliation Modal */}
+      {isShiftClosingOpen && (
+        <ShiftClosingModal
+          isOpen={true}
+          onClose={() => setIsShiftClosingOpen(false)}
+          clinic={clinic}
+          appointments={report}
+          selectedBranchId={selectedBranchId}
+        />
       )}
 
     </div>

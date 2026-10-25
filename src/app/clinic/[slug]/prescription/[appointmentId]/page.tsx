@@ -116,7 +116,8 @@ export default function PublicPrescriptionPage({
       certificationTitle: clinic?.certificationTitle,
       clinicPhone: clinic?.clinicPhone,
       clinicAddress: clinic?.clinicAddress,
-      primaryColor: clinic?.primaryColor || '#087CF4',
+      primaryColor: prescription?.primaryColor || clinic?.primaryColor || '#087CF4',
+      secondaryColor: prescription?.secondaryColor || clinic?.secondaryColor,
       logoUrl: clinic?.logoUrl,
       patientName,
       patientAge,
@@ -126,11 +127,13 @@ export default function PublicPrescriptionPage({
       drugs: rxDrugs,
       prescriptionTemplateUrl: clinic?.prescriptionTemplateUrl,
       templateMode: prescription?.templateMode || 'standard',
-      showHeaderFooter: true,
-      printBackground: true
+      topOffset: prescription?.topOffset || 25,
+      pageSize: prescription?.pageSize || 'a4',
+      showHeaderFooter: prescription?.showHeaderFooter !== false,
+      printBackground: prescription?.printBackground !== false
     })
 
-    printHtmlViaIframe(html, 'a4')
+    printHtmlViaIframe(html, prescription?.pageSize || 'a4')
   }
 
   // Real PDF Download
@@ -361,8 +364,15 @@ export default function PublicPrescriptionPage({
               date={rxDate}
               diagnosis={rxDiagnosis}
               drugs={rxDrugs}
+              instructions={prescription?.instructions}
               templateMode={prescription?.templateMode || 'standard'}
-              topOffset={25}
+              topOffset={prescription?.topOffset || 25}
+              pageSize={prescription?.pageSize || 'a4'}
+              showHeaderFooter={prescription?.showHeaderFooter !== false}
+              printBackground={prescription?.printBackground !== false}
+              primaryColor={prescription?.primaryColor || clinic?.primaryColor}
+              secondaryColor={prescription?.secondaryColor || clinic?.secondaryColor}
+              branchName={prescription?.branchName || clinic?.branchName}
             />
           </div>
         </div>

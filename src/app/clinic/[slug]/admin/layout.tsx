@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 import {
   FileText, Users, DollarSign, Calendar, Settings, Bot,
   LogOut, Receipt, Pill, Bell, Search, ExternalLink, Menu,
-  X, CheckCircle, ChevronLeft, User, Building2, Sparkles, Clock, Crown
+  X, CheckCircle, ChevronLeft, User, Building2, Sparkles, Clock, Crown, Tv
 } from 'lucide-react'
 import { db, auth } from '@/lib/firebase'
 import { collection, query, where, onSnapshot, doc } from 'firebase/firestore'
@@ -241,6 +241,14 @@ export default function AdminLayout({
       badge: t('live', 'مباشر')
     },
     {
+      id: 'waiting-tv',
+      name: t('nav_tv_screen', 'شاشة الانتظار (TV)'),
+      href: `/clinic/${slug}/tv`,
+      icon: Tv,
+      target: '_blank',
+      badge: '4K'
+    },
+    {
       id: 'patients',
       name: t('nav_patients', 'سجل المرضى'),
       href: `/clinic/${slug}/admin/patients`,
@@ -456,7 +464,7 @@ export default function AdminLayout({
             }
 
             return (
-              <Link key={item.href} href={item.href} prefetch={true}>
+              <Link key={item.href} href={item.href} target={(item as any).target} prefetch={true}>
                 <div
                   className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all duration-200 cursor-pointer ${
                     isActive
@@ -587,7 +595,7 @@ export default function AdminLayout({
                 }
 
                 return (
-                  <Link key={item.href} href={item.href} prefetch={true}>
+                  <Link key={item.href} href={item.href} target={(item as any).target} prefetch={true}>
                     <div
                       className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all ${
                         isActive

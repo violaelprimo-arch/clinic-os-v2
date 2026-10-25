@@ -10,8 +10,10 @@ import {
   Plus, Printer, Trash2, Search, FileSignature, MapPin, Globe, Loader2,
   Phone, User as UserIcon, Star, Check, MessageCircle,
   FileText, ShieldCheck, ChevronDown, Sparkles, Download, Palette, Image as ImageIcon, Lock,
-  Eye, ZoomIn, ZoomOut, ExternalLink
+  Eye, ZoomIn, ZoomOut, ExternalLink, AlertTriangle, Zap, RotateCcw, BookmarkCheck,
+  HeartPulse, Activity, X, Layers
 } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
@@ -52,6 +54,17 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const [diagnosis, setDiagnosis] = useState('')
   const [age, setAge] = useState(searchParams?.get('age') || '')
   const [instructions, setInstructions] = useState('')
+  const [patientAllergies, setPatientAllergies] = useState('')
+  const [patientChronicDiseases, setPatientChronicDiseases] = useState('')
+  const [showAllergiesInput, setShowAllergiesInput] = useState(false)
+  const [showProtocolPicker, setShowProtocolPicker] = useState(false)
+  const [showSaveProtocolModal, setShowSaveProtocolModal] = useState(false)
+  const [newProtocolName, setNewProtocolName] = useState('')
+  const [isSavingProtocol, setIsSavingProtocol] = useState(false)
+  const [customProtocols, setCustomProtocols] = useState<any[]>([])
+  const [isDraftRestored, setIsDraftRestored] = useState(false)
+  const draftStorageKey = useMemo(() => `yalla_rx_draft_${slug}`, [slug])
+
   const [dictationLang, setDictationLang] = useState<DictationLanguage>('ar-EG')
   const diagnosisInputRef = useRef<HTMLInputElement>(null)
   const instructionsInputRef = useRef<HTMLInputElement>(null)
@@ -59,6 +72,131 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const [selectedBranchName, setSelectedBranchName] = useState('')
   const [whatsappTarget, setWhatsappTarget] = useState<'auto' | 'app' | 'web'>('auto')
   const [showWhatsappMenu, setShowWhatsappMenu] = useState(false)
+
+  // 6 Clinical Built-in Protocols for Instant 1-Click Prescription
+  const BUILTIN_PROTOCOLS = useMemo(() => [
+    {
+      id: 'gastroenteritis',
+      name: 'نزلة معوية حادة (Gastroenteritis)',
+      icon: '🦠',
+      diagnosis: 'نزلة معوية وتقلصات معوية حادة (Acute Gastroenteritis)',
+      instructions: 'الراحة التامة، تناول سوائل دافئة وشوربة خفيفة، تجنب المقليات والمأكولات الحارة ومنتجات الألبان مؤقتاً.',
+      drugs: [
+        { name: 'Visceralgine tab', dosage: 'قرص 3 مرات يومياً قبل الأكل', duration: 'لمدة 5 أيام', notes: 'مضاد للمغص والتقلصات' },
+        { name: 'Gast-Reg 200mg tab', dosage: 'قرص قبل الأكل بنصف ساعة', duration: 'لمدة 5 أيام', notes: 'تنظيم حركة القناة الهضمية' },
+        { name: 'Antinal 200mg cap', dosage: 'كبسولة كل 8 ساعات بعد الأكل', duration: 'لمدة 4 أيام', notes: 'مطهر معوي واسع المجال' },
+        { name: 'Hydrasafe sachets', dosage: 'كيس على 200 مل ماء بعد كل نوبة إسهال', duration: 'عند اللزوم', notes: 'محلول معالجة الجفاف' }
+      ]
+    },
+    {
+      id: 'tonsillitis',
+      name: 'التهاب الحلق واللوزتين (Pharyngotonsillitis)',
+      icon: '🗣️',
+      diagnosis: 'التهاب بكتيري حاد باللوزتين والحلق (Acute Bacterial Tonsillitis)',
+      instructions: 'شرب مشروبات دافئة بكثرة، الغرغرة بماء دافئ وملح، تجنب المشروبات المثلجة والمجهود الشاق.',
+      drugs: [
+        { name: 'Augmentin 1gm tab', dosage: 'قرص كل 12 ساعة بعد الأكل مباشرة', duration: 'لمدة 7 أيام متواصلة', notes: 'مضاد حيوي واسع المجال' },
+        { name: 'Cataflam 50mg tab', dosage: 'قرص بعد الأكل عند اللزوم (بحد أقصى مرتين)', duration: 'لمدة 3-5 أيام', notes: 'مسكن ومضاد للالتهاب والتورم' },
+        { name: 'Larypro lozenges', dosage: 'قرص استحلاب كل 4 ساعات', duration: 'لمدة 5 أيام', notes: 'مطهر ومخفف لآلام الحلق' }
+      ]
+    },
+    {
+      id: 'bronchitis_asthma',
+      name: 'حساسية الصدر ونوبات الربو (Asthma / Bronchitis)',
+      icon: '🫁',
+      diagnosis: 'التهاب الشعب الهوائية مع أزمة حساسية صدرية (Acute Bronchitis / Asthma)',
+      instructions: 'الابتعاد التام عن الأتربة والدخان، تجنب الروائح النفاذة والتكييف المباشر، تناول كميات كافية من السوائل الدافئة.',
+      drugs: [
+        { name: 'Farcolin syrup', dosage: 'ملعقة كبيرة 3 مرات يومياً', duration: 'لمدة 7 أيام', notes: 'موسع للشعب الهوائية' },
+        { name: 'Mucopect syrup', dosage: 'ملعقة كبيرة 3 مرات يومياً بعد الوجبات', duration: 'لمدة 7 أيام', notes: 'مذيب وطارد للبلغم' },
+        { name: 'Aerius 5mg tab', dosage: 'قرص واحد يومياً مساءً قبل النوم', duration: 'لمدة 10 أيام', notes: 'مضاد للهيستامين والحساسية' }
+      ]
+    },
+    {
+      id: 'hypertension',
+      name: 'بروتوكول ضبط ضغط الدم (Hypertension)',
+      icon: '🩸',
+      diagnosis: 'ارتفاع ضغط الدم الشرياني الأولي (Essential Hypertension)',
+      instructions: 'تقليل ملح الطعام والمخللات تماماً، قياس ضغط الدم وتسجيله يومياً صباحاً ومساءً، المشي نصف ساعة يومياً.',
+      drugs: [
+        { name: 'Concor 5mg tab', dosage: 'قرص واحد صباحاً يومياً بعد الإفطار', duration: 'علاج مستمر منتظم', notes: 'لضبط معدل ضربات القلب والضغط' },
+        { name: 'Natrilix SR 1.5mg tab', dosage: 'قرص واحد صباحاً على الريق', duration: 'علاج مستمر منتظم', notes: 'خافض للضغط ومدر خفيف' }
+      ]
+    },
+    {
+      id: 'flu_cold',
+      name: 'نزلات البرد الحادة والإنفلونزا (Acute Flu & Cold)',
+      icon: '🤒',
+      diagnosis: 'نزلة برد فيروسية حادة واحتقان أنفي (Common Cold & Upper RTI)',
+      instructions: 'الراحة بالسرير، الإكثار من فيتامين سي وعصير الليمون والبرتقال، تغطية الفم والأنف وتجنب التيارات الهوائية.',
+      drugs: [
+        { name: 'Panadol Extra tab', dosage: 'قرصين كل 8 ساعات بعد الأكل عند اللزوم', duration: 'لمدة 4-5 أيام', notes: 'خافض للحرارة ومسكن للصداع' },
+        { name: 'Congestal tab', dosage: 'قرص 3 مرات يومياً بعد الأكل', duration: 'لمدة 5 أيام', notes: 'لعلاج احتقان الجيوب الأنفية والرشح' },
+        { name: 'C-Retard 500mg cap', dosage: 'كبسولة واحدة يومياً بعد الغداء', duration: 'لمدة 10 أيام', notes: 'فيتامين C لتقوية المناعة' }
+      ]
+    },
+    {
+      id: 'gerd_gastritis',
+      name: 'التهاب المعدة وارتجاع المريء (GERD & Gastritis)',
+      icon: '💊',
+      diagnosis: 'ارتجاع المريء وحموضة المعدة الحادة (Gastroesophageal Reflux & Hyperacidity)',
+      instructions: 'تجنب النوم مباشرة بعد الأكل (الانتظار ساعتين على الأقل)، الامتناع عن المسبكات والقهوة والشوكولاتة والتدخين.',
+      drugs: [
+        { name: 'Nexium 40mg tab', dosage: 'قرص واحد يومياً صباحاً قبل الإفطار بنصف ساعة', duration: 'لمدة أسبوعين', notes: 'مثبط مضخة البروتون لعلاج الحموضة' },
+        { name: 'Gaviscon Advance syrup', dosage: 'ملعقة كبيرة بعد الوجبات الرئيسية وقبل النوم', duration: 'عند اللزوم', notes: 'حاجز ميكانيكي لمنع ارتجاع الحمض' }
+      ]
+    }
+  ], [])
+
+  // Real-time Drug Allergy Conflict Detection
+  const getDrugAllergyConflict = (drugName: string, allergyString: string): string | null => {
+    if (!drugName || !allergyString) return null
+    const drugLower = drugName.toLowerCase()
+    const allergyLower = allergyString.toLowerCase()
+
+    // 1. Penicillin check
+    const hasPenicillinAllergy =
+      allergyLower.includes('بنسلين') ||
+      allergyLower.includes('penicillin') ||
+      allergyLower.includes('اموكسي') ||
+      allergyLower.includes('amox')
+    if (hasPenicillinAllergy) {
+      const penicillinKeywords = [
+        'penicil', 'amox', 'augmentin', 'hibiotic', 'curam', 'amoclan', 'clamoxyl', 'ampicil',
+        'بنسلين', 'أوجمنتين', 'اوجمنتين', 'هاي بيوتك', 'هايبيوتك', 'كيورام', 'اموكسيسيلين', 'يوناسين', 'unasyn'
+      ]
+      if (penicillinKeywords.some(kw => drugLower.includes(kw))) {
+        return '⚠️ تعارض حرج: هذا الدواء يحتوي على مشتقات البنسلين والمريض مسجل لديه حساسية بنسلين!'
+      }
+    }
+
+    // 2. Sulfa check
+    const hasSulfaAllergy = allergyLower.includes('سلفا') || allergyLower.includes('sulfa')
+    if (hasSulfaAllergy) {
+      const sulfaKeywords = ['sulfa', 'bactrim', 'septrin', 'سلفا', 'باكتريم', 'سبترين']
+      if (sulfaKeywords.some(kw => drugLower.includes(kw))) {
+        return '⚠️ تعارض حرج: هذا الدواء يحتوي على مشتقات السلفا والمريض مسجل لديه حساسية سلفا!'
+      }
+    }
+
+    // 3. Aspirin & NSAIDs check
+    const hasNsaidAllergy =
+      allergyLower.includes('اسبرين') ||
+      allergyLower.includes('aspirin') ||
+      allergyLower.includes('مسكن') ||
+      allergyLower.includes('nsaid')
+    if (hasNsaidAllergy) {
+      const nsaidKeywords = [
+        'aspirin', 'aspocid', 'ketolac', 'cataflam', 'voltaren', 'brufen', 'ibuprofen', 'ketoprofen', 'felden',
+        'اسبرين', 'أسبوسيد', 'كيتولاك', 'كتافلام', 'فولتارين', 'بروفين', 'ايبوبروفين'
+      ]
+      if (nsaidKeywords.some(kw => drugLower.includes(kw))) {
+        return '⚠️ تعارض حرج: هذا الدواء من مضادات الالتهاب غير الستيرويدية (NSAIDs) والمريض مسجل لديه حساسية تجاهه!'
+      }
+    }
+
+    return null
+  }
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -205,6 +343,199 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       stopGlobalVoiceDictation()
     }
   }, [])
+
+  // Fetch custom Rx protocols for this clinic
+  useEffect(() => {
+    if (!clinicId) return
+    const qProtocols = query(
+      collection(db, 'rx_protocols'),
+      where('clinic_id', '==', clinicId)
+    )
+    const unsub = onSnapshot(qProtocols, (snapshot) => {
+      const items = snapshot.docs.map(d => ({
+        id: d.id,
+        isCustom: true,
+        ...d.data()
+      }))
+      setCustomProtocols(items)
+    })
+    return () => unsub()
+  }, [clinicId])
+
+  // 1. Restore unsubmitted draft on mount if form is currently empty
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const savedStr = localStorage.getItem(draftStorageKey)
+      if (savedStr) {
+        const draft = JSON.parse(savedStr)
+        if (!patientName && (draft.patientName || draft.diagnosis || (draft.drugs && draft.drugs.some((d: any) => d.name)))) {
+          if (draft.patientName) setPatientName(draft.patientName)
+          if (draft.patientPhone) setPatientPhone(draft.patientPhone)
+          if (draft.age) setAge(draft.age)
+          if (draft.diagnosis) setDiagnosis(draft.diagnosis)
+          if (draft.instructions) setInstructions(draft.instructions)
+          if (draft.patientAllergies) setPatientAllergies(draft.patientAllergies)
+          if (draft.patientChronicDiseases) setPatientChronicDiseases(draft.patientChronicDiseases)
+          if (draft.drugs && draft.drugs.length > 0) setDrugs(draft.drugs)
+          if (draft.templateMode) setTemplateMode(draft.templateMode)
+          if (draft.pageSize) setPageSize(draft.pageSize)
+          setIsDraftRestored(true)
+          toast.info('تم استرجاع مسودة الروشتة غير المحفوظة تلقائياً بنجاح ⚡', { duration: 4500 })
+        }
+      }
+    } catch (e) {
+      console.warn('Draft restore warning:', e)
+    }
+  }, [draftStorageKey])
+
+  // 2. Debounced auto-save to localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const hasAnyContent = patientName || patientPhone || diagnosis || instructions || drugs.some(d => d.name && d.name.trim())
+    if (!hasAnyContent) return
+
+    const timer = setTimeout(() => {
+      try {
+        const draftData = {
+          patientName,
+          patientPhone,
+          age,
+          diagnosis,
+          instructions,
+          patientAllergies,
+          patientChronicDiseases,
+          drugs,
+          templateMode,
+          pageSize,
+          updatedAt: Date.now()
+        }
+        localStorage.setItem(draftStorageKey, JSON.stringify(draftData))
+      } catch (e) {}
+    }, 700)
+
+    return () => clearTimeout(timer)
+  }, [patientName, patientPhone, age, diagnosis, instructions, patientAllergies, patientChronicDiseases, drugs, templateMode, pageSize, draftStorageKey])
+
+  // 3. Clear draft and start fresh
+  const handleClearDraft = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(draftStorageKey)
+    }
+    setPatientName('')
+    setPatientPhone('')
+    setAge('')
+    setDiagnosis('')
+    setInstructions('')
+    setPatientAllergies('')
+    setPatientChronicDiseases('')
+    setAppointmentId('')
+    setDrugs([{ id: Date.now(), name: '', dosage: '', duration: '', notes: '' }])
+    setIsDraftRestored(false)
+    toast.success('تم مسح المسودة والبدء بروشتة جديدة')
+  }
+
+  // 4. Automatic patient allergy & chronic disease lookup when phone is entered
+  useEffect(() => {
+    if (!patientPhone || patientPhone.trim().length < 10) return
+    const lookupHistory = async () => {
+      try {
+        const qAppts = query(
+          collection(db, 'appointments'),
+          where('phone', '==', patientPhone.trim())
+        )
+        const snap = await getDocs(qAppts)
+        if (!snap.empty) {
+          for (const dDoc of snap.docs) {
+            const data = dDoc.data()
+            if (data.allergies && !patientAllergies) {
+              const allg = Array.isArray(data.allergies) ? data.allergies.join('، ') : String(data.allergies)
+              setPatientAllergies(allg)
+              toast.warning(`⚠️ تم العثور على حساسية مسجلة للمريض (${allg})`, { duration: 5000 })
+            }
+            if (data.chronicDiseases && !patientChronicDiseases) {
+              const chr = Array.isArray(data.chronicDiseases) ? data.chronicDiseases.join('، ') : String(data.chronicDiseases)
+              setPatientChronicDiseases(chr)
+            }
+            if (patientAllergies && patientChronicDiseases) break
+          }
+        }
+      } catch (e) {}
+    }
+    const debouncedLookup = setTimeout(lookupHistory, 900)
+    return () => clearTimeout(debouncedLookup)
+  }, [patientPhone])
+
+  // Apply Protocol helper
+  const handleApplyProtocol = (protocol: any) => {
+    if (protocol.diagnosis) {
+      setDiagnosis(protocol.diagnosis)
+    }
+    if (protocol.instructions) {
+      setInstructions(prev => prev ? `${prev}\n${protocol.instructions}` : protocol.instructions)
+    }
+    if (protocol.drugs && protocol.drugs.length > 0) {
+      const formatted = protocol.drugs.map((d: any, idx: number) => ({
+        id: Date.now() + idx,
+        name: d.name,
+        dosage: d.dosage,
+        duration: d.duration,
+        notes: d.notes || ''
+      }))
+      if (drugs.length === 1 && !drugs[0].name.trim()) {
+        setDrugs(formatted)
+      } else {
+        setDrugs(prev => [...prev, ...formatted])
+      }
+    }
+    toast.success(`تم تطبيق بروتوكول "${protocol.name}" بنجاح ⚡`)
+  }
+
+  // Save current prescription as a custom protocol
+  const handleSaveCurrentAsProtocol = async () => {
+    if (!newProtocolName.trim()) {
+      return toast.error('يرجى كتابة اسم البروتوكول / القالب')
+    }
+    const validDrugs = drugs.filter(d => d.name && d.name.trim() !== '')
+    if (validDrugs.length === 0) {
+      return toast.error('يرجى إضافة دواء واحد على الأقل لحفظه في القالب')
+    }
+    setIsSavingProtocol(true)
+    try {
+      await addDoc(collection(db, 'rx_protocols'), {
+        clinic_id: clinicId,
+        name: newProtocolName.trim(),
+        diagnosis: diagnosis || '',
+        instructions: instructions || '',
+        drugs: validDrugs.map(d => ({
+          name: d.name,
+          dosage: d.dosage || '',
+          duration: d.duration || '',
+          notes: d.notes || ''
+        })),
+        createdAt: new Date().toISOString()
+      })
+      setShowSaveProtocolModal(false)
+      setNewProtocolName('')
+      toast.success('تم حفظ البروتوكول في قائمة قوالب العيادة بنجاح ⭐')
+    } catch (e) {
+      toast.error('حدث خطأ أثناء حفظ البروتوكول')
+    } finally {
+      setIsSavingProtocol(false)
+    }
+  }
+
+  // Delete custom protocol
+  const handleDeleteProtocol = async (protocolId: string, protocolName: string) => {
+    if (!confirm(`هل أنت متأكد من حذف بروتوكول "${protocolName}"؟`)) return
+    try {
+      const { deleteDoc } = await import('firebase/firestore')
+      await deleteDoc(doc(db, 'rx_protocols', protocolId))
+      toast.success('تم حذف القالب بنجاح')
+    } catch (e) {
+      toast.error('حدث خطأ أثناء حذف القالب')
+    }
+  }
   const isCustomTemplateEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'customTemplate'), [clinic])
   const isDrugsDbEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'drugs'), [clinic])
 
@@ -249,6 +580,8 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           age,
           diagnosis,
           instructions,
+          allergies: patientAllergies || '',
+          chronicDiseases: patientChronicDiseases || '',
           date: dateStr,
           status: 'approved',
           doctorName: clinic?.doctorName || 'طبيب العيادة',
@@ -280,12 +613,20 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             await updateDoc(doc(db, 'appointments', appointmentId), {
               diagnosis,
               drugs: drugs.filter(d => d.name && d.name.trim() !== ''),
+              allergies: patientAllergies || '',
+              chronicDiseases: patientChronicDiseases || '',
               prescription_id: docRef.id,
               prescriptionStatus: 'approved',
               prescription_templateMode: templateMode
             })
           } catch (e) {}
         }
+
+        // Clear local draft on successful save
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem(draftStorageKey)
+        }
+        setIsDraftRestored(false)
 
         if (patientPhone) {
           try {
@@ -596,6 +937,92 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
         
         {/* RIGHT COLUMN: Form Editor (7 cols) */}
         <div className="lg:col-span-7 space-y-5">
+
+          {/* Quick Protocols & Draft Bar */}
+          <div className="p-4 yalla-card rounded-2xl border border-border shadow-xs space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
+                  <Zap className="w-4 h-4 fill-amber-400 text-amber-500" />
+                </div>
+                <div>
+                  <h4 className="font-black text-xs text-foreground flex items-center gap-1.5">
+                    <span>قوالب الروشتات الجاهزة بنقرة واحدة (Rx Protocols)</span>
+                    <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary border-primary/20">سريع ⚡</Badge>
+                  </h4>
+                  <p className="text-[11px] text-muted-foreground">
+                    تعبئة أدوية وجرعات وإرشادات الحالات الطبية المتكررة بنقرة واحدة
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowSaveProtocolModal(true)}
+                  className="h-8 text-xs font-bold border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 rounded-xl gap-1 cursor-pointer"
+                  title="حفظ الأدوية والتشخيص الحالي كقالب جاهز للعيادة"
+                >
+                  <BookmarkCheck className="w-3.5 h-3.5" />
+                  <span>حفظ كقالب</span>
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleClearDraft}
+                  className="h-8 text-xs font-bold text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 rounded-xl gap-1 cursor-pointer"
+                  title="مسح المسودة والبدء بروشتة فارغة"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>مسح المسودة</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Protocols Chips */}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              {BUILTIN_PROTOCOLS.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => handleApplyProtocol(p)}
+                  className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-secondary hover:bg-primary/10 text-foreground hover:text-primary border border-border hover:border-primary/40 transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-2xs"
+                  title={`تطبيق بروتوكول: ${p.name}`}
+                >
+                  <span>{p.icon}</span>
+                  <span>{p.name.split('(')[0].trim()}</span>
+                  <span className="text-[10px] text-muted-foreground font-normal">({p.drugs.length})</span>
+                </button>
+              ))}
+
+              {customProtocols.map((cp) => (
+                <div
+                  key={cp.id}
+                  className="flex items-center rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs font-bold shadow-2xs overflow-hidden"
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleApplyProtocol(cp)}
+                    className="px-2.5 py-1.5 hover:bg-amber-500/20 transition-colors cursor-pointer flex items-center gap-1"
+                  >
+                    <Star className="w-3 h-3 fill-amber-400 text-amber-500" />
+                    <span>{cp.name}</span>
+                    <span className="text-[10px] opacity-75">({cp.drugs?.length || 0})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteProtocol(cp.id, cp.name)}
+                    className="p-1.5 text-muted-foreground hover:text-rose-500 hover:bg-rose-500/20 transition-colors cursor-pointer border-s border-amber-500/20"
+                    title="حذف القالب"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
           
           {/* Patient Details Card */}
           <div className="yalla-card p-5 space-y-4 border border-border">
@@ -616,6 +1043,12 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                       setAppointmentId(selected.id)
                       setPatientPhone(selected.phone || '')
                       setAge(selected.age || selected.dob || '')
+                      if (selected.allergies) {
+                        setPatientAllergies(Array.isArray(selected.allergies) ? selected.allergies.join('، ') : String(selected.allergies))
+                      }
+                      if (selected.chronicDiseases) {
+                        setPatientChronicDiseases(Array.isArray(selected.chronicDiseases) ? selected.chronicDiseases.join('، ') : String(selected.chronicDiseases))
+                      }
                       if (selected.branch_id) setSelectedBranchId(selected.branch_id)
                       if (selected.branchName) setSelectedBranchName(selected.branchName)
                     }
@@ -660,6 +1093,55 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                   className="h-10 text-xs rounded-xl bg-background border-border text-foreground"
                 />
               </div>
+            </div>
+
+            {/* Medical Flags: Allergies & Chronic Diseases input drawer */}
+            <div className="pt-2 border-t border-border/70 space-y-2">
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setShowAllergiesInput(!showAllergiesInput)}
+                  className="text-xs font-bold text-primary hover:underline flex items-center gap-1.5 cursor-pointer"
+                >
+                  <HeartPulse className="w-3.5 h-3.5 text-rose-500" />
+                  <span>{patientAllergies || patientChronicDiseases ? 'تعديل الحساسية والأمراض المزمنة للمريض' : '+ تسجيل حساسية الأدوية والأمراض المزمنة'}</span>
+                </button>
+                {(patientAllergies || patientChronicDiseases) && (
+                  <Badge variant="outline" className="text-[10px] border-rose-500/30 text-rose-600 bg-rose-500/10">
+                    تم تسجيل محاذير طبية
+                  </Badge>
+                )}
+              </div>
+
+              {(showAllergiesInput || patientAllergies || patientChronicDiseases) && (
+                <div className="grid sm:grid-cols-2 gap-3 p-3 rounded-xl bg-secondary/40 border border-border">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      <span>حساسية الأدوية (مثال: بنسلين، سلفا، أسبرين)</span>
+                    </Label>
+                    <Input
+                      value={patientAllergies}
+                      onChange={e => setPatientAllergies(e.target.value)}
+                      placeholder="اكتب أي حساسية دوائية هنا..."
+                      className="h-9 text-xs rounded-lg bg-background border-rose-500/30 text-foreground"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                      <Activity className="w-3 h-3" />
+                      <span>أمراض مزمنة (مثال: ضغط، سكر، ربو، كلى)</span>
+                    </Label>
+                    <Input
+                      value={patientChronicDiseases}
+                      onChange={e => setPatientChronicDiseases(e.target.value)}
+                      placeholder="اكتب الأمراض المزمنة إن وجدت..."
+                      className="h-9 text-xs rounded-lg bg-background border-border text-foreground"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -708,6 +1190,46 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
               />
             </div>
           </div>
+
+          {/* High-Alert Allergy Banner (Pulsing VisionOS card when patient has recorded allergies) */}
+          {patientAllergies && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="p-4 rounded-2xl bg-rose-500/10 border-2 border-rose-500/40 text-rose-800 dark:text-rose-200 shadow-[0_0_25px_rgba(239,68,68,0.2)] flex items-start justify-between gap-3"
+            >
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5 animate-bounce" />
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-black text-sm text-rose-700 dark:text-rose-300">
+                      ⚠️ تحذير طبي مشدد: المريض لديه حساسية دوائية مسجلة
+                    </span>
+                    <Badge variant="destructive" className="animate-pulse text-[10px] font-bold px-1.5 py-0">High Alert</Badge>
+                  </div>
+                  <p className="text-xs font-bold leading-relaxed">
+                    حساسية مسجلة: <span className="bg-rose-500/20 px-2 py-0.5 rounded-md text-rose-900 dark:text-rose-100 font-black">{patientAllergies}</span>
+                    {patientChronicDiseases && (
+                      <span className="ms-2">
+                        • أمراض مزمنة: <span className="bg-amber-500/20 px-2 py-0.5 rounded-md text-amber-900 dark:text-amber-200 font-bold">{patientChronicDiseases}</span>
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-[11px] text-rose-600/90 dark:text-rose-400/90">
+                    سيقوم النظام تلقائياً بفحص الأدوية وتنبيهك فوراً إذا كان أي دواء يحتوي على مشتقات تتعارض مع هذه الحساسية.
+                  </p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowAllergiesInput(true)}
+                className="text-xs font-bold text-rose-700 dark:text-rose-300 hover:bg-rose-500/20 rounded-lg h-7 px-2 cursor-pointer"
+              >
+                تعديل
+              </Button>
+            </motion.div>
+          )}
 
           {/* Medicines Prescription Section */}
           <div className="yalla-card p-5 space-y-4 border border-border">
@@ -1007,34 +1529,47 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
 
             {/* Drugs List Rows */}
             <div className="space-y-3 pt-2">
-              {drugs.map((drug, index) => (
-                <div
-                  key={drug.id}
-                  className="p-3.5 rounded-xl border border-border bg-secondary/30 space-y-2.5"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-black text-muted-foreground">{t('drug_num', 'دواء')} #{index + 1}</span>
-                      <VoiceDictationButton
-                        fieldId={`drug-row-${drug.id}`}
-                        fieldLabel={`الدواء #${index + 1}`}
-                        value={drug.name}
-                        onChange={val => updateDrug(drug.id, 'name', val)}
-                        language={dictationLang}
-                        onLanguageChange={setDictationLang}
-                        size="sm"
-                        showLanguagePill={true}
-                        showStatusBadge={true}
-                      />
+              {drugs.map((drug, index) => {
+                const conflictWarning = getDrugAllergyConflict(drug.name, patientAllergies)
+                return (
+                  <div
+                    key={drug.id}
+                    className={`p-3.5 rounded-xl border transition-all space-y-2.5 ${
+                      conflictWarning
+                        ? 'border-rose-500/70 bg-rose-500/10 shadow-[0_0_18px_rgba(239,68,68,0.25)]'
+                        : 'border-border bg-secondary/30'
+                    }`}
+                  >
+                    {conflictWarning && (
+                      <div className="flex items-center gap-2 p-2.5 rounded-lg bg-rose-500/20 border border-rose-500/40 text-rose-700 dark:text-rose-300 text-xs font-bold animate-pulse">
+                        <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                        <span>{conflictWarning}</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-muted-foreground">{t('drug_num', 'دواء')} #{index + 1}</span>
+                        <VoiceDictationButton
+                          fieldId={`drug-row-${drug.id}`}
+                          fieldLabel={`الدواء #${index + 1}`}
+                          value={drug.name}
+                          onChange={val => updateDrug(drug.id, 'name', val)}
+                          language={dictationLang}
+                          onLanguageChange={setDictationLang}
+                          size="sm"
+                          showLanguagePill={true}
+                          showStatusBadge={true}
+                        />
+                      </div>
+                      <button
+                        onClick={() => removeDrug(drug.id)}
+                        className="text-muted-foreground hover:text-rose-500 transition-colors cursor-pointer"
+                        title={t('delete', 'حذف')}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => removeDrug(drug.id)}
-                      className="text-muted-foreground hover:text-rose-500 transition-colors cursor-pointer"
-                      title={t('delete', 'حذف')}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
 
                   <div className="grid sm:grid-cols-12 gap-2">
                     <div className="sm:col-span-5">
@@ -1108,7 +1643,8 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                     </div>
                   </div>
                 </div>
-              ))}
+              )
+            })}
             </div>
 
             {/* Medical Review Disclaimer / Reminder Banner */}
@@ -1418,6 +1954,61 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
         </div>
 
       </div>
+
+      {/* Save Protocol Modal */}
+      {showSaveProtocolModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-md bg-card border border-border rounded-3xl p-6 shadow-2xl space-y-4"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <h3 className="font-black text-sm text-foreground flex items-center gap-2">
+                <BookmarkCheck className="w-5 h-5 text-amber-500" />
+                حفظ الروشتة الحالية كقالب جاهز للعيادة
+              </h3>
+              <button
+                onClick={() => setShowSaveProtocolModal(false)}
+                className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-bold text-muted-foreground">اسم القالب (مثال: بروتوكول علاج حب الشباب، متابعة السكر)</Label>
+              <Input
+                value={newProtocolName}
+                onChange={(e) => setNewProtocolName(e.target.value)}
+                placeholder="اكتب اسم القالب هنا..."
+                className="h-10 text-xs rounded-xl bg-background border-border text-foreground"
+                autoFocus
+              />
+              <p className="text-[11px] text-muted-foreground">
+                سيتم حفظ التشخيص الحالي مع قائمة الأدوية ({drugs.filter(d => d.name && d.name.trim()).length} أدوية) للاستخدام المباشر بنقرة واحدة لاحقاً.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button
+                variant="ghost"
+                onClick={() => setShowSaveProtocolModal(false)}
+                className="h-9 text-xs font-bold rounded-xl cursor-pointer"
+              >
+                إلغاء
+              </Button>
+              <Button
+                onClick={handleSaveCurrentAsProtocol}
+                disabled={isSavingProtocol || !newProtocolName.trim()}
+                className="h-9 px-4 text-xs font-bold yalla-gradient-btn text-white rounded-xl shadow-xs cursor-pointer"
+              >
+                {isSavingProtocol ? 'جاري الحفظ...' : 'حفظ القالب 💾'}
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   )
 }

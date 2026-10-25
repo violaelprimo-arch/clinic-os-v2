@@ -11,7 +11,7 @@ import {
   UserX, SkipForward, FileSignature, Phone, Filter,
   Sparkles, AlertCircle, ChevronDown, ChevronUp, RefreshCw, ArrowUpDown, X,
   Printer, Download, Tag, Check, Eye, Building2, Percent, FileSpreadsheet,
-  ExternalLink, Copy, Search
+  ExternalLink, Copy, Search, Tv, Ticket
 } from 'lucide-react'
 import Link from 'next/link'
 import { db } from '@/lib/firebase'
@@ -19,7 +19,9 @@ import { collection, query, where, onSnapshot, updateDoc, doc } from 'firebase/f
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { sortQueue } from '@/lib/queueCalculations'
 import { ThermalReceiptModal } from '@/components/clinic/ThermalReceiptModal'
-import { ThermalReceiptData } from '@/lib/printService'
+import { ShiftClosingModal } from '@/components/clinic/ShiftClosingModal'
+import { ExaminationTicketModal } from '@/components/clinic/ExaminationTicketModal'
+import { ThermalReceiptData, generateExaminationTicketHtml, printHtmlViaIframe } from '@/lib/printService'
 import { openManualWhatsAppChat, formatQueueAlertWhatsAppMessage, formatPaymentConfirmationWhatsAppMessage } from '@/lib/whatsappShare'
 import { exportAppointmentsToExcel } from '@/lib/excelExport'
 import { createClinicNotification } from '@/lib/notificationService'
@@ -53,6 +55,30 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
 
   // Thermal Receipt Modal State
   const [selectedReceiptAppt, setSelectedReceiptAppt] = useState<any | null>(null)
+  const [selectedTicketAppt, setSelectedTicketAppt] = useState<any | null>(null)
+  const [isShiftClosingOpen, setIsShiftClosingOpen] = useState(false)
+
+  // Direct 1-Click Examination Ticket Thermal Print (80mm)
+  const handleDirectPrintTicket = (appt: any) => {
+    const ticketData = {
+      clinicName: clinic?.clinicName || 'العيادة الطبية',
+      branchName: appt.branchName || clinic?.branchName,
+      logoUrl: clinic?.logoUrl,
+      queueNumber: appt.queue_number || appt.turnNumber || '1',
+      effectivePosition: appt.queue_number || '1',
+      patientName: appt.patientName || 'المريض',
+      patientPhone: appt.phone || '',
+      serviceName: appt.serviceName || appt.service || 'كشف طبي',
+      isUrgent: appt.isUrgent || false,
+      date: appt.date || new Date().toISOString().split('T')[0],
+      time: appt.time || '',
+      paymentStatus: appt.paymentStatus || 'pending',
+      appointmentId: appt.id
+    }
+    const html = generateExaminationTicketHtml(ticketData)
+    printHtmlViaIframe(html, '80mm')
+    toast.success(`تم إرسال تيكت الدور (#${ticketData.queueNumber} - ${ticketData.patientName}) للطابعة الحرارية 🖨️`)
+  }
 
   // Image Preview Modal for Receipt Proof
   const [previewProofUrl, setPreviewProofUrl] = useState<string | null>(null)
@@ -1241,6 +1267,29 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
 
           {/* Toolbar on end: Service Filter + Excel Export */}
           <div className="flex items-center gap-2 self-end lg:self-auto flex-wrap">
+            {/* Shift Closing Reconciliation Button */}
+            {isFinanceEnabled && (
+              <Button
+                size="sm"
+                onClick={() => setIsShiftClosingOpen(true)}
+                className="h-10 px-3.5 text-xs font-black bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 border border-amber-500/35 rounded-2xl flex items-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95"
+                title="تقفيل خزينة اليوم وجرد الوردية للسكرتارية"
+              >
+                <DollarSign className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                <span>تقفيل الخزينة والوردية 💰</span>
+              </Button>
+            )}
+
+            {/* TV Screen View Link */}
+            <Link
+              href={`/clinic/${clinic.slug}/tv`}
+              target="_blank"
+              className="h-10 px-3.5 text-xs font-black bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 rounded-2xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+              title="فتح شاشة صالة الانتظار للتلفزيون والشاشات الكبيرة"
+            >
+              <Tv className="w-4 h-4 text-primary" />
+              <span>شاشة الانتظار (TV) 📺</span>
+            </Link>
             <Button
               size="sm"
               variant="outline"
@@ -1459,6 +1508,16 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                                   {t('thermal_receipt', 'إيصال حراري')}
                                 </Button>
 
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 text-xs font-bold text-foreground border-border hover:bg-card rounded-lg justify-start"
+                                  onClick={() => setSelectedTicketAppt(b)}
+                                >
+                                  <Ticket className={`w-3.5 h-3.5 ${isRtl ? 'ml-1.5' : 'mr-1.5'} text-blue-500`} />
+                                  <span>تيكت الدور 🎫</span>
+                                </Button>
+
                                 {isPatientAlertsEnabled && b.phone && (
                                   <Button
                                     size="sm"
@@ -1599,6 +1658,17 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                               title={t('print_thermal_receipt', 'طباعة إيصال حراري (80mm)')}
                             >
                               <Printer className="w-3.5 h-3.5" />
+                            </Button>
+
+                            {/* 80mm Turn Ticket Print */}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 px-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 hover:bg-blue-500/10 border-blue-500/30 rounded-xl cursor-pointer"
+                              onClick={() => handleDirectPrintTicket(b)}
+                              title="طباعة تيكت الدور الحراري (80mm)"
+                            >
+                              <Ticket className="w-3.5 h-3.5" />
                             </Button>
 
                             {/* WhatsApp alert button (MANUAL click-to-chat) */}
@@ -1902,6 +1972,27 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
           data={thermalReceiptData}
           isOpen={true}
           onClose={() => setSelectedReceiptAppt(null)}
+        />
+      )}
+
+      {/* 80mm Turn Ticket Modal */}
+      {selectedTicketAppt && (
+        <ExaminationTicketModal
+          isOpen={true}
+          onClose={() => setSelectedTicketAppt(null)}
+          appointment={selectedTicketAppt}
+          clinic={clinic}
+        />
+      )}
+
+      {/* Daily Shift Closing & Cash Reconciliation Modal */}
+      {isShiftClosingOpen && (
+        <ShiftClosingModal
+          isOpen={true}
+          onClose={() => setIsShiftClosingOpen(false)}
+          clinic={clinic}
+          appointments={rawAppointments}
+          selectedBranchId={selectedBranchId}
         />
       )}
 
