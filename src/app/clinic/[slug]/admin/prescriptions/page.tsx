@@ -811,7 +811,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                   </div>
                 </div>
 
-                {/* Drug Search Input with Voice & DawaaGate Autocomplete */}
+                {/* Drug Search Input with Voice & Autocomplete */}
                 <div className="relative">
                   <div className="relative flex items-center">
                     <Search className="w-4 h-4 absolute end-3 top-3 text-muted-foreground pointer-events-none" />
@@ -911,11 +911,11 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                             })}
                           </div>
 
-                          {/* DawaaGate Direct Live Query Option */}
+                          {/* National Directory Direct Live Query Option */}
                           <div className="p-2 bg-secondary/30 flex items-center justify-between gap-2 border-t border-border">
                             <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                               <Globe className="w-3 h-3 text-primary shrink-0" />
-                              <span>{language === 'en' ? 'DawaaGate Live Search (27,600+ drugs)' : 'بحث مباشر في دواء جيت (27,600+ دواء مصري)'}</span>
+                              <span>{language === 'en' ? 'Official Drug Directory Search (27,600+ drugs)' : 'بحث مباشر في دليل الأدوية المصرية (27,600+ دواء)'}</span>
                             </span>
                             <Button
                               type="button"
@@ -928,7 +928,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                                 setIsLiveSyncing(true)
                                 try {
                                   await syncDrugLive(drugSearch)
-                                  toast.success(language === 'en' ? 'Catalog updated from DawaaGate' : 'تم تحديث البيانات من دواء جيت')
+                                  toast.success(language === 'en' ? 'Catalog updated with official market prices' : 'تم تحديث البيانات بالأسعار الرسمية المعتمدة')
                                 } finally {
                                   setIsLiveSyncing(false)
                                 }
@@ -965,9 +965,9 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                               try {
                                 const found = await syncDrugLive(drugSearch)
                                 if (found && found.length > 0) {
-                                  toast.success(language === 'en' ? `Found ${found.length} drugs from DawaaGate` : `تم العثور على ${found.length} أدوية من دواء جيت`)
+                                  toast.success(language === 'en' ? `Found ${found.length} medications` : `تم العثور على ${found.length} مستحضر دوائي`)
                                 } else {
-                                  toast.info(language === 'en' ? 'No new items found on DawaaGate' : 'لم نجد أدوية جديدة بهذا الاسم على دواء جيت')
+                                  toast.info(language === 'en' ? 'No medications found for this search' : 'لم يتم العثور على أدوية مطابقة بهذا الاسم')
                                 }
                               } finally {
                                 setIsLiveSyncing(false)
@@ -978,12 +978,12 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                             {isLiveSyncing ? (
                               <>
                                 <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />
-                                <span>{language === 'en' ? 'Searching DawaaGate...' : 'جارٍ البحث في دواء جيت (27,600+)...'}</span>
+                                <span>{language === 'en' ? 'Searching national directory...' : 'جارٍ البحث في دليل الأدوية المعتمدة (27,600+)...'}</span>
                               </>
                             ) : (
                               <>
                                 <Sparkles className="w-3.5 h-3.5 me-1.5" />
-                                <span>{language === 'en' ? `Search DawaaGate for "${drugSearch}"` : `بحث مباشر في دواء جيت عن «${drugSearch}»`}</span>
+                                <span>{language === 'en' ? `Search national directory for "${drugSearch}"` : `بحث مباشر في سجل الأدوية عن «${drugSearch}»`}</span>
                               </>
                             )}
                           </Button>

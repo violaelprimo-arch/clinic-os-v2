@@ -416,7 +416,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
         </div>
       </div>
 
-      {/* 2. DawaaGate & Market Overview Statistics */}
+      {/* 2. National Drug Directory & Market Overview Statistics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="yalla-card p-3.5 bg-card border border-border flex items-center gap-3 shadow-xs">
           <div className="w-10 h-10 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
@@ -433,7 +433,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
             <Building2 className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-[11px] text-muted-foreground font-semibold">{t('dawaagate_coverage', 'قاعدة دواء جيت')}</div>
+            <div className="text-[11px] text-muted-foreground font-semibold">{t('national_drugs_coverage', 'سجل الأدوية المعتمدة')}</div>
             <div className="text-base font-black text-foreground">27,600+ {t('medication', 'دواء')}</div>
           </div>
         </div>
@@ -557,7 +557,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
                           className="text-xs font-bold gap-2 yalla-gradient-btn text-white rounded-xl shadow-md cursor-pointer"
                         >
                           {isSyncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                          <span>بحث مباشر وتحديث فوري لـ &quot;{search.trim()}&quot; من دواء جيت (27,600+ دواء)</span>
+                          <span>بحث مباشر وتحديث فوري لـ &quot;{search.trim()}&quot; من دليل الأدوية (27,600+ دواء)</span>
                         </Button>
                       </div>
                     )}
@@ -730,7 +730,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
                 className="text-xs font-bold gap-2 yalla-gradient-btn text-white rounded-xl shadow-md cursor-pointer mx-auto"
               >
                 {isSyncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                <span>بحث في دواء جيت (27,600+ دواء)</span>
+                <span>بحث في دليل الأدوية الشامل (27,600+ دواء)</span>
               </Button>
             )}
           </div>
