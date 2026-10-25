@@ -151,9 +151,9 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
   demoButtonText: 'طلب ديمو مجاني',
   patientPortalButtonText: 'تواصل مع الدعم الفني',
   loginButtonText: 'دخول العيادة',
-  loginUrl: '/clinic/demo/login',
-  demoUrl: '/clinic/demo/admin',
-  patientUrl: '/clinic/demo',
+  loginUrl: '/clinic/zizo/login',
+  demoUrl: '/clinic/zizo',
+  patientUrl: '/clinic/zizo',
   primaryWhatsapp: '201551007018',
   footerText:
     'جميع الحقوق محفوظة لمنصة Yalla Clinic — تطوير YallaCodeX © 2026',
@@ -170,32 +170,13 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
     footerText:
       '© 2026 Yalla Clinic. Developed by YallaCodeX. All rights reserved.',
   },
-  stats: [
-    {
-      value: '4',
-      valueEn: '4',
-      label: 'بوابات بصلاحيات مختلفة',
-      labelEn: 'role-specific portals',
-    },
-    {
-      value: '3',
-      valueEn: '3',
-      label: 'طرق دفع للعيادة',
-      labelEn: 'clinic payment methods',
-    },
-    {
-      value: '8',
-      valueEn: '8',
-      label: 'أدوات لإدارة يومك',
-      labelEn: 'tools for your daily workflow',
-    },
-  ],
+  stats: [],
   visibility: {
-    showStats: true,
+    showStats: false,
     showFeatures: true,
     showScreenshots: true,
-    showClients: true,
-    showFeedback: true,
+    showClients: false,
+    showFeedback: false,
     allowClientFeedbackSubmission: true,
     showContacts: true,
     showFloatingWhatsapp: true,
@@ -377,11 +358,40 @@ export function mergeLandingConfig(value: unknown): LandingPageConfig {
     value && typeof value === 'object'
       ? (value as Partial<LandingPageConfig>)
       : {}
+
+  // Filter out old mock stats so nothing appears that the user didn't add
+  let customStats = Array.isArray(data.stats) ? data.stats : []
+  const isOldMockStats = customStats.length === 3 &&
+    customStats.some(s => s.value === '4' && (s.label?.includes('بوابات') || s.labelEn?.includes('portals'))) &&
+    customStats.some(s => s.value === '3' && (s.label?.includes('طرق دفع') || s.labelEn?.includes('payment'))) &&
+    customStats.some(s => s.value === '8' && (s.label?.includes('أدوات') || s.labelEn?.includes('workflow')))
+
+  if (isOldMockStats) {
+    customStats = []
+  }
+
+  const hasApprovedFeedbacks = Array.isArray(data.feedbacks) && data.feedbacks.some(f => f.approved)
+  const hasClients = Array.isArray(data.clients) && data.clients.length > 0
+
+  const resolvedLoginUrl = (data.loginUrl && data.loginUrl !== '/clinic/demo/login')
+    ? data.loginUrl
+    : '/clinic/zizo/login'
+
   const parsed = landingConfigSchema.safeParse({
     ...DEFAULT_LANDING_CONFIG,
     ...data,
+    stats: customStats,
+    loginUrl: resolvedLoginUrl,
+    demoUrl: data.demoUrl && data.demoUrl !== '/clinic/demo/admin' ? data.demoUrl : '/clinic/zizo',
+    patientUrl: data.patientUrl && data.patientUrl !== '/clinic/demo' ? data.patientUrl : '/clinic/zizo',
     english: { ...DEFAULT_LANDING_CONFIG.english, ...data.english },
-    visibility: { ...DEFAULT_LANDING_CONFIG.visibility, ...data.visibility },
+    visibility: {
+      ...DEFAULT_LANDING_CONFIG.visibility,
+      ...data.visibility,
+      showStats: customStats.length > 0 && data.visibility?.showStats === true,
+      showClients: hasClients && data.visibility?.showClients === true,
+      showFeedback: hasApprovedFeedbacks && data.visibility?.showFeedback === true,
+    },
   })
   return parsed.success ? parsed.data : structuredClone(DEFAULT_LANDING_CONFIG)
 }

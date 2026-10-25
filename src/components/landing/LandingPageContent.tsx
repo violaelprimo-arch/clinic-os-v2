@@ -1,8 +1,8 @@
 'use client'
+
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useState, useRef, type FormEvent, type ComponentType } from 'react'
 import Link from 'next/link'
-import { motion, useReducedMotion } from 'framer-motion'
 import {
   Users,
   Calendar,
@@ -47,6 +47,7 @@ import {
 } from '@/lib/landing-service'
 import { whatsappNumber, type LandingPageConfig } from '@/lib/landing-config'
 import './landing.css'
+
 const icons: Record<string, ComponentType<{ className?: string }>> = {
   Users,
   Calendar,
@@ -59,6 +60,7 @@ const icons: Record<string, ComponentType<{ className?: string }>> = {
   Sparkles,
   ShieldCheck,
 }
+
 export function LandingPageContent({
   config,
   isPreview = false,
@@ -66,27 +68,56 @@ export function LandingPageContent({
   config: LandingPageConfig
   isPreview?: boolean
 }) {
-  const { isRtl, dir } = useLanguage(),
-    reduced = useReducedMotion()
+  const { isRtl, dir } = useLanguage()
   const copy = (ar: string, en: string) => (isRtl ? ar : en)
   const headline = (key: keyof LandingPageConfig['english']) =>
     isRtl ? String(config[key]) : config.english[key] || String(config[key])
-  const [slide, setSlide] = useState(0),
-    [paused, setPaused] = useState(false),
-    [trialOpen, setTrialOpen] = useState(false),
-    [lightboxOpen, setLightboxOpen] = useState(false)
+
+  const [slide, setSlide] = useState(0)
+  const [paused, setPaused] = useState(false)
+  const [trialOpen, setTrialOpen] = useState(false)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
   const showTrialBanner = false
-  const [feedbackBusy, setFeedbackBusy] = useState(false),
-    [feedbackMessage, setFeedbackMessage] = useState(''),
-    [feedbackError, setFeedbackError] = useState('')
-  const [rating, setRating] = useState(5),
-    [trialBusy, setTrialBusy] = useState(false),
-    [trialMessage, setTrialMessage] = useState(''),
-    [trialError, setTrialError] = useState(''),
-    [trialWhatsApp, setTrialWhatsApp] = useState('')
-  const screenshots = config.screenshots,
-    index = screenshots.length ? slide % screenshots.length : 0,
-    current = screenshots[index]
+
+  const [feedbackBusy, setFeedbackBusy] = useState(false)
+  const [feedbackMessage, setFeedbackMessage] = useState('')
+  const [feedbackError, setFeedbackError] = useState('')
+  const [rating, setRating] = useState(5)
+
+  const [trialBusy, setTrialBusy] = useState(false)
+  const [trialMessage, setTrialMessage] = useState('')
+  const [trialError, setTrialError] = useState('')
+  const [trialWhatsApp, setTrialWhatsApp] = useState('')
+
+  const screenshots = config.screenshots || []
+  const index = screenshots.length ? slide % screenshots.length : 0
+  const current = screenshots[index]
+
+  // Filter out any mock/placeholder stats completely
+  const activeStats = (config.stats || []).filter(
+    (s) =>
+      s.value &&
+      s.label &&
+      !s.label.includes('بوابات') &&
+      !s.label.includes('طرق دفع') &&
+      !s.label.includes('أدوات لإدارة'),
+  )
+  const showStatsSection = config.visibility.showStats && activeStats.length > 0
+
+  // Filter approved reviews only
+  const approvedFeedbacks = (config.feedbacks || []).filter((f) => f.approved)
+  const showReviewsSection =
+    config.visibility.showFeedback && approvedFeedbacks.length > 0
+
+  const showFeaturesSection =
+    config.visibility.showFeatures && config.features && config.features.length > 0
+  const showShowcaseSection =
+    config.visibility.showScreenshots && screenshots.length > 0 && !!current
+  const showClientsSection =
+    config.visibility.showClients && config.clients && config.clients.length > 0
+  const showContactsSection =
+    config.visibility.showContacts && config.contacts && config.contacts.length > 0
+
   const primary =
     config.contacts.find((c) => c.isPrimary && c.whatsappEnabled) ||
     config.contacts.find((c) => c.whatsappEnabled)
@@ -94,18 +125,22 @@ export function LandingPageContent({
     primary?.whatsappNumber || config.primaryWhatsapp || '201551007018',
   )
   const whatsapp = number ? `https://wa.me/${number}` : 'https://wa.me/201551007018'
-  const trialWhatsappHref =
-    `${whatsapp}?text=${encodeURIComponent(copy('اريد طلب نسخة مجانية تجريبية', 'I want to request a free trial version'))}`
-  const demoHref = whatsapp
-    ? `${whatsapp}?text=${encodeURIComponent(copy('مرحبًا، أرغب في طلب ديمو مجاني لمنصة Yalla Clinic.', 'Hello, I would like to request a free Yalla Clinic demo.'))}`
-    : '#contact'
+  const trialWhatsappHref = `${whatsapp}?text=${encodeURIComponent(
+    copy('اريد طلب نسخة مجانية تجريبية', 'I want to request a free trial version'),
+  )}`
   const supportHref = whatsapp
-    ? `${whatsapp}?text=${encodeURIComponent(copy('مرحبًا، أحتاج إلى التواصل مع الدعم الفني لمنصة Yalla Clinic.', 'Hello, I need to contact Yalla Clinic technical support.'))}`
+    ? `${whatsapp}?text=${encodeURIComponent(
+        copy(
+          'مرحبًا، أحتاج إلى التواصل مع الدعم الفني لمنصة Yalla Clinic.',
+          'Hello, I need to contact Yalla Clinic technical support.',
+        ),
+      )}`
     : '#contact'
-  const move = (offset: number) =>
-    setSlide(
-      (value) => (value + offset + screenshots.length) % screenshots.length,
-    )
+
+  const move = (offset: number) => {
+    if (!screenshots.length) return
+    setSlide((value) => (value + offset + screenshots.length) % screenshots.length)
+  }
 
   // Drag and swipe handling for showcase gallery
   const showcaseDragStart = useRef<{ x: number; y: number; time: number } | null>(null)
@@ -119,7 +154,10 @@ export function LandingPageContent({
 
   const handleShowcaseMouseMove = (e: React.MouseEvent) => {
     if (!showcaseDragStart.current) return
-    const dist = Math.hypot(e.clientX - showcaseDragStart.current.x, e.clientY - showcaseDragStart.current.y)
+    const dist = Math.hypot(
+      e.clientX - showcaseDragStart.current.x,
+      e.clientY - showcaseDragStart.current.y,
+    )
     if (dist > 8) {
       isDraggingShowcaseRef.current = true
     }
@@ -170,27 +208,22 @@ export function LandingPageContent({
   }
 
   useEffect(() => {
-    if (paused || lightboxOpen || reduced || screenshots.length < 2) return
+    if (paused || lightboxOpen || screenshots.length < 2) return
     const timer = setInterval(() => {
-      if (!document.hidden)
-        setSlide((value) => (value + 1) % screenshots.length)
+      if (!document.hidden) setSlide((value) => (value + 1) % screenshots.length)
     }, 6500)
     return () => clearInterval(timer)
-  }, [screenshots.length, paused, lightboxOpen, reduced])
-  const reveal = {
-    initial: reduced ? (false as const) : { opacity: 0, y: 22 },
-    whileInView: { opacity: 1, y: 0 },
-    viewport: { once: true, amount: 0.12 },
-    transition: { duration: 0.6, ease: 'easeOut' as const },
-  }
+  }, [screenshots.length, paused, lightboxOpen])
+
   const previewLink = (event: React.MouseEvent) => {
     if (isPreview) event.preventDefault()
   }
+
   async function sendFeedback(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (isPreview) return
-    const form = event.currentTarget,
-      values = new FormData(form)
+    const form = event.currentTarget
+    const values = new FormData(form)
     setFeedbackBusy(true)
     setFeedbackMessage('')
     setFeedbackError('')
@@ -215,20 +248,18 @@ export function LandingPageContent({
       setFeedbackError(
         error instanceof Error
           ? error.message
-          : copy(
-              'تعذر إرسال الرأي. حاول مرة أخرى.',
-              'Could not submit your review. Please retry.',
-            ),
+          : copy('تعذر إرسال الرأي. حاول مرة أخرى.', 'Could not submit your review. Please retry.'),
       )
     } finally {
       setFeedbackBusy(false)
     }
   }
+
   async function sendTrial(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (isPreview) return
-    const form = event.currentTarget,
-      values = new FormData(form)
+    const form = event.currentTarget
+    const values = new FormData(form)
     setTrialBusy(true)
     setTrialMessage('')
     setTrialError('')
@@ -261,27 +292,21 @@ export function LandingPageContent({
         : ''
       setTrialWhatsApp(url)
       form.reset()
-      if (values.get('openWhatsapp') === 'on' && url)
-        window.location.assign(url)
+      if (values.get('openWhatsapp') === 'on' && url) window.location.assign(url)
     } catch (error) {
       setTrialError(
         error instanceof Error
           ? error.message
-          : copy(
-              'تعذر إرسال الطلب. حاول مرة أخرى.',
-              'Could not submit your request. Please retry.',
-            ),
+          : copy('تعذر إرسال الطلب. حاول مرة أخرى.', 'Could not submit your request. Please retry.'),
       )
     } finally {
       setTrialBusy(false)
     }
   }
+
   return (
-    <div
-      className="landing-page min-h-screen bg-background text-foreground"
-      dir={dir}
-    >
-      <header className="sticky top-0 z-40 border-b border-border/70 bg-background/90 backdrop-blur-xl">
+    <div className="landing-page min-h-screen bg-background text-foreground" dir={dir}>
+      <header className="sticky top-0 z-40 border-b border-border/70 bg-background/95 backdrop-blur-md will-change-transform contain-paint">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-4 lg:px-8">
           <Link href="/" aria-label="Yalla Clinic" onClick={previewLink}>
             <ClinicLogo size="md" />
@@ -290,17 +315,25 @@ export function LandingPageContent({
             aria-label={copy('روابط الصفحة', 'Page navigation')}
             className="hidden items-center gap-6 text-sm font-bold text-muted-foreground lg:flex"
           >
-            {config.visibility.showFeatures && (
-              <a href="#features">{copy('المميزات', 'Features')}</a>
+            {showFeaturesSection && (
+              <a href="#features" className="transition-colors hover:text-foreground">
+                {copy('المميزات', 'Features')}
+              </a>
             )}
-            {config.visibility.showScreenshots && (
-              <a href="#showcase">{copy('جولة في النظام', 'Product tour')}</a>
+            {showShowcaseSection && (
+              <a href="#showcase" className="transition-colors hover:text-foreground">
+                {copy('جولة في النظام', 'Product tour')}
+              </a>
             )}
-            {config.visibility.showFeedback && (
-              <a href="#reviews">{copy('آراء العملاء', 'Reviews')}</a>
+            {showReviewsSection && (
+              <a href="#reviews" className="transition-colors hover:text-foreground">
+                {copy('آراء العملاء', 'Reviews')}
+              </a>
             )}
-            {config.visibility.showContacts && (
-              <a href="#contact">{copy('تواصل معنا', 'Contact')}</a>
+            {showContactsSection && (
+              <a href="#contact" className="transition-colors hover:text-foreground">
+                {copy('تواصل معنا', 'Contact')}
+              </a>
             )}
           </nav>
           <div className="flex items-center gap-2">
@@ -309,7 +342,7 @@ export function LandingPageContent({
             <Link
               href={config.loginUrl}
               onClick={previewLink}
-              className="hidden rounded-xl border border-border bg-card px-4 py-2 text-xs font-bold sm:block"
+              className="hidden rounded-xl border border-border bg-card px-4 py-2 text-xs font-bold sm:block transition-colors hover:border-primary/40 hover:bg-secondary/40"
             >
               {headline('loginButtonText')}
             </Link>
@@ -338,9 +371,9 @@ export function LandingPageContent({
       <main>
         <section className="landing-hero relative overflow-hidden border-b border-border/60">
           <div className="landing-grid pointer-events-none absolute inset-0 opacity-40" />
-          <div className="pointer-events-none absolute -top-40 start-0 size-[500px] rounded-full bg-primary/10 blur-[120px]" />
+          <div className="pointer-events-none absolute -top-40 start-0 size-[500px] rounded-full [background:radial-gradient(circle,hsl(var(--primary)/0.12)_0%,transparent_70%)]" />
           <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-5 pb-20 pt-14 lg:grid-cols-[1.05fr_1fr] lg:px-8 lg:pb-24 lg:pt-24">
-            <motion.div {...reveal} className="space-y-7">
+            <div className="space-y-7">
               <p className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-2 text-xs font-bold text-primary">
                 <span className="size-2 rounded-full bg-primary" />
                 {headline('heroBadge')}
@@ -360,57 +393,47 @@ export function LandingPageContent({
                   onClick={previewLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex min-h-12 items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-emerald-600/25 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-emerald-600/35 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-600"
+                  className="inline-flex min-h-12 items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-emerald-600/25 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-emerald-600/35 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-600"
                 >
                   <MessageCircle className="size-4.5" />
                   {copy('طلب نسخة مجانية تجريبية لمدة 7 أيام', 'Request a 7-day free trial')}
                   <ArrowUpRight className="size-4" />
                 </a>
-                <a
-                  href="#showcase"
-                  onClick={previewLink}
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-card px-5 py-3 text-sm font-bold transition-all duration-300 hover:-translate-y-1 hover:border-primary/35 hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
-                >
-                  <Play className="size-4 text-primary" />
-                  {copy('شوف النظام من جوه', 'Take a product tour')}
-                </a>
+                {showShowcaseSection && (
+                  <a
+                    href="#showcase"
+                    onClick={previewLink}
+                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-card px-5 py-3 text-sm font-bold transition-all duration-200 hover:-translate-y-1 hover:border-primary/35 hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+                  >
+                    <Play className="size-4 text-primary" />
+                    {copy('شوف النظام من جوه', 'Take a product tour')}
+                  </a>
+                )}
                 <a
                   href={supportHref}
                   onClick={previewLink}
                   target={whatsapp ? '_blank' : undefined}
                   rel={whatsapp ? 'noopener noreferrer' : undefined}
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-card px-5 py-3 text-sm font-bold text-muted-foreground transition-all duration-300 hover:-translate-y-1 hover:border-primary/35 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-card px-5 py-3 text-sm font-bold text-muted-foreground transition-all duration-200 hover:-translate-y-1 hover:border-primary/35 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
                 >
                   <Phone className="size-4 text-primary" />
                   {copy('تواصل مع الدعم الفني', 'Contact technical support')}
                 </a>
               </div>
-              {showTrialBanner && config.visibility.showTrialBanner && (
-                <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Gift className="size-4 text-primary" />
-                  {copy(
-                    `تجربة مجانية لمدة ${config.trialDaysCount} أيام · نتواصل معاك لتجهيز عيادتك`,
-                    `${config.trialDaysCount}-day free trial · Our team helps set up your clinic`,
-                  )}
-                </p>
-              )}
               <div className="flex flex-wrap gap-5 border-t border-border/80 pt-5 text-xs font-bold text-muted-foreground">
                 <span className="flex gap-2">
                   <Check className="size-4 text-primary" />
-                  {copy(
-                    'الدكتور والاستقبال في نفس الصورة',
-                    'One view for doctors and reception',
-                  )}
+                  {copy('الدكتور والاستقبال في نفس الصورة', 'One view for doctors and reception')}
                 </span>
                 <span className="flex gap-2">
                   <Check className="size-4 text-primary" />
                   {copy('تجربة مناسبة للموبايل', 'Designed for mobile')}
                 </span>
               </div>
-            </motion.div>
-            <motion.div {...reveal} className="relative min-w-0 py-6">
-              <div className="absolute inset-0 rounded-full bg-gradient-to-bl from-primary/15 to-cyan-400/10 blur-3xl" />
-              <div className="relative overflow-hidden rounded-3xl border border-border bg-card p-2 shadow-2xl shadow-primary/10 transition-transform duration-700 hover:rotate-0 hover:scale-[1.01] sm:rotate-[-2deg]">
+            </div>
+            <div className="relative min-w-0 py-6">
+              <div className="pointer-events-none absolute inset-0 rounded-full [background:radial-gradient(circle,hsl(var(--primary)/0.12)_0%,transparent_70%)]" />
+              <div className="relative overflow-hidden rounded-3xl border border-border bg-card p-2 shadow-2xl shadow-primary/10 transition-transform duration-500 hover:rotate-0 hover:scale-[1.01] sm:rotate-[-2deg]">
                 <div className="mb-2 flex items-center justify-between px-4 py-3 text-[10px] text-muted-foreground">
                   <span className="font-bold">YALLA CLINIC / WORKSPACE</span>
                   <span className="flex gap-1">
@@ -421,12 +444,12 @@ export function LandingPageContent({
                 </div>
                 <img
                   src={screenshots[0]?.imageUrl || '/landing/dashboard.svg'}
-                  alt={copy(
-                    'عرض توضيحي للوحة يلا كلينك',
-                    'Illustrative Yalla Clinic workspace',
-                  )}
+                  alt={copy('عرض توضيحي للوحة يلا كلينك', 'Illustrative Yalla Clinic workspace')}
                   width="1000"
                   height="720"
+                  fetchPriority="high"
+                  loading="eager"
+                  decoding="async"
                   className="aspect-[1.4] w-full rounded-2xl object-contain bg-secondary/30"
                 />
               </div>
@@ -437,25 +460,19 @@ export function LandingPageContent({
                   </span>
                   <span>
                     <strong className="block text-sm">
-                      {copy(
-                        'كل خطوة متصلة باللي بعدها',
-                        'Every step, connected',
-                      )}
+                      {copy('كل خطوة متصلة باللي بعدها', 'Every step, connected')}
                     </strong>
                     <span className="text-[11px] text-muted-foreground">
-                      {copy(
-                        'حجز ← كشف ← روشتة ← متابعة',
-                        'Booking → Visit → Prescription → Follow-up',
-                      )}
+                      {copy('حجز ← كشف ← روشتة ← متابعة', 'Booking → Visit → Prescription → Follow-up')}
                     </span>
                   </span>
                 </div>
               </div>
-            </motion.div>
+            </div>
           </div>
-          {config.visibility.showStats && config.stats.length > 0 && (
+          {showStatsSection && (
             <div className="relative mx-auto grid max-w-7xl grid-cols-2 gap-7 border-t border-border px-5 py-8 sm:grid-cols-4 lg:px-8">
-              {config.stats.map((stat, i) => (
+              {activeStats.map((stat, i) => (
                 <div key={i}>
                   <strong className="block text-2xl font-black text-primary sm:text-3xl">
                     {!isRtl && stat.valueEn ? stat.valueEn : stat.value}
@@ -469,13 +486,10 @@ export function LandingPageContent({
           )}
         </section>
 
-        {/* Dedicated 7-day Free Trial Section directly below the Hero & Stats */}
+        {/* Dedicated 7-day Free Trial Section */}
         <section className="border-b border-border/60 bg-gradient-to-b from-emerald-500/[0.04] via-transparent to-transparent py-8">
           <div className="relative mx-auto max-w-7xl px-5 lg:px-8">
-            <motion.div
-              {...reveal}
-              className="relative overflow-hidden rounded-3xl border border-emerald-500/30 bg-gradient-to-r from-emerald-950/40 via-card to-background p-6 sm:p-8 shadow-xl shadow-emerald-950/5 flex flex-col md:flex-row items-center justify-between gap-6"
-            >
+            <div className="relative overflow-hidden rounded-3xl border border-emerald-500/30 bg-gradient-to-r from-emerald-950/40 via-card to-background p-6 sm:p-8 shadow-xl shadow-emerald-950/5 flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="space-y-1.5 text-center md:text-start">
                 <span className="inline-flex items-center gap-2 text-xs font-bold text-emerald-600 dark:text-emerald-400">
                   <Gift className="size-4" />
@@ -496,41 +510,36 @@ export function LandingPageContent({
                 onClick={previewLink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex min-h-13 shrink-0 items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 px-8 py-3.5 text-sm sm:text-base font-black text-white shadow-lg shadow-emerald-600/25 transition-all duration-300 hover:scale-105 active:scale-95"
+                className="inline-flex min-h-13 shrink-0 items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 px-8 py-3.5 text-sm sm:text-base font-black text-white shadow-lg shadow-emerald-600/25 transition-all duration-200 hover:scale-105 active:scale-95"
               >
                 <MessageCircle className="size-5" />
                 {copy('طلب نسخة مجانية تجريبية لمدة 7 أيام', 'Request a 7-day free trial')}
                 <ArrowUpRight className="size-4" />
               </a>
-            </motion.div>
+            </div>
           </div>
         </section>
-        {config.visibility.showClients && config.clients.length > 0 && (
+
+        {showClientsSection && (
           <section
             id="clients"
             aria-label={copy('العملاء المتعاونون', 'Our collaborators')}
             className="mx-auto max-w-7xl px-5 py-16 lg:px-8"
           >
-            <motion.div {...reveal} className="mb-8 text-center">
-              <p className="landing-eyebrow">
-                {copy('شركاء النجاح', 'OUR PARTNERS')}
-              </p>
-              <h2 className="landing-title">
-                {copy('العملاء المتعاونون', 'Our collaborators')}
-              </h2>
+            <div className="mb-8 text-center">
+              <p className="landing-eyebrow">{copy('شركاء النجاح', 'OUR PARTNERS')}</p>
+              <h2 className="landing-title">{copy('العملاء المتعاونون', 'Our collaborators')}</h2>
               <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-muted-foreground">
                 {copy(
                   'نعتز بثقة العيادات والمراكز التي اختارت يلا كلينك لتنظيم عملها.',
                   'We value the clinics and centers that trust Yalla Clinic to support their work.',
                 )}
               </p>
-            </motion.div>
+            </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {config.clients.map((client, clientIndex) => {
-                const name =
-                  !isRtl && client.nameEn ? client.nameEn : client.name
-                const description =
-                  client.collaborationNote || client.specialty
+              {config.clients.map((client) => {
+                const name = !isRtl && client.nameEn ? client.nameEn : client.name
+                const description = client.collaborationNote || client.specialty
                 const card = (
                   <>
                     <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-2xl border border-border/70 bg-secondary/60 p-2 transition-transform duration-300 group-hover:scale-105">
@@ -561,8 +570,8 @@ export function LandingPageContent({
                     </div>
                   </>
                 )
-                const className =
-                  'group flex min-h-28 items-center gap-4 rounded-3xl border border-border/70 bg-card/80 p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/35 hover:shadow-xl hover:shadow-primary/5'
+                const cardClass =
+                  'group flex min-h-28 items-center gap-4 rounded-3xl border border-border/70 bg-card/80 p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-primary/35 hover:shadow-xl hover:shadow-primary/5'
 
                 return client.link ? (
                   <a
@@ -570,50 +579,30 @@ export function LandingPageContent({
                     href={client.link}
                     target={client.link.startsWith('https://') ? '_blank' : undefined}
                     rel={client.link.startsWith('https://') ? 'noopener noreferrer' : undefined}
-                    className={className}
+                    className={cardClass}
                     dir={dir}
                   >
                     {card}
                   </a>
                 ) : (
-                  <motion.article
-                    key={client.id}
-                    {...reveal}
-                    transition={{
-                      ...reveal.transition,
-                      delay: reduced ? 0 : Math.min(clientIndex * 0.06, 0.3),
-                    }}
-                    className={className}
-                    dir={dir}
-                  >
+                  <article key={client.id} className={cardClass} dir={dir}>
                     {card}
-                  </motion.article>
+                  </article>
                 )
               })}
             </div>
           </section>
         )}
-        {config.visibility.showFeatures && (
-          <section
-            id="features"
-            className="mx-auto max-w-7xl px-5 py-20 lg:px-8"
-          >
-            <motion.div
-              {...reveal}
-              className="mb-10 flex flex-wrap items-end justify-between gap-5"
-            >
+
+        {showFeaturesSection && (
+          <section id="features" className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
+            <div className="mb-10 flex flex-wrap items-end justify-between gap-5">
               <div>
                 <p className="landing-eyebrow">
-                  {copy(
-                    'يومك أبسط، عيادتك أقوى',
-                    'A simpler day. A stronger clinic.',
-                  )}
+                  {copy('يومك أبسط، عيادتك أقوى', 'A simpler day. A stronger clinic.')}
                 </p>
                 <h2 className="landing-title">
-                  {copy(
-                    'كل أدواتك. في مكان واحد.',
-                    'All your tools. One workspace.',
-                  )}
+                  {copy('كل أدواتك. في مكان واحد.', 'All your tools. One workspace.')}
                 </h2>
               </div>
               <p className="max-w-sm text-sm leading-7 text-muted-foreground">
@@ -622,16 +611,14 @@ export function LandingPageContent({
                   'Connected tools help your team focus on care, with less switching between systems.',
                 )}
               </p>
-            </motion.div>
+            </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {config.features.map((feature, i) => {
                 const Icon = icons[feature.iconName] || Sparkles
                 return (
-                  <motion.article
-                    {...reveal}
+                  <article
                     key={feature.id}
-                    whileHover={reduced ? undefined : { y: -5 }}
-                    className="group rounded-3xl border border-border bg-card p-6 transition-shadow hover:shadow-xl hover:shadow-primary/5"
+                    className="group rounded-3xl border border-border bg-card p-6 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/5"
                   >
                     <div className="mb-8 flex items-center justify-between">
                       <span className="grid size-12 place-items-center rounded-2xl bg-primary/8 text-primary">
@@ -642,43 +629,32 @@ export function LandingPageContent({
                       </span>
                     </div>
                     <p className="mb-2 text-[10px] font-bold text-primary">
-                      {!isRtl && feature.badgeEn
-                        ? feature.badgeEn
-                        : feature.badge}
+                      {!isRtl && feature.badgeEn ? feature.badgeEn : feature.badge}
                     </p>
                     <h3 className="mb-3 text-base font-black">
-                      {!isRtl && feature.titleEn
-                        ? feature.titleEn
-                        : feature.title}
+                      {!isRtl && feature.titleEn ? feature.titleEn : feature.title}
                     </h3>
                     <p className="text-sm leading-7 text-muted-foreground">
-                      {!isRtl && feature.descriptionEn
-                        ? feature.descriptionEn
-                        : feature.description}
+                      {!isRtl && feature.descriptionEn ? feature.descriptionEn : feature.description}
                     </p>
-                  </motion.article>
+                  </article>
                 )
               })}
             </div>
           </section>
         )}
-        {config.visibility.showScreenshots && current && (
-          <section
-            id="showcase"
-            className="border-y border-border bg-secondary/25 py-20"
-          >
+
+        {showShowcaseSection && (
+          <section id="showcase" className="border-y border-border bg-secondary/25 py-20">
             <div className="mx-auto max-w-7xl px-5 lg:px-8">
-              <motion.div {...reveal} className="mb-10 text-center">
+              <div className="mb-10 text-center">
                 <p className="landing-eyebrow">
                   {copy('جولة في التجربة', 'Meet your next workspace')}
                 </p>
                 <h2 className="landing-title">
-                  {copy(
-                    'شوف التفاصيل اللي بتفرق.',
-                    'See the details that matter.',
-                  )}
+                  {copy('شوف التفاصيل اللي بتفرق.', 'See the details that matter.')}
                 </h2>
-              </motion.div>
+              </div>
               <div
                 className="mb-7 flex flex-wrap justify-center gap-2"
                 role="tablist"
@@ -696,9 +672,7 @@ export function LandingPageContent({
                       if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
                         e.preventDefault()
                         const next =
-                          (i +
-                            (e.key === 'ArrowRight' ? 1 : -1) +
-                            screenshots.length) %
+                          (i + (e.key === 'ArrowRight' ? 1 : -1) + screenshots.length) %
                           screenshots.length
                         setSlide(next)
                         document.getElementById('shot-tab-' + next)?.focus()
@@ -708,11 +682,13 @@ export function LandingPageContent({
                       setSlide(i)
                       setPaused(true)
                     }}
-                    className={`rounded-xl border px-4 py-3 text-xs font-bold ${index === i ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card text-muted-foreground'}`}
+                    className={`rounded-xl border px-4 py-3 text-xs font-bold transition-colors ${
+                      index === i
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-border bg-card text-muted-foreground hover:text-foreground'
+                    }`}
                   >
-                    {!isRtl && shot.categoryEn
-                      ? shot.categoryEn
-                      : shot.category}
+                    {!isRtl && shot.categoryEn ? shot.categoryEn : shot.category}
                   </button>
                 ))}
               </div>
@@ -731,7 +707,10 @@ export function LandingPageContent({
                   onTouchEnd={handleShowcaseTouchEnd}
                   role="button"
                   tabIndex={0}
-                  aria-label={copy('عرض الصورة وتكبيرها (اضغط أو اسحب)', 'View and enlarge image (Click or swipe)')}
+                  aria-label={copy(
+                    'عرض الصورة وتكبيرها (اضغط أو اسحب)',
+                    'View and enlarge image (Click or swipe)',
+                  )}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault()
@@ -743,17 +722,14 @@ export function LandingPageContent({
                   <img
                     key={current.id}
                     src={current.imageUrl}
-                    alt={
-                      !isRtl && current.titleEn ? current.titleEn : current.title
-                    }
+                    alt={!isRtl && current.titleEn ? current.titleEn : current.title}
                     width="1000"
                     height="720"
                     loading="lazy"
+                    decoding="async"
                     draggable={false}
                     className="h-full w-full rounded-2xl object-contain pointer-events-none transition-transform duration-300 group-hover:scale-[1.02]"
                   />
-
-                  {/* Zoom Hint Badge */}
                   <div className="absolute bottom-3 end-3 flex items-center gap-1.5 rounded-xl bg-background/85 px-3 py-1.5 text-xs font-semibold text-foreground shadow-md backdrop-blur-sm border border-border transition-all group-hover:bg-background group-hover:scale-105 pointer-events-none">
                     <ZoomIn className="size-3.5 text-primary" />
                     <span>{copy('تكبير الصورة', 'Enlarge view')}</span>
@@ -761,18 +737,13 @@ export function LandingPageContent({
                 </div>
                 <div className="space-y-5">
                   <span className="text-xs font-mono text-primary">
-                    {String(index + 1).padStart(2, '0')} /{' '}
-                    {String(screenshots.length).padStart(2, '0')}
+                    {String(index + 1).padStart(2, '0')} / {String(screenshots.length).padStart(2, '0')}
                   </span>
                   <h3 className="text-2xl font-black leading-relaxed">
-                    {!isRtl && current.titleEn
-                      ? current.titleEn
-                      : current.title}
+                    {!isRtl && current.titleEn ? current.titleEn : current.title}
                   </h3>
                   <p className="text-sm leading-7 text-muted-foreground">
-                    {!isRtl && current.subtitleEn
-                      ? current.subtitleEn
-                      : current.subtitle}
+                    {!isRtl && current.subtitleEn ? current.subtitleEn : current.subtitle}
                   </p>
                   <ul className="space-y-3">
                     {(!isRtl && current.highlightsEn.length
@@ -843,71 +814,44 @@ export function LandingPageContent({
             />
           </section>
         )}
-        {config.visibility.showFeedback && (
-          <section
-            id="reviews"
-            className="mx-auto max-w-7xl px-5 py-20 lg:px-8"
-          >
-            <motion.div {...reveal} className="mb-10">
+
+        {showReviewsSection && (
+          <section id="reviews" className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
+            <div className="mb-10">
               <p className="landing-eyebrow">
                 {copy('مساحة لصوتكم', 'Your experience matters')}
               </p>
               <h2 className="landing-title">
-                {copy(
-                  'تجربتك بتخلّينا نطوّر.',
-                  'Your feedback helps us improve.',
-                )}
+                {copy('تجربتك بتخلّينا نطوّر.', 'Your feedback helps us improve.')}
               </h2>
-            </motion.div>
+            </div>
             <div className="grid gap-8 lg:grid-cols-[1.2fr_1fr]">
               <div className="grid content-start gap-4 sm:grid-cols-2">
-                {config.feedbacks.filter((review) => review.approved).length ? (
-                  config.feedbacks
-                    .filter((review) => review.approved)
-                    .map((review) => (
-                      <article
-                        key={review.id}
-                        className="rounded-3xl border border-border bg-card p-6"
-                      >
-                        <div
-                          className="mb-4 flex gap-1"
-                          aria-label={`${review.rating}/5`}
-                        >
-                          {Array.from({ length: 5 }, (_, i) => (
-                            <Star
-                              key={i}
-                              className={`size-4 ${i < review.rating ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/30'}`}
-                            />
-                          ))}
-                        </div>
-                        <blockquote className="mb-6 text-sm leading-8">
-                          “{review.comment}”
-                        </blockquote>
-                        <p className="text-sm font-black">
-                          {review.authorName}
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {review.clinicName}
-                        </p>
-                      </article>
-                    ))
-                ) : (
-                  <div className="col-span-full flex min-h-52 flex-col items-center justify-center rounded-3xl border border-dashed border-border p-8 text-center">
-                    <MessageCircle className="mb-4 size-9 text-primary/50" />
-                    <p className="font-bold">
-                      {copy(
-                        'شاركنا تجربتك مع يلا كلينك',
-                        'Share your Yalla Clinic experience',
-                      )}
+                {approvedFeedbacks.map((review) => (
+                  <article
+                    key={review.id}
+                    className="rounded-3xl border border-border bg-card p-6 shadow-sm"
+                  >
+                    <div
+                      className="mb-4 flex gap-1"
+                      aria-label={`${review.rating}/5`}
+                    >
+                      {Array.from({ length: 5 }, (_, i) => (
+                        <Star
+                          key={i}
+                          className={`size-4 ${i < review.rating ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/30'}`}
+                        />
+                      ))}
+                    </div>
+                    <blockquote className="mb-6 text-sm leading-8">
+                      “{review.comment}”
+                    </blockquote>
+                    <p className="text-sm font-black">{review.authorName}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {review.clinicName}
                     </p>
-                    <p className="mt-2 text-xs leading-6 text-muted-foreground">
-                      {copy(
-                        'آراء العملاء المنشورة بعد مراجعتها هتظهر هنا.',
-                        'Approved customer reviews will appear here.',
-                      )}
-                    </p>
-                  </div>
-                )}
+                  </article>
+                ))}
               </div>
               {config.visibility.allowClientFeedbackSubmission && (
                 <form
@@ -1014,10 +958,7 @@ export function LandingPageContent({
                   >
                     {feedbackBusy && <LoaderCircle className="animate-spin" />}
                     {isPreview
-                      ? copy(
-                          'النموذج معطل في البروفة',
-                          'Form disabled in preview',
-                        )
+                      ? copy('النموذج معطل في البروفة', 'Form disabled in preview')
                       : copy('إرسال الرأي للمراجعة', 'Submit for review')}
                   </Button>
                 </form>
@@ -1025,47 +966,9 @@ export function LandingPageContent({
             </div>
           </section>
         )}
-        {showTrialBanner && config.visibility.showTrialBanner && (
-          <section className="mx-auto max-w-7xl px-5 py-8 lg:px-8">
-            <motion.div
-              {...reveal}
-              className="relative overflow-hidden rounded-[2rem] bg-[#07264a] px-7 py-12 text-white sm:px-12"
-            >
-              <div className="absolute -end-20 -top-20 size-80 rounded-full bg-cyan-400/20 blur-3xl" />
-              <div className="relative flex flex-wrap items-center justify-between gap-8">
-                <div className="max-w-2xl">
-                  <p className="mb-3 text-xs font-bold text-cyan-200">
-                    YALLA CLINIC / {copy('خطوتك الجاية', 'YOUR NEXT STEP')}
-                  </p>
-                  <h2 className="text-2xl font-black leading-relaxed sm:text-4xl">
-                    {copy(
-                      'جاهز تشوف الفرق في عيادتك؟',
-                      'Ready to see the difference in your clinic?',
-                    )}
-                  </h2>
-                  <p className="mt-4 text-sm leading-7 text-white/65">
-                    {copy(
-                      `اطلب تجربة مجانية لمدة ${config.trialDaysCount} أيام، وفريقنا يتواصل معاك لترتيب البداية.`,
-                      `Request a ${config.trialDaysCount}-day free trial. Our team will help you get started.`,
-                    )}
-                  </p>
-                </div>
-                <Button
-                  onClick={() => setTrialOpen(true)}
-                  className="h-13 rounded-2xl bg-white px-7 font-black text-[#07264a] hover:bg-cyan-50"
-                >
-                  {headline('trialButtonText')}
-                  <ArrowUpRight />
-                </Button>
-              </div>
-            </motion.div>
-          </section>
-        )}
-        {config.visibility.showContacts && (
-          <section
-            id="contact"
-            className="mx-auto max-w-7xl px-5 py-20 lg:px-8"
-          >
+
+        {showContactsSection && (
+          <section id="contact" className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
             <div className="mb-9">
               <p className="landing-eyebrow">{copy('نتكلم؟', 'Let’s talk')}</p>
               <h2 className="landing-title">
@@ -1074,38 +977,31 @@ export function LandingPageContent({
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {config.contacts.map((contact) => {
-                const wa = whatsappNumber(
-                  contact.whatsappNumber || contact.number,
-                )
+                const wa = whatsappNumber(contact.whatsappNumber || contact.number)
                 return (
                   <article
                     key={contact.id}
-                    className="rounded-3xl border border-border bg-card p-6"
+                    className="rounded-3xl border border-border bg-card p-6 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-primary/35 hover:shadow-xl hover:shadow-primary/5"
                   >
                     <span className="mb-5 grid size-11 place-items-center rounded-2xl bg-primary/10 text-primary">
                       <Phone className="size-5" />
                     </span>
                     <h3 className="text-sm font-bold">
-                      {!isRtl && contact.roleTitleEn
-                        ? contact.roleTitleEn
-                        : contact.roleTitle}
+                      {!isRtl && contact.roleTitleEn ? contact.roleTitleEn : contact.roleTitle}
                       {contact.isPrimary && (
                         <span className="ms-2 rounded-full bg-primary/10 px-2 py-1 text-[9px] text-primary">
                           {copy('الرقم الرئيسي', 'Primary')}
                         </span>
                       )}
                     </h3>
-                    <p
-                      className="my-4 text-start text-2xl font-black"
-                      dir="ltr"
-                    >
+                    <p className="my-4 text-start text-2xl font-black" dir="ltr">
                       {contact.number}
                     </p>
                     <div className="flex gap-3 text-xs font-bold">
                       <a
                         onClick={previewLink}
                         href={'tel:+' + whatsappNumber(contact.number)}
-                        className="flex items-center gap-2 rounded-xl border border-border px-4 py-3"
+                        className="flex items-center gap-2 rounded-xl border border-border px-4 py-3 transition-colors hover:border-primary/40 hover:bg-secondary/40"
                       >
                         <Phone className="size-4" />
                         {copy('اتصال', 'Call')}
@@ -1116,7 +1012,7 @@ export function LandingPageContent({
                           href={'https://wa.me/' + wa}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-2 rounded-xl bg-emerald-500/10 px-4 py-3 text-emerald-700 dark:text-emerald-400"
+                          className="flex items-center gap-2 rounded-xl bg-emerald-500/10 px-4 py-3 text-emerald-700 dark:text-emerald-400 transition-colors hover:bg-emerald-500/20"
                         >
                           <MessageCircle className="size-4" />
                           {copy('واتساب', 'WhatsApp')}
@@ -1137,7 +1033,7 @@ export function LandingPageContent({
           <Link
             href="/owner"
             onClick={previewLink}
-            className="flex items-center gap-2 hover:text-primary"
+            className="flex items-center gap-2 hover:text-primary transition-colors"
           >
             <ShieldCheck className="size-4" />
             {copy('إدارة المنصة', 'Platform administration')}
