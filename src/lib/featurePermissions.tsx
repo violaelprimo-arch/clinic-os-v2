@@ -15,7 +15,8 @@ import {
   ShieldAlert,
   ArrowRight,
   MessageSquare,
-  Crown
+  Crown,
+  Tv
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -29,6 +30,7 @@ export type FeatureKey =
   | 'ai'
   | 'branches'
   | 'onlineBooking'
+  | 'tvScreen'
 
 export interface FeatureMetadata {
   key: FeatureKey
@@ -111,6 +113,14 @@ export const SYSTEM_FEATURES: Record<FeatureKey, FeatureMetadata> = {
     description: 'صفحة خاصة للمرضى لحجز المواعيد إلكترونياً ومتابعة رقم الدور بدقة دون انتظار.',
     category: 'marketing',
     icon: Calendar
+  },
+  tvScreen: {
+    key: 'tvScreen',
+    label: 'شاشة التلفزيون الذكية والنداء الصوتي (Smart TV)',
+    shortLabel: 'شاشة التلفزيون والنداء',
+    description: 'تشغيل شاشة العيادة الذكية للانتظار مع النداء الصوتي للمرضى والشريط الإخباري المتحرك.',
+    category: 'management',
+    icon: Tv
   }
 }
 
@@ -131,6 +141,9 @@ export function isClinicFeatureEnabled(
 
   // 1. Direct Owner Hard Locks
   if (feature === 'ai' && clinic.aiLockedByOwner === true) {
+    return false
+  }
+  if (feature === 'tvScreen' && (clinic.tvLockedByOwner === true || clinic.allowTvScreen === false)) {
     return false
   }
 
@@ -168,6 +181,9 @@ export function isClinicFeatureEnabled(
       case 'onlineBooking':
         if (perms.allowOnlineBooking === false) return false
         break
+      case 'tvScreen':
+        if (perms.allowTvScreen === false) return false
+        break
     }
   }
 
@@ -199,6 +215,9 @@ export function isClinicFeatureEnabled(
       break
     case 'onlineBooking':
       if (clinic.allowOnlineBooking === false) return false
+      break
+    case 'tvScreen':
+      if (clinic.allowTvScreen === false || clinic.tvLockedByOwner === true) return false
       break
   }
 
@@ -232,6 +251,9 @@ export function isClinicFeatureEnabled(
       case 'onlineBooking':
         if (perms.allowOnlineBooking === true) return true
         break
+      case 'tvScreen':
+        if (perms.allowTvScreen === true) return true
+        break
     }
   }
 
@@ -263,6 +285,9 @@ export function isClinicFeatureEnabled(
       break
     case 'onlineBooking':
       if (clinic.allowOnlineBooking !== undefined) return Boolean(clinic.allowOnlineBooking)
+      break
+    case 'tvScreen':
+      if (clinic.allowTvScreen !== undefined) return Boolean(clinic.allowTvScreen) && !clinic.tvLockedByOwner
       break
   }
 

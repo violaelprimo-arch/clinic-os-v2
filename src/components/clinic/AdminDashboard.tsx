@@ -33,6 +33,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
   const isFinanceEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'finance'), [clinic])
   const isPrescriptionsEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'prescriptions'), [clinic])
   const isPatientAlertsEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'patientAlerts'), [clinic])
+  const isTvEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'tvScreen'), [clinic])
 
   const [rawAppointments, setRawAppointments] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -656,7 +657,10 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
         priorityNext: true,
         requeuedAt: new Date().toISOString()
       })
-      toast.success(`تم جدولة المريض رقم #${patient.queue_number} (${patient.patientName}) ليكون دوره هو القادم مباشرة بعد المريض الحالي.`)
+      if (statusTabFilter === 'skipped') {
+        setStatusTabFilter('all')
+      }
+      toast.success(`تم إدخال المريض رقم #${patient.queue_number} (${patient.patientName}) في الدور القادم مباشرة بعد الحالة الحالية.`)
     } catch (err) {
       console.error('Error requeueing patient:', err)
       toast.error('حدث خطأ أثناء إعادة إدخال المريض.')
@@ -1346,15 +1350,27 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
             )}
 
             {/* TV Screen View Link */}
-            <Link
-              href={`/clinic/${clinic.slug}/tv`}
-              target="_blank"
-              className="h-10 px-3.5 text-xs font-black bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 rounded-2xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
-              title="فتح شاشة صالة الانتظار للتلفزيون والشاشات الكبيرة"
-            >
-              <Tv className="w-4 h-4 text-primary" />
-              <span>شاشة الانتظار (TV) 📺</span>
-            </Link>
+            {isTvEnabled ? (
+              <Link
+                href={`/clinic/${clinic.slug}/tv`}
+                target="_blank"
+                className="h-10 px-3.5 text-xs font-black bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 rounded-2xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+                title="فتح شاشة صالة الانتظار للتلفزيون والشاشات الكبيرة"
+              >
+                <Tv className="w-4 h-4 text-primary" />
+                <span>شاشة الانتظار (TV) 📺</span>
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => toast.info('خدمة شاشة التلفزيون غير مفعلة في باقة العيادة الحالية أو مغلقة من قبل الإدارة.')}
+                className="h-10 px-3.5 text-xs font-bold bg-secondary text-muted-foreground border border-border rounded-2xl flex items-center gap-1.5 opacity-60 cursor-not-allowed"
+                title="خدمة شاشة التلفزيون غير مفعلة لهذه العيادة"
+              >
+                <Tv className="w-4 h-4 text-muted-foreground" />
+                <span>شاشة الانتظار 🔒</span>
+              </button>
+            )}
             <Button
               size="sm"
               variant="outline"

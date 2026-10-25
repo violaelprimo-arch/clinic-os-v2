@@ -16,7 +16,7 @@ import {
   Sparkles, Upload, Search, ExternalLink, Power, Check,
   AlertCircle, Eye, ShieldCheck, Clock, Users, ArrowUpRight,
   Copy, CheckCircle, RefreshCw, ChevronLeft, Calendar, Download,
-  FileSpreadsheet, Layers, Key, EyeOff, Package, Crown,
+  FileSpreadsheet, Tv, Layers, Key, EyeOff, Package, Crown,
   Gem, Rocket, Stethoscope, Building2, Star, Award, Zap, X, Tag,
   Palette, Pill, Receipt, Bell, CreditCard
 } from 'lucide-react'
@@ -222,6 +222,7 @@ function OwnerDashboard() {
   const [pkgAllowAi, setPkgAllowAi] = useState(true)
   const [pkgAllowBranches, setPkgAllowBranches] = useState(true)
   const [pkgAllowOnlineBooking, setPkgAllowOnlineBooking] = useState(true)
+  const [pkgAllowTvScreen, setPkgAllowTvScreen] = useState(true)
 
   // Clinic Package & AI Limits for active clinic
   const [packageName, setPackageName] = useState('الباقة الأساسية')
@@ -236,6 +237,7 @@ function OwnerDashboard() {
   const [allowCustomTemplate, setAllowCustomTemplate] = useState(true)
   const [allowPatientAlerts, setAllowPatientAlerts] = useState(true)
   const [allowOnlineBooking, setAllowOnlineBooking] = useState(true)
+  const [allowTvScreen, setAllowTvScreen] = useState(true)
 
   // Edit mode
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -771,7 +773,8 @@ function OwnerDashboard() {
     patientAlerts: 'تنبيهات المرضى التلقائية وتتبع الدور',
     ai: 'المساعد الطبي الذكي (AI Chatbot) للرد والتدريب',
     branches: 'إدارة الفروع والمراكز المتعددة للعيادة',
-    onlineBooking: 'بوابة الحجز الذاتي للمرضى والدور المباشر'
+    onlineBooking: 'بوابة الحجز الذاتي للمرضى والدور المباشر',
+    tvScreen: 'شاشة التلفزيون الذكية والنداء الصوتي (Smart TV)'
   }
 
   const handleTogglePackageFeature = (featureKey: string, checked: boolean) => {
@@ -784,6 +787,7 @@ function OwnerDashboard() {
     else if (featureKey === 'ai') setPkgAllowAi(checked)
     else if (featureKey === 'branches') setPkgAllowBranches(checked)
     else if (featureKey === 'onlineBooking') setPkgAllowOnlineBooking(checked)
+    else if (featureKey === 'tvScreen') setPkgAllowTvScreen(checked)
 
     const title = FEATURE_TITLES[featureKey]
     if (!title) return
@@ -867,6 +871,7 @@ function OwnerDashboard() {
     setPkgAllowAi(pkg.allowAi !== false)
     setPkgAllowBranches(pkg.allowBranches !== false)
     setPkgAllowOnlineBooking(pkg.allowOnlineBooking !== false)
+    setPkgAllowTvScreen(pkg.allowTvScreen !== false)
     setPkgFeatures(Array.isArray(pkg.features) ? pkg.features.join('\n') : '')
     setPkgNewFeatureInput('')
     setIsPackageModalOpen(true)
@@ -932,6 +937,7 @@ function OwnerDashboard() {
       allowAi: pkgAllowAi,
       allowBranches: pkgAllowBranches,
       allowOnlineBooking: pkgAllowOnlineBooking,
+      allowTvScreen: pkgAllowTvScreen,
       features: featuresList,
       updatedAt: new Date().toISOString()
     }
@@ -963,7 +969,8 @@ function OwnerDashboard() {
               allowPatientAlerts: pkgAllowPatientAlerts,
               allowAi: pkgAllowAi,
               allowBranches: pkgAllowBranches,
-              allowOnlineBooking: pkgAllowOnlineBooking
+              allowOnlineBooking: pkgAllowOnlineBooking,
+              allowTvScreen: pkgAllowTvScreen
             },
             aiResponsesLimit: Number(pkgAiLimit) || 100,
             maxBranches: Number(pkgMaxBranches) || 1
@@ -1124,6 +1131,8 @@ function OwnerDashboard() {
         allowCustomTemplate: allowCustomTemplate !== false,
         allowPatientAlerts: allowPatientAlerts !== false,
         allowOnlineBooking: allowOnlineBooking !== false,
+        allowTvScreen: allowTvScreen !== false,
+        tvLockedByOwner: !allowTvScreen,
 
         heroImage,
         heroTitle,
@@ -1268,6 +1277,7 @@ function OwnerDashboard() {
     setAllowCustomTemplate(c.allowCustomTemplate !== false)
     setAllowPatientAlerts(c.allowPatientAlerts !== false)
     setAllowOnlineBooking(c.allowOnlineBooking !== false)
+    setAllowTvScreen(c.allowTvScreen !== false && c.tvLockedByOwner !== true)
     setLogoUrl(c.logoUrl || '')
     setThermalMonoLogoUrl(c.thermalMonoLogoUrl || '')
     setPrimaryColor(c.primaryColor || '#087CF4')
@@ -3536,6 +3546,22 @@ function OwnerDashboard() {
                       </div>
                       <Switch checked={pkgAllowOnlineBooking} onCheckedChange={val => handleTogglePackageFeature('onlineBooking', val)} />
                     </div>
+
+                    {/* 10. Smart TV Screen */}
+                    <div className="p-3 rounded-xl bg-white border border-slate-200 flex items-center justify-between sm:col-span-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                          <Tv className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <Label className="text-xs font-bold text-slate-800 block cursor-pointer">
+                            شاشة التلفزيون الذكية والنداء الصوتي (Smart TV)
+                          </Label>
+                          <span className="text-[10px] text-slate-400 block">شاشة الانتظار للعيادة مع النداء الصوتي والشريط الإخباري</span>
+                        </div>
+                      </div>
+                      <Switch checked={pkgAllowTvScreen} onCheckedChange={val => handleTogglePackageFeature('tvScreen', val)} />
+                    </div>
                   </div>
                 </div>
 
@@ -4385,6 +4411,18 @@ function OwnerDashboard() {
                         </div>
                       </div>
                       <Switch checked={allowOnlineBooking} onCheckedChange={setAllowOnlineBooking} />
+                    </div>
+
+                    {/* TV Screen and Voice Call Toggle */}
+                    <div className="p-3 rounded-xl bg-white border border-slate-200 flex items-center justify-between sm:col-span-2 md:col-span-3">
+                      <div className="flex items-center gap-2">
+                        <Tv className="w-4 h-4 text-indigo-600" />
+                        <div>
+                          <Label className="text-xs font-bold text-slate-800 block cursor-pointer">شاشة التلفزيون الذكية والنداء الصوتي (Smart TV)</Label>
+                          <span className="text-[9px] text-slate-400">تشغيل أو قفل شاشة التلفزيون والنداء الصوتي الذكي على هذه العيادة</span>
+                        </div>
+                      </div>
+                      <Switch checked={allowTvScreen} onCheckedChange={setAllowTvScreen} />
                     </div>
 
                     {/* Booking Availability (Today Only vs Today + Future Days) */}

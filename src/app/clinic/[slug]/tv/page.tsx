@@ -13,6 +13,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import Link from 'next/link'
+import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 
 interface TvConfig {
   tickerText: string
@@ -645,6 +646,12 @@ export default function WaitingRoomTvPage({
     }
   }
 
+  // Check if TV Screen feature is enabled for clinic by Owner / Package
+  const isTvEnabled = useMemo(() => {
+    if (!clinic) return true
+    return isClinicFeatureEnabled(clinic, 'tvScreen')
+  }, [clinic])
+
   // Active branch label
   const activeBranchName = selectedBranchId !== 'all'
     ? clinic?.branches?.find((b: any) => b.id === selectedBranchId)?.name || 'الفرع المحدد'
@@ -658,6 +665,34 @@ export default function WaitingRoomTvPage({
   const marqueeAnimationClass = tvConfig.tickerDirection === 'ltr' ? 'animate-marquee-ltr' : 'animate-marquee-rtl'
 
   const isDark = themeMode === 'dark'
+
+  if (clinic && !isTvEnabled) {
+    return (
+      <div className={`min-h-screen w-full flex flex-col items-center justify-center p-6 text-center select-none ${
+        isDark ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-900'
+      }`} dir="rtl">
+        <div className="max-w-md w-full p-8 rounded-3xl border border-rose-500/20 bg-rose-500/5 backdrop-blur-xl shadow-2xl space-y-5">
+          <div className="w-20 h-20 rounded-3xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center mx-auto text-rose-500 shadow-lg">
+            <Tv className="w-10 h-10" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-xl font-black text-foreground">شاشة التلفزيون الذكية غير مفعلة</h2>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              تم إيقاف خدمة شاشة الانتظار والنداء الصوتي لهذه العيادة من قبل إدارة المنصة أو باقة الاشتراك الحالية. يرجى التواصل مع إدارة النظام لتفعيل الشاشة أو ترقية الباقة.
+            </p>
+          </div>
+          <div className="pt-2">
+            <Link
+              href={`/clinic/${slug}`}
+              className="inline-flex items-center justify-center w-full h-11 rounded-2xl bg-primary hover:bg-primary-hover text-white text-xs font-black shadow-md transition-all active:scale-95"
+            >
+              العودة لصفحة العيادة
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div

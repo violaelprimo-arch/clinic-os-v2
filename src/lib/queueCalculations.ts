@@ -203,7 +203,7 @@ export function sortQueue(appointments: any[], clinic?: any): any[] {
     }
   }
 
-  return orderedWaiting
+  return [...priorityAppts, ...orderedWaiting]
 }
 
 export interface PatientQueueStatusResult {
