@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import {
-  Plus, Printer, Trash2, Search, FileSignature, MapPin,
+  Plus, Printer, Trash2, Search, FileSignature, MapPin, Globe, Loader2,
   Phone, User as UserIcon, Star, Check, MessageCircle,
   FileText, ShieldCheck, ChevronDown, Sparkles, Download, Palette, Image as ImageIcon, Lock,
   Eye, ZoomIn, ZoomOut
@@ -18,7 +18,7 @@ import { db } from '@/lib/firebase'
 import { collection, addDoc, query, where, getDocs, doc, updateDoc, onSnapshot } from 'firebase/firestore'
 import { useSearchParams } from 'next/navigation'
 import { EGYPTIAN_DRUGS } from '@/lib/egyptian-drugs'
-import { useEgyptianDrugs } from '@/hooks/useEgyptianDrugs'
+import { useEgyptianDrugs, type EgyptianDrug } from '@/hooks/useEgyptianDrugs'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
 import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
@@ -72,7 +72,8 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     }
   }
 
-  const { drugs: apiDrugs, loading: apiDrugsLoading } = useEgyptianDrugs()
+  const { drugs: apiDrugs, loading: apiDrugsLoading, searchDrugs, syncDrugLive } = useEgyptianDrugs()
+  const [isLiveSyncing, setIsLiveSyncing] = useState(false)
   const [drugs, setDrugs] = useState<any[]>([
     { id: 1, name: searchParams?.get('drug') || '', dosage: '', duration: '', notes: '' }
   ])
@@ -463,39 +464,48 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     printHtmlViaIframe(html, pageSize)
   }
 
-  // Precomputed unique drug list for ultra-fast autocomplete with zero keystroke lag
-  const allDrugOptions = useMemo(() => {
-    const list: string[] = []
-    const seen = new Set<string>()
-    for (const d of apiDrugs) {
-      const name = (d.commercial_name_en || d.commercial_name_ar || '').trim()
-      if (name && !seen.has(name.toLowerCase())) {
-        seen.add(name.toLowerCase())
-        list.push(name)
-      }
-    }
-    for (const name of EGYPTIAN_DRUGS) {
-      if (!seen.has(name.toLowerCase())) {
-        seen.add(name.toLowerCase())
-        list.push(name)
-      }
-    }
-    return list
-  }, [apiDrugs])
-
-  // Filtered drugs for quick search (instant response with early exit)
+  // Filtered drugs for quick search with bilingual matching (Arabic & English)
   const filteredSearchDrugs = useMemo(() => {
-    const term = drugSearch.trim().toLowerCase()
-    if (!term) return []
-    const matched: string[] = []
-    for (let i = 0; i < allDrugOptions.length; i++) {
-      if (allDrugOptions[i].toLowerCase().includes(term)) {
-        matched.push(allDrugOptions[i])
-        if (matched.length >= 8) break
-      }
+    if (!drugSearch.trim()) return []
+    return searchDrugs(drugSearch, 10)
+  }, [drugSearch, searchDrugs])
+
+  const handleSelectEgyptianDrug = (d: EgyptianDrug) => {
+    const tradeEn = (d.commercial_name_en || d.name || '').trim()
+    const tradeAr = (d.commercial_name_ar || d.nameAr || '').trim()
+    
+    // Construct rich clinical prescription name
+    let displayName = tradeEn
+    if (tradeEn && tradeAr && tradeEn.toLowerCase() !== tradeAr.toLowerCase()) {
+      displayName = `${tradeEn} (${tradeAr})`
+    } else if (!displayName) {
+      displayName = tradeAr || 'مستحضر دوائي'
     }
-    return matched
-  }, [drugSearch, allDrugOptions])
+
+    // Smart dosage default based on form
+    let defaultDosage = language === 'en' ? '1 tablet every 12 hours' : 'قرص كل 12 ساعة بعد الأكل'
+    let defaultDuration = language === 'en' ? 'for 5 days' : 'لمدة 5 أيام'
+    const formLower = (d.form || d.route || '').toLowerCase()
+    if (formLower.includes('syrup') || formLower.includes('شراب') || formLower.includes('suspension')) {
+      defaultDosage = language === 'en' ? '1 tablespoon 3 times daily' : 'ملعقة كبيرة 3 مرات يومياً'
+      defaultDuration = language === 'en' ? 'for 5 days' : 'لمدة 5 أيام'
+    } else if (formLower.includes('drop') || formLower.includes('نقط')) {
+      defaultDosage = language === 'en' ? '3 drops 3 times daily' : '3 نقط 3 مرات يومياً'
+      defaultDuration = language === 'en' ? 'for 7 days' : 'لمدة 7 أيام'
+    } else if (formLower.includes('cream') || formLower.includes('ointment') || formLower.includes('مرهم') || formLower.includes('كريم') || formLower.includes('gel')) {
+      defaultDosage = language === 'en' ? 'Apply twice daily' : 'دهان موضعي مرتين يومياً'
+      defaultDuration = language === 'en' ? 'for 10 days' : 'لمدة 10 أيام'
+    } else if (formLower.includes('amp') || formLower.includes('vial') || formLower.includes('حقن') || formLower.includes('امبول') || formLower.includes('injection')) {
+      defaultDosage = language === 'en' ? '1 ampoule IM when needed' : 'أمبول عضل عند اللزوم'
+      defaultDuration = language === 'en' ? 'for 3 days' : 'لمدة 3 أيام'
+    }
+
+    const priceVal = d.price_egp || d.price || 0
+    const priceText = priceVal > 0 ? (language === 'en' ? `Price: ${priceVal} EGP` : `السعر: ${priceVal} ج.م`) : ''
+
+    addDrug(displayName, defaultDosage, defaultDuration, priceText)
+    setDrugSearch('')
+  }
 
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto" dir={dir}>
@@ -801,42 +811,184 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                   </div>
                 </div>
 
-                {/* Drug Search Input with Voice */}
-                <div className="relative flex items-center">
-                  <Search className="w-4 h-4 absolute end-3 top-3 text-muted-foreground pointer-events-none" />
-                  <Input
-                    value={drugSearch}
-                    onChange={e => setDrugSearch(e.target.value)}
-                    placeholder={t('search_egyptian_drugs', 'ابحث في قاعدة الأدوية المصرية...')}
-                    className="h-10 pe-16 text-xs rounded-xl bg-background border-border text-foreground"
-                  />
-                  <div className="absolute end-8 flex items-center">
-                    <VoiceDictationButton
-                      fieldId="drug-search"
-                      fieldLabel="البحث في الأدوية"
+                {/* Drug Search Input with Voice & DawaaGate Autocomplete */}
+                <div className="relative">
+                  <div className="relative flex items-center">
+                    <Search className="w-4 h-4 absolute end-3 top-3 text-muted-foreground pointer-events-none" />
+                    <Input
                       value={drugSearch}
-                      onChange={setDrugSearch}
-                      language={dictationLang}
-                      onLanguageChange={setDictationLang}
-                      size="sm"
-                      showLanguagePill={false}
-                      showStatusBadge={false}
+                      onChange={e => setDrugSearch(e.target.value)}
+                      placeholder={t('search_egyptian_drugs', 'ابحث باسم الدواء (عربي أو إنجليزي)...')}
+                      className="h-10 pe-16 text-xs rounded-xl bg-background border-border text-foreground"
                     />
+                    <div className="absolute end-8 flex items-center">
+                      <VoiceDictationButton
+                        fieldId="drug-search"
+                        fieldLabel="البحث في الأدوية"
+                        value={drugSearch}
+                        onChange={setDrugSearch}
+                        language={dictationLang}
+                        onLanguageChange={setDictationLang}
+                        size="sm"
+                        showLanguagePill={false}
+                        showStatusBadge={false}
+                      />
+                    </div>
                   </div>
-                  {filteredSearchDrugs.length > 0 && (
-                    <div className="absolute top-full start-0 w-full mt-1 bg-card border border-border shadow-xl rounded-xl z-50 overflow-hidden divide-y divide-border">
-                      {filteredSearchDrugs.map((d, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => {
-                            addDrug(d, language === 'en' ? '1 tablet q12h' : 'قرص كل 12 ساعة', language === 'en' ? 'for 5 days' : 'لمدة 5 أيام')
-                            setDrugSearch('')
-                          }}
-                          className="w-full text-start p-2.5 text-xs font-bold text-foreground hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer"
-                        >
-                          + {d}
-                        </button>
-                      ))}
+
+                  {/* Bilingual Autocomplete Dropdown */}
+                  {drugSearch.trim().length > 0 && (
+                    <div className="absolute top-full start-0 w-full mt-1 bg-card border border-border shadow-2xl rounded-2xl z-50 overflow-hidden divide-y divide-border">
+                      {filteredSearchDrugs.length > 0 ? (
+                        <>
+                          <div className="p-2 bg-secondary/50 text-[11px] font-bold text-muted-foreground flex items-center justify-between">
+                            <span className="flex items-center gap-1.5">
+                              <Sparkles className="w-3.5 h-3.5 text-primary" />
+                              {language === 'en' ? 'Egyptian Drug Database Matches' : 'الأدوية المطابقة (دليل دواء مصر)'}
+                            </span>
+                            <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-black">
+                              {filteredSearchDrugs.length} {language === 'en' ? 'results' : 'نتائج'}
+                            </span>
+                          </div>
+                          <div className="max-h-64 overflow-y-auto divide-y divide-border">
+                            {filteredSearchDrugs.map((d, idx) => {
+                              const tradeAr = d.commercial_name_ar || d.nameAr || ''
+                              const tradeEn = d.commercial_name_en || d.name || ''
+                              const priceVal = d.price_egp || d.price || 0
+                              return (
+                                <button
+                                  key={d.id || idx}
+                                  type="button"
+                                  onClick={() => handleSelectEgyptianDrug(d)}
+                                  className="w-full text-start p-2.5 hover:bg-primary/5 transition-colors cursor-pointer flex items-center justify-between gap-3 group"
+                                >
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="font-black text-xs text-foreground group-hover:text-primary transition-colors">
+                                        {tradeAr || tradeEn}
+                                      </span>
+                                      {tradeAr && tradeEn && (
+                                        <span className="text-[11px] font-mono text-muted-foreground">
+                                          ({tradeEn})
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground flex-wrap">
+                                      {d.form && (
+                                        <span className="bg-secondary px-1.5 py-0.5 rounded text-[10px] font-semibold text-foreground/80">
+                                          {tDynamic(d.form)}
+                                        </span>
+                                      )}
+                                      {(d.activeIngredient || d.scientific_name) && (
+                                        <span className="truncate max-w-[170px] font-mono">
+                                          {d.activeIngredient || d.scientific_name}
+                                        </span>
+                                      )}
+                                      {(d.company || d.manufacturer) && (
+                                        <span className="truncate max-w-[110px]">
+                                          • {d.company || d.manufacturer}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="shrink-0 flex flex-col items-end gap-1">
+                                    {priceVal > 0 ? (
+                                      <span className="px-2 py-0.5 rounded-lg text-[11px] font-black bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                        {priceVal} {language === 'en' ? 'EGP' : 'ج.م'}
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] text-muted-foreground">
+                                        {language === 'en' ? 'Official' : 'تسعيرة معتمدة'}
+                                      </span>
+                                    )}
+                                    <span className="text-[9px] font-bold text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                                      + {language === 'en' ? 'Add' : 'إضافة للروشتة'}
+                                    </span>
+                                  </div>
+                                </button>
+                              )
+                            })}
+                          </div>
+
+                          {/* DawaaGate Direct Live Query Option */}
+                          <div className="p-2 bg-secondary/30 flex items-center justify-between gap-2 border-t border-border">
+                            <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                              <Globe className="w-3 h-3 text-primary shrink-0" />
+                              <span>{language === 'en' ? 'DawaaGate Live Search (27,600+ drugs)' : 'بحث مباشر في دواء جيت (27,600+ دواء مصري)'}</span>
+                            </span>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={isLiveSyncing}
+                              onClick={async (e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                setIsLiveSyncing(true)
+                                try {
+                                  await syncDrugLive(drugSearch)
+                                  toast.success(language === 'en' ? 'Catalog updated from DawaaGate' : 'تم تحديث البيانات من دواء جيت')
+                                } finally {
+                                  setIsLiveSyncing(false)
+                                }
+                              }}
+                              className="h-6 text-[10px] font-black px-2 bg-primary/10 hover:bg-primary text-primary hover:text-white border-primary/20 rounded-lg cursor-pointer"
+                            >
+                              {isLiveSyncing ? (
+                                <>
+                                  <Loader2 className="w-2.5 h-2.5 animate-spin me-1" />
+                                  <span>{language === 'en' ? 'Syncing...' : 'جاري الفحص...'}</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles className="w-2.5 h-2.5 me-1" />
+                                  <span>{language === 'en' ? 'Sync live' : 'فحص ومطابقة'}</span>
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="p-4 text-center space-y-2.5">
+                          <p className="text-xs text-muted-foreground font-semibold">
+                            {language === 'en'
+                              ? `No local matches found for "${drugSearch}"`
+                              : `لم يتم العثور على دواء محلي مطابق لـ «${drugSearch}»`}
+                          </p>
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={isLiveSyncing}
+                            onClick={async () => {
+                              setIsLiveSyncing(true)
+                              try {
+                                const found = await syncDrugLive(drugSearch)
+                                if (found && found.length > 0) {
+                                  toast.success(language === 'en' ? `Found ${found.length} drugs from DawaaGate` : `تم العثور على ${found.length} أدوية من دواء جيت`)
+                                } else {
+                                  toast.info(language === 'en' ? 'No new items found on DawaaGate' : 'لم نجد أدوية جديدة بهذا الاسم على دواء جيت')
+                                }
+                              } finally {
+                                setIsLiveSyncing(false)
+                              }
+                            }}
+                            className="h-8 text-xs font-black yalla-gradient-btn text-white rounded-xl shadow-md cursor-pointer mx-auto"
+                          >
+                            {isLiveSyncing ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />
+                                <span>{language === 'en' ? 'Searching DawaaGate...' : 'جارٍ البحث في دواء جيت (27,600+)...'}</span>
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-3.5 h-3.5 me-1.5" />
+                                <span>{language === 'en' ? `Search DawaaGate for "${drugSearch}"` : `بحث مباشر في دواء جيت عن «${drugSearch}»`}</span>
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

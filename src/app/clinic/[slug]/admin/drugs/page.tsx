@@ -16,7 +16,7 @@ import { db } from '@/lib/firebase'
 import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore'
 import { DrugItem } from '@/lib/egyptian-drugs'
 import { useEgyptianDrugs } from '@/hooks/useEgyptianDrugs'
-import { canonicalDrugIdentifier } from '@/lib/drugUtils'
+import { canonicalDrugIdentifier, matchesDrugSearch } from '@/lib/drugUtils'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { useLanguage } from '@/context/LanguageContext'
@@ -40,7 +40,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false)
   
   const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 8
+  const itemsPerPage = 20
 
   // Details Modal
   const [selectedDrug, setSelectedDrug] = useState<DrugItem | null>(null)
@@ -149,16 +149,20 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
     // 2. Add API drugs from authoritative market catalog if not already set by custom
     for (let idx = 0; idx < apiDrugs.length; idx++) {
       const api = apiDrugs[idx]
-      const name = api.commercial_name_en || api.commercial_name_ar
+      const name = api.name || api.commercial_name_en || api.commercial_name_ar
       const key = canonicalDrugIdentifier(name) || `api-${idx}`
       if (!drugMap.has(key)) {
         drugMap.set(key, {
-          id: `api-${idx}`,
+          id: api.id || `api-${idx}`,
+          slug: api.slug,
           name: name,
-          activeIngredient: api.scientific_name || 'غير متوفر',
-          company: api.manufacturer || 'غير محددة',
-          form: (api.route || 'غير محدد') as any,
-          price: api.price_egp || 0,
+          nameAr: api.nameAr || api.commercial_name_ar || '',
+          commercial_name_en: api.commercial_name_en || name,
+          commercial_name_ar: api.commercial_name_ar || api.nameAr || '',
+          activeIngredient: api.activeIngredient || api.scientific_name || 'غير متوفر',
+          company: api.company || api.manufacturer || 'غير محددة',
+          form: (api.form || api.route || 'غير محدد') as any,
+          price: api.price || api.price_egp || 0,
           isFavorite: false,
           isMarketUpdated: api.isMarketUpdated,
           lastMarketUpdate: api.lastMarketUpdate,
@@ -244,10 +248,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
 
   const filtered = useMemo(() => {
     return allDrugs.filter(d => {
-      const matchSearch =
-        d.name.toLowerCase().includes(search.toLowerCase()) ||
-        d.activeIngredient.toLowerCase().includes(search.toLowerCase()) ||
-        d.company.toLowerCase().includes(search.toLowerCase())
+      const matchSearch = matchesDrugSearch(d, search)
       const matchCompany = companyFilter === 'ALL' || d.company === companyFilter
       const matchForm = formFilter === 'ALL' || d.form === formFilter
       const matchFav = !showOnlyFavorites || favoriteList.includes(d.name)
@@ -415,6 +416,49 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
         </div>
       </div>
 
+      {/* 2. DawaaGate & Market Overview Statistics */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="yalla-card p-3.5 bg-card border border-border flex items-center gap-3 shadow-xs">
+          <div className="w-10 h-10 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
+            <Pill className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="text-[11px] text-muted-foreground font-semibold">{t('loaded_drugs', 'دليل الأدوية الفوري')}</div>
+            <div className="text-base font-black text-foreground">{allDrugs.length.toLocaleString()} {t('medication', 'دواء')}</div>
+          </div>
+        </div>
+
+        <div className="yalla-card p-3.5 bg-card border border-border flex items-center gap-3 shadow-xs">
+          <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 text-cyan-500 flex items-center justify-center shrink-0">
+            <Building2 className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="text-[11px] text-muted-foreground font-semibold">{t('dawaagate_coverage', 'قاعدة دواء جيت')}</div>
+            <div className="text-base font-black text-foreground">27,600+ {t('medication', 'دواء')}</div>
+          </div>
+        </div>
+
+        <div className="yalla-card p-3.5 bg-card border border-border flex items-center gap-3 shadow-xs">
+          <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+            <Sparkles className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="text-[11px] text-muted-foreground font-semibold">{t('price_tracking', 'تسعيرة الدواء')}</div>
+            <div className="text-base font-black text-emerald-600 dark:text-emerald-400">{t('daily_market_update', 'محدث يومياً')}</div>
+          </div>
+        </div>
+
+        <div className="yalla-card p-3.5 bg-card border border-border flex items-center gap-3 shadow-xs">
+          <div className="w-10 h-10 rounded-2xl bg-violet-500/10 text-violet-500 flex items-center justify-center shrink-0">
+            <FileSignature className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="text-[11px] text-muted-foreground font-semibold">{t('bilingual_search', 'لغات البحث')}</div>
+            <div className="text-base font-black text-foreground">عربي / English</div>
+          </div>
+        </div>
+      </div>
+
       {/* 2. Search & Multi-Filters Bar */}
       <div className="yalla-card p-4 space-y-3 bg-card border border-border">
         <div className="grid sm:grid-cols-12 gap-3 items-center">
@@ -502,7 +546,21 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
               {paginated.length === 0 && !isApiLoading ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-muted-foreground">
-                    {t('no_data', 'لا توجد أدوية مطابقة للبحث أو الفلتر المحدد.')}
+                    <p className="text-sm font-bold">
+                      {t('no_data', 'لا توجد أدوية مطابقة للبحث محلياً.')}
+                    </p>
+                    {search.trim().length >= 2 && (
+                      <div className="pt-3">
+                        <Button
+                          onClick={() => handleManualSync(search.trim())}
+                          disabled={isSyncing}
+                          className="text-xs font-bold gap-2 yalla-gradient-btn text-white rounded-xl shadow-md cursor-pointer"
+                        >
+                          {isSyncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                          <span>بحث مباشر وتحديث فوري لـ &quot;{search.trim()}&quot; من دواء جيت (27,600+ دواء)</span>
+                        </Button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ) : (
@@ -528,10 +586,16 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
                       <td className="py-3.5 px-4">
                         <button
                           onClick={() => setSelectedDrug(drug)}
-                          className="text-right font-bold text-xs text-foreground hover:text-primary transition-colors cursor-pointer flex items-center gap-1.5"
+                          className="text-start font-bold text-xs text-foreground hover:text-primary transition-colors cursor-pointer flex flex-col items-start gap-0.5"
                         >
-                          <span>{drug.name}</span>
-                          <Info className="w-3.5 h-3.5 opacity-50 hover:opacity-100" />
+                          <span className="font-extrabold text-sm text-foreground hover:text-primary">
+                            {drug.nameAr || drug.commercial_name_ar || drug.name}
+                          </span>
+                          {(drug.nameAr || drug.commercial_name_ar) && (
+                            <span className="text-[11px] text-muted-foreground font-mono">
+                              {drug.commercial_name_en || drug.name}
+                            </span>
+                          )}
                         </button>
                       </td>
 
@@ -657,8 +721,18 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
             <p className="mt-2 text-xs font-bold text-muted-foreground">{language === 'en' ? 'Loading drug directory...' : 'جاري تحميل بيانات الأدوية...'}</p>
           </div>
         ) : paginated.length === 0 ? (
-          <div className="p-8 text-center bg-card rounded-2xl border border-border text-muted-foreground text-xs">
-            {t('no_data', 'لا توجد أدوية مطابقة للبحث.')}
+          <div className="p-8 text-center bg-card rounded-2xl border border-border text-muted-foreground text-xs space-y-3">
+            <p className="font-bold">{t('no_data', 'لا توجد أدوية مطابقة للبحث محلياً.')}</p>
+            {search.trim().length >= 2 && (
+              <Button
+                onClick={() => handleManualSync(search.trim())}
+                disabled={isSyncing}
+                className="text-xs font-bold gap-2 yalla-gradient-btn text-white rounded-xl shadow-md cursor-pointer mx-auto"
+              >
+                {isSyncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                <span>بحث في دواء جيت (27,600+ دواء)</span>
+              </Button>
+            )}
           </div>
         ) : (
           paginated.map((drug) => {
@@ -670,16 +744,21 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1">
-                    <h3 className="font-bold text-sm text-foreground leading-snug">
-                      {drug.name}
+                    <h3 className="font-extrabold text-sm text-foreground leading-snug">
+                      {drug.nameAr || drug.commercial_name_ar || drug.name}
                     </h3>
-                    <p className="text-[11px] text-muted-foreground font-mono mt-0.5">
-                      {drug.activeIngredient}
+                    {(drug.nameAr || drug.commercial_name_ar) && (
+                      <p className="text-[11px] text-muted-foreground font-mono mt-0.5">
+                        {drug.commercial_name_en || drug.name}
+                      </p>
+                    )}
+                    <p className="text-[11px] text-primary/80 font-mono mt-0.5">
+                      المادة: {drug.activeIngredient}
                     </p>
                   </div>
                   <button
                     onClick={() => toggleFavorite(drug.name)}
-                    className="p-1 text-muted-foreground/40 hover:text-amber-500"
+                    className="p-1 text-muted-foreground/40 hover:text-amber-500 cursor-pointer"
                   >
                     <Star className={`w-4 h-4 ${isFav ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/40'}`} />
                   </button>
