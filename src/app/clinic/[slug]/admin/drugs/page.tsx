@@ -69,6 +69,8 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
           const data = snap.docs[0].data()
           if (Array.isArray(data.favorite_drugs)) {
             setFavoriteList(data.favorite_drugs)
+          } else if (Array.isArray(data.favoriteDrugs)) {
+            setFavoriteList(data.favoriteDrugs)
           }
           if (Array.isArray(data.custom_drugs)) {
             setCustomDrugs(data.custom_drugs)
@@ -184,7 +186,8 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
     setFavoriteList(newList)
     try {
       await updateDoc(doc(db, 'clinics', clinicId), {
-        favorite_drugs: newList
+        favorite_drugs: newList,
+        favoriteDrugs: newList
       })
       toast.success(isFav ? 'تم الإزالة من المفضلة' : 'تمت الإضافة للمفضلة')
     } catch (err) {

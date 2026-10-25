@@ -10,17 +10,19 @@ import {
   Plus, Printer, Trash2, Search, FileSignature, MapPin, Globe, Loader2,
   Phone, User as UserIcon, Star, Check, MessageCircle,
   FileText, ShieldCheck, ChevronDown, Sparkles, Download, Palette, Image as ImageIcon, Lock,
-  Eye, ZoomIn, ZoomOut
+  Eye, ZoomIn, ZoomOut, ExternalLink
 } from 'lucide-react'
 import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
 import { collection, addDoc, query, where, getDocs, doc, updateDoc, onSnapshot } from 'firebase/firestore'
 import { useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { EGYPTIAN_DRUGS } from '@/lib/egyptian-drugs'
 import { useEgyptianDrugs, type EgyptianDrug } from '@/hooks/useEgyptianDrugs'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
+import { WhatsAppShareButton } from '@/components/common/WhatsAppShareButton'
 import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import { printHtmlViaIframe, generateA4PrescriptionHtml } from '@/lib/printService'
 import { renderElementToPdfBlob, downloadElementAsPdf, renderElementToImageBlob, downloadElementAsImage } from '@/lib/pdfGenerator'
@@ -79,9 +81,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   ])
 
   const [drugSearch, setDrugSearch] = useState('')
-  const [favoriteDrugs, setFavoriteDrugs] = useState<string[]>([
-    'Augmentin 1g', 'Catafast 50 mg', 'Panadol 500 mg', 'Brufen 600 mg', 'Controloc 40 mg', 'Alphintern'
-  ])
+  const [favoriteDrugs, setFavoriteDrugs] = useState<string[]>([])
   const [clinicId, setClinicId] = useState<string | null>(null)
   const [clinic, setClinic] = useState<any>(null)
   const [templateMode, setTemplateMode] = useState<'standard' | 'custom'>('standard')
@@ -146,7 +146,9 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           setClinicId(cDoc.id)
           if (data.primaryColor) setPrimaryColor(data.primaryColor)
           if (data.secondaryColor) setSecondaryColor(data.secondaryColor)
-          if (data.favoriteDrugs && data.favoriteDrugs.length > 0) {
+          if (data.favorite_drugs && Array.isArray(data.favorite_drugs)) {
+            setFavoriteDrugs(data.favorite_drugs)
+          } else if (data.favoriteDrugs && Array.isArray(data.favoriteDrugs)) {
             setFavoriteDrugs(data.favoriteDrugs)
           }
 
@@ -417,27 +419,10 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       duration: 4000
     })
 
-    // 4. Generate PDF and clipboard image in background, then auto-download
+    // 4. Generate clipboard image in background for Ctrl+V paste (strictly WITHOUT computer file download)
     if (sheetRef.current) {
       setIsSharingPdf(true)
       try {
-        const { blob: pdfBlob } = await renderElementToPdfBlob(sheetRef.current, {
-          fileName: cleanFileName,
-          format: pageSize === 'a5' ? 'a5' : 'a4',
-          orientation: 'portrait',
-          scale: 2.2
-        })
-
-        // Download clean PDF file immediately
-        const downloadUrl = window.URL.createObjectURL(pdfBlob)
-        const a = document.createElement('a')
-        a.href = downloadUrl
-        a.download = cleanFileName
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 30000)
-
         // Copy high-res image to clipboard for instant Ctrl+V pasting
         if (typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
           renderElementToImageBlob(sheetRef.current, { scale: 2.5 }).then(async ({ blob: imgBlob }) => {
@@ -449,8 +434,8 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           }).catch(() => {})
         }
 
-        toast.success(`✅ تم إرفاق رابط الـ PDF بالرسالة وتنزيل الملف! يمكنك أيضاً الضغط على (Ctrl + V) لإرسال صورة الروشتة فوراً 🚀`, {
-          duration: 9000
+        toast.success(`✅ تم إرفاق رابط الـ PDF الرسمي بالرسالة! يمكنك أيضاً الضغط على (Ctrl + V) لإرسال صورة الروشتة فوراً 🚀`, {
+          duration: 6000
         })
       } catch (err) {
         console.warn('Background PDF generation warning:', err)
@@ -589,62 +574,14 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Unified Instant WhatsApp Share Button (No download, 0ms popup-free launch, full Rx in chat, Ctrl+V image) */}
-          <div className="relative inline-flex items-center">
-            <Button
-              onClick={() => handleShareWhatsAppRx()}
-              className="h-10 text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-s-xl rounded-e-none shadow-md shadow-emerald-600/25 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
-              title="إرسال الروشتة مباشرة إلى محادثة المريض في واتساب"
-            >
-              <MessageCircle className="w-4 h-4 ml-1" />
-              <span>{t('send_whatsapp_pdf', 'إرسال واتساب للمريض')}</span>
-              {patientPhone && (
-                <span className="text-[10px] bg-emerald-700/60 px-1.5 py-0.5 rounded-md font-mono font-normal" dir="ltr">
-                  {formatEgyptianPhoneForWhatsApp(patientPhone).slice(-8)}
-                </span>
-              )}
-            </Button>
-            <button
-              type="button"
-              onClick={() => setShowWhatsappMenu(!showWhatsappMenu)}
-              className="h-10 px-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-e-xl rounded-s-none border-s border-emerald-600 transition-all flex items-center justify-center cursor-pointer"
-              title="خيارات فتح واتساب (الكمبيوتر أو الويب)"
-            >
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showWhatsappMenu ? 'rotate-180' : ''}`} />
-            </button>
-
-            {showWhatsappMenu && (
-              <div className="absolute top-full end-0 mt-1.5 w-64 bg-card border border-border rounded-2xl shadow-2xl p-2 z-50 space-y-1">
-                <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground border-b border-border pb-1">
-                  طريقة فتح محادثة واتساب:
-                </div>
-                <button
-                  type="button"
-                  onClick={() => { setAndSaveWhatsappTarget('auto'); handleShareWhatsAppRx('auto'); setShowWhatsappMenu(false); }}
-                  className="w-full text-right px-2.5 py-1.5 text-xs rounded-xl hover:bg-secondary flex items-center justify-between cursor-pointer"
-                >
-                  <span className="font-bold">📱 تلقائي (المثبت أو الويب)</span>
-                  {whatsappTarget === 'auto' && <Check className="w-3.5 h-3.5 text-emerald-500" />}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setAndSaveWhatsappTarget('app'); handleShareWhatsAppRx('app'); setShowWhatsappMenu(false); }}
-                  className="w-full text-right px-2.5 py-1.5 text-xs rounded-xl hover:bg-secondary flex items-center justify-between cursor-pointer"
-                >
-                  <span className="font-bold">💻 تطبيق الكمبيوتر (Desktop App)</span>
-                  {whatsappTarget === 'app' && <Check className="w-3.5 h-3.5 text-emerald-500" />}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setAndSaveWhatsappTarget('web'); handleShareWhatsAppRx('web'); setShowWhatsappMenu(false); }}
-                  className="w-full text-right px-2.5 py-1.5 text-xs rounded-xl hover:bg-secondary flex items-center justify-between cursor-pointer"
-                >
-                  <span className="font-bold">🌐 واتساب ويب (WhatsApp Web)</span>
-                  {whatsappTarget === 'web' && <Check className="w-3.5 h-3.5 text-emerald-500" />}
-                </button>
-              </div>
-            )}
-          </div>
+          {/* Unified Instant WhatsApp Share Button (No download, 0ms popup-free launch, full Rx in chat, Ctrl+V image, Web vs App Selector) */}
+          <WhatsAppShareButton
+            onSend={(target) => handleShareWhatsAppRx(target)}
+            phone={patientPhone}
+            loading={isSharingPdf}
+            label={t('send_whatsapp_pdf', 'إرسال واتساب للمريض')}
+            size="default"
+          />
 
           {/* Real PDF Download */}
           <Button
@@ -859,22 +796,60 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
               </div>
             </div>
 
-            {/* Quick Favorites Bar & Drug Search */}
+            {/* Doctor's Starred Favorite Drugs from Drug Directory */}
             {isDrugsDbEnabled ? (
               <>
-                <div className="space-y-1.5">
-                  <span className="text-[11px] font-bold text-muted-foreground">{t('most_frequent_drugs', 'الأدوية الأكثر تكراراً:')}</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {favoriteDrugs.map((fav, i) => (
-                      <button
-                        key={i}
-                        onClick={() => addDrug(fav, language === 'en' ? '1 tablet q12h' : 'قرص كل 12 ساعة', language === 'en' ? 'for 5 days' : 'لمدة 5 أيام')}
-                        className="px-2.5 py-1 text-[11px] font-bold bg-secondary hover:bg-primary/10 text-foreground hover:text-primary rounded-lg transition-colors cursor-pointer"
-                      >
-                        + {fav}
-                      </button>
-                    ))}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
+                      <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
+                      {t('favorite_drugs', 'الأدوية المفضلة (دليل الأدوية):')}
+                      {favoriteDrugs.length > 0 && (
+                        <span className="text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 px-1.5 py-0.2 rounded-md font-bold">
+                          {favoriteDrugs.length}
+                        </span>
+                      )}
+                    </span>
+                    <Link
+                      href={`/clinic/${slug}/admin/drugs`}
+                      className="text-[11px] text-primary hover:underline font-bold flex items-center gap-1"
+                      title={language === 'en' ? 'Manage favorite drugs in Directory' : 'إدارة وتحديد الأدوية المفضلة من دليل الأدوية'}
+                    >
+                      <span>{language === 'en' ? 'Drug Directory' : 'دليل الأدوية'}</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </Link>
                   </div>
+
+                  {favoriteDrugs.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {favoriteDrugs.map((fav, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => addDrug(fav, language === 'en' ? '1 tablet q12h' : 'قرص كل 12 ساعة', language === 'en' ? 'for 5 days' : 'لمدة 5 أيام')}
+                          className="px-2.5 py-1 text-[11px] font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/20 hover:border-amber-500/40 rounded-lg transition-colors cursor-pointer flex items-center gap-1 active:scale-95"
+                          title={language === 'en' ? `Add ${fav} to prescription` : `إضافة ${fav} إلى الروشتة`}
+                        >
+                          <Plus className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                          <span>{fav}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground bg-muted/30 px-3 py-2 rounded-xl border border-dashed border-border">
+                      <div className="flex items-center gap-2">
+                        <Star className="w-3.5 h-3.5 text-amber-500/60" />
+                        <span>{language === 'en' ? 'No favorite drugs selected yet.' : 'لم تقم بتحديد أدوية مفضلة بعد.'}</span>
+                      </div>
+                      <Link
+                        href={`/clinic/${slug}/admin/drugs`}
+                        className="text-primary hover:underline font-bold text-[11px] flex items-center gap-1"
+                      >
+                        <span>{language === 'en' ? 'Add favorites with ⭐ in Drug Directory' : 'حدد أدويتك المفضلة بنجمة ⭐ من دليل الأدوية'}</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </Link>
+                    </div>
+                  )}
                 </div>
 
                 {/* Drug Search Input with Voice & Autocomplete */}

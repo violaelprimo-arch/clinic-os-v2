@@ -10,7 +10,8 @@ import {
   printHtmlViaIframe,
   generateThermalReceiptHtml
 } from '@/lib/printService'
-import { shareDocumentOrImage, sharePdfDocument, openManualWhatsAppChat } from '@/lib/whatsappShare'
+import { shareDocumentOrImage, sharePdfDocument, openManualWhatsAppChat, getSavedWhatsAppTarget, formatInvoiceWhatsAppMessage } from '@/lib/whatsappShare'
+import { WhatsAppShareButton } from '@/components/common/WhatsAppShareButton'
 import { downloadElementAsPdf, downloadElementAsImage, renderElementToImageBlob, renderElementToPdfBlob } from '@/lib/pdfGenerator'
 import { useLanguage } from '@/context/LanguageContext'
 import { toast } from 'sonner'
@@ -72,68 +73,79 @@ export function ThermalReceiptModal({
     }
   }
 
-  const handleSendWhatsApp = async () => {
+  const handleSendWhatsApp = async (targetOverride?: 'web' | 'app') => {
     if (!data.patientPhone) {
       toast.error(isRtl ? 'رقم هاتف المريض غير مسجل في الفاتورة' : 'Patient phone number is not available in receipt')
       return
     }
 
+    const host = typeof window !== 'undefined' && window.location.origin
+      ? window.location.origin
+      : 'https://www.yalla-clinic.com'
+    const cleanFileName = `Receipt_${data.invoiceNumber || 'receipt'}.pdf`
+    const targetMode = targetOverride || getSavedWhatsAppTarget()
+
     const msg = isRtl
       ? `مرحباً ${data.patientName}،\nفاتورتك من عيادة ${data.clinicName} ${data.branchName ? `(فرع ${data.branchName})` : ''}:\n- رقم الفاتورة: #${data.invoiceNumber}\n- الخدمة: ${data.serviceName}\n- المبلغ المطلوب: ${data.netPrice} ج.م\n- حالة الدفع: ${data.paymentStatus === 'paid' ? 'مدفوع ومؤكد' : 'في انتظار التأكيد'}\n📄 مرفق ملف الفاتورة PDF.\nنتمنى لكم دوام الصحة والعافية.`
       : `Hello ${data.patientName},\nYour invoice from ${data.clinicName} ${data.branchName ? `(Branch ${data.branchName})` : ''}:\n- Invoice No: #${data.invoiceNumber}\n- Service: ${data.serviceName}\n- Amount: ${data.netPrice} EGP\n- Payment: ${data.paymentStatus === 'paid' ? 'Paid & Confirmed' : 'Pending Confirmation'}\n📄 Attached PDF receipt.\nWishing you good health.`
 
-    // 1. OPEN WHATSAPP CHAT SYNCHRONOUSLY IN 0ms (Never blocked by popup blocker!)
+    // 1. Mobile native WebShare with file attachment
+    if (receiptRef.current && typeof navigator !== 'undefined' && navigator.canShare) {
+      try {
+        const { blob: pdfBlob } = await renderElementToPdfBlob(receiptRef.current, {
+          fileName: cleanFileName,
+          format: 'thermal',
+          orientation: 'portrait',
+          scale: 2.2
+        })
+        const pdfFile = new File([pdfBlob], cleanFileName, { type: 'application/pdf' })
+        if (navigator.canShare({ files: [pdfFile] })) {
+          await navigator.share({
+            files: [pdfFile],
+            title: `فاتورة طبية - ${data.patientName}`,
+            text: msg
+          })
+          toast.success(isRtl ? 'تمت مشاركة ملف الفاتورة PDF بنجاح عبر واتساب! 🚀' : 'Receipt PDF shared successfully on WhatsApp!')
+          return
+        }
+      } catch (shareErr: any) {
+        if (shareErr.name === 'AbortError') return
+      }
+    }
+
+    // 2. Open WhatsApp chat synchronously in 0ms (Never blocked by popup blocker!)
     openManualWhatsAppChat({
       phone: data.patientPhone,
       message: msg,
-      target: 'auto'
+      target: targetMode
     })
 
-    toast.success(isRtl ? `تم فتح محادثة المريض (${data.patientPhone}) في واتساب! جاري تجهيز الـ PDF... 🚀` : `Opened WhatsApp chat! Preparing PDF... 🚀`, {
+    toast.success(isRtl ? `تم فتح محادثة المريض (${data.patientPhone}) في واتساب! 🚀` : `Opened WhatsApp chat! 🚀`, {
       duration: 4000
     })
 
-    if (!receiptRef.current) return
-    setIsProcessing(true)
-    try {
-      const cleanFileName = `Receipt_${data.invoiceNumber || 'receipt'}.pdf`
+    // 3. Desktop Clipboard image copy for Ctrl+V paste (strictly WITHOUT auto-downloading to computer)
+    if (receiptRef.current) {
+      setIsProcessing(true)
+      try {
+        if (typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
+          renderElementToImageBlob(receiptRef.current, { scale: 2.5 }).then(async ({ blob: imgBlob }) => {
+            try {
+              await navigator.clipboard.write([
+                new ClipboardItem({ 'image/png': imgBlob })
+              ])
+            } catch {}
+          }).catch(() => {})
+        }
 
-      // 2. Generate real thermal PDF blob
-      const { blob: pdfBlob } = await renderElementToPdfBlob(receiptRef.current, {
-        fileName: cleanFileName,
-        format: 'thermal',
-        orientation: 'portrait',
-        scale: 2.2
-      })
-
-      // Download clean PDF file immediately
-      const downloadUrl = window.URL.createObjectURL(pdfBlob)
-      const a = document.createElement('a')
-      a.href = downloadUrl
-      a.download = cleanFileName
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 30000)
-
-      // Copy image to clipboard for Ctrl+V
-      if (typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
-        renderElementToImageBlob(receiptRef.current, { scale: 2.5 }).then(async ({ blob: imgBlob }) => {
-          try {
-            await navigator.clipboard.write([
-              new ClipboardItem({ 'image/png': imgBlob })
-            ])
-          } catch {}
-        }).catch(() => {})
+        toast.success(isRtl ? `✅ جاهز! يمكنك الضغط على (Ctrl + V) لإرسال صورة الفاتورة فوراً 🚀` : `Ready! Press Ctrl+V to paste invoice image!`, {
+          duration: 6000
+        })
+      } catch (err) {
+        console.warn('Background receipt image generation error:', err)
+      } finally {
+        setIsProcessing(false)
       }
-
-      toast.success(isRtl ? `✅ جاهز! اسحب ملف الفاتورة PDF للشات المفتوح أو اضغط (Ctrl + V) لإرسال صورة الفاتورة فوراً 🚀` : `Ready! Drag PDF to chat or press Ctrl+V to paste invoice image!`, {
-        duration: 9000
-      })
-    } catch (err) {
-      console.warn('Background receipt PDF generation error:', err)
-    } finally {
-      setIsProcessing(false)
     }
   }
 
@@ -281,18 +293,16 @@ export function ThermalReceiptModal({
         {/* Action Buttons Toolbar */}
         <div className="p-3 sm:p-4 border-t border-border flex flex-wrap items-center justify-between gap-2 bg-card">
           <div className="flex items-center gap-1.5 flex-wrap">
-            {/* WhatsApp Share as PDF */}
-            <Button
-              variant="outline"
+            {/* WhatsApp Share as PDF with Web / App Selector (Zero computer auto-download) */}
+            <WhatsAppShareButton
+              onSend={handleSendWhatsApp}
+              phone={data.patientPhone}
+              loading={isProcessing}
+              label={t('send_whatsapp_pdf_btn', isRtl ? 'واتساب (PDF)' : 'WhatsApp (PDF)')}
               size="sm"
-              onClick={handleSendWhatsApp}
-              disabled={isProcessing}
-              className="h-9 px-3 text-xs font-bold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 rounded-xl cursor-pointer"
-              title={isRtl ? 'إرسال الفاتورة PDF عبر واتساب لرقم المريض المسجل' : 'Send receipt PDF on WhatsApp to registered patient phone'}
-            >
-              {isProcessing ? <Loader2 className={`w-3.5 h-3.5 animate-spin ${isRtl ? 'ml-1' : 'mr-1'}`} /> : <Share2 className={`w-3.5 h-3.5 ${isRtl ? 'ml-1' : 'mr-1'}`} />}
-              {t('send_whatsapp_pdf_btn', isRtl ? 'واتساب (PDF)' : 'WhatsApp (PDF)')}
-            </Button>
+              variant="outline"
+              showPhoneBadge={false}
+            />
 
             {/* Download as Image */}
             <Button

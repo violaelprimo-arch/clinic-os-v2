@@ -7,7 +7,8 @@ import { Printer, Download, Receipt, CheckCircle2, Clock, MapPin, Phone, Buildin
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { printHtmlViaIframe, generateThermalReceiptHtml } from '@/lib/printService'
 import { downloadElementAsPdf, downloadElementAsImage, renderElementToImageBlob, renderElementToPdfBlob } from '@/lib/pdfGenerator'
-import { shareDocumentOrImage, sharePdfDocument, openManualWhatsAppChat } from '@/lib/whatsappShare'
+import { shareDocumentOrImage, sharePdfDocument, openManualWhatsAppChat, formatInvoiceWhatsAppMessage, getSavedWhatsAppTarget } from '@/lib/whatsappShare'
+import { WhatsAppShareButton } from '@/components/common/WhatsAppShareButton'
 import { useLanguage } from '@/context/LanguageContext'
 import { toast } from 'sonner'
 
@@ -36,16 +37,20 @@ export interface InvoiceData {
 export function InvoiceView({
   invoice,
   onClose,
-  isPatientView = false
+  isPatientView = false,
+  slug: propSlug
 }: {
   invoice: InvoiceData
   onClose?: () => void
   isPatientView?: boolean
+  slug?: string
 }) {
   const { t, isRtl, dir } = useLanguage()
   const printableRef = useRef<HTMLDivElement>(null)
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
   const [isGeneratingImage, setIsGeneratingImage] = useState(false)
+
+  const resolvedSlug = propSlug || (typeof window !== 'undefined' ? window.location.pathname.split('/')[2] : '')
 
   // Isolated 80mm Thermal Receipt Print (For XP-80C)
   const handlePrintThermal = () => {
@@ -114,66 +119,94 @@ export function InvoiceView({
     }
   }
 
-  // WhatsApp Share with real PDF: Opens chat instantly in 0ms (no popup blocker), generates & auto-downloads PDF
-  const handleShareWhatsApp = async () => {
+  // WhatsApp Share with real PDF: Opens chat instantly in 0ms (no popup blocker), sends full invoice breakdown + PDF link, NO local computer download
+  const handleShareWhatsApp = async (targetOverride?: 'web' | 'app') => {
     if (!invoice.patientPhone) return toast.error(isRtl ? 'رقم هاتف المريض غير مسجل في الفاتورة' : 'Patient phone number not found in invoice')
 
-    const msg = isRtl
-      ? `مرحباً ${invoice.patientName}،\nفاتورتك الطبية الرسمية من عيادة ${invoice.clinicName} ${invoice.branchName ? `(فرع ${invoice.branchName})` : ''}:\n- رقم الفاتورة: #${invoice.invoiceNumber}\n- الخدمة: ${invoice.serviceName}\n- المبلغ الصافي: ${invoice.netTotal} ج.م\n- حالة الدفع: ${invoice.paymentStatus === 'paid' ? 'مدفوع ومؤكد' : 'في انتظار التأكيد'}\n📄 مرفق ملف الفاتورة الرسمي PDF.\nنتمنى لكم دوام الصحة والعافية.`
-      : `Hello ${invoice.patientName},\nYour official medical invoice from ${invoice.clinicName} ${invoice.branchName ? `(Branch ${invoice.branchName})` : ''}:\n- Invoice No: #${invoice.invoiceNumber}\n- Service: ${invoice.serviceName}\n- Net Total: ${invoice.netTotal} EGP\n- Payment: ${invoice.paymentStatus === 'paid' ? 'Paid & Confirmed' : 'Pending Confirmation'}\n📄 Attached official PDF invoice.\nWishing you good health.`
+    const host = typeof window !== 'undefined' && window.location.origin
+      ? window.location.origin
+      : 'https://www.yalla-clinic.com'
 
-    // 1. OPEN WHATSAPP CHAT SYNCHRONOUSLY IN 0ms (Never blocked by popup blocker!)
+    const invoiceIdentifier = invoice.invoiceNumber || invoice.appointmentId || ''
+    const directInvoiceUrl = (resolvedSlug && invoiceIdentifier)
+      ? `${host}/clinic/${resolvedSlug}/invoice/${encodeURIComponent(invoiceIdentifier)}`
+      : ''
+
+    const targetMode = targetOverride || getSavedWhatsAppTarget()
+    const msg = formatInvoiceWhatsAppMessage({
+      clinicName: invoice.clinicName,
+      doctorName: invoice.doctorName,
+      branchName: invoice.branchName,
+      patientName: invoice.patientName,
+      patientPhone: invoice.patientPhone,
+      invoiceNumber: invoice.invoiceNumber,
+      date: invoice.date,
+      time: invoice.cairoTime,
+      serviceName: invoice.serviceName,
+      originalPrice: Number(invoice.servicePrice) || 0,
+      discount: Number(invoice.discount) || 0,
+      netTotal: Number(invoice.netTotal) || Number(invoice.servicePrice) || 0,
+      paymentMethod: invoice.paymentMethod,
+      paymentStatus: invoice.paymentStatus,
+      directInvoiceUrl
+    })
+
+    const cleanFileName = `Invoice_${invoice.invoiceNumber || 'receipt'}.pdf`
+
+    // 1. Mobile native WebShare Level 2 (files support)
+    if (printableRef.current && typeof navigator !== 'undefined' && navigator.canShare) {
+      try {
+        const { blob: pdfBlob } = await renderElementToPdfBlob(printableRef.current, {
+          fileName: cleanFileName,
+          format: 'a4',
+          orientation: 'portrait',
+          scale: 2.2
+        })
+        const pdfFile = new File([pdfBlob], cleanFileName, { type: 'application/pdf' })
+        if (navigator.canShare({ files: [pdfFile] })) {
+          await navigator.share({
+            files: [pdfFile],
+            title: `فاتورة طبية - ${invoice.patientName}`,
+            text: msg
+          })
+          toast.success(isRtl ? 'تمت مشاركة ملف الفاتورة PDF بنجاح عبر واتساب! 🚀' : 'Invoice PDF shared successfully on WhatsApp!')
+          return
+        }
+      } catch (e: any) {
+        if (e.name === 'AbortError') return
+        console.warn('Native invoice share skipped or unsupported:', e)
+      }
+    }
+
+    // 2. Open WhatsApp chat synchronously in 0ms (Zero popup blocker)
     openManualWhatsAppChat({
       phone: invoice.patientPhone,
       message: msg,
-      target: 'auto'
+      target: targetMode
     })
 
-    toast.success(isRtl ? `تم فتح محادثة المريض (${invoice.patientPhone}) في واتساب! جاري تجهيز الـ PDF... 🚀` : `Opened WhatsApp chat! Preparing PDF... 🚀`, {
+    toast.success(isRtl ? `تم فتح محادثة المريض (${invoice.patientPhone}) في واتساب مع رابط الفاتورة الرسمي! 🚀` : `Opened WhatsApp chat with official invoice link! 🚀`, {
       duration: 4000
     })
 
-    if (!printableRef.current) return
-    setIsGeneratingPdf(true)
-    try {
-      const cleanFileName = `Invoice_${invoice.invoiceNumber || 'receipt'}.pdf`
-
-      // 2. Generate real high-res PDF blob
-      const { blob: pdfBlob } = await renderElementToPdfBlob(printableRef.current, {
-        fileName: cleanFileName,
-        format: 'a4',
-        orientation: 'portrait',
-        scale: 2.2
-      })
-
-      // Download clean PDF file immediately
-      const downloadUrl = window.URL.createObjectURL(pdfBlob)
-      const a = document.createElement('a')
-      a.href = downloadUrl
-      a.download = cleanFileName
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 30000)
-
-      // Copy image to clipboard for Ctrl+V
-      if (typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
-        renderElementToImageBlob(printableRef.current, { scale: 2.5 }).then(async ({ blob: imgBlob }) => {
-          try {
-            await navigator.clipboard.write([
-              new ClipboardItem({ 'image/png': imgBlob })
-            ])
-          } catch {}
-        }).catch(() => {})
+    // 3. Desktop Clipboard image copy for Ctrl+V paste (strictly WITHOUT auto-downloading to computer)
+    if (printableRef.current) {
+      setIsGeneratingPdf(true)
+      try {
+        if (typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
+          renderElementToImageBlob(printableRef.current, { scale: 2.5 }).then(async ({ blob: imgBlob }) => {
+            try {
+              await navigator.clipboard.write([
+                new ClipboardItem({ 'image/png': imgBlob })
+              ])
+            } catch {}
+          }).catch(() => {})
+        }
+      } catch (e) {
+        console.warn('Background invoice image copy error:', e)
+      } finally {
+        setIsGeneratingPdf(false)
       }
-
-      toast.success(isRtl ? `✅ جاهز! اسحب ملف الفاتورة PDF للشات المفتوح أو اضغط (Ctrl + V) لإرسال صورة الفاتورة فوراً 🚀` : `Ready! Drag PDF to chat or press Ctrl+V to paste invoice image!`, {
-        duration: 9000
-      })
-    } catch (e) {
-      console.warn('Background invoice PDF generation error:', e)
-    } finally {
-      setIsGeneratingPdf(false)
     }
   }
 
@@ -199,19 +232,14 @@ export function InvoiceView({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* WhatsApp Share as PDF */}
-          <Button
+          {/* WhatsApp Share as PDF with Web / App Selector (Zero computer auto-download) */}
+          <WhatsAppShareButton
+            onSend={handleShareWhatsApp}
+            phone={invoice.patientPhone}
+            loading={isGeneratingPdf}
+            label={isGeneratingPdf ? (isRtl ? 'جاري التجهيز...' : 'Preparing...') : t('send_whatsapp_pdf_btn', isRtl ? 'إرسال واتساب (PDF)' : 'Send WhatsApp (PDF)')}
             size="sm"
-            onClick={handleShareWhatsApp}
-            disabled={isGeneratingPdf}
-            className="h-9 px-3 text-xs font-bold bg-[#25D366] hover:bg-[#128C7E] text-white rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
-            title={isRtl ? 'إرسال الفاتورة PDF إلى واتساب المريض المسجل' : 'Send invoice PDF to registered patient on WhatsApp'}
-          >
-            <MessageCircle className={`w-4 h-4 ${isRtl ? 'ml-1' : 'mr-1'}`} />
-            {isGeneratingPdf
-              ? (isRtl ? 'جاري تجهيز PDF...' : 'Preparing PDF...')
-              : t('send_whatsapp_pdf_btn', isRtl ? 'إرسال واتساب (PDF)' : 'Send WhatsApp (PDF)')}
-          </Button>
+          />
 
           {/* Download as Image */}
           <Button

@@ -436,6 +436,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
           <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
             <div className="bg-card text-card-foreground rounded-3xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-border">
               <InvoiceView
+                slug={slug}
                 invoice={{
                   invoiceNumber: appointment.invoiceNumber || `INV-${appointmentId.slice(0, 8)}`,
                   queueNumber: appointment.queue_number,

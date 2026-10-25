@@ -13,7 +13,8 @@ import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
 import { downloadElementAsPdf, renderElementToPdfBlob, downloadElementAsImage, renderElementToImageBlob } from '@/lib/pdfGenerator'
 import { printHtmlViaIframe, generateA4PrescriptionHtml } from '@/lib/printService'
-import { shareDocumentOrImage, sharePdfDocument, generateCleanRxFileName, formatPrescriptionWhatsAppMessage, openManualWhatsAppChat } from '@/lib/whatsappShare'
+import { shareDocumentOrImage, sharePdfDocument, generateCleanRxFileName, formatPrescriptionWhatsAppMessage, openManualWhatsAppChat, getSavedWhatsAppTarget } from '@/lib/whatsappShare'
+import { WhatsAppShareButton } from '@/components/common/WhatsAppShareButton'
 import { getClinicUrl } from '@/lib/clinic-url'
 import { LanguageToggle } from '@/components/common/LanguageToggle'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
@@ -172,8 +173,13 @@ export default function PublicPrescriptionPage({
     }
   }
 
-  // WhatsApp Share with real PDF: Opens chat instantly in 0ms (no popup blocker), generates & auto-downloads PDF
-  const handleShareWhatsApp = async () => {
+  // WhatsApp Share with real PDF: Opens chat instantly in 0ms (no popup blocker), sends full Rx + PDF link, strictly WITHOUT computer auto-download
+  const handleShareWhatsApp = async (targetOverride?: 'web' | 'app') => {
+    const host = typeof window !== 'undefined' && window.location.origin
+      ? window.location.origin
+      : 'https://www.yalla-clinic.com'
+    const directRxUrl = `${host}/clinic/${slug}/prescription/${appointmentId}`
+
     const message = formatPrescriptionWhatsAppMessage({
       clinicName: clinic?.clinicName || (isRtl ? 'العيادة الطبية' : 'Medical Clinic'),
       doctorName: clinic?.doctorName,
@@ -183,61 +189,70 @@ export default function PublicPrescriptionPage({
       date: rxDate,
       diagnosis: rxDiagnosis,
       instructions: prescription?.instructions,
-      drugs: rxDrugs
-      // Strictly NO links
+      drugs: rxDrugs,
+      directRxUrl
     })
 
     const cleanFileName = generateCleanRxFileName(patientName, rxDate, 'pdf')
+    const targetMode = targetOverride || getSavedWhatsAppTarget()
 
-    // 1. OPEN WHATSAPP CHAT SYNCHRONOUSLY IN 0ms (Never blocked by popup blocker!)
+    // 1. Mobile native WebShare with file attachment
+    if (printSheetRef.current && typeof navigator !== 'undefined' && navigator.canShare) {
+      try {
+        const { blob: pdfBlob } = await renderElementToPdfBlob(printSheetRef.current, {
+          fileName: cleanFileName,
+          format: 'a4',
+          orientation: 'portrait',
+          scale: 2.2
+        })
+        const pdfFile = new File([pdfBlob], cleanFileName, { type: 'application/pdf' })
+        if (navigator.canShare({ files: [pdfFile] })) {
+          await navigator.share({
+            files: [pdfFile],
+            title: `الروشتة الطبية - ${patientName}`,
+            text: message
+          })
+          toast.success(isRtl ? 'تمت مشاركة ملف الروشتة PDF بنجاح عبر واتساب! 🚀' : 'Prescription shared successfully on WhatsApp!')
+          return
+        }
+      } catch (shareErr: any) {
+        if (shareErr.name === 'AbortError') return
+      }
+    }
+
+    // 2. OPEN WHATSAPP CHAT SYNCHRONOUSLY IN 0ms (Never blocked by popup blocker!)
     openManualWhatsAppChat({
       phone: patientPhone,
-      message
+      message,
+      target: targetMode
     })
 
-    toast.success(isRtl ? 'تم فتح محادثة المريض في واتساب! جاري تجهيز الـ PDF... 🚀' : 'Opened WhatsApp chat! Preparing PDF... 🚀', {
+    toast.success(isRtl ? 'تم فتح محادثة المريض في واتساب مع رابط الـ PDF الرسمي! 🚀' : 'Opened WhatsApp chat with official Rx PDF link! 🚀', {
       duration: 4000
     })
 
-    if (!printSheetRef.current) return
+    // 3. Desktop Clipboard image copy for Ctrl+V paste (strictly WITHOUT auto-downloading to computer)
+    if (printSheetRef.current) {
+      setIsSharing(true)
+      try {
+        if (typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
+          renderElementToImageBlob(printSheetRef.current, { scale: 2.5 }).then(async ({ blob: imgBlob }) => {
+            try {
+              await navigator.clipboard.write([
+                new ClipboardItem({ 'image/png': imgBlob })
+              ])
+            } catch {}
+          }).catch(() => {})
+        }
 
-    setIsSharing(true)
-    try {
-      const { blob: pdfBlob } = await renderElementToPdfBlob(printSheetRef.current, {
-        fileName: cleanFileName,
-        format: 'a4',
-        orientation: 'portrait',
-        scale: 2.2
-      })
-
-      // Download PDF immediately
-      const downloadUrl = window.URL.createObjectURL(pdfBlob)
-      const a = document.createElement('a')
-      a.href = downloadUrl
-      a.download = cleanFileName
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 30000)
-
-      // Copy image to clipboard for Ctrl+V
-      if (typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
-        renderElementToImageBlob(printSheetRef.current, { scale: 2.5 }).then(async ({ blob: imgBlob }) => {
-          try {
-            await navigator.clipboard.write([
-              new ClipboardItem({ 'image/png': imgBlob })
-            ])
-          } catch {}
-        }).catch(() => {})
+        toast.success(isRtl ? '✅ تم إرفاق رابط الـ PDF بالرسالة! يمكنك أيضاً الضغط على (Ctrl + V) لإرسال صورة الروشتة فوراً 🚀' : 'Ready! Link attached and image copied for Ctrl+V!', {
+          duration: 6000
+        })
+      } catch (e) {
+        console.warn('Background image generation error:', e)
+      } finally {
+        setIsSharing(false)
       }
-
-      toast.success(isRtl ? '✅ تم تجهيز الـ PDF! اسحب الملف للشات المفتوح أو اضغط (Ctrl + V) لإرسال صورة الروشتة فوراً 🚀' : 'Ready! Drag PDF to chat or press Ctrl+V to paste Rx image!', {
-        duration: 9000
-      })
-    } catch (e) {
-      console.warn('Background PDF generation error:', e)
-    } finally {
-      setIsSharing(false)
     }
   }
 
@@ -346,15 +361,15 @@ export default function PublicPrescriptionPage({
               {t('print_a4', isRtl ? 'طباعة A4' : 'Print A4')}
             </Button>
 
-            {/* WhatsApp Share Button */}
-            <Button
-              onClick={handleShareWhatsApp}
-              disabled={isSharing}
-              className="flex-1 sm:flex-none h-10 px-4 text-xs font-bold bg-[#25D366] hover:bg-[#128C7E] text-white rounded-xl shadow-xs cursor-pointer"
-            >
-              <MessageCircle className={`w-4 h-4 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
-              {isSharing ? (isRtl ? 'جاري المشاركة...' : 'Sharing...') : t('send_whatsapp_btn', isRtl ? 'مشاركة عبر واتساب' : 'Share via WhatsApp')}
-            </Button>
+            {/* WhatsApp Share Button with Web / App Selector (Zero computer auto-download) */}
+            <WhatsAppShareButton
+              onSend={handleShareWhatsApp}
+              phone={patientPhone}
+              loading={isSharing}
+              label={isSharing ? (isRtl ? 'جاري المشاركة...' : 'Sharing...') : t('send_whatsapp_btn', isRtl ? 'مشاركة عبر واتساب' : 'Share via WhatsApp')}
+              size="default"
+              showPhoneBadge={false}
+            />
           </div>
         </div>
 

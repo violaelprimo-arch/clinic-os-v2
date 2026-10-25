@@ -22,6 +22,7 @@ import { printHtmlViaIframe, generatePatientsReportHtml } from '@/lib/printServi
 import { useLanguage } from '@/context/LanguageContext'
 import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import { cleanPhoneForWhatsApp, validatePhoneNumber, DEFAULT_COUNTRY, CountryInfo, getPhoneSearchVariants } from '@/lib/countryPhoneHelper'
+import { openManualWhatsAppChat } from '@/lib/whatsappShare'
 
 export default function PatientsPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -362,9 +363,10 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
 
   const sendWhatsApp = (phone: string, name: string) => {
     if (!phone) return
-    const formattedPhone = cleanPhoneForWhatsApp(phone)
-    const message = encodeURIComponent(`مرحباً ${name}،\nنتمنى لك دوام الصحة والعافية من عيادتنا.`)
-    window.open(`https://wa.me/${formattedPhone}?text=${message}`, '_blank')
+    openManualWhatsAppChat({
+      phone,
+      message: `مرحباً ${name}،\nنتمنى لك دوام الصحة والعافية من ${clinic?.clinicName || 'عيادتنا'}.`
+    })
   }
 
   // Export Patients List to Excel

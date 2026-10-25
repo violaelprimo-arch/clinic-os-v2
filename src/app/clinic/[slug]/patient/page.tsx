@@ -1025,6 +1025,7 @@ export default function PatientPortalPage() {
         <InvoiceView
           invoice={selectedInvoice}
           isPatientView={true}
+          slug={slug}
           onClose={() => setSelectedInvoice(null)}
         />
       )}

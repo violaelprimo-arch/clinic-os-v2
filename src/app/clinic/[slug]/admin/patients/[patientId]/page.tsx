@@ -14,7 +14,8 @@ import { toast } from 'sonner'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
 import { downloadElementAsPdf, renderElementToPdfBlob, renderElementToImageBlob } from '@/lib/pdfGenerator'
 import { printHtmlViaIframe, generateA4PrescriptionHtml } from '@/lib/printService'
-import { sharePdfDocument, generateCleanRxFileName, formatPrescriptionWhatsAppMessage, openManualWhatsAppChat } from '@/lib/whatsappShare'
+import { sharePdfDocument, generateCleanRxFileName, formatPrescriptionWhatsAppMessage, openManualWhatsAppChat, getSavedWhatsAppTarget } from '@/lib/whatsappShare'
+import { WhatsAppShareButton } from '@/components/common/WhatsAppShareButton'
 import { getClinicUrl } from '@/lib/clinic-url'
 import { useLanguage } from '@/context/LanguageContext'
 
@@ -72,7 +73,7 @@ export default function PatientProfilePage({
     }
   }
 
-  const sendWhatsAppRx = async (appt: any) => {
+  const sendWhatsAppRx = async (appt: any, targetOverride?: 'web' | 'app') => {
     if (!phone) return toast.error('يرجى إدخال رقم هاتف المريض')
     setSharingApptId(appt.id)
 
@@ -80,6 +81,11 @@ export default function PatientProfilePage({
       const pName = patientData?.name || appt?.patientName || 'المريض'
       const pAge = patientData?.age || appt?.age || patientData?.dob || appt?.dob || ''
       const cleanFileName = generateCleanRxFileName(pName, appt.date, 'pdf')
+
+      const host = typeof window !== 'undefined' && window.location.origin
+        ? window.location.origin
+        : 'https://www.yalla-clinic.com'
+      const directRxUrl = `${host}/clinic/${slug}/prescription/${appt.id}`
 
       const message = formatPrescriptionWhatsAppMessage({
         clinicName: clinic?.clinicName || 'العيادة الطبية',
@@ -89,38 +95,48 @@ export default function PatientProfilePage({
         patientAge: pAge,
         date: appt.date,
         diagnosis: appt.diagnosis,
-        drugs: appt.drugs || []
-        // Strictly NO links
+        drugs: appt.drugs || [],
+        directRxUrl
       })
 
-      // 1. OPEN WHATSAPP CHAT SYNCHRONOUSLY IN 0ms (Never blocked by popup blocker!)
+      const targetMode = targetOverride || getSavedWhatsAppTarget()
+      const rxElement = document.getElementById(`rx-sheet-${appt.id}`)
+
+      // 1. Mobile native WebShare with file attachment
+      if (rxElement && typeof navigator !== 'undefined' && navigator.canShare) {
+        try {
+          const { blob: pdfBlob } = await renderElementToPdfBlob(rxElement, {
+            fileName: cleanFileName,
+            format: 'a4',
+            orientation: 'portrait',
+            scale: 2.2
+          })
+          const pdfFile = new File([pdfBlob], cleanFileName, { type: 'application/pdf' })
+          if (navigator.canShare({ files: [pdfFile] })) {
+            await navigator.share({
+              files: [pdfFile],
+              title: `الروشتة الطبية - ${pName}`,
+              text: message
+            })
+            toast.success('تمت مشاركة ملف الروشتة PDF بنجاح عبر واتساب! 🚀')
+            return
+          }
+        } catch (shareErr: any) {
+          if (shareErr.name === 'AbortError') return
+        }
+      }
+
+      // 2. Open WhatsApp chat synchronously in 0ms (Zero popup blocker)
       openManualWhatsAppChat({
         phone,
-        message
+        message,
+        target: targetMode
       })
 
-      toast.success('تم فتح محادثة المريض في واتساب! جاري تجهيز الـ PDF... 🚀', { duration: 4000 })
+      toast.success('تم فتح محادثة المريض في واتساب مع رابط الروشتة الرسمي! 🚀', { duration: 4000 })
 
-      const rxElement = document.getElementById(`rx-sheet-${appt.id}`)
+      // 3. Desktop Clipboard image copy for Ctrl+V paste (strictly WITHOUT auto-downloading to computer)
       if (rxElement) {
-        const { blob: pdfBlob } = await renderElementToPdfBlob(rxElement, {
-          fileName: cleanFileName,
-          format: 'a4',
-          orientation: 'portrait',
-          scale: 2.2
-        })
-
-        // Download PDF immediately
-        const downloadUrl = window.URL.createObjectURL(pdfBlob)
-        const a = document.createElement('a')
-        a.href = downloadUrl
-        a.download = cleanFileName
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 30000)
-
-        // Copy image to clipboard for Ctrl+V
         if (typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
           renderElementToImageBlob(rxElement, { scale: 2.5 }).then(async ({ blob: imgBlob }) => {
             try {
@@ -131,8 +147,8 @@ export default function PatientProfilePage({
           }).catch(() => {})
         }
 
-        toast.success(`✅ تم تجهيز الـ PDF! اسحب الملف للشات المفتوح أو اضغط (Ctrl + V) لإرسال صورة الروشتة فوراً 🚀`, {
-          duration: 9000
+        toast.success(`✅ تم إرفاق رابط الـ PDF الرسمي بالرسالة! يمكنك أيضاً الضغط على (Ctrl + V) لإرسال صورة الروشتة فوراً 🚀`, {
+          duration: 6000
         })
       }
     } catch (err) {
@@ -585,14 +601,14 @@ export default function PatientProfilePage({
                                   <Download className="w-4 h-4 ml-1.5" />
                                   {downloadingApptId === appt.id ? 'جاري التحميل...' : 'تحميل الروشتة PDF'}
                                 </Button>
-                                <Button
-                                  onClick={() => sendWhatsAppRx(appt)}
-                                  disabled={sharingApptId === appt.id}
-                                  className="h-9 px-3.5 text-xs font-bold bg-[#25D366] hover:bg-[#128C7E] text-white rounded-xl shadow-xs"
-                                >
-                                  <MessageCircle className="w-4 h-4 ml-1.5" />
-                                  {sharingApptId === appt.id ? 'جاري الفتح...' : 'إرسال واتساب للمريض'}
-                                </Button>
+                                <WhatsAppShareButton
+                                  onSend={(target) => sendWhatsAppRx(appt, target)}
+                                  phone={phone}
+                                  loading={sharingApptId === appt.id}
+                                  label={sharingApptId === appt.id ? 'جاري الفتح...' : 'إرسال واتساب للمريض'}
+                                  size="sm"
+                                  showPhoneBadge={false}
+                                />
                                 <Link href={`/clinic/${slug}/admin/prescriptions?appointmentId=${appt.id}&phone=${phone}&patientName=${patientData.name}&age=${patientData.age || patientData.dob}`}>
                                   <Button variant="outline" className="h-9 px-3.5 text-xs font-bold rounded-xl border-border">
                                     تعديل الروشتة

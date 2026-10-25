@@ -670,6 +670,7 @@ export default function AccountsPage({ params }: { params: Promise<{ slug: strin
             <InvoiceView
               invoice={selectedInvoice}
               isPatientView={false}
+              slug={slug}
               onClose={() => setSelectedInvoice(null)}
             />
           </div>

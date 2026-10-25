@@ -53,10 +53,32 @@ export function generateCleanRxFileName(
   return `Rx_${cleanName}_${cleanDate}.${extension}`
 }
 
+export type WhatsAppTargetMode = 'web' | 'app' | 'auto'
+
+/**
+ * Retrieves the user's preferred WhatsApp target ('web' or 'app').
+ * Defaults to 'web' for universal browser compatibility.
+ */
+export function getSavedWhatsAppTarget(): 'web' | 'app' {
+  if (typeof window === 'undefined') return 'web'
+  const saved = localStorage.getItem('yalla_whatsapp_target_mode') || localStorage.getItem('yalla_rx_whatsapp_mode')
+  return saved === 'app' ? 'app' : 'web'
+}
+
+/**
+ * Persists the user's preferred WhatsApp target across the entire clinic system.
+ */
+export function saveWhatsAppTarget(mode: 'web' | 'app'): void {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('yalla_whatsapp_target_mode', mode)
+    localStorage.setItem('yalla_rx_whatsapp_mode', mode)
+  }
+}
+
 /**
  * Opens WhatsApp Click-to-Chat directly targeting the recipient's phone number.
  * Supports:
- * - 'auto': Universal handler (api.whatsapp.com/send) which triggers WhatsApp Desktop if installed, or WhatsApp Web fallback, and native app on mobile.
+ * - 'auto': Universal handler which uses saved preference on desktop and native on mobile.
  * - 'app': Direct protocol handler (whatsapp://send) for installed WhatsApp Desktop.
  * - 'web': Direct browser WhatsApp Web (web.whatsapp.com/send).
  */
@@ -77,11 +99,12 @@ export function openManualWhatsAppChat({
   const encodedText = encodeURIComponent(message)
   
   const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+  const effectiveTarget = target === 'auto' ? getSavedWhatsAppTarget() : target
   
   let url = ''
   if (isMobile) {
     url = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`
-  } else if (target === 'app') {
+  } else if (effectiveTarget === 'app') {
     url = `whatsapp://send?phone=${formattedPhone}&text=${encodedText}`
   } else {
     // Desktop Web directly opens the patient's chat without intermediate landing page
@@ -192,11 +215,95 @@ export function formatPrescriptionWhatsAppMessage({
 }
 
 /**
+ * Formats a rich, professional e-invoice / receipt WhatsApp message.
+ * Contains clinic, branch, doctor, patient, financial breakdown,
+ * and direct official PDF link on www.yalla-clinic.com.
+ */
+export function formatInvoiceWhatsAppMessage({
+  clinicName,
+  doctorName,
+  branchName,
+  patientName,
+  patientPhone,
+  invoiceNumber,
+  date,
+  time,
+  serviceName,
+  originalPrice,
+  discount,
+  netTotal,
+  paymentMethod,
+  paymentStatus,
+  directInvoiceUrl
+}: {
+  clinicName?: string
+  doctorName?: string
+  branchName?: string
+  patientName: string
+  patientPhone?: string
+  invoiceNumber?: string
+  date?: string
+  time?: string
+  serviceName?: string
+  originalPrice?: number
+  discount?: number
+  netTotal?: number
+  paymentMethod?: string
+  paymentStatus?: 'paid' | 'pending' | 'refunded' | string
+  directInvoiceUrl?: string
+}): string {
+  const parts: string[] = []
+
+  parts.push(`🧾 *فاتورة طبية رسمية - إيصال سداد*`)
+  if (clinicName) parts.push(`🏥 *العيادة:* ${clinicName}${branchName ? ` (فرع ${branchName})` : ''}`)
+  if (doctorName) parts.push(`👨‍⚕️ *الطبيب:* د. ${doctorName}`)
+  if (patientName) parts.push(`👤 *المريض:* ${patientName}`)
+  if (invoiceNumber) parts.push(`🔢 *رقم الفاتورة:* #${invoiceNumber}`)
+  if (date) parts.push(`📅 *التاريخ:* ${date}${time ? ` (${time})` : ''}`)
+
+  parts.push(``)
+  parts.push(`📋 *تفاصيل المعاملة المالية:*`)
+  if (serviceName) parts.push(`• *الخدمة:* ${serviceName}`)
+  if (originalPrice !== undefined && originalPrice > 0 && discount && discount > 0) {
+    parts.push(`• *السعر قبل الخصم:* ${originalPrice} ج.م`)
+    parts.push(`• *قيمة الخصم:* ${discount} ج.م`)
+  }
+  if (netTotal !== undefined) {
+    parts.push(`• *المبلغ الصافي:* *${netTotal} ج.م*`)
+  }
+
+  const methodLabel = paymentMethod === 'instapay'
+    ? 'انستاباي (InstaPay)'
+    : paymentMethod === 'wallet'
+    ? 'محفظة إلكترونية (Smart Wallet)'
+    : 'كاش بالعيادة (Cash)'
+  parts.push(`• *طريقة الدفع:* ${methodLabel}`)
+
+  const statusLabel = paymentStatus === 'paid' ? '✅ تم السداد بنجاح ومؤكد' : '⏳ في انتظار التأكيد'
+  parts.push(`• *حالة الدفع:* ${statusLabel}`)
+
+  if (directInvoiceUrl && directInvoiceUrl.trim()) {
+    parts.push(``)
+    parts.push(`📄 *رابط عرض وتحميل الفاتورة الإلكترونية (PDF) الرسمية:*`)
+    parts.push(`🔗 ${directInvoiceUrl.trim()}`)
+  } else {
+    parts.push(``)
+    parts.push(`📄 *مرفق ملف الفاتورة الطبية الرسمية (PDF)*`)
+  }
+
+  parts.push(``)
+  parts.push(`نتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`)
+
+  return parts.join('\n')
+}
+
+/**
  * Handles professional sharing of documents and images (Prescriptions, Invoices, Reports).
  * - Opens WhatsApp chat directly targeting the recipient's phone number.
- * - Places full details inside the chat text (NO WEB LINKS).
+ * - Places full details inside the chat text with official PDF link.
  * - Tries native OS WebShare with file attachment where supported (mobile).
- * - On desktop: downloads the clean PDF file & copies image to clipboard for Ctrl+V paste.
+ * - On desktop: copies image to clipboard for Ctrl+V paste.
+ * - Strictly avoids auto-downloading files unless explicitly set to downloadFile=true.
  */
 export async function shareDocumentOrImage({
   blob,
@@ -206,7 +313,7 @@ export async function shareDocumentOrImage({
   messageText,
   documentTitle = 'المستند',
   imageBlobForClipboard,
-  downloadFile = true,
+  downloadFile = false,
   target = 'auto'
 }: {
   blob?: Blob
