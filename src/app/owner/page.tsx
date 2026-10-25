@@ -42,7 +42,7 @@ import { SYSTEM_FEATURES } from '@/lib/featurePermissions'
 import { useLanguage } from '@/context/LanguageContext'
 import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import { cleanPhoneForWhatsApp } from '@/lib/countryPhoneHelper'
-import { syncClinicScheduleToMainBranch } from '@/lib/branchService'
+import { syncClinicScheduleToMainBranch, formatWeeklyScheduleSummary } from '@/lib/branchService'
 
 function formatTime12(timeStr?: string): string {
   if (!timeStr) return ''
@@ -184,6 +184,10 @@ function OwnerDashboard() {
   const [settleNotes, setSettleNotes] = useState<string>('')
   const [isSubmittingPayment, setIsSubmittingPayment] = useState<boolean>(false)
 
+  // Real Clinic Branches State
+  const [allBranchesList, setAllBranchesList] = useState<any[]>([])
+  const [selectedBranchesModal, setSelectedBranchesModal] = useState<{ clinic: any; branches: any[] } | null>(null)
+
   // Packages Management State
   const [packages, setPackages] = useState<any[]>([])
   const [showPackagesInClinics, setShowPackagesInClinics] = useState<boolean>(true)
@@ -297,6 +301,36 @@ function OwnerDashboard() {
   const [isActive, setIsActive] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+
+  const getClinicRealBranches = (c: any) => {
+    // 1. From live branches collection in Firestore
+    const fromDb = allBranchesList.filter((b: any) =>
+      (b.clinicId === c.id || b.clinicId === c.slug || b.clinic_id === c.id || b.clinic_id === c.slug) && !b.isArchived
+    )
+    if (fromDb.length > 0) return fromDb
+
+    // 2. From embedded clinic branches array if available
+    if (Array.isArray(c.branches) && c.branches.length > 0) {
+      const activeEmbedded = c.branches.filter((b: any) => !b.isArchived)
+      if (activeEmbedded.length > 0) return activeEmbedded
+    }
+
+    // 3. Fallback to clinic's real main branch profile
+    return [{
+      id: 'main-' + (c.id || 'default'),
+      clinicId: c.id,
+      name: c.branchName || 'الفرع الرئيسي',
+      governorate: c.governorate || '',
+      city: c.city || c.governorate || 'القاهرة',
+      address: c.clinicAddress || c.address || 'العنوان الرئيسي للعيادة',
+      phone: c.clinicPhone || c.doctorPhone || '',
+      whatsapp: c.clinicPhone || c.doctorPhone || '',
+      mapsLink: c.mapsLink || '',
+      isMain: true,
+      isOpen: c.isClinicOpen !== false,
+      weeklySchedule: c.weeklySchedule || []
+    }]
+  }
 
   const loadClinics = async () => {
     setIsRefreshing(true)
@@ -504,10 +538,21 @@ function OwnerDashboard() {
       })
     })
 
+    const unsubBranches = onSnapshot(
+      collection(db, 'branches'),
+      (snap) => {
+        setAllBranchesList(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+      },
+      (err) => {
+        console.warn('Branches snapshot warning:', err)
+      }
+    )
+
     return () => {
       unsubClinics()
       unsubPackages()
       unsubSettings()
+      unsubBranches()
     }
   }, [])
 
@@ -1760,7 +1805,12 @@ function OwnerDashboard() {
                       </span>
                     </th>
                     <th className="py-4 px-4 text-center">تصميم الروشتة</th>
-                    <th className="py-4 px-4 text-center">باقة الفروع</th>
+                    <th className="py-4 px-4 text-center">
+                      <span className="flex items-center justify-center gap-1.5 text-blue-600 dark:text-blue-400">
+                        <Building2 className="w-4 h-4" />
+                        <span>الفروع الحقيقية للعيادة</span>
+                      </span>
+                    </th>
                     <th className="py-4 px-4 text-center">حالة الاشتراك</th>
                     <th className="py-4 px-4 text-center">الإجراءات</th>
                   </tr>
@@ -1897,20 +1947,81 @@ function OwnerDashboard() {
                             )}
                           </td>
 
-                          {/* Multi-Branch Quota */}
+                          {/* Real Clinic Branches */}
                           <td className="py-4 px-4 text-center">
-                            <div className="flex flex-col items-center gap-1">
-                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                                c.branchesEnabled !== false
-                                  ? 'bg-primary/10 text-primary border-primary/20'
-                                  : 'bg-secondary text-muted-foreground border-border'
-                              }`}>
-                                {c.branchesEnabled !== false ? (isRtl ? `مفعلة (${c.maxBranches || 1} فروع)` : `Active (${c.maxBranches || 1} branches)`) : (isRtl ? 'معطلة (فرع واحد)' : 'Single branch')}
-                              </span>
-                              {c.branchCreationAllowed === false && (
-                                <span className="text-[9px] text-amber-600 dark:text-amber-400 font-bold">{isRtl ? 'إنشاء الفروع مقفل' : 'Creation locked'}</span>
-                              )}
-                            </div>
+                            {(() => {
+                              const realBranches = getClinicRealBranches(c)
+                              return (
+                                <div className="flex flex-col items-center gap-1.5 min-w-[170px] max-w-[240px] mx-auto">
+                                  {/* Count & Status Badges */}
+                                  <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black border shadow-xs ${
+                                      realBranches.length > 1
+                                        ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30'
+                                        : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                                    }`}>
+                                      <Building2 className="w-3.5 h-3.5" />
+                                      <span>
+                                        {realBranches.length}{' '}
+                                        {realBranches.length === 1
+                                          ? (isRtl ? 'فرع مسجل' : 'Branch')
+                                          : (isRtl ? 'فروع مسجلة' : 'Branches')}
+                                      </span>
+                                    </span>
+
+                                    {c.branchesEnabled === false && (
+                                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border font-bold">
+                                        {isRtl ? 'فرع فردي' : 'Single'}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Real Branch Names Pills */}
+                                  <div className="flex flex-wrap items-center justify-center gap-1 max-w-[220px]">
+                                    {realBranches.slice(0, 2).map((br: any) => (
+                                      <button
+                                        key={br.id}
+                                        type="button"
+                                        onClick={() => setSelectedBranchesModal({ clinic: c, branches: realBranches })}
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-secondary/80 hover:bg-secondary text-[10px] font-medium text-foreground border border-border/70 max-w-[140px] truncate cursor-pointer transition-colors"
+                                        title={`${br.name} - ${br.city || br.governorate || br.address || ''}`}
+                                      >
+                                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${br.isOpen !== false ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                                        <span className="truncate">{br.name}</span>
+                                        {br.city && <span className="text-muted-foreground text-[9px] shrink-0">({br.city})</span>}
+                                      </button>
+                                    ))}
+                                    {realBranches.length > 2 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setSelectedBranchesModal({ clinic: c, branches: realBranches })}
+                                        className="text-[10px] text-primary font-bold px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20 hover:bg-primary/20 cursor-pointer transition-colors"
+                                        title={isRtl ? 'عرض باقي الفروع' : 'View more'}
+                                      >
+                                        +{realBranches.length - 2}
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  {/* Details Link & Package Limit Subtext */}
+                                  <div className="flex flex-col items-center gap-0.5 mt-0.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedBranchesModal({ clinic: c, branches: realBranches })}
+                                      className="inline-flex items-center gap-1 text-[10px] font-bold text-primary hover:underline cursor-pointer"
+                                    >
+                                      <Eye className="w-3 h-3" />
+                                      <span>{isRtl ? 'عرض تفاصيل الفروع' : 'View Details'}</span>
+                                    </button>
+                                    <span className="text-[9px] text-muted-foreground font-medium">
+                                      {isRtl
+                                        ? `الحد المسموح بالباقة: ${c.maxBranches || 1} ${c.maxBranches === 1 ? 'فرع' : 'فروع'}`
+                                        : `Package limit: ${c.maxBranches || 1}`}
+                                    </span>
+                                  </div>
+                                </div>
+                              )
+                            })()}
                           </td>
 
                           {/* Subscription & Active Status (Wireframe Glowing Status Pill) */}
@@ -4748,6 +4859,151 @@ function OwnerDashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal for Inspecting Real Clinic Branches */}
+      {selectedBranchesModal && (
+        <Dialog open={!!selectedBranchesModal} onOpenChange={(open) => !open && setSelectedBranchesModal(null)}>
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto p-6 rounded-3xl" dir="rtl">
+            <DialogHeader className="text-right pb-4 border-b border-border/80">
+              <div className="flex items-center justify-between gap-4">
+                <DialogTitle className="text-base font-black text-foreground flex items-center gap-2">
+                  <Building2 className="w-5 h-5 text-primary" />
+                  <span>الفروع الحقيقية للعيادة: {selectedBranchesModal.clinic.clinicName || 'بدون اسم'}</span>
+                </DialogTitle>
+                <a
+                  href={`/clinic/${selectedBranchesModal.clinic.slug}/admin/branches`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-all shrink-0"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>إدارة الفروع كاملة</span>
+                </a>
+              </div>
+              <DialogDescription className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-2">
+                <span>د. {selectedBranchesModal.clinic.doctorName || 'غير محدد'}</span>
+                {selectedBranchesModal.clinic.specialty && (
+                  <>
+                    <span>•</span>
+                    <span>{selectedBranchesModal.clinic.specialty}</span>
+                  </>
+                )}
+                <span>•</span>
+                <span className="font-bold text-foreground">
+                  {selectedBranchesModal.branches.length} {selectedBranchesModal.branches.length === 1 ? 'فرع مسجل' : 'فروع مسجلة'}
+                </span>
+                <span>•</span>
+                <span className="text-primary font-bold">
+                  (باقة العيادة: {selectedBranchesModal.clinic.packageName || 'الأساسية'} - الحد المسموح: {selectedBranchesModal.clinic.maxBranches || 1} فروع)
+                </span>
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 pt-3">
+              {selectedBranchesModal.branches.map((b: any, idx: number) => {
+                const scheduleSummary = b.weeklySchedule && b.weeklySchedule.length > 0
+                  ? formatWeeklyScheduleSummary(b.weeklySchedule, true)
+                  : (b.workingHours || 'مواعيد العمل العادية')
+
+                return (
+                  <div
+                    key={b.id || idx}
+                    className="p-4 rounded-2xl border border-border bg-card shadow-xs hover:border-primary/40 transition-colors space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-sm font-black text-foreground flex items-center gap-1.5">
+                          <MapPin className="w-4 h-4 text-primary" />
+                          <span>{b.name}</span>
+                        </h4>
+                        {b.isMain && (
+                          <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 text-[10px] font-black">
+                            الفرع الرئيسي
+                          </Badge>
+                        )}
+                        <Badge className={`text-[10px] font-bold ${
+                          b.isOpen !== false
+                            ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'
+                            : 'bg-slate-500/15 text-slate-700 dark:text-slate-400 border-slate-500/30'
+                        }`}>
+                          {b.isOpen !== false ? 'مفتوح للعمل' : 'مغلق مؤقتاً'}
+                        </Badge>
+                      </div>
+
+                      {b.city && (
+                        <span className="text-xs text-muted-foreground font-bold px-2 py-0.5 rounded-lg bg-secondary">
+                          {b.governorate ? `${b.governorate} - ${b.city}` : b.city}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Address */}
+                    <div className="text-xs text-muted-foreground leading-relaxed flex items-start gap-1.5">
+                      <span className="font-bold text-foreground shrink-0">العنوان:</span>
+                      <span>{b.address || 'العنوان الرئيسي للعيادة'}</span>
+                    </div>
+
+                    {/* Contacts & Maps */}
+                    <div className="flex flex-wrap items-center gap-3 pt-1 text-xs">
+                      {b.phone && (
+                        <a
+                          href={`tel:${b.phone}`}
+                          className="inline-flex items-center gap-1 text-slate-600 dark:text-slate-300 hover:text-primary font-mono font-bold"
+                        >
+                          <Phone className="w-3.5 h-3.5 text-primary" />
+                          <span dir="ltr">{b.phone}</span>
+                        </a>
+                      )}
+                      {b.whatsapp && (
+                        <a
+                          href={`https://wa.me/${cleanPhoneForWhatsApp(b.whatsapp)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 hover:underline font-mono font-bold"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                          <span>واتساب الفرع</span>
+                        </a>
+                      )}
+                      {b.mapsLink && (
+                        <a
+                          href={b.mapsLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline font-bold"
+                        >
+                          <MapPin className="w-3.5 h-3.5" />
+                          <span>الموقع على Google Maps</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                    </div>
+
+                    {/* Working Hours / Schedule */}
+                    <div className="pt-2 border-t border-border/60 flex items-start gap-2 text-[11px] text-muted-foreground">
+                      <Clock className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold text-foreground">أوقات العمل: </span>
+                        <span>{scheduleSummary}</span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="flex justify-end pt-4 border-t border-border/80">
+              <Button
+                type="button"
+                onClick={() => setSelectedBranchesModal(null)}
+                className="rounded-xl text-xs font-bold bg-secondary hover:bg-secondary/80 text-foreground"
+              >
+                إغلاق
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Platform Owner Footer */}
