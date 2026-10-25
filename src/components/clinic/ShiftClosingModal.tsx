@@ -22,6 +22,8 @@ export interface ShiftClosingModalProps {
   clinic: any
   appointments: any[]
   selectedBranchId?: string
+  branches?: any[]
+  selectedDate?: string
 }
 
 export function ShiftClosingModal({
@@ -29,7 +31,9 @@ export function ShiftClosingModal({
   onClose,
   clinic,
   appointments = [],
-  selectedBranchId = 'all'
+  selectedBranchId = 'all',
+  branches = [],
+  selectedDate
 }: ShiftClosingModalProps) {
   const { t, tDynamic, language, isRtl, dir } = useLanguage()
 
@@ -43,6 +47,8 @@ export function ShiftClosingModal({
     }
   }, [])
 
+  const activeDate = selectedDate || cairoTodayDate
+
   const [staffName, setStaffName] = useState(
     typeof window !== 'undefined' ? localStorage.getItem('clinic_staff_name') || 'سكرتارية العيادة' : 'سكرتارية العيادة'
   )
@@ -52,17 +58,38 @@ export function ShiftClosingModal({
 
   // Filter today's appointments for active branch
   const todayAppts = useMemo(() => {
-    return appointments.filter(a => {
-      const isToday = (a.date || a.createdAt?.split('T')[0]) === cairoTodayDate
-      if (!isToday) return false
-      if (selectedBranchId && selectedBranchId !== 'all') {
-        const apptBranch = a.branch_id || a.branchId
-        const isMain = selectedBranchId === 'main' || clinic?.branches?.find((b: any) => b.isMain)?.id === selectedBranchId
-        return apptBranch ? apptBranch === selectedBranchId : isMain
+    const allBranchesList = (branches && branches.length > 0) ? branches : (clinic?.branches || [])
+
+    // 1. First attempt: filter by matching date
+    let matched = appointments.filter(a => {
+      const apptDate = a.date || (a.createdAt ? a.createdAt.split('T')[0] : '')
+      if (apptDate) {
+        return apptDate === activeDate
       }
       return true
     })
-  }, [appointments, cairoTodayDate, selectedBranchId, clinic])
+
+    // If no items matched by explicit string equality, but appointments were provided (already pre-filtered for dashboard), use all
+    if (matched.length === 0 && appointments.length > 0) {
+      matched = appointments
+    }
+
+    // 2. Filter by branch if a specific branch is selected
+    if (selectedBranchId && selectedBranchId !== 'all') {
+      const currentBranchObj = allBranchesList.find((b: any) => b.id === selectedBranchId)
+      const isMain = selectedBranchId === 'main' || currentBranchObj?.isMain
+
+      matched = matched.filter(a => {
+        const apptBranch = a.branch_id || a.branchId
+        if (apptBranch) {
+          return apptBranch === selectedBranchId
+        }
+        return isMain
+      })
+    }
+
+    return matched
+  }, [appointments, activeDate, selectedBranchId, branches, clinic])
 
   // Calculations
   const metrics = useMemo(() => {
@@ -84,8 +111,12 @@ export function ShiftClosingModal({
       if (a.status === 'completed') completedCount++
       if (a.status === 'waiting' || a.status === 'in_progress') waitingCount++
 
-      const price = Number(a.finalPrice ?? a.price ?? 0)
-      const paid = a.paymentStatus === 'paid' ? (Number(a.paidAmount) || price) : (Number(a.paidAmount) || 0)
+      // Determine price accurately from any field: servicePrice, netPrice, finalPrice, price, or originalPrice
+      const price = Number(a.servicePrice ?? a.netPrice ?? a.finalPrice ?? a.price ?? a.originalPrice ?? 0)
+      
+      // Appointment is paid if explicitly paid or if patient status completed examination
+      const isPaid = (a.paymentStatus === 'paid' || a.status === 'completed')
+      const paid = isPaid ? (Number(a.paidAmount) || price) : (Number(a.paidAmount) || 0)
       const due = Math.max(0, price - paid)
 
       totalCollected += paid
@@ -145,7 +176,7 @@ export function ShiftClosingModal({
 <html dir="rtl" lang="ar">
 <head>
   <meta charset="utf-8">
-  <title>تقفيل الخزينة والوردية - ${cairoTodayDate}</title>
+  <title>تقفيل الخزينة والوردية - ${activeDate}</title>
   <style>
     @page { size: 80mm auto; margin: 0; }
     @media print {
@@ -185,7 +216,7 @@ export function ShiftClosingModal({
     <div class="subtitle">تقرير تقفيل الخزينة وإغلاق الوردية</div>
     <div>د. ${clinic?.doctorName || 'العيادة'} ${clinic?.specialty ? '• ' + clinic.specialty : ''}</div>
     <div>الفرع: ${branchName}</div>
-    <div>التاريخ: ${cairoTodayDate} • الساعة: ${formattedTime}</div>
+    <div>التاريخ: ${activeDate} • الساعة: ${formattedTime}</div>
     <div>مسؤول الوردية: ${staffName}</div>
   </div>
 
@@ -258,7 +289,7 @@ export function ShiftClosingModal({
     const message = `📊 *تقرير تقفيل الخزينة وإغلاق الوردية*
 🏥 *${clinic?.clinicName || 'العيادة الطبية'}*
 🏢 الفرع: ${branchName}
-📅 التاريخ: ${cairoTodayDate} (الساعة: ${formattedTime})
+📅 التاريخ: ${activeDate} (الساعة: ${formattedTime})
 👤 مسؤول الوردية: ${staffName}
 ----------------------------------
 👥 *حركة الكشوفات:*
@@ -313,7 +344,7 @@ ${metrics.totalDue > 0 ? `⚠️ مبالغ آجلة متبقية: ${metrics.tot
                   تقفيل الخزينة اليومي وتقرير الوردية
                 </h2>
                 <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] font-bold">
-                  {cairoTodayDate}
+                  {activeDate}
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">

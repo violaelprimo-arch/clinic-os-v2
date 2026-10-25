@@ -1086,6 +1086,8 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
           clinic={clinic}
           appointments={report}
           selectedBranchId={selectedBranchId}
+          branches={branches}
+          selectedDate={fromDate === toDate ? fromDate : undefined}
         />
       )}
 

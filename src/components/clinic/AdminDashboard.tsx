@@ -1991,8 +1991,10 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
           isOpen={true}
           onClose={() => setIsShiftClosingOpen(false)}
           clinic={clinic}
-          appointments={rawAppointments}
+          appointments={branchFilteredAppointments.length > 0 ? branchFilteredAppointments : rawAppointments}
           selectedBranchId={selectedBranchId}
+          branches={branches}
+          selectedDate={selectedDashboardDate}
         />
       )}
 
