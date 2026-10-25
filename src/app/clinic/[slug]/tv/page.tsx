@@ -7,7 +7,8 @@ import {
   Tv, Volume2, VolumeX, Maximize2, Minimize2, Clock,
   Calendar, Building2, User, Sparkles, CheckCircle2,
   AlertCircle, ChevronRight, Stethoscope, ArrowRight,
-  Sun, Moon, Settings, X, Save, RotateCcw, Megaphone
+  Sun, Moon, Settings, X, Save, RotateCcw, Megaphone,
+  ArrowLeftRight, Mic
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
@@ -18,6 +19,9 @@ interface TvConfig {
   instructionsText: string
   announceName: boolean
   tickerSpeed: 'normal' | 'slow' | 'fast'
+  tickerDirection: 'rtl' | 'ltr'
+  voiceGender: 'female' | 'male'
+  announcementPhrase: 'patient_number' | 'turn_number'
 }
 
 export default function WaitingRoomTvPage({
@@ -57,11 +61,24 @@ export default function WaitingRoomTvPage({
     tickerText: '',
     instructionsText: '',
     announceName: true,
-    tickerSpeed: 'normal'
+    tickerSpeed: 'normal',
+    tickerDirection: 'rtl',
+    voiceGender: 'female',
+    announcementPhrase: 'patient_number'
   })
 
   // Audio Context Ref
   const audioCtxRef = useRef<AudioContext | null>(null)
+
+  // Load voices listener
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
+    const handleVoices = () => {
+      window.speechSynthesis.getVoices()
+    }
+    handleVoices()
+    window.speechSynthesis.onvoiceschanged = handleVoices
+  }, [])
 
   // Load Saved Theme and Settings from localStorage
   useEffect(() => {
@@ -75,7 +92,13 @@ export default function WaitingRoomTvPage({
       if (savedConfig) {
         try {
           const parsed = JSON.parse(savedConfig)
-          setTvConfig(prev => ({ ...prev, ...parsed }))
+          setTvConfig(prev => ({
+            ...prev,
+            ...parsed,
+            tickerDirection: parsed.tickerDirection || 'rtl',
+            voiceGender: parsed.voiceGender || 'female',
+            announcementPhrase: parsed.announcementPhrase || 'patient_number'
+          }))
         } catch (e) {}
       }
     }
@@ -89,7 +112,10 @@ export default function WaitingRoomTvPage({
         tickerText: clinic.tvSettings.tickerText || prev.tickerText,
         instructionsText: clinic.tvSettings.instructionsText || prev.instructionsText,
         announceName: clinic.tvSettings.announceName !== undefined ? clinic.tvSettings.announceName : prev.announceName,
-        tickerSpeed: clinic.tvSettings.tickerSpeed || prev.tickerSpeed
+        tickerSpeed: clinic.tvSettings.tickerSpeed || prev.tickerSpeed,
+        tickerDirection: clinic.tvSettings.tickerDirection || prev.tickerDirection || 'rtl',
+        voiceGender: clinic.tvSettings.voiceGender || prev.voiceGender || 'female',
+        announcementPhrase: clinic.tvSettings.announcementPhrase || prev.announcementPhrase || 'patient_number'
       }))
     }
   }, [clinic?.tvSettings])
@@ -177,26 +203,65 @@ export default function WaitingRoomTvPage({
   }
 
   // Arabic Speech Synthesis Voice Announcement (نداء صوتي لدخول المريض رقم كذا)
-  const speakAnnouncement = (turnNumber: string | number, patientName?: string, callName = true) => {
+  const speakAnnouncement = (
+    turnNumber: string | number,
+    patientName?: string,
+    callName = true,
+    gender: 'female' | 'male' = tvConfig.voiceGender || 'female',
+    phraseType: 'patient_number' | 'turn_number' = tvConfig.announcementPhrase || 'patient_number'
+  ) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
 
     try {
       window.speechSynthesis.cancel()
 
-      const turn = String(turnNumber).trim()
+      const turn = String(turnNumber).replace(/[^0-9]/g, '').trim() || String(turnNumber).trim()
       const name = (callName && patientName && patientName.trim()) ? `${patientName.trim()}، ` : ''
-      const textToSpeak = `تنبيه: مريض رقم ${turn}، ${name}تفضل بالدخول لغرفة الكشف.`
+      
+      // Phrasing requested by user: "مريض رقم كذا، تفضل بالدخول لغرفة الكشف"
+      const prefix = phraseType === 'turn_number' ? 'دور رقم' : 'مريض رقم'
+      const textToSpeak = `${prefix} ${turn}، ${name}تفضل بالدخول لغرفة الكشف.`
 
       const utterance = new SpeechSynthesisUtterance(textToSpeak)
       utterance.lang = 'ar-SA'
-      utterance.rate = 0.88 // Slightly slower for crisp clinic acoustics
-      utterance.pitch = 1.05
 
-      // Find best available Arabic voice in browser
+      // Get available voices
       const voices = window.speechSynthesis.getVoices()
-      const arabicVoice = voices.find(v => v.lang.startsWith('ar') || v.lang.includes('ar-') || v.lang.includes('AR'))
-      if (arabicVoice) {
-        utterance.voice = arabicVoice
+      const arabicVoices = voices.filter(v => v.lang.startsWith('ar') || v.lang.includes('ar-') || v.lang.includes('AR'))
+
+      const femaleKeywords = ['female', 'hoda', 'zeina', 'salma', 'laila', 'zariyah', 'nour', 'fatima', 'maryam', 'amira', 'mona', 'sara']
+      const maleKeywords = ['male', 'shakir', 'naayf', 'maged', 'tarik', 'hamed', 'youssef', 'omar', 'ahmed', 'ali', 'hassan']
+
+      let matchedVoice: SpeechSynthesisVoice | undefined
+
+      if (arabicVoices.length > 0) {
+        if (gender === 'female') {
+          matchedVoice = arabicVoices.find(v => {
+            const n = v.name.toLowerCase()
+            return femaleKeywords.some(kw => n.includes(kw))
+          }) || arabicVoices[0]
+        } else {
+          matchedVoice = arabicVoices.find(v => {
+            const n = v.name.toLowerCase()
+            return maleKeywords.some(kw => n.includes(kw))
+          }) || arabicVoices.find(v => {
+            const n = v.name.toLowerCase()
+            return !femaleKeywords.some(kw => n.includes(kw))
+          }) || arabicVoices[0]
+        }
+      }
+
+      if (matchedVoice) {
+        utterance.voice = matchedVoice
+      }
+
+      // Gender-specific acoustic fine tuning (pitch and rate)
+      if (gender === 'female') {
+        utterance.pitch = 1.25 // Melodic feminine tone
+        utterance.rate = 0.88
+      } else {
+        utterance.pitch = 0.82 // Resonant masculine tone
+        utterance.rate = 0.86
       }
 
       window.speechSynthesis.speak(utterance)
@@ -206,10 +271,20 @@ export default function WaitingRoomTvPage({
   }
 
   // Combined Chime + Voice Call Trigger
-  const triggerPatientVoiceCall = (turnNumber: string | number, patientName?: string) => {
+  const triggerPatientVoiceCall = (
+    turnNumber: string | number,
+    patientName?: string,
+    genderOverride?: 'female' | 'male'
+  ) => {
     playChimeSound()
     setTimeout(() => {
-      speakAnnouncement(turnNumber, patientName, tvConfig.announceName)
+      speakAnnouncement(
+        turnNumber,
+        patientName,
+        tvConfig.announceName,
+        genderOverride || tvConfig.voiceGender,
+        tvConfig.announcementPhrase
+      )
     }, 600)
   }
 
@@ -276,7 +351,7 @@ export default function WaitingRoomTvPage({
     if (currentTurn !== previousServingTurn) {
       setPreviousServingTurn(currentTurn)
     }
-  }, [currentPatient, previousServingTurn, isAudioEnabled, tvConfig.announceName])
+  }, [currentPatient, previousServingTurn, isAudioEnabled, tvConfig.announceName, tvConfig.voiceGender, tvConfig.announcementPhrase])
 
   // Toggle Theme Mode (Dark <-> Light)
   const toggleTheme = () => {
@@ -329,6 +404,7 @@ export default function WaitingRoomTvPage({
   const activeInstructionsText = tvConfig.instructionsText && tvConfig.instructionsText.trim() ? tvConfig.instructionsText.trim() : defaultInstructionsText
 
   const marqueeDuration = tvConfig.tickerSpeed === 'fast' ? '18s' : tvConfig.tickerSpeed === 'slow' ? '40s' : '28s'
+  const marqueeAnimationClass = tvConfig.tickerDirection === 'ltr' ? 'animate-marquee-ltr' : 'animate-marquee-rtl'
 
   const isDark = themeMode === 'dark'
 
@@ -754,7 +830,7 @@ export default function WaitingRoomTvPage({
         </div>
         <div className="flex-1 overflow-hidden whitespace-nowrap ps-4">
           <div
-            className="inline-block animate-marquee text-xs font-black tracking-wide"
+            className={`inline-block text-xs font-black tracking-wide ${marqueeAnimationClass}`}
             style={{ animationDuration: marqueeDuration }}
           >
             {activeTickerText}
@@ -765,7 +841,7 @@ export default function WaitingRoomTvPage({
       {/* CUSTOMIZE TV SCREEN MODAL */}
       {isSettingsOpen && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-          <div className={`w-full max-w-xl rounded-3xl border shadow-2xl overflow-hidden my-auto p-6 space-y-5 transition-colors ${
+          <div className={`w-full max-w-xl rounded-3xl border shadow-2xl overflow-hidden my-auto p-6 space-y-4 transition-colors max-h-[92vh] overflow-y-auto ${
             isDark ? 'bg-slate-900 border-white/15 text-white' : 'bg-white border-slate-200 text-slate-900'
           }`}>
             
@@ -779,7 +855,7 @@ export default function WaitingRoomTvPage({
                 </div>
                 <div>
                   <h3 className="text-base font-black">إعدادات الشاشة الذكية والنداء الصوتي</h3>
-                  <p className="text-xs text-muted-foreground">تخصيص شريط التنبيهات المار، التعليمات، ونطق الأسماء</p>
+                  <p className="text-xs text-muted-foreground">تخصيص شريط التنبيهات، اتجاه الحركة، وصوت النداء (ذكر / أنثى)</p>
                 </div>
               </div>
               <button
@@ -796,10 +872,10 @@ export default function WaitingRoomTvPage({
               {/* Ticker Text Input */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold block">
-                  شريط التنبيهات المتحرك في الأسفل (الكلمة المارة من اليمين لليسار):
+                  شريط التنبيهات المتحرك في الأسفل:
                 </label>
                 <textarea
-                  rows={3}
+                  rows={2}
                   value={tvConfig.tickerText}
                   onChange={(e) => setTvConfig({ ...tvConfig, tickerText: e.target.value })}
                   placeholder={defaultTickerText}
@@ -810,6 +886,170 @@ export default function WaitingRoomTvPage({
                 <p className="text-[11px] text-muted-foreground">
                   اتركه فارغاً لاستخدام النص الترحيبي الافتراضي باسم العيادة.
                 </p>
+              </div>
+
+              {/* Ticker Direction & Speed */}
+              <div className="grid sm:grid-cols-2 gap-3">
+                
+                {/* Ticker Direction (تحديد اتجاه حركة الشريط) */}
+                <div className={`p-3 rounded-2xl border space-y-1.5 ${
+                  isDark ? 'bg-slate-800/40 border-white/10' : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <label className="text-xs font-bold block flex items-center gap-1.5">
+                    <ArrowLeftRight className="w-3.5 h-3.5 text-blue-500" />
+                    <span>اتجاه حركة الشريط:</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setTvConfig({ ...tvConfig, tickerDirection: 'rtl' })}
+                      className={`py-1.5 rounded-xl text-center text-[11px] font-bold border transition-colors cursor-pointer flex items-center justify-center gap-1 ${
+                        tvConfig.tickerDirection === 'rtl'
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                          : isDark
+                            ? 'bg-white/5 border-white/10 text-slate-300'
+                            : 'bg-white border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      <span>يمين لـ يسار ⬅️</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTvConfig({ ...tvConfig, tickerDirection: 'ltr' })}
+                      className={`py-1.5 rounded-xl text-center text-[11px] font-bold border transition-colors cursor-pointer flex items-center justify-center gap-1 ${
+                        tvConfig.tickerDirection === 'ltr'
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                          : isDark
+                            ? 'bg-white/5 border-white/10 text-slate-300'
+                            : 'bg-white border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      <span>يسار لـ يمين ➡️</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Ticker Speed */}
+                <div className={`p-3 rounded-2xl border space-y-1.5 ${
+                  isDark ? 'bg-slate-800/40 border-white/10' : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <label className="text-xs font-bold block">سرعة حركة الشريط:</label>
+                  <div className="grid grid-cols-3 gap-1 pt-0.5">
+                    {(['slow', 'normal', 'fast'] as const).map(speed => (
+                      <button
+                        key={speed}
+                        type="button"
+                        onClick={() => setTvConfig({ ...tvConfig, tickerSpeed: speed })}
+                        className={`py-1.5 rounded-xl text-center text-[11px] font-bold border transition-colors cursor-pointer ${
+                          tvConfig.tickerSpeed === speed
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                            : isDark
+                              ? 'bg-white/5 border-white/10 text-slate-300'
+                              : 'bg-white border-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {speed === 'slow' ? 'هادئ 🐢' : speed === 'fast' ? 'سريع ⚡' : 'معتدل 🎯'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Voice Gender Selection & Phrasing (تحديد صوت النطق ذكر أو أنثى) */}
+              <div className="grid sm:grid-cols-2 gap-3">
+                
+                {/* Voice Gender Selector */}
+                <div className={`p-3 rounded-2xl border space-y-1.5 ${
+                  isDark ? 'bg-slate-800/40 border-white/10' : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <label className="text-xs font-bold block flex items-center gap-1.5">
+                    <Mic className="w-3.5 h-3.5 text-purple-500" />
+                    <span>صوت النداء (ذكر / أنثى):</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setTvConfig({ ...tvConfig, voiceGender: 'female' })}
+                      className={`py-1.5 rounded-xl text-center text-[11px] font-bold border transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${
+                        tvConfig.voiceGender === 'female'
+                          ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                          : isDark
+                            ? 'bg-white/5 border-white/10 text-slate-300'
+                            : 'bg-white border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      <span>👩 صوت أنثوي</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTvConfig({ ...tvConfig, voiceGender: 'male' })}
+                      className={`py-1.5 rounded-xl text-center text-[11px] font-bold border transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${
+                        tvConfig.voiceGender === 'male'
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                          : isDark
+                            ? 'bg-white/5 border-white/10 text-slate-300'
+                            : 'bg-white border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      <span>👨 صوت ذكوري</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Announcement Phrasing */}
+                <div className={`p-3 rounded-2xl border space-y-1.5 ${
+                  isDark ? 'bg-slate-800/40 border-white/10' : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <label className="text-xs font-bold block">صيغة النداء:</label>
+                  <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setTvConfig({ ...tvConfig, announcementPhrase: 'patient_number' })}
+                      className={`py-1.5 rounded-xl text-center text-[11px] font-bold border transition-colors cursor-pointer ${
+                        tvConfig.announcementPhrase === 'patient_number'
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                          : isDark
+                            ? 'bg-white/5 border-white/10 text-slate-300'
+                            : 'bg-white border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      <span>مريض رقم كذا 🩺</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTvConfig({ ...tvConfig, announcementPhrase: 'turn_number' })}
+                      className={`py-1.5 rounded-xl text-center text-[11px] font-bold border transition-colors cursor-pointer ${
+                        tvConfig.announcementPhrase === 'turn_number'
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                          : isDark
+                            ? 'bg-white/5 border-white/10 text-slate-300'
+                            : 'bg-white border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      <span>دور رقم كذا 🔢</span>
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Patient Name Checkbox */}
+              <div className={`p-3 rounded-2xl border flex items-center justify-between ${
+                isDark ? 'bg-slate-800/40 border-white/10' : 'bg-slate-50 border-slate-200'
+              }`}>
+                <div>
+                  <span className="font-bold text-xs block">مناداة اسم المريض مع الرقم</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {tvConfig.announceName ? 'ينطق: مريض رقم 5، [الاسم]، تفضل بالدخول' : 'ينطق: مريض رقم 5، تفضل بالدخول (لحفظ الخصوصية)'}
+                  </span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={tvConfig.announceName}
+                  onChange={(e) => setTvConfig({ ...tvConfig, announceName: e.target.checked })}
+                  className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                />
               </div>
 
               {/* Instructions Text Input */}
@@ -828,69 +1068,38 @@ export default function WaitingRoomTvPage({
                 />
               </div>
 
-              {/* Voice Call Options & Speed */}
-              <div className="grid sm:grid-cols-2 gap-3 pt-1">
-                
-                {/* Voice Call Name Option */}
-                <div className={`p-3.5 rounded-2xl border space-y-1.5 ${
-                  isDark ? 'bg-slate-800/40 border-white/10' : 'bg-slate-50 border-slate-200'
-                }`}>
-                  <label className="text-xs font-bold block flex items-center justify-between">
-                    <span>مناداة اسم المريض:</span>
-                    <input
-                      type="checkbox"
-                      checked={tvConfig.announceName}
-                      onChange={(e) => setTvConfig({ ...tvConfig, announceName: e.target.checked })}
-                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
-                    />
-                  </label>
-                  <p className="text-[11px] text-muted-foreground leading-normal">
-                    {tvConfig.announceName ? 'ينطق: رقم الدور + اسم المريض' : 'ينطق: رقم الدور فقط (لخصوصية المريض)'}
-                  </p>
-                </div>
-
-                {/* Ticker Speed */}
-                <div className={`p-3.5 rounded-2xl border space-y-1.5 ${
-                  isDark ? 'bg-slate-800/40 border-white/10' : 'bg-slate-50 border-slate-200'
-                }`}>
-                  <label className="text-xs font-bold block">سرعة حركة الشريط المتحرك:</label>
-                  <div className="flex items-center gap-1.5 pt-0.5">
-                    {(['slow', 'normal', 'fast'] as const).map(speed => (
-                      <button
-                        key={speed}
-                        type="button"
-                        onClick={() => setTvConfig({ ...tvConfig, tickerSpeed: speed })}
-                        className={`flex-1 py-1 rounded-xl text-center text-[11px] font-bold border transition-colors cursor-pointer ${
-                          tvConfig.tickerSpeed === speed
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                            : isDark
-                              ? 'bg-white/5 border-white/10 text-slate-300'
-                              : 'bg-white border-slate-200 text-slate-700'
-                        }`}
-                      >
-                        {speed === 'slow' ? 'هادئ 🐢' : speed === 'fast' ? 'سريع ⚡' : 'معتدل 🎯'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Test Audio Announcement Button */}
-              <div className="pt-1">
+              {/* Live Audio Test Buttons for Both Genders */}
+              <div className="grid grid-cols-2 gap-2 pt-1">
                 <button
                   type="button"
                   onClick={() => {
                     setIsAudioEnabled(true)
                     triggerPatientVoiceCall(
                       currentPatient?.queue_number || '5',
-                      currentPatient?.patientName || 'أحمد علي'
+                      currentPatient?.patientName || 'أحمد علي',
+                      'female'
                     )
                   }}
-                  className="w-full py-2.5 rounded-2xl bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center gap-2 font-black cursor-pointer transition-colors"
+                  className="py-2.5 px-3 rounded-2xl bg-purple-600/15 hover:bg-purple-600/25 text-purple-700 dark:text-purple-300 border border-purple-500/30 flex items-center justify-center gap-1.5 font-black cursor-pointer transition-colors"
                 >
                   <Megaphone className="w-4 h-4" />
-                  <span>تجربة النداء الصوتي الآن 📢 (تنبيه مريض رقم 5)</span>
+                  <span>تجربة صوت أنثوي 👩</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAudioEnabled(true)
+                    triggerPatientVoiceCall(
+                      currentPatient?.queue_number || '5',
+                      currentPatient?.patientName || 'أحمد علي',
+                      'male'
+                    )
+                  }}
+                  className="py-2.5 px-3 rounded-2xl bg-blue-600/15 hover:bg-blue-600/25 text-blue-700 dark:text-blue-300 border border-blue-500/30 flex items-center justify-center gap-1.5 font-black cursor-pointer transition-colors"
+                >
+                  <Megaphone className="w-4 h-4" />
+                  <span>تجربة صوت ذكوري 👨</span>
                 </button>
               </div>
 
@@ -907,9 +1116,12 @@ export default function WaitingRoomTvPage({
                     tickerText: '',
                     instructionsText: '',
                     announceName: true,
-                    tickerSpeed: 'normal'
+                    tickerSpeed: 'normal',
+                    tickerDirection: 'rtl',
+                    voiceGender: 'female',
+                    announcementPhrase: 'patient_number'
                   })
-                  toast.info('تم استعادة النصوص الافتراضية')
+                  toast.info('تم استعادة النصوص والإعدادات الافتراضية')
                 }}
                 className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer font-bold"
               >
@@ -943,14 +1155,21 @@ export default function WaitingRoomTvPage({
         </div>
       )}
 
-      {/* Marquee Keyframes */}
+      {/* Marquee Keyframes for RTL and LTR */}
       <style jsx global>{`
-        @keyframes marquee {
+        @keyframes marquee-rtl {
           0% { transform: translateX(100%); }
           100% { transform: translateX(-100%); }
         }
-        .animate-marquee {
-          animation: marquee 28s linear infinite;
+        @keyframes marquee-ltr {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+        .animate-marquee-rtl {
+          animation: marquee-rtl 28s linear infinite;
+        }
+        .animate-marquee-ltr {
+          animation: marquee-ltr 28s linear infinite;
         }
       `}</style>
     </div>
