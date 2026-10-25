@@ -22,35 +22,37 @@ interface TvConfig {
   tickerDirection: 'rtl' | 'ltr'
   voiceGender: 'female' | 'male'
   announcementPhrase: 'patient_number' | 'turn_number'
+  chimeSound: 'luxury' | 'classic' | 'none'
+  speechTone: 'calm' | 'natural' | 'quick'
 }
 
 // In-memory cache for decoded audio buffers to allow instant playback
 const ttsAudioCache = new Map<string, AudioBuffer>()
 
-// Convert digits to spelled-out Arabic words so voice engines pronounce full Arabic words
+// Convert digits to spelled-out Arabic words with vocalized diacritics (تشكيل فصيح)
 function numberToArabicWords(num: number | string): string {
   const clean = String(num).replace(/[^0-9]/g, '')
   const n = parseInt(clean, 10)
   if (isNaN(n) || n <= 0) return String(num)
 
   const ones = [
-    '', 'واحد', 'اثنان', 'ثلاثة', 'أربعة', 'خمسة', 'ستة', 'سبعة', 'ثمانية', 'تسعة', 'عشرة',
-    'أحد عشر', 'اثنا عشر', 'ثلاثة عشر', 'أربعة عشر', 'خمسة عشر', 'ستة عشر', 'سبعة عشر', 'ثمانية عشر', 'تسعة عشر'
+    '', 'وَاحِد', 'اثْنَان', 'ثَلَاثَة', 'أَرْبَعَة', 'خَمْسَة', 'سِتَّة', 'سَبْعَة', 'ثَمَانِيَة', 'تِسْعَة', 'عَشَرَة',
+    'أَحَدَ عَشَر', 'اثْنَا عَشَر', 'ثَلَاثَةَ عَشَر', 'أَرْبَعَةَ عَشَر', 'خَمْسَةَ عَشَر', 'سِتَّةَ عَشَر', 'سَبْعَةَ عَشَر', 'ثَمَانِيَةَ عَشَر', 'تِسْعَةَ عَشَر'
   ]
-  const tens = ['', '', 'عشرون', 'ثلاثون', 'أربعون', 'خمسون', 'ستون', 'سبعون', 'ثمانون', 'تسعون']
-  const hundreds = ['', 'مائة', 'مئتان', 'ثلاثمائة', 'أربعمائة', 'خمسمائة', 'ستمائة', 'سبعمائة', 'ثمانمائة', 'تسعمائة']
+  const tens = ['', '', 'عِشْرُونَ', 'ثَلَاثُونَ', 'أَرْبَعُونَ', 'خَمْسُونَ', 'سِتُّونَ', 'سَبْعُونَ', 'ثَمَانُونَ', 'تِسْعُونَ']
+  const hundreds = ['', 'مِائَة', 'مِائَتَان', 'ثَلَاثُمِائَة', 'أَرْبَعُمِائَة', 'خَمْسُمِائَة', 'سِتُّمِائَة', 'سَبْعُمِائَة', 'ثَمَانُمِائَة', 'تِسْعُمِائَة']
 
   if (n < 20) return ones[n]
   if (n < 100) {
     const one = n % 10
     const ten = Math.floor(n / 10)
-    return one === 0 ? tens[ten] : `${ones[one]} و${tens[ten]}`
+    return one === 0 ? tens[ten] : `${ones[one]} وَ${tens[ten]}`
   }
   if (n < 1000) {
     const hundred = Math.floor(n / 100)
     const remainder = n % 100
     if (remainder === 0) return hundreds[hundred]
-    return `${hundreds[hundred]} و${numberToArabicWords(remainder)}`
+    return `${hundreds[hundred]} وَ${numberToArabicWords(remainder)}`
   }
   return String(num)
 }
@@ -98,7 +100,9 @@ export default function WaitingRoomTvPage({
     tickerSpeed: 'normal',
     tickerDirection: 'rtl',
     voiceGender: 'female',
-    announcementPhrase: 'patient_number'
+    announcementPhrase: 'patient_number',
+    chimeSound: 'luxury',
+    speechTone: 'calm'
   })
 
   // Audio Context Ref
@@ -180,7 +184,9 @@ export default function WaitingRoomTvPage({
             ...parsed,
             tickerDirection: parsed.tickerDirection || 'rtl',
             voiceGender: parsed.voiceGender || 'female',
-            announcementPhrase: parsed.announcementPhrase || 'patient_number'
+            announcementPhrase: parsed.announcementPhrase || 'patient_number',
+            chimeSound: parsed.chimeSound || 'luxury',
+            speechTone: parsed.speechTone || 'calm'
           }))
         } catch (e) {}
       }
@@ -198,7 +204,9 @@ export default function WaitingRoomTvPage({
         tickerSpeed: clinic.tvSettings.tickerSpeed || prev.tickerSpeed,
         tickerDirection: clinic.tvSettings.tickerDirection || prev.tickerDirection || 'rtl',
         voiceGender: clinic.tvSettings.voiceGender || prev.voiceGender || 'female',
-        announcementPhrase: clinic.tvSettings.announcementPhrase || prev.announcementPhrase || 'patient_number'
+        announcementPhrase: clinic.tvSettings.announcementPhrase || prev.announcementPhrase || 'patient_number',
+        chimeSound: clinic.tvSettings.chimeSound || prev.chimeSound || 'luxury',
+        speechTone: clinic.tvSettings.speechTone || prev.speechTone || 'calm'
       }))
     }
   }, [clinic?.tvSettings])
@@ -242,8 +250,9 @@ export default function WaitingRoomTvPage({
     return () => clearInterval(interval)
   }, [])
 
-  // Web Audio API Synthesized Hospital/Airport Ding-Dong Chime
-  const playChimeSound = () => {
+  // Web Audio API Synthesized Luxury Hospital & Airport Chimes
+  const playChimeSound = (style: 'luxury' | 'classic' | 'none' = tvConfig.chimeSound || 'luxury') => {
+    if (style === 'none') return
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
       if (!AudioCtx) return
@@ -257,36 +266,88 @@ export default function WaitingRoomTvPage({
 
       const now = ctx.currentTime
 
-      // Tone 1: C5 (523.25 Hz)
-      const osc1 = ctx.createOscillator()
-      const gain1 = ctx.createGain()
-      osc1.type = 'sine'
-      osc1.frequency.setValueAtTime(523.25, now)
-      gain1.gain.setValueAtTime(0.25, now)
-      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.5)
-      osc1.connect(gain1)
-      gain1.connect(ctx.destination)
-      osc1.start(now)
-      osc1.stop(now + 0.5)
+      if (style === 'classic') {
+        // Classic Airport Double-Ding (D5 -> A5)
+        const osc1 = ctx.createOscillator()
+        const g1 = ctx.createGain()
+        osc1.type = 'sine'
+        osc1.frequency.setValueAtTime(587.33, now)
+        g1.gain.setValueAtTime(0.001, now)
+        g1.gain.exponentialRampToValueAtTime(0.22, now + 0.03)
+        g1.gain.exponentialRampToValueAtTime(0.001, now + 0.5)
+        osc1.connect(g1)
+        g1.connect(ctx.destination)
+        osc1.start(now)
+        osc1.stop(now + 0.5)
 
-      // Tone 2: E5 (659.25 Hz) delayed by 0.25s
-      const osc2 = ctx.createOscillator()
-      const gain2 = ctx.createGain()
-      osc2.type = 'sine'
-      osc2.frequency.setValueAtTime(659.25, now + 0.25)
-      gain2.gain.setValueAtTime(0.28, now + 0.25)
-      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.85)
-      osc2.connect(gain2)
-      gain2.connect(ctx.destination)
-      osc2.start(now + 0.25)
-      osc2.stop(now + 0.85)
+        const osc2 = ctx.createOscillator()
+        const g2 = ctx.createGain()
+        osc2.type = 'sine'
+        osc2.frequency.setValueAtTime(880.0, now + 0.22)
+        g2.gain.setValueAtTime(0.001, now + 0.22)
+        g2.gain.exponentialRampToValueAtTime(0.25, now + 0.25)
+        g2.gain.exponentialRampToValueAtTime(0.001, now + 0.8)
+        osc2.connect(g2)
+        g2.connect(ctx.destination)
+        osc2.start(now + 0.22)
+        osc2.stop(now + 0.8)
+        return
+      }
+
+      // Luxury 3-Tone Pentatonic Harmonic Bell (F5 -> A5 -> C6)
+      // Produces an ultra-soothing, premium medical center chime
+      const notes = [
+        { freq: 698.46, time: 0.0, duration: 0.75, vol: 0.22 },
+        { freq: 880.00, time: 0.22, duration: 0.85, vol: 0.24 },
+        { freq: 1046.50, time: 0.46, duration: 1.15, vol: 0.26 }
+      ]
+
+      notes.forEach(({ freq, time, duration, vol }) => {
+        const noteStart = now + time
+        const noteEnd = noteStart + duration
+
+        // Fundamental pure sine tone
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.type = 'sine'
+        osc.frequency.setValueAtTime(freq, noteStart)
+
+        gain.gain.setValueAtTime(0.0001, noteStart)
+        gain.gain.exponentialRampToValueAtTime(vol, noteStart + 0.035)
+        gain.gain.exponentialRampToValueAtTime(0.0001, noteEnd)
+
+        osc.connect(gain)
+
+        // Soft harmonic overtone for crystalline warmth
+        const harmOsc = ctx.createOscillator()
+        const harmGain = ctx.createGain()
+        harmOsc.type = 'triangle'
+        harmOsc.frequency.setValueAtTime(freq * 2, noteStart)
+        harmGain.gain.setValueAtTime(0.0001, noteStart)
+        harmGain.gain.exponentialRampToValueAtTime(vol * 0.18, noteStart + 0.03)
+        harmGain.gain.exponentialRampToValueAtTime(0.0001, noteEnd - 0.2)
+
+        harmOsc.connect(harmGain)
+
+        gain.connect(ctx.destination)
+        harmGain.connect(ctx.destination)
+
+        osc.start(noteStart)
+        osc.stop(noteEnd)
+        harmOsc.start(noteStart)
+        harmOsc.stop(noteEnd)
+      })
     } catch (e) {
       console.warn('Audio chime error:', e)
     }
   }
 
-  // Universal Cloud TTS Audio Stream via Web Audio API with pitch & acoustic modeling
-  const playCloudTtsAudio = async (text: string, gender: 'female' | 'male'): Promise<boolean> => {
+  // Universal Studio-Engineered Arabic Voice Stream with Compression, EQ & Room Acoustics
+  const playCloudTtsAudio = async (
+    text: string,
+    gender: 'female' | 'male',
+    tone: 'calm' | 'natural' | 'quick' = tvConfig.speechTone || 'calm'
+  ): Promise<boolean> => {
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
       if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
@@ -309,53 +370,88 @@ export default function WaitingRoomTvPage({
       const source = ctx.createBufferSource()
       source.buffer = audioBuffer
 
-      if (gender === 'male') {
-        // Deep masculine baritone acoustic processing:
-        // 1. Lower playback rate by 15% (drops pitch by ~3 semitones into authentic male register)
-        source.playbackRate.value = 0.85
+      // 1. Studio Broadcast Dynamics Compressor for smooth, balanced, intimate vocal delivery
+      const compressor = ctx.createDynamicsCompressor()
+      compressor.threshold.setValueAtTime(-18, ctx.currentTime)
+      compressor.knee.setValueAtTime(10, ctx.currentTime)
+      compressor.ratio.setValueAtTime(3.5, ctx.currentTime)
+      compressor.attack.setValueAtTime(0.003, ctx.currentTime)
+      compressor.release.setValueAtTime(0.22, ctx.currentTime)
 
-        // 2. Low-shelf bass boost at 220Hz (+6dB for chest resonance)
+      // 2. Subtle Clinic Hall Acoustic Reflection (Reverb warmth, eliminates dry phone-like harshness)
+      const delayNode = ctx.createDelay()
+      delayNode.delayTime.setValueAtTime(0.040, ctx.currentTime) // 40ms subtle space
+      const delayFeedback = ctx.createGain()
+      delayFeedback.gain.setValueAtTime(0.12, ctx.currentTime)
+      const delayFilter = ctx.createBiquadFilter()
+      delayFilter.type = 'lowpass'
+      delayFilter.frequency.setValueAtTime(2400, ctx.currentTime)
+      delayNode.connect(delayFeedback)
+      delayFeedback.connect(delayFilter)
+      delayFilter.connect(delayNode)
+
+      // Master output gain
+      const masterGain = ctx.createGain()
+      masterGain.gain.setValueAtTime(1.15, ctx.currentTime)
+
+      compressor.connect(masterGain)
+      compressor.connect(delayNode)
+      delayNode.connect(masterGain)
+      masterGain.connect(ctx.destination)
+
+      if (gender === 'male') {
+        // Deep, dignified, warm masculine voice model
+        // Speed & pitch according to chosen tone
+        source.playbackRate.value = tone === 'calm' ? 0.90 : tone === 'quick' ? 0.97 : 0.93
+
+        // Low-shelf bass warmth (+3.2dB at 180Hz)
         const bassFilter = ctx.createBiquadFilter()
         bassFilter.type = 'lowshelf'
-        bassFilter.frequency.value = 220
-        bassFilter.gain.value = 6
+        bassFilter.frequency.value = 180
+        bassFilter.gain.value = 3.2
 
-        // 3. Low-pass filter at 3500Hz to eliminate female sibilance
-        const lowpassFilter = ctx.createBiquadFilter()
-        lowpassFilter.type = 'lowpass'
-        lowpassFilter.frequency.value = 3500
+        // Presence & diction filter (+1.4dB at 2500Hz)
+        const clarityFilter = ctx.createBiquadFilter()
+        clarityFilter.type = 'peaking'
+        clarityFilter.frequency.value = 2500
+        clarityFilter.gain.value = 1.4
 
-        // 4. Output gain
-        const gainNode = ctx.createGain()
-        gainNode.gain.value = 1.3
+        // Smooth high shelf to remove harsh sibilance (-2.5dB at 7500Hz)
+        const smoothFilter = ctx.createBiquadFilter()
+        smoothFilter.type = 'highshelf'
+        smoothFilter.frequency.value = 7500
+        smoothFilter.gain.value = -2.5
 
         source.connect(bassFilter)
-        bassFilter.connect(lowpassFilter)
-        lowpassFilter.connect(gainNode)
-        gainNode.connect(ctx.destination)
+        bassFilter.connect(clarityFilter)
+        clarityFilter.connect(smoothFilter)
+        smoothFilter.connect(compressor)
       } else {
-        // Clear, bright feminine vocal processing:
-        // 1. Melodic feminine playback rate
-        source.playbackRate.value = 1.02
+        // Soft, melodic, soothing feminine voice model
+        // Speed & pitch according to chosen tone
+        source.playbackRate.value = tone === 'calm' ? 0.97 : tone === 'quick' ? 1.05 : 1.0
 
-        // 2. High clarity presence filter at 2400Hz
-        const presenceFilter = ctx.createBiquadFilter()
-        presenceFilter.type = 'peaking'
-        presenceFilter.frequency.value = 2400
-        presenceFilter.gain.value = 2.5
+        // High shelf airy sheen (+2dB at 5800Hz)
+        const airFilter = ctx.createBiquadFilter()
+        airFilter.type = 'highshelf'
+        airFilter.frequency.value = 5800
+        airFilter.gain.value = 2.0
 
-        // 3. Gentle high-pass filter at 120Hz to eliminate sub-bass rumble
+        // Gentle anti-glare notch (-1.8dB at 3100Hz) to remove nasal harshness
+        const notchFilter = ctx.createBiquadFilter()
+        notchFilter.type = 'peaking'
+        notchFilter.frequency.value = 3100
+        notchFilter.gain.value = -1.8
+
+        // High-pass at 85Hz to eliminate unwanted low rumble
         const highpassFilter = ctx.createBiquadFilter()
         highpassFilter.type = 'highpass'
-        highpassFilter.frequency.value = 120
+        highpassFilter.frequency.value = 85
 
-        const gainNode = ctx.createGain()
-        gainNode.gain.value = 1.1
-
-        source.connect(presenceFilter)
-        presenceFilter.connect(highpassFilter)
-        highpassFilter.connect(gainNode)
-        gainNode.connect(ctx.destination)
+        source.connect(airFilter)
+        airFilter.connect(notchFilter)
+        notchFilter.connect(highpassFilter)
+        highpassFilter.connect(compressor)
       }
 
       source.start(0)
@@ -372,37 +468,36 @@ export default function WaitingRoomTvPage({
     patientName?: string,
     callName = true,
     gender: 'female' | 'male' = tvConfig.voiceGender || 'female',
-    phraseType: 'patient_number' | 'turn_number' = tvConfig.announcementPhrase || 'patient_number'
+    phraseType: 'patient_number' | 'turn_number' = tvConfig.announcementPhrase || 'patient_number',
+    tone: 'calm' | 'natural' | 'quick' = tvConfig.speechTone || 'calm'
   ) => {
-    // 1. Convert digit turn into proper Arabic words (e.g. 5 -> خمسة, 12 -> اثنا عشر)
+    // 1. Convert digit turn into proper vocalized Arabic words (e.g. 5 -> خَمْسَة)
     const turnInWords = numberToArabicWords(turnNumber)
-    const namePart = (callName && patientName && patientName.trim()) ? `${patientName.trim()}، ` : ''
-    const prefix = phraseType === 'turn_number' ? 'دور رقم' : 'مريض رقم'
+    const namePart = (callName && patientName && patientName.trim()) ? `${patientName.trim()} ... ` : ''
+    const prefix = phraseType === 'turn_number' ? 'دَوْرٌ رَقْم' : 'مَرِيضٌ رَقْم'
 
-    // Full, grammatically complete Arabic announcement sentence
-    const fullArabicPhrase = `${prefix} ${turnInWords}، ${namePart}تفضل بالدخول لغرفة الكشف.`
+    // Eloquent Arabic phrasing with breathing micro-pauses (...) for natural cadence
+    const fullArabicPhrase = `${prefix} ${turnInWords} ... ${namePart}تَفَضَّلْ بِالدُّخُولِ إِلَى عِيَادَةِ الْكَشْفِ.`
 
-    // 2. Primary Method: Universal Cloud TTS Audio Stream via Web Audio API (Guaranteed on all TVs & browsers)
-    const played = await playCloudTtsAudio(fullArabicPhrase, gender)
+    // 2. Primary Method: Universal Cloud TTS Audio Stream via Web Audio Studio Pipeline
+    const played = await playCloudTtsAudio(fullArabicPhrase, gender, tone)
     if (played) return
 
-    // 3. Secondary Method: If Cloud TTS fetch failed, try HTML5 Audio element with stream
+    // 3. Secondary Method: HTML5 Audio stream
     try {
       const audioUrl = `/api/tts?text=${encodeURIComponent(fullArabicPhrase)}&tl=ar`
       const audioEl = new Audio(audioUrl)
       if (gender === 'male') {
         (audioEl as any).preservesPitch = false
-        audioEl.playbackRate = 0.85
+        audioEl.playbackRate = 0.92
       } else {
-        audioEl.playbackRate = 1.02
+        audioEl.playbackRate = 0.98
       }
       await audioEl.play()
       return
-    } catch (e) {
-      // Audio element also failed, try local SpeechSynthesis as last resort
-    }
+    } catch (e) {}
 
-    // 4. Tertiary Fallback: Browser Web Speech API (only if Arabic voices exist, avoiding English voice reciting numbers)
+    // 4. Tertiary Fallback: Browser Web Speech API (only if real Arabic voices exist)
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel()
@@ -419,13 +514,13 @@ export default function WaitingRoomTvPage({
           let matchedVoice: SpeechSynthesisVoice | undefined
           if (gender === 'female') {
             matchedVoice = arabicVoices.find(v => femaleKeywords.some(kw => v.name.toLowerCase().includes(kw))) || arabicVoices[0]
-            utterance.pitch = 1.25
-            utterance.rate = 0.9
+            utterance.pitch = 1.15
+            utterance.rate = tone === 'calm' ? 0.88 : tone === 'quick' ? 1.05 : 0.95
           } else {
             matchedVoice = arabicVoices.find(v => maleKeywords.some(kw => v.name.toLowerCase().includes(kw))) ||
               arabicVoices.find(v => !femaleKeywords.some(kw => v.name.toLowerCase().includes(kw))) || arabicVoices[0]
-            utterance.pitch = 0.8
-            utterance.rate = 0.86
+            utterance.pitch = 0.85
+            utterance.rate = tone === 'calm' ? 0.84 : tone === 'quick' ? 0.96 : 0.88
           }
 
           if (matchedVoice) {
@@ -443,18 +538,22 @@ export default function WaitingRoomTvPage({
   const triggerPatientVoiceCall = (
     turnNumber: string | number,
     patientName?: string,
-    genderOverride?: 'female' | 'male'
+    genderOverride?: 'female' | 'male',
+    toneOverride?: 'calm' | 'natural' | 'quick'
   ) => {
-    playChimeSound()
+    const chimeType = tvConfig.chimeSound || 'luxury'
+    playChimeSound(chimeType)
+    const delayMs = chimeType === 'none' ? 120 : 1050
     setTimeout(() => {
       speakAnnouncement(
         turnNumber,
         patientName,
         tvConfig.announceName,
         genderOverride || tvConfig.voiceGender,
-        tvConfig.announcementPhrase
+        tvConfig.announcementPhrase,
+        toneOverride || tvConfig.speechTone
       )
-    }, 750)
+    }, delayMs)
   }
 
   // Real-time Clinic Listener
@@ -536,7 +635,7 @@ export default function WaitingRoomTvPage({
         )
       }
     }
-  }, [currentPatient, isAudioEnabled, tvConfig.announceName, tvConfig.voiceGender, tvConfig.announcementPhrase])
+  }, [currentPatient, isAudioEnabled, tvConfig.announceName, tvConfig.voiceGender, tvConfig.announcementPhrase, tvConfig.speechTone, tvConfig.chimeSound])
 
   // Toggle Theme Mode (Dark <-> Light)
   const toggleTheme = () => {
@@ -1219,6 +1318,122 @@ export default function WaitingRoomTvPage({
 
               </div>
 
+              {/* Chime Sound Style & Voice Tone Controls */}
+              <div className="grid sm:grid-cols-2 gap-3">
+                
+                {/* Chime Style Selector */}
+                <div className={`p-3 rounded-2xl border space-y-1.5 ${
+                  isDark ? 'bg-slate-800/40 border-white/10' : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <label className="text-xs font-bold block flex items-center justify-between">
+                    <span>رنين التنبيه قبل النداء:</span>
+                    <button
+                      type="button"
+                      onClick={() => playChimeSound(tvConfig.chimeSound || 'luxury')}
+                      className="text-[10px] text-blue-500 hover:underline font-bold cursor-pointer"
+                    >
+                      تجربة الرنة 🔔
+                    </button>
+                  </label>
+                  <div className="grid grid-cols-3 gap-1 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTvConfig({ ...tvConfig, chimeSound: 'luxury' })
+                        playChimeSound('luxury')
+                      }}
+                      className={`py-1.5 rounded-xl text-center text-[10px] font-bold border transition-colors cursor-pointer ${
+                        (tvConfig.chimeSound || 'luxury') === 'luxury'
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                          : isDark
+                            ? 'bg-white/5 border-white/10 text-slate-300'
+                            : 'bg-white border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      <span>فاخر 3 نغمات 🔔</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTvConfig({ ...tvConfig, chimeSound: 'classic' })
+                        playChimeSound('classic')
+                      }}
+                      className={`py-1.5 rounded-xl text-center text-[10px] font-bold border transition-colors cursor-pointer ${
+                        tvConfig.chimeSound === 'classic'
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                          : isDark
+                            ? 'bg-white/5 border-white/10 text-slate-300'
+                            : 'bg-white border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      <span>كلاسيكي 🛎️</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTvConfig({ ...tvConfig, chimeSound: 'none' })}
+                      className={`py-1.5 rounded-xl text-center text-[10px] font-bold border transition-colors cursor-pointer ${
+                        tvConfig.chimeSound === 'none'
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                          : isDark
+                            ? 'bg-white/5 border-white/10 text-slate-300'
+                            : 'bg-white border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      <span>بدون رنين 🔕</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Voice Tone & Cadence */}
+                <div className={`p-3 rounded-2xl border space-y-1.5 ${
+                  isDark ? 'bg-slate-800/40 border-white/10' : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <label className="text-xs font-bold block">نبرة وسرعة النطق:</label>
+                  <div className="grid grid-cols-3 gap-1 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setTvConfig({ ...tvConfig, speechTone: 'calm' })}
+                      className={`py-1.5 rounded-xl text-center text-[10px] font-bold border transition-colors cursor-pointer ${
+                        (tvConfig.speechTone || 'calm') === 'calm'
+                          ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                          : isDark
+                            ? 'bg-white/5 border-white/10 text-slate-300'
+                            : 'bg-white border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      <span>هادئ وناعم 🌸</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTvConfig({ ...tvConfig, speechTone: 'natural' })}
+                      className={`py-1.5 rounded-xl text-center text-[10px] font-bold border transition-colors cursor-pointer ${
+                        tvConfig.speechTone === 'natural'
+                          ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                          : isDark
+                            ? 'bg-white/5 border-white/10 text-slate-300'
+                            : 'bg-white border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      <span>معتدل إذاعي 🎙️</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTvConfig({ ...tvConfig, speechTone: 'quick' })}
+                      className={`py-1.5 rounded-xl text-center text-[10px] font-bold border transition-colors cursor-pointer ${
+                        tvConfig.speechTone === 'quick'
+                          ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                          : isDark
+                            ? 'bg-white/5 border-white/10 text-slate-300'
+                            : 'bg-white border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      <span>سريع ⚡</span>
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+
               {/* Patient Name Checkbox */}
               <div className={`p-3 rounded-2xl border flex items-center justify-between ${
                 isDark ? 'bg-slate-800/40 border-white/10' : 'bg-slate-50 border-slate-200'
@@ -1268,7 +1483,7 @@ export default function WaitingRoomTvPage({
                   className="py-2.5 px-3 rounded-2xl bg-purple-600/15 hover:bg-purple-600/25 text-purple-700 dark:text-purple-300 border border-purple-500/30 flex items-center justify-center gap-1.5 font-black cursor-pointer transition-colors"
                 >
                   <Megaphone className="w-4 h-4" />
-                  <span>تجربة صوت أنثوي 👩</span>
+                  <span>تجربة صوت أنثوي ناعم 👩</span>
                 </button>
 
                 <button
@@ -1284,7 +1499,7 @@ export default function WaitingRoomTvPage({
                   className="py-2.5 px-3 rounded-2xl bg-blue-600/15 hover:bg-blue-600/25 text-blue-700 dark:text-blue-300 border border-blue-500/30 flex items-center justify-center gap-1.5 font-black cursor-pointer transition-colors"
                 >
                   <Megaphone className="w-4 h-4" />
-                  <span>تجربة صوت ذكوري 👨</span>
+                  <span>تجربة صوت ذكوري وقور 👨</span>
                 </button>
               </div>
 
@@ -1304,7 +1519,9 @@ export default function WaitingRoomTvPage({
                     tickerSpeed: 'normal',
                     tickerDirection: 'rtl',
                     voiceGender: 'female',
-                    announcementPhrase: 'patient_number'
+                    announcementPhrase: 'patient_number',
+                    chimeSound: 'luxury',
+                    speechTone: 'calm'
                   })
                   toast.info('تم استعادة النصوص والإعدادات الافتراضية')
                 }}
