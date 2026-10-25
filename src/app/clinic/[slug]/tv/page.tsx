@@ -560,11 +560,18 @@ export default function WaitingRoomTvPage({
     return branchAppointments.find(a => a.status === 'in_progress') || null
   }, [branchAppointments])
 
-  // Next Waiting Patients (Sorted by queue number)
+  // Next Waiting Patients (Priority late-arrivals first, then queue number)
   const nextWaitingPatients = useMemo(() => {
     return branchAppointments
       .filter(a => a.status === 'waiting')
-      .sort((a, b) => Number(a.queue_number || 0) - Number(b.queue_number || 0))
+      .sort((a, b) => {
+        if (a.priorityNext && !b.priorityNext) return -1
+        if (!a.priorityNext && b.priorityNext) return 1
+        if (a.priorityNext && b.priorityNext) {
+          return new Date(a.requeuedAt || 0).getTime() - new Date(b.requeuedAt || 0).getTime()
+        }
+        return Number(a.queue_number || 0) - Number(b.queue_number || 0)
+      })
       .slice(0, 5)
   }, [branchAppointments])
 
@@ -1016,7 +1023,7 @@ export default function WaitingRoomTvPage({
                               ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
                               : 'bg-amber-100 text-amber-900 border-amber-300'
                           }`}>
-                            التالي في الدور
+                            {p.priorityNext ? 'الدور القادم ⚡' : 'التالي في الدور'}
                           </span>
                         ) : (
                           <span className={`text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>

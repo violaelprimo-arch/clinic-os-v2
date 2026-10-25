@@ -9,7 +9,7 @@ import {
   Calendar, Users, Clock, CheckCircle2, DollarSign,
   Play, MessageCircle, ArrowLeft, ArrowRight, UserCheck,
   UserX, SkipForward, FileSignature, Phone, Filter,
-  Sparkles, AlertCircle, ChevronDown, ChevronUp, RefreshCw, ArrowUpDown, X,
+  Sparkles, AlertCircle, ChevronDown, ChevronUp, RefreshCw, ArrowUpDown, X, RotateCcw,
   Printer, Download, Tag, Check, Eye, Building2, Percent, FileSpreadsheet,
   ExternalLink, Copy, Search, Tv, Ticket
 } from 'lucide-react'
@@ -170,9 +170,14 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
       .filter((d: any) => d.status === 'completed' || d.status === 'cancelled')
       .sort((a: any, b: any) => (a.queue_number || 0) - (b.queue_number || 0))
     const inProgress = data.filter((d: any) => d.status === 'in_progress')
+    const skipped = data.filter((d: any) => d.status === 'skipped' || d.status === 'no_show')
     const orderedWaiting = sortQueue(data, clinic)
-    return [...inProgress, ...orderedWaiting, ...completed]
+    return [...inProgress, ...orderedWaiting, ...skipped, ...completed]
   }, [branchFilteredAppointments, clinic])
+
+  const skippedPatients = useMemo(() => {
+    return branchFilteredAppointments.filter((b: any) => b.status === 'skipped' || b.status === 'no_show')
+  }, [branchFilteredAppointments])
 
   // Categorize bookings
   const currentPatient = useMemo(() => {
@@ -242,7 +247,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
   }, [bookings])
 
   // Table status filter tabs
-  const [statusTabFilter, setStatusTabFilter] = useState<'all' | 'waiting' | 'completed' | 'cancelled'>('all')
+  const [statusTabFilter, setStatusTabFilter] = useState<'all' | 'waiting' | 'completed' | 'skipped' | 'cancelled'>('all')
 
   // Filtered queue for table
   const filteredBookings = useMemo(() => {
@@ -261,8 +266,10 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
           ? (b.status === 'waiting' || !b.status)
           : statusTabFilter === 'completed'
           ? b.status === 'completed'
+          : statusTabFilter === 'skipped'
+          ? (b.status === 'skipped' || b.status === 'no_show')
           : statusTabFilter === 'cancelled'
-          ? (b.status === 'cancelled' || b.status === 'skipped' || b.status === 'no_show')
+          ? b.status === 'cancelled'
           : true
 
       return matchesService && matchesSearch && matchesStatus
@@ -574,16 +581,85 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     }
   }
 
-  const handleSkipPatient = async (patientId: string) => {
-    if (isProcessing) return
+  const handleSkipPatient = async (patient: any) => {
+    if (!patient || isProcessing) return
     setIsProcessing(true)
     try {
-      await updateDoc(doc(db, 'appointments', patientId), {
-        status: 'skipped'
+      // 1. Mark patient as skipped, strictly preserving their original queue_number
+      await updateDoc(doc(db, 'appointments', patient.id), {
+        status: 'skipped',
+        skippedAt: new Date().toISOString(),
+        priorityNext: false
       })
-      toast.info('تم تخطي دور المريض مؤقتاً.')
+
+      // 2. Automatically admit the next waiting patient into the exam room
+      const upcoming = waitingPatients.find((p: any) => p.id !== patient.id)
+      if (upcoming) {
+        let prevDuration: number | null = null
+        if (patient.startedAt) {
+          const startMs = new Date(patient.startedAt).getTime()
+          prevDuration = Math.max(1, Math.round((new Date().getTime() - startMs) / 60000))
+        }
+
+        await updateDoc(doc(db, 'appointments', upcoming.id), {
+          status: 'in_progress',
+          paymentStatus: 'paid',
+          startedAt: new Date().toISOString(),
+          priorityNext: false
+        })
+
+        if (upcoming.phone) {
+          createClinicNotification({
+            clinicId: clinic?.id || upcoming.clinic_id,
+            branchId: upcoming.branch_id,
+            recipientType: 'patient',
+            recipientTarget: upcoming.phone,
+            title: 'دورك الآن للدخول!',
+            body: `مرحباً ${upcoming.patientName}، حان دورك الآن للدخول لغرفة الكشف (تذكرة #${upcoming.queue_number || ''}). يرجى الدخول مباشرة.`,
+            type: 'turn_ready',
+            eventId: `turn_ready_${upcoming.id}`,
+            appointmentId: upcoming.id
+          }).catch(() => {})
+
+          import('@/lib/patientNotificationHelper').then(({ triggerPatientEventPush }) => {
+            triggerPatientEventPush({
+              type: 'turn_ready',
+              appointmentId: upcoming.id,
+              clinicId: clinic?.id || upcoming.clinic_id,
+              clinicSlug: clinic?.slug,
+              clinicName: clinic?.clinicName || 'العيادة',
+              patientPhone: upcoming.phone,
+              queueNumber: upcoming.queue_number,
+              eventId: `push_turn_ready_${upcoming.id}`,
+            }).catch(() => {})
+          })
+        }
+
+        toast.info(`تم تخطي دور المريض #${patient.queue_number} وإدخال الدور التالي #${upcoming.queue_number} (${upcoming.patientName}).`)
+      } else {
+        toast.info(`تم تخطي دور المريض #${patient.queue_number}. لا يوجد مرضى آخرون في الانتظار حالياً.`)
+      }
     } catch (err) {
+      console.error('Error skipping patient:', err)
       toast.error('حدث خطأ أثناء تخطي المريض.')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleRequeueSkippedPatient = async (patient: any) => {
+    if (!patient || isProcessing) return
+    setIsProcessing(true)
+    try {
+      await updateDoc(doc(db, 'appointments', patient.id), {
+        status: 'waiting',
+        priorityNext: true,
+        requeuedAt: new Date().toISOString()
+      })
+      toast.success(`تم جدولة المريض رقم #${patient.queue_number} (${patient.patientName}) ليكون دوره هو القادم مباشرة بعد المريض الحالي.`)
+    } catch (err) {
+      console.error('Error requeueing patient:', err)
+      toast.error('حدث خطأ أثناء إعادة إدخال المريض.')
     } finally {
       setIsProcessing(false)
     }
@@ -680,9 +756,8 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
       case 'completed':
         return <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 font-bold px-3 py-1">{t('completed', 'تم الكشف')}</Badge>
       case 'skipped':
-        return <Badge className="bg-secondary text-muted-foreground border-border font-bold px-3 py-1">{t('skipped', 'تخطي')}</Badge>
       case 'no_show':
-        return <Badge className="bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30 font-bold px-3 py-1">{t('no_show', 'لم يحضر')}</Badge>
+        return <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 font-bold px-3 py-1">{t('skipped', 'متخطي / لم يحضر')}</Badge>
       default:
         return <Badge variant="outline">{tDynamic(status)}</Badge>
     }
@@ -959,28 +1034,17 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                   {t('end_exam', 'إنهاء الكشف')}
                 </Button>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8.5 text-xs font-bold text-foreground border-border hover:bg-secondary rounded-xl transition-all"
-                    onClick={() => handleSkipPatient(currentPatient.id)}
-                    disabled={isProcessing}
-                  >
-                    <SkipForward className={`w-3.5 h-3.5 ${isRtl ? 'ml-1' : 'mr-1'}`} />
-                    {t('skip', 'تخطي')}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8.5 text-xs font-bold text-rose-600 dark:text-rose-400 border-rose-500/30 hover:bg-rose-500/10 rounded-xl transition-all"
-                    onClick={() => handleNoShow(currentPatient.id)}
-                    disabled={isProcessing}
-                  >
-                    <UserX className={`w-3.5 h-3.5 ${isRtl ? 'ml-1' : 'mr-1'}`} />
-                    {t('no_show', 'لم يحضر')}
-                  </Button>
-                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full h-8.5 text-xs font-bold text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/10 rounded-xl transition-all flex items-center justify-center gap-1.5"
+                  onClick={() => handleSkipPatient(currentPatient)}
+                  disabled={isProcessing}
+                  title="تخطي دور المريض وإدخال الدور التالي فوراً"
+                >
+                  <SkipForward className={`w-3.5 h-3.5 ${isRtl ? 'ml-1' : 'mr-1'}`} />
+                  <span>{t('skip', 'تخطي')}</span>
+                </Button>
 
                 {isPrescriptionsEnabled && (
                   <Link href={`/clinic/${clinic.slug}/admin/prescriptions?appointmentId=${currentPatient.id}&patientName=${encodeURIComponent(currentPatient.patientName)}&patientPhone=${encodeURIComponent(currentPatient.phone)}&age=${encodeURIComponent(currentPatient.age || currentPatient.dob || '')}`}>
@@ -1243,7 +1307,8 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
               { id: 'all', label: t('all_cases', 'جميع الحالات'), count: bookings.length },
               { id: 'waiting', label: t('waiting_tab', 'في الانتظار'), count: waitingPatients.length },
               { id: 'completed', label: t('completed_tab', 'تم الكشف'), count: completedPatients.length },
-              { id: 'cancelled', label: t('cancelled_tab', 'ملغي / متخطي'), count: Math.max(0, bookings.length - completedPatients.length - waitingPatients.length - (currentPatient ? 1 : 0)) },
+              { id: 'skipped', label: t('skipped_tab', 'متخطي / لم يحضر'), count: skippedPatients.length },
+              { id: 'cancelled', label: t('cancelled_tab', 'ملغي'), count: bookings.filter((b: any) => b.status === 'cancelled').length },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -1430,6 +1495,20 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
 
                           {/* Card Primary Actions Bar */}
                           <div className="flex items-center gap-2 pt-1">
+                            {/* Requeue Skipped Patient Button */}
+                            {(b.status === 'skipped' || b.status === 'no_show') && (
+                              <Button
+                                size="sm"
+                                className="flex-1 h-9 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-xs flex items-center justify-center gap-1.5"
+                                onClick={() => handleRequeueSkippedPatient(b)}
+                                disabled={isProcessing}
+                                title="عند حضور المريض، اضغط هنا ليكون دوره هو القادم مباشرة بعد المريض الحالي"
+                              >
+                                <RotateCcw className={`w-3.5 h-3.5 ${isRtl ? 'ml-1' : 'mr-1'}`} />
+                                <span>لم يحضر (إدخال الدور التالي)</span>
+                              </Button>
+                            )}
+
                             {/* Primary Button */}
                             {b.status === 'waiting' && (
                               <Button
@@ -1697,6 +1776,27 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                                 <ArrowUpDown className={`w-3.5 h-3.5 ${isRtl ? 'ml-1' : 'mr-1'}`} />
                                 {t('edit_short', 'تعديل')}
                               </Button>
+                            )}
+
+                            {/* Late Arrival Requeue Button */}
+                            {(b.status === 'skipped' || b.status === 'no_show') && (
+                              <Button
+                                size="sm"
+                                className="h-8 px-3 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-xs flex items-center gap-1.5 transition-all"
+                                onClick={() => handleRequeueSkippedPatient(b)}
+                                disabled={isProcessing}
+                                title="عند حضور المريض، اضغط هنا ليكون دوره هو القادم مباشرة بعد المريض الحالي"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                <span>لم يحضر (إدخال الدور التالي)</span>
+                              </Button>
+                            )}
+
+                            {/* Priority Indicator */}
+                            {b.status === 'waiting' && b.priorityNext && (
+                              <span className="text-[11px] font-black px-2.5 py-1 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-xs inline-flex items-center gap-1 animate-pulse">
+                                <span>الدور القادم ⚡</span>
+                              </span>
                             )}
 
                             {/* Start exam button if waiting */}

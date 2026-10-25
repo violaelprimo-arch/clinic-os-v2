@@ -4,6 +4,7 @@ import { db } from '@/lib/firebase'
 import { createClinicNotification } from '@/lib/notificationService'
 import { dispatchPatientPushNotification } from '@/lib/pushDispatcher'
 import { verifySessionToken } from '@/lib/auth-crypto'
+import { createAtomicAppointment } from '@/lib/queueService'
 
 export async function POST(req: NextRequest) {
   try {
@@ -76,9 +77,6 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const existingQueueNums = apptSnap.docs.map((d) => Number(d.data().queue_number) || 0)
-    const maxQueue = existingQueueNums.length > 0 ? Math.max(0, ...existingQueueNums) : 0
-    const queueNumber = maxQueue + 1
     const aheadCount = activeAppts.filter(
       (d) => d.data().status === 'waiting' || !d.data().status
     ).length
@@ -112,14 +110,15 @@ export async function POST(req: NextRequest) {
       isUrgent,
       date: bookingDate,
       time: String(time),
-      queue_number: queueNumber,
       status: 'waiting',
       paymentMethod: 'cash',
       paymentStatus: 'unpaid',
       createdAt: new Date().toISOString()
     }
 
-    const docRef = await addDoc(collection(db, 'appointments'), newAppt)
+    // Atomically allocate next sequential queue number with zero concurrency collisions
+    const { id: newApptId, queueNumber } = await createAtomicAppointment(newAppt)
+    const docRef = { id: newApptId }
 
     // Auto-create patient account if missing
     try {

@@ -75,8 +75,17 @@ export interface QueuePatternRule {
  */
 export function sortQueue(appointments: any[], clinic?: any): any[] {
   // Only patients in 'waiting' state belong in the dynamic line
-  const waiting = [...appointments]
+  const allWaiting = [...appointments]
     .filter((d: any) => d.status === 'waiting' || !d.status)
+
+  // 0. High priority late-arrivals: skipped patients who arrived and are queued for immediate next turn
+  const priorityAppts = allWaiting
+    .filter((d: any) => d.priorityNext)
+    .sort((a: any, b: any) => new Date(a.requeuedAt || 0).getTime() - new Date(b.requeuedAt || 0).getTime())
+
+  // Regular waiting line
+  const waiting = allWaiting
+    .filter((d: any) => !d.priorityNext)
     .sort((a: any, b: any) => (Number(a.queue_number) || 0) - (Number(b.queue_number) || 0))
 
   const pattern: QueuePatternRule[] =
@@ -138,7 +147,7 @@ export function sortQueue(appointments: any[], clinic?: any): any[] {
       }
     }
 
-    return orderedWaiting
+    return [...priorityAppts, ...orderedWaiting]
   }
 
   // Legacy Fallback

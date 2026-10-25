@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
+import { createAtomicAppointment } from '@/lib/queueService'
 import { collection, addDoc, getDocs, query, where } from 'firebase/firestore'
 import Link from 'next/link'
 import { Branch } from '@/types/clinic'
@@ -391,7 +392,6 @@ export function BookingForm({
         return matchesDate && matchesBranch
       })
 
-      const myQueueNumber = branchDateAppts.length + 1
 
       // Count waiting ahead in this branch
       let waitingCount = 0
@@ -415,7 +415,6 @@ export function BookingForm({
         servicePrice: selectedService.price || 0,
         isUrgent: selectedService.name.includes('مستعجل') || selectedService.name.includes('طوارئ'),
         date: selectedDate,
-        queue_number: myQueueNumber,
         status: 'waiting',
         paymentMethod,
         paymentStatus,
@@ -425,7 +424,10 @@ export function BookingForm({
         createdAt: new Date().toISOString()
       }
 
-      const docRef = await addDoc(collection(db, 'appointments'), newAppt)
+      // Atomically allocate next sequential queue number with zero concurrency collisions
+      const { id: newApptId, queueNumber: allocatedQueueNumber } = await createAtomicAppointment(newAppt)
+      const docRef = { id: newApptId }
+      const myQueueNumber = allocatedQueueNumber
 
       // Send In-Site Notification to Patient
       await createClinicNotification({

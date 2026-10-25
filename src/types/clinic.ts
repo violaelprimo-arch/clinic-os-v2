@@ -93,6 +93,9 @@ export interface Appointment {
   date: string // YYYY-MM-DD
   queue_number: number
   status: 'waiting' | 'in_progress' | 'completed' | 'skipped' | 'no_show' | 'cancelled'
+  priorityNext?: boolean
+  requeuedAt?: string
+  skippedAt?: string
   paymentMethod: 'cash' | 'instapay' | 'wallet'
   paymentStatus: 'unpaid' | 'pending_verification' | 'paid' | 'refunded'
   transferNumber?: string

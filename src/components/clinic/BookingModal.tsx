@@ -22,6 +22,7 @@ import {
   Copy
 } from 'lucide-react'
 import { db } from '@/lib/firebase'
+import { createAtomicAppointment } from '@/lib/queueService'
 import { collection, addDoc, getDocs, query, where } from 'firebase/firestore'
 import { getClinicBranches, ensureClinicHasMainBranch } from '@/lib/branchService'
 import { createClinicNotification } from '@/lib/notificationService'
@@ -527,11 +528,6 @@ export function BookingModal({
         return
       }
 
-      // Strictly sequential queue number: max + 1
-      const existingQueueNums = qSnap.docs.map((d) => Number(d.data().queue_number) || 0)
-      const maxQueue = existingQueueNums.length > 0 ? Math.max(0, ...existingQueueNums) : 0
-      const myQueueNumber = maxQueue + 1
-
       let waitingCount = 0
       qSnap.docs.forEach((docSnap) => {
         const st = docSnap.data().status
@@ -562,7 +558,6 @@ export function BookingModal({
         servicePrice: payableAmount,
         isUrgent,
         date: selectedDate,
-        queue_number: myQueueNumber,
         status: 'waiting',
         paymentMethod,
         paymentStatus,
@@ -575,7 +570,10 @@ export function BookingModal({
         createdAt: new Date().toISOString()
       }
 
-      const docRef = await addDoc(collection(db, 'appointments'), newAppt)
+      // Atomically allocate next sequential queue number with zero concurrency collisions
+      const { id: newApptId, queueNumber: allocatedQueueNumber } = await createAtomicAppointment(newAppt)
+      const docRef = { id: newApptId }
+      const myQueueNumber = allocatedQueueNumber
 
       // Auto ensure patient account exists for frictionless patient portal access
       try {
