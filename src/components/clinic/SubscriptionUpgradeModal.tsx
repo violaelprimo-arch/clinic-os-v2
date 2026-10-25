@@ -41,6 +41,9 @@ export interface PackageItem {
   code?: string
   category?: 'monthly' | '3_months' | '6_months' | 'annual' | 'yearly' | string
   price: number | string
+  priceMonthly?: number | string
+  price6Months?: number | string
+  priceYearly?: number | string
   originalPrice?: number | string
   discountBadge?: string
   period?: string
@@ -251,7 +254,7 @@ export function SubscriptionUpgradeModal({
   supportPhone = '01551007018'
 }: SubscriptionUpgradeModalProps) {
   const { t, isRtl, dir } = useLanguage()
-  const [selectedCategory, setSelectedCategory] = useState<'all' | 'monthly' | '3_months' | '6_months' | 'yearly'>('all')
+  const [activeCycle, setActiveCycle] = useState<'monthly' | '6_months' | 'yearly'>('monthly')
   const activePackages = packages && packages.length > 0 ? packages : DEFAULT_PACKAGES
 
   // Expiration Days Calculation
@@ -272,60 +275,39 @@ export function SubscriptionUpgradeModal({
   // Helper to normalize clinic package name
   const currentClinicPkgName = (clinic?.packageName || '').trim().toLowerCase()
 
-  // Filter packages by selected category
-  const filteredPackages = activePackages.filter(p => {
-    if (selectedCategory === 'all') return true
-    const period = (p.period || '').toLowerCase()
-    const cat = (p.category || '').toLowerCase()
-    const name = (p.name || '').toLowerCase()
-
-    if (selectedCategory === 'monthly') {
-      return (
-        (cat === 'monthly' || period.includes('شهر') || period.includes('month')) &&
-        !cat.includes('3') && !period.includes('3') &&
-        !cat.includes('6') && !period.includes('6') &&
-        !cat.includes('annual') && !period.includes('سنو') && !name.includes('سنو')
-      )
-    }
-
-    if (selectedCategory === '3_months') {
-      return cat === '3_months' || period.includes('3') || cat.includes('3') || name.includes('3') || cat === 'quarterly'
-    }
-
-    if (selectedCategory === '6_months') {
-      return cat === '6_months' || period.includes('6') || cat.includes('6') || name.includes('6') || cat === 'semi_annual'
-    }
-
-    if (selectedCategory === 'yearly') {
-      return (
-        cat === 'annual' || cat === 'yearly' ||
-        period.includes('سنو') || cat.includes('سنو') || name.includes('سنو') ||
-        period.includes('year') || cat.includes('annual')
-      )
-    }
-
-    return true
-  })
+  // Packages list (showing all packages with dynamic 3-cycle price)
+  const filteredPackages = activePackages
 
   const handleRequestUpgrade = (pkg: PackageItem) => {
-    const discountInfo = pkg.originalPrice && Number(pkg.originalPrice) > Number(pkg.price)
-      ? (isRtl ? ` (عرض خاص: ${pkg.price} بدل ${pkg.originalPrice} ج.م)` : ` (Special offer: ${pkg.price} instead of ${pkg.originalPrice} EGP)`)
-      : ''
+    const monthly = Number(pkg.priceMonthly || pkg.price) || 0
+    const sixMonths = Number(pkg.price6Months) || Math.round(monthly * 6 * 0.9)
+    const yearly = Number(pkg.priceYearly) || Math.round(monthly * 10)
+
+    const activePrice = activeCycle === 'yearly'
+      ? yearly
+      : activeCycle === '6_months'
+      ? sixMonths
+      : monthly
+
+    const cycleNameAr = activeCycle === 'yearly' ? 'سنوي (12 شهر - وفر شهرين 🎁)' : activeCycle === '6_months' ? 'نصف سنوي (6 شهور - وفر 10% 🔥)' : 'شهري'
+    const cycleNameEn = activeCycle === 'yearly' ? 'Annual (12 Months)' : activeCycle === '6_months' ? 'Semi-Annual (6 Months)' : 'Monthly'
 
     const msg = isRtl
       ? `مرحباً، أرغب في ترقية / تجديد اشتراك عيادتي عبر منصة Yalla Clinic:
 - العيادة: ${clinic?.clinicName || 'العيادة الطبية'}
 - الطبيب: د. ${clinic?.doctorName || ''}
-- الباقة المطلوبة: ${pkg.name}${discountInfo}
-- السعر: ${pkg.price} ج.م / ${pkg.period || 'شهري'}
+- الباقة المطلوبة: ${pkg.name}
+- خطة الفوترة: ${cycleNameAr}
+- السعر: ${activePrice.toLocaleString()} ج.م
 - كود العيادة (Slug): ${clinic?.slug || ''}
 
 يرجى تزويدي بطرق الدفع الإلكتروني المتاحة (انستا باي / فودافون كاش / بنك) لتأكيد التفعيل فوراً. شكراً!`
       : `Hello, I would like to upgrade / renew my clinic subscription on Yalla Clinic:
 - Clinic: ${clinic?.clinicName || 'Clinic'}
 - Doctor: Dr. ${clinic?.doctorName || ''}
-- Selected Package: ${pkg.name}${discountInfo}
-- Price: ${pkg.price} EGP / ${pkg.period || 'monthly'}
+- Selected Package: ${pkg.name}
+- Billing Cycle: ${cycleNameEn}
+- Price: ${activePrice.toLocaleString()} EGP
 - Clinic Slug: ${clinic?.slug || ''}
 
 Please provide available payment methods to confirm activation. Thank you!`
@@ -419,65 +401,69 @@ Please provide available payment methods to confirm activation. Thank you!`
           </div>
         </div>
 
-        {/* Billing Cycle Filter Pills (الكل - شهرية - 3 شهور - 6 شهور - سنوية) */}
+        {/* Billing Cycle 3-Plan Switcher (شهري - 6 شهور - سنوي) */}
         <div className="flex items-center justify-center my-4 overflow-x-auto pb-1">
           <div className="p-1 rounded-2xl bg-secondary/80 dark:bg-card-elevated border border-border flex items-center gap-1 shadow-inner">
             <button
               type="button"
-              onClick={() => setSelectedCategory('all')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
-                selectedCategory === 'all'
-                  ? 'bg-primary text-white shadow-md'
+              onClick={() => setActiveCycle('monthly')}
+              className={`relative px-5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                activeCycle === 'monthly'
+                  ? 'text-teal-950 dark:text-teal-200 shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              {isRtl ? `جميع الباقات (${activePackages.length})` : `All Plans (${activePackages.length})`}
+              {activeCycle === 'monthly' && (
+                <motion.div
+                  layoutId="clinicActiveCyclePill"
+                  className="absolute inset-0 bg-white dark:bg-teal-950 border border-teal-200 dark:border-teal-700 rounded-xl shadow-sm -z-10"
+                  transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                />
+              )}
+              <span>🗓️ {isRtl ? 'شهرياً' : 'Monthly'}</span>
             </button>
+
             <button
               type="button"
-              onClick={() => setSelectedCategory('monthly')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
-                selectedCategory === 'monthly'
-                  ? 'bg-primary text-white shadow-md'
+              onClick={() => setActiveCycle('6_months')}
+              className={`relative px-5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                activeCycle === '6_months'
+                  ? 'text-purple-950 dark:text-purple-200 shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              {isRtl ? 'باقات شهرية' : 'Monthly'}
+              {activeCycle === '6_months' && (
+                <motion.div
+                  layoutId="clinicActiveCyclePill"
+                  className="absolute inset-0 bg-white dark:bg-purple-950 border border-purple-200 dark:border-purple-700 rounded-xl shadow-sm -z-10"
+                  transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                />
+              )}
+              <span>📦 {isRtl ? '6 شهور' : '6 Months'}</span>
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300">
+                {isRtl ? 'وفر 10% 🔥' : 'Save 10%'}
+              </span>
             </button>
+
             <button
               type="button"
-              onClick={() => setSelectedCategory('3_months')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
-                selectedCategory === '3_months'
-                  ? 'bg-primary text-white shadow-md'
+              onClick={() => setActiveCycle('yearly')}
+              className={`relative px-5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                activeCycle === 'yearly'
+                  ? 'text-amber-950 dark:text-amber-200 shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <span>{isRtl ? 'باقات 3 شهور' : '3 Months'}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectedCategory('6_months')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
-                selectedCategory === '6_months'
-                  ? 'bg-primary text-white shadow-md'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <span>{isRtl ? 'باقات 6 شهور' : '6 Months'}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectedCategory('yearly')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                selectedCategory === 'yearly'
-                  ? 'bg-primary text-white shadow-md'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <span>{isRtl ? 'باقات سنوية' : 'Annual'}</span>
-              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-amber-400 text-slate-900">
-                {isRtl ? 'وفر شهرين 🎁' : 'Save 2 Mo'}
+              {activeCycle === 'yearly' && (
+                <motion.div
+                  layoutId="clinicActiveCyclePill"
+                  className="absolute inset-0 bg-white dark:bg-amber-950 border border-amber-200 dark:border-amber-700 rounded-xl shadow-sm -z-10"
+                  transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                />
+              )}
+              <span>👑 {isRtl ? 'سنوياً' : 'Annual'}</span>
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-400 text-slate-900 shadow-2xs">
+                {isRtl ? 'وفر شهرين مجاناً 🎁' : 'Save 2 Mo'}
               </span>
             </button>
           </div>
@@ -487,9 +473,29 @@ Please provide available payment methods to confirm activation. Thank you!`
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
           {filteredPackages.map((pkg, idx) => {
             const isPop = pkg.isPopular || pkg.isRecommended
-            const hasDiscount = pkg.originalPrice && Number(pkg.originalPrice) > Number(pkg.price)
+            const monthly = Number(pkg.priceMonthly || pkg.price) || 0
+            const sixMonths = Number(pkg.price6Months) || Math.round(monthly * 6 * 0.9)
+            const yearly = Number(pkg.priceYearly) || Math.round(monthly * 10)
 
-            // Exact Active Package Detection: check name, code, or stripped prefix
+            const activePrice = activeCycle === 'yearly'
+              ? yearly
+              : activeCycle === '6_months'
+              ? sixMonths
+              : monthly
+
+            const cycleLabel = activeCycle === 'yearly'
+              ? (isRtl ? 'سنوياً' : 'yearly')
+              : activeCycle === '6_months'
+              ? (isRtl ? 'لكل 6 شهور' : 'for 6 mo')
+              : (isRtl ? 'شهرياً' : 'monthly')
+
+            const equivalentMonthly = activeCycle === 'yearly'
+              ? Math.round(yearly / 12)
+              : activeCycle === '6_months'
+              ? Math.round(sixMonths / 6)
+              : monthly
+
+            // Exact Active Package Detection
             const pkgNameNormalized = (pkg.name || '').trim().toLowerCase()
             const cleanStr = (s: string) => s.replace(/^(الباقة|باقة)\s+/, '').trim().toLowerCase()
             const isCurrentPlan = currentClinicPkgName !== '' && (
@@ -501,9 +507,8 @@ Please provide available payment methods to confirm activation. Thank you!`
             return (
               <motion.div
                 key={pkg.id || idx}
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: idx * 0.05 }}
+                whileHover={{ y: -6, scale: 1.01 }}
+                transition={{ type: 'spring', stiffness: 350, damping: 25 }}
                 className={`rounded-3xl p-6 flex flex-col justify-between transition-all duration-300 relative border group ${
                   isCurrentPlan
                     ? 'bg-gradient-to-b from-emerald-500/10 via-card to-card border-emerald-500/80 shadow-xl shadow-emerald-500/15 ring-2 ring-emerald-500/40'
@@ -527,7 +532,7 @@ Please provide available payment methods to confirm activation. Thank you!`
                         ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-primary text-white ring-2 ring-background'
                         : 'bg-slate-800 text-white'
                     }`}>
-                      {isPop && <Sparkles className="w-3.5 h-3.5 text-amber-200 animate-spin" />}
+                      {isPop && <Sparkles className="w-3.5 h-3.5 text-amber-200" />}
                       <span>{pkg.badge || (isRtl ? '⭐ موصى بها للعيادات' : '⭐ Recommended')}</span>
                     </span>
                   </div>
@@ -544,29 +549,43 @@ Please provide available payment methods to confirm activation. Thank you!`
                       </p>
                     )}
 
-                    {/* Pricing */}
-                    <div className="mt-3 flex flex-col items-center justify-center">
-                      {hasDiscount ? (
-                        <div className="space-y-1 text-center">
-                          <div className="flex items-center justify-center gap-2">
-                            <span className="text-xs text-muted-foreground line-through font-mono font-bold">
-                              {pkg.originalPrice} {isRtl ? 'ج.م' : 'EGP'}
-                            </span>
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500/10 text-rose-600 border border-rose-500/20">
-                              {pkg.discountBadge || (isRtl ? `وفر ${Number(pkg.originalPrice) - Number(pkg.price)} ج.م` : `Save ${Number(pkg.originalPrice) - Number(pkg.price)} EGP`)}
-                            </span>
-                          </div>
-                          <div className="flex items-baseline justify-center gap-1">
-                            <span className="text-3xl font-black text-emerald-600 dark:text-emerald-400 font-mono">{pkg.price}</span>
-                            <span className="text-xs font-bold text-muted-foreground">{isRtl ? 'ج.م' : 'EGP'} / {pkg.period || (isRtl ? 'شهري' : 'monthly')}</span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex items-baseline justify-center gap-1">
-                          <span className="text-3xl font-black text-primary font-mono">{pkg.price}</span>
-                          <span className="text-xs font-bold text-muted-foreground">{isRtl ? 'ج.م' : 'EGP'} / {pkg.period || (isRtl ? 'شهري' : 'monthly')}</span>
-                        </div>
+                    {/* Dynamic Pricing Box */}
+                    <div className="mt-4 p-3.5 rounded-2xl bg-secondary/50 border border-border space-y-1">
+                      <div className="flex items-baseline justify-center gap-1.5">
+                        <span className="text-3xl sm:text-4xl font-black text-primary font-mono tracking-tight">
+                          {activePrice.toLocaleString()}
+                        </span>
+                        <span className="text-xs font-bold text-muted-foreground">
+                          {isRtl ? 'ج.م' : 'EGP'} / {cycleLabel}
+                        </span>
+                      </div>
+                      {activeCycle !== 'monthly' && (
+                        <span className="inline-block text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md">
+                          ({isRtl ? `يعادل ${equivalentMonthly.toLocaleString()} ج.م شهرياً` : `${equivalentMonthly.toLocaleString()} EGP/month`})
+                        </span>
                       )}
+
+                      {/* 3 Comparative Prices Pills */}
+                      <div className="pt-2 mt-2 border-t border-border grid grid-cols-3 gap-1 text-[9px] text-center">
+                        <div className={`p-1 rounded-lg border ${
+                          activeCycle === 'monthly' ? 'bg-teal-50 dark:bg-teal-950 border-teal-300 font-bold text-teal-800 dark:text-teal-200' : 'bg-background/80 border-border text-muted-foreground'
+                        }`}>
+                          <span className="block opacity-75">🗓️ {isRtl ? 'شهري' : 'Mo'}</span>
+                          <span className="font-mono font-bold">{monthly.toLocaleString()}</span>
+                        </div>
+                        <div className={`p-1 rounded-lg border ${
+                          activeCycle === '6_months' ? 'bg-purple-50 dark:bg-purple-950 border-purple-300 font-bold text-purple-800 dark:text-purple-200' : 'bg-background/80 border-border text-muted-foreground'
+                        }`}>
+                          <span className="block opacity-75">📦 {isRtl ? '6 شهور' : '6 Mo'}</span>
+                          <span className="font-mono font-bold">{sixMonths.toLocaleString()}</span>
+                        </div>
+                        <div className={`p-1 rounded-lg border ${
+                          activeCycle === 'yearly' ? 'bg-amber-50 dark:bg-amber-950 border-amber-300 font-bold text-amber-800 dark:text-amber-200' : 'bg-background/80 border-border text-muted-foreground'
+                        }`}>
+                          <span className="block opacity-75">👑 {isRtl ? 'سنوي' : 'Yr'}</span>
+                          <span className="font-mono font-bold">{yearly.toLocaleString()}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
 

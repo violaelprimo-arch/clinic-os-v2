@@ -301,7 +301,7 @@ export default function AdminLayout({
   // Find the active package for this clinic
   const activePackage = useMemo(() => {
     if (!clinic?.packageName) return null
-    return packages.find(p => p.name === clinic.packageName) || null
+    return packages.find(p => (clinic?.packageId && p.id === clinic.packageId) || p.name === clinic?.packageName) || clinic?.packageData || null
   }, [clinic?.packageName, packages])
 
   // Check feature permissions for this clinic
@@ -662,13 +662,15 @@ export default function AdminLayout({
           {/* End side: Date, Branch, Language, Theme, Notifications, Profile */}
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Branch Selector */}
-            <BranchSelector
+            {isBranchesEnabled && (
+              <BranchSelector
               clinic={clinic}
               selectedBranchId={selectedBranchId}
               onSelectBranch={handleSelectBranch}
               role={role}
               lockedBranchId={role === 'assistant' ? (typeof window !== 'undefined' ? localStorage.getItem('clinic_locked_branch') : null) : null}
-            />
+              />
+            )}
 
             {/* Realtime Date Badge */}
             <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-background border border-border text-xs font-bold text-muted-foreground">

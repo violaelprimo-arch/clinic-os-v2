@@ -116,10 +116,11 @@ export const SYSTEM_FEATURES: Record<FeatureKey, FeatureMetadata> = {
 
 /**
  * Determine if a specific feature is enabled for a clinic.
- * Priority:
- * 1. Direct explicit clinic override from clinic document (allowFinance, allowDrugs, etc.)
- * 2. Explicit package permissions (from clinicPackage object)
- * 3. Default fallback based on package tier name.
+ * Priority & Strict Rules:
+ * 1. Global / Owner hard locks (e.g. aiLockedByOwner).
+ * 2. If feature is disabled in the active package, it is strictly FALSE and completely hidden.
+ * 3. If feature is explicitly disabled in clinic overrides, it is FALSE.
+ * 4. Package permissions take precedence to ensure anything turned off in the package disappears completely.
  */
 export function isClinicFeatureEnabled(
   clinic: any,
@@ -128,7 +129,113 @@ export function isClinicFeatureEnabled(
 ): boolean {
   if (!clinic) return false
 
-  // 1. Direct clinic overrides
+  // 1. Direct Owner Hard Locks
+  if (feature === 'ai' && clinic.aiLockedByOwner === true) {
+    return false
+  }
+
+  // 2. Identify active package (passed directly, or attached to clinic, or via packagePermissions)
+  const pkg = clinicPackage || clinic.activePackage || clinic.packageData || null
+  const perms = pkg || clinic.packagePermissions || null
+
+  // 3. Strict Package-Level Disabling (If closed in the package, it is completely OFF)
+  if (perms) {
+    switch (feature) {
+      case 'ai':
+        if (perms.allowAi === false) return false
+        break
+      case 'branches':
+        if (perms.allowBranches === false || (perms.maxBranches !== undefined && Number(perms.maxBranches) <= 1)) return false
+        break
+      case 'finance':
+        if (perms.allowFinance === false) return false
+        break
+      case 'drugs':
+        if (perms.allowDrugs === false) return false
+        break
+      case 'prescriptions':
+        if (perms.allowPrescriptions === false) return false
+        break
+      case 'customTemplate':
+        if (perms.allowCustomTemplate === false) return false
+        break
+      case 'branding':
+        if (perms.allowBranding === false) return false
+        break
+      case 'patientAlerts':
+        if (perms.allowPatientAlerts === false) return false
+        break
+      case 'onlineBooking':
+        if (perms.allowOnlineBooking === false) return false
+        break
+    }
+  }
+
+  // 4. Direct explicit clinic overrides
+  switch (feature) {
+    case 'finance':
+      if (clinic.allowFinance === false) return false
+      break
+    case 'drugs':
+      if (clinic.allowDrugs === false) return false
+      break
+    case 'prescriptions':
+      if (clinic.allowPrescriptions === false) return false
+      break
+    case 'customTemplate':
+      if (clinic.allowCustomTemplate === false) return false
+      break
+    case 'branding':
+      if (clinic.allowDoctorEditBranding === false) return false
+      break
+    case 'patientAlerts':
+      if (clinic.allowPatientAlerts === false) return false
+      break
+    case 'ai':
+      if (clinic.aiEnabled === false) return false
+      break
+    case 'branches':
+      if (clinic.branchesEnabled === false) return false
+      break
+    case 'onlineBooking':
+      if (clinic.allowOnlineBooking === false) return false
+      break
+  }
+
+  // 5. If package explicitly enables it, return true
+  if (perms) {
+    switch (feature) {
+      case 'finance':
+        if (perms.allowFinance === true) return true
+        break
+      case 'drugs':
+        if (perms.allowDrugs === true) return true
+        break
+      case 'prescriptions':
+        if (perms.allowPrescriptions === true) return true
+        break
+      case 'customTemplate':
+        if (perms.allowCustomTemplate === true) return true
+        break
+      case 'branding':
+        if (perms.allowBranding === true) return true
+        break
+      case 'patientAlerts':
+        if (perms.allowPatientAlerts === true) return true
+        break
+      case 'ai':
+        if (perms.allowAi === true) return true
+        break
+      case 'branches':
+        if (perms.allowBranches === true && Number(perms.maxBranches || 2) > 1) return true
+        break
+      case 'onlineBooking':
+        if (perms.allowOnlineBooking === true) return true
+        break
+    }
+  }
+
+  // 6. Direct clinic positive overrides
   switch (feature) {
     case 'finance':
       if (clinic.allowFinance !== undefined) return Boolean(clinic.allowFinance)
@@ -159,40 +266,7 @@ export function isClinicFeatureEnabled(
       break
   }
 
-  // 2. Package document configuration
-  if (clinicPackage) {
-    switch (feature) {
-      case 'finance':
-        if (clinicPackage.allowFinance !== undefined) return Boolean(clinicPackage.allowFinance)
-        break
-      case 'drugs':
-        if (clinicPackage.allowDrugs !== undefined) return Boolean(clinicPackage.allowDrugs)
-        break
-      case 'prescriptions':
-        if (clinicPackage.allowPrescriptions !== undefined) return Boolean(clinicPackage.allowPrescriptions)
-        break
-      case 'customTemplate':
-        if (clinicPackage.allowCustomTemplate !== undefined) return Boolean(clinicPackage.allowCustomTemplate)
-        break
-      case 'branding':
-        if (clinicPackage.allowBranding !== undefined) return Boolean(clinicPackage.allowBranding)
-        break
-      case 'patientAlerts':
-        if (clinicPackage.allowPatientAlerts !== undefined) return Boolean(clinicPackage.allowPatientAlerts)
-        break
-      case 'ai':
-        if (clinicPackage.allowAi !== undefined) return Boolean(clinicPackage.allowAi)
-        break
-      case 'branches':
-        if (clinicPackage.allowBranches !== undefined) return Boolean(clinicPackage.allowBranches)
-        break
-      case 'onlineBooking':
-        if (clinicPackage.allowOnlineBooking !== undefined) return Boolean(clinicPackage.allowOnlineBooking)
-        break
-    }
-  }
-
-  // 3. Fallback defaults based on package tier name
+  // 7. Fallback defaults based on package tier name if no package document exists
   const pkgName = String(clinic.packageName || '').toLowerCase()
   const isBasic = pkgName.includes('أساس') || pkgName.includes('basic')
 
@@ -201,6 +275,7 @@ export function isClinicFeatureEnabled(
     if (feature === 'branches') return false
     if (feature === 'finance') return false
     if (feature === 'patientAlerts') return false
+    if (feature === 'ai') return false
   }
 
   return true

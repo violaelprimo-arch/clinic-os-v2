@@ -21,7 +21,7 @@ import {
   Palette, Pill, Receipt, Bell, CreditCard
 } from 'lucide-react'
 import { db } from '@/lib/firebase'
-import { collection, addDoc, getDocs, deleteDoc, updateDoc, doc, setDoc, onSnapshot } from 'firebase/firestore'
+import { collection, addDoc, getDocs, deleteDoc, updateDoc, doc, setDoc, onSnapshot, query, where } from 'firebase/firestore'
 import { Switch } from '@/components/ui/switch'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
@@ -196,7 +196,11 @@ function OwnerDashboard() {
   const [pkgLogoUrl, setPkgLogoUrl] = useState('')
   const [pkgIcon, setPkgIcon] = useState('crown')
   const [pkgColor, setPkgColor] = useState('#087CF4')
-  const [pkgPrice, setPkgPrice] = useState<number | string>(450)
+  const [pkgPrice, setPkgPrice] = useState<number | string>(600)
+  const [activeBillingCycle, setActiveBillingCycle] = useState<'monthly' | '6_months' | 'yearly'>('monthly')
+  const [pkgPriceMonthly, setPkgPriceMonthly] = useState<number | string>(600)
+  const [pkgPrice6Months, setPkgPrice6Months] = useState<number | string>(3240)
+  const [pkgPriceYearly, setPkgPriceYearly] = useState<number | string>(5760)
   const [pkgOriginalPrice, setPkgOriginalPrice] = useState<number | string>('')
   const [pkgDiscountBadge, setPkgDiscountBadge] = useState('')
   const [pkgCategory, setPkgCategory] = useState<'monthly' | '3_months' | '6_months' | 'annual'>('monthly')
@@ -758,6 +762,50 @@ function OwnerDashboard() {
     }
   }
 
+  const FEATURE_TITLES: Record<string, string> = {
+    finance: 'الحسابات والتقارير المالية وإدارة الأرباح',
+    drugs: 'دليل وأسعار الأدوية اليومية والبدائل الطبية',
+    prescriptions: 'الروشتات الطبية الذكية والمشاركة عبر واتساب',
+    customTemplate: 'قالب وتصميم روشتة مخصص بهوية العيادة',
+    branding: 'تخصيص كامل للهوية البصرية والشعار والألوان',
+    patientAlerts: 'تنبيهات المرضى التلقائية وتتبع الدور',
+    ai: 'المساعد الطبي الذكي (AI Chatbot) للرد والتدريب',
+    branches: 'إدارة الفروع والمراكز المتعددة للعيادة',
+    onlineBooking: 'بوابة الحجز الذاتي للمرضى والدور المباشر'
+  }
+
+  const handleTogglePackageFeature = (featureKey: string, checked: boolean) => {
+    if (featureKey === 'finance') setPkgAllowFinance(checked)
+    else if (featureKey === 'drugs') setPkgAllowDrugs(checked)
+    else if (featureKey === 'prescriptions') setPkgAllowPrescriptions(checked)
+    else if (featureKey === 'customTemplate') setPkgAllowCustomTemplate(checked)
+    else if (featureKey === 'branding') setPkgAllowBranding(checked)
+    else if (featureKey === 'patientAlerts') setPkgAllowPatientAlerts(checked)
+    else if (featureKey === 'ai') setPkgAllowAi(checked)
+    else if (featureKey === 'branches') setPkgAllowBranches(checked)
+    else if (featureKey === 'onlineBooking') setPkgAllowOnlineBooking(checked)
+
+    const title = FEATURE_TITLES[featureKey]
+    if (!title) return
+
+    setPkgFeatures(prev => {
+      const currentList = prev
+        .split('\n')
+        .map(f => f.trim())
+        .filter(Boolean)
+
+      if (checked) {
+        if (!currentList.some(item => item === title || item.includes(title))) {
+          return [...currentList, title].join('\n')
+        }
+        return prev
+      } else {
+        const filtered = currentList.filter(item => item !== title && !item.includes(title))
+        return filtered.join('\n')
+      }
+    })
+  }
+
   const handleOpenNewPackage = () => {
     setEditingPackageId(null)
     setPkgName('')
@@ -852,17 +900,24 @@ function OwnerDashboard() {
       ? '3 شهور'
       : 'شهري'
 
+    const monthly = Number(pkgPriceMonthly) || Number(pkgPrice) || 0
+    const sixMonths = Number(pkgPrice6Months) || Math.round(monthly * 6 * 0.9)
+    const yearly = Number(pkgPriceYearly) || Math.round(monthly * 10)
+
     const pkgData = {
       name: pkgName.trim(),
       subtitle: pkgSubtitle.trim(),
       logoUrl: pkgLogoUrl.trim(),
       icon: pkgIcon || 'crown',
       color: pkgColor || '#087CF4',
-      price: Number(pkgPrice) || 0,
+      price: monthly,
+      priceMonthly: monthly,
+      price6Months: sixMonths,
+      priceYearly: yearly,
       originalPrice: pkgOriginalPrice ? Number(pkgOriginalPrice) : 0,
       discountBadge: pkgDiscountBadge.trim(),
-      category: finalCategory,
-      period: pkgPeriod || defaultPeriod,
+      category: 'monthly',
+      period: 'شهري',
       aiResponsesLimit: Number(pkgAiLimit) || 100,
       maxBranches: Number(pkgMaxBranches) || 1,
       badge: pkgBadge.trim(),
@@ -892,6 +947,33 @@ function OwnerDashboard() {
         })
         toast.success('تم إنشاء وتكوين الباقة الجديدة بنجاح!')
       }
+
+      // Automatically sync permissions to all clinics currently on this package
+      try {
+        const clinicsQuery = query(collection(db, 'clinics'), where('packageName', '==', pkgData.name))
+        const clinicSnap = await getDocs(clinicsQuery)
+        const updateClinicPromises = clinicSnap.docs.map(cDoc => {
+          return updateDoc(doc(db, 'clinics', cDoc.id), {
+            packagePermissions: {
+              allowFinance: pkgAllowFinance,
+              allowDrugs: pkgAllowDrugs,
+              allowPrescriptions: pkgAllowPrescriptions,
+              allowCustomTemplate: pkgAllowCustomTemplate,
+              allowBranding: pkgAllowBranding,
+              allowPatientAlerts: pkgAllowPatientAlerts,
+              allowAi: pkgAllowAi,
+              allowBranches: pkgAllowBranches,
+              allowOnlineBooking: pkgAllowOnlineBooking
+            },
+            aiResponsesLimit: Number(pkgAiLimit) || 100,
+            maxBranches: Number(pkgMaxBranches) || 1
+          })
+        })
+        await Promise.all(updateClinicPromises)
+      } catch (syncErr) {
+        console.warn('Sync package permissions to clinics notice:', syncErr)
+      }
+
       setIsPackageModalOpen(false)
       setEditingPackageId(null)
     } catch (err: any) {
@@ -2621,234 +2703,278 @@ function OwnerDashboard() {
             </div>
           </div>
 
-          {/* Category Filter Switcher (جميع الباقات / شهرية / 3 شهور / 6 شهور / سنوية) */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-2 bg-slate-100/80 rounded-2xl border border-slate-200">
-            <div className="flex items-center gap-1.5 flex-wrap">
+          {/* Billing Cycle Switcher (شهرياً / 6 شهور / سنوياً) */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-3 bg-gradient-to-r from-slate-100 via-slate-50 to-slate-100 dark:from-slate-900/60 dark:to-slate-800/60 rounded-3xl border border-slate-200/80 dark:border-white/10 shadow-sm">
+            <div className="flex items-center gap-1.5 p-1 bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-white/10 shadow-inner w-full sm:w-auto">
               <button
                 type="button"
-                onClick={() => setPackageCategoryFilter('all')}
-                className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                  packageCategoryFilter === 'all'
-                    ? 'bg-white text-slate-900 shadow-xs border border-slate-200'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                onClick={() => setActiveBillingCycle('monthly')}
+                className={`relative flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                  activeBillingCycle === 'monthly'
+                    ? 'text-teal-900 dark:text-teal-200 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                 }`}
               >
-                جميع الباقات ({packages.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setPackageCategoryFilter('monthly')}
-                className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
-                  packageCategoryFilter === 'monthly'
-                    ? 'bg-white text-teal-700 shadow-xs border border-teal-200'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                }`}
-              >
-                <span>باقات شهرية</span>
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-teal-50 text-teal-700 font-mono font-bold">
-                  {packages.filter(p => getPackageCycle(p) === 'monthly').length}
+                {activeBillingCycle === 'monthly' && (
+                  <motion.div
+                    layoutId="ownerCyclePill"
+                    className="absolute inset-0 bg-gradient-to-r from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900 border border-teal-300 dark:border-teal-700 rounded-xl -z-10"
+                    transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                  />
+                )}
+                <span>🗓️ الدفع الشهري</span>
+                <span className="text-[10px] font-bold text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/50 px-2 py-0.5 rounded-full">
+                  شهرياً
                 </span>
               </button>
+
               <button
                 type="button"
-                onClick={() => setPackageCategoryFilter('3_months')}
-                className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
-                  packageCategoryFilter === '3_months'
-                    ? 'bg-white text-cyan-700 shadow-xs border border-cyan-200'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                onClick={() => setActiveBillingCycle('6_months')}
+                className={`relative flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                  activeBillingCycle === '6_months'
+                    ? 'text-purple-900 dark:text-purple-200 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                 }`}
               >
-                <span>باقات 3 شهور</span>
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-cyan-50 text-cyan-700 font-mono font-bold">
-                  {packages.filter(p => getPackageCycle(p) === '3_months').length}
+                {activeBillingCycle === '6_months' && (
+                  <motion.div
+                    layoutId="ownerCyclePill"
+                    className="absolute inset-0 bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 border border-purple-300 dark:border-purple-700 rounded-xl -z-10"
+                    transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                  />
+                )}
+                <span>📦 6 شهور</span>
+                <span className="text-[10px] font-black text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/60 px-2 py-0.5 rounded-full">
+                  وفر 10% 🔥
                 </span>
               </button>
+
               <button
                 type="button"
-                onClick={() => setPackageCategoryFilter('6_months')}
-                className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
-                  packageCategoryFilter === '6_months'
-                    ? 'bg-white text-purple-700 shadow-xs border border-purple-200'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                onClick={() => setActiveBillingCycle('yearly')}
+                className={`relative flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                  activeBillingCycle === 'yearly'
+                    ? 'text-amber-900 dark:text-amber-200 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                 }`}
               >
-                <span>باقات 6 شهور</span>
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-purple-50 text-purple-700 font-mono font-bold">
-                  {packages.filter(p => getPackageCycle(p) === '6_months').length}
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setPackageCategoryFilter('annual')}
-                className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
-                  packageCategoryFilter === 'annual'
-                    ? 'bg-white text-amber-700 shadow-xs border border-amber-200'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                }`}
-              >
-                <span>باقات سنوية</span>
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-100 text-amber-800 font-mono font-bold">
-                  {packages.filter(p => getPackageCycle(p) === 'annual').length}
-                </span>
-                <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded-full">
+                {activeBillingCycle === 'yearly' && (
+                  <motion.div
+                    layoutId="ownerCyclePill"
+                    className="absolute inset-0 bg-gradient-to-r from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 border border-amber-300 dark:border-amber-700 rounded-xl -z-10"
+                    transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                  />
+                )}
+                <span>👑 الدفع السنوي</span>
+                <span className="text-[10px] font-black text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 px-2 py-0.5 rounded-full">
                   وفر شهرين 🎁
                 </span>
               </button>
             </div>
 
-            <span className="text-[11px] text-slate-400 font-medium px-2">
-              عرض {
-                packages.filter(pkg => {
-                  if (packageCategoryFilter === 'all') return true
-                  return getPackageCycle(pkg) === packageCategoryFilter
-                }).length
-              } باقة
-            </span>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-white/10 text-[11px] font-bold text-slate-500">
+              <span>إجمالي الباقات النشطة:</span>
+              <span className="font-mono text-primary font-black text-xs">{packages.length}</span>
+            </div>
           </div>
 
           {/* Packages Grid */}
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {packages
-              .filter(pkg => {
-                if (packageCategoryFilter === 'all') return true
-                return getPackageCycle(pkg) === packageCategoryFilter
-              })
-              .map(pkg => {
-                const isPop = pkg.isPopular || pkg.isRecommended
-                const isAnn = pkg.category === 'annual' || pkg.period?.includes('سنو') || pkg.name?.includes('سنو')
-                const hasDiscount = Number(pkg.originalPrice) > Number(pkg.price)
-                return (
-                  <div
-                    key={pkg.id}
-                    className={`yalla-card relative border rounded-3xl p-6 flex flex-col justify-between transition-all hover:shadow-xl ${
-                      isPop
-                        ? 'border-primary shadow-lg ring-2 ring-primary/20'
-                        : 'border-border shadow-xs'
-                    }`}
-                  >
-                    {/* Recommended / Custom Badge */}
-                    {(pkg.badge || isPop) && (
-                      <div className="absolute -top-3.5 right-6 z-10">
-                        <span className={`px-3.5 py-1 rounded-full text-[11px] font-black shadow-md flex items-center gap-1.5 ${
-                          isPop
-                            ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-teal-500 text-white'
-                            : 'bg-slate-800 text-white'
-                        }`}>
-                          {isPop && <Sparkles className="w-3.5 h-3.5 text-amber-200" />}
-                          <span>{pkg.badge || '⭐ موصى بها للعيادات'}</span>
-                        </span>
-                      </div>
-                    )}
+            {packages.map(pkg => {
+              const isPop = pkg.isPopular || pkg.isRecommended
+              const monthly = Number(pkg.priceMonthly || pkg.price) || 0
+              const sixMonths = Number(pkg.price6Months) || Math.round(monthly * 6 * 0.9)
+              const yearly = Number(pkg.priceYearly) || Math.round(monthly * 10)
 
-                    <div>
-                      {/* Category Tag (باقة شهرية / باقة سنوية) */}
-                      <div className="flex items-center justify-between mb-2">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          isAnn
-                            ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                            : 'bg-teal-50 text-teal-800 border border-teal-200'
-                        }`}>
-                          {isAnn ? '📅 باقة سنوية' : '🗓️ باقة شهرية'}
-                        </span>
-                        {hasDiscount && (
-                          <span className="text-[10px] font-black text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
-                            عرض خاص 🔥
+              // Active selected price & duration label
+              const activePrice = activeBillingCycle === 'yearly'
+                ? yearly
+                : activeBillingCycle === '6_months'
+                ? sixMonths
+                : monthly
+
+              const cycleLabel = activeBillingCycle === 'yearly'
+                ? 'سنوياً'
+                : activeBillingCycle === '6_months'
+                ? 'لكل 6 شهور'
+                : 'شهرياً'
+
+              const equivalentMonthly = activeBillingCycle === 'yearly'
+                ? Math.round(yearly / 12)
+                : activeBillingCycle === '6_months'
+                ? Math.round(sixMonths / 6)
+                : monthly
+
+              return (
+                <motion.div
+                  key={pkg.id}
+                  whileHover={{ y: -6, scale: 1.01 }}
+                  transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+                  className={`yalla-card relative border rounded-3xl p-6 flex flex-col justify-between transition-all duration-300 ${
+                    isPop
+                      ? 'border-primary/80 shadow-2xl ring-2 ring-primary/20 bg-gradient-to-b from-white via-white to-blue-50/20 dark:from-slate-900 dark:via-slate-900 dark:to-blue-950/20'
+                      : 'border-border shadow-sm hover:shadow-xl bg-card'
+                  }`}
+                >
+                  {/* Top Recommended / Custom Badge */}
+                  {(pkg.badge || isPop) && (
+                    <div className="absolute -top-3.5 right-6 z-10">
+                      <span className={`px-3.5 py-1 rounded-full text-[11px] font-black shadow-md flex items-center gap-1.5 ${
+                        isPop
+                          ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-teal-500 text-white'
+                          : 'bg-slate-800 text-white'
+                      }`}>
+                        {isPop && <Sparkles className="w-3.5 h-3.5 text-amber-200" />}
+                        <span>{pkg.badge || '⭐ موصى بها للعيادات'}</span>
+                      </span>
+                    </div>
+                  )}
+
+                  <div>
+                    {/* Header: Logo, Name, Subtitle */}
+                    <div className="flex items-start gap-3 mb-4 pt-1">
+                      {renderPackageIcon(pkg, 'md')}
+                      <div className="flex-1 overflow-hidden">
+                        <h3 className="text-lg font-black text-foreground truncate">
+                          {pkg.name}
+                        </h3>
+                        {pkg.subtitle && (
+                          <p className="text-[11px] text-muted-foreground font-medium leading-tight mt-0.5 line-clamp-2">
+                            {pkg.subtitle}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Main Dynamic Price Display */}
+                    <div className="my-3 p-4 rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100/80 dark:from-slate-800/50 dark:to-slate-900/50 border border-slate-200/80 dark:border-white/10 space-y-1.5">
+                      <div className="flex items-baseline justify-between gap-2" dir="rtl">
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-3xl sm:text-4xl font-black text-foreground font-mono tracking-tight">
+                            {activePrice.toLocaleString()}
+                          </span>
+                          <span className="text-xs font-bold text-muted-foreground">ج.م / {cycleLabel}</span>
+                        </div>
+                        {activeBillingCycle !== 'monthly' && (
+                          <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                            (يعادل {equivalentMonthly.toLocaleString()} ج.م/شهرياً)
                           </span>
                         )}
                       </div>
 
-                      {/* Package Logo & Name Header */}
-                      <div className="flex items-start gap-3 mb-3 pt-1">
-                        {renderPackageIcon(pkg, 'md')}
-                        <div className="flex-1 overflow-hidden">
-                          <h3 className="text-lg font-black text-[#182230] truncate">
-                            {pkg.name}
-                          </h3>
-                          {pkg.subtitle && (
-                            <p className="text-[11px] text-slate-500 font-medium leading-tight mt-0.5 line-clamp-2">
-                              {pkg.subtitle}
-                            </p>
-                          )}
+                      {/* 3-Prices Comparative Row on Every Card */}
+                      <div className="pt-2.5 mt-1 border-t border-slate-200/60 dark:border-white/5 grid grid-cols-3 gap-1.5 text-center text-[10px]">
+                        <div className={`p-1.5 rounded-xl border transition-all ${
+                          activeBillingCycle === 'monthly'
+                            ? 'bg-teal-50 dark:bg-teal-950/60 border-teal-300 dark:border-teal-700 font-black text-teal-800 dark:text-teal-200'
+                            : 'bg-white/60 dark:bg-slate-800/40 border-slate-200/60 dark:border-white/5 text-slate-500'
+                        }`}>
+                          <span className="block text-[9px] opacity-75 font-bold">🗓️ شهري</span>
+                          <span className="font-mono font-bold">{monthly.toLocaleString()} ج.م</span>
                         </div>
-                      </div>
-
-                      {/* Pricing Box with Discount (بدل كذا) */}
-                      {hasDiscount ? (
-                        <div className="my-3 py-2.5 px-3.5 rounded-2xl bg-gradient-to-br from-emerald-50/70 to-teal-50/40 border border-emerald-200/80 space-y-1" dir="rtl">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-[11px] text-slate-400 font-bold">بدل:</span>
-                            <span className="text-sm font-bold text-slate-400 line-through font-mono">
-                              {Number(pkg.originalPrice).toLocaleString()} ج.م
-                            </span>
-                            <span className="text-[10px] font-black bg-rose-500 text-white px-2 py-0.5 rounded-full shadow-2xs">
-                              {pkg.discountBadge || `وفر ${(Number(pkg.originalPrice) - Number(pkg.price)).toLocaleString()} ج.م`}
-                            </span>
-                          </div>
-                          <div className="flex items-baseline gap-1">
-                            <span className="text-3xl font-black text-emerald-600 font-mono">
-                              {Number(pkg.price).toLocaleString()}
-                            </span>
-                            <span className="text-xs font-bold text-slate-500">ج.م / {pkg.period || (isAnn ? 'سنوي' : 'شهري')}</span>
-                          </div>
+                        <div className={`p-1.5 rounded-xl border transition-all ${
+                          activeBillingCycle === '6_months'
+                            ? 'bg-purple-50 dark:bg-purple-950/60 border-purple-300 dark:border-purple-700 font-black text-purple-800 dark:text-purple-200'
+                            : 'bg-white/60 dark:bg-slate-800/40 border-slate-200/60 dark:border-white/5 text-slate-500'
+                        }`}>
+                          <span className="block text-[9px] opacity-75 font-bold">📦 6 شهور</span>
+                          <span className="font-mono font-bold">{sixMonths.toLocaleString()} ج.م</span>
                         </div>
-                      ) : (
-                        <div className="flex items-baseline gap-1 my-3 py-2 px-3 rounded-2xl bg-slate-50 border border-slate-100" dir="rtl">
-                          <span className="text-3xl font-black text-slate-900 font-mono">{Number(pkg.price).toLocaleString()}</span>
-                          <span className="text-xs font-bold text-slate-500">ج.م / {pkg.period || (isAnn ? 'سنوي' : 'شهري')}</span>
+                        <div className={`p-1.5 rounded-xl border transition-all ${
+                          activeBillingCycle === 'yearly'
+                            ? 'bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 font-black text-amber-800 dark:text-amber-200'
+                            : 'bg-white/60 dark:bg-slate-800/40 border-slate-200/60 dark:border-white/5 text-slate-500'
+                        }`}>
+                          <span className="block text-[9px] opacity-75 font-bold">👑 سنوي</span>
+                          <span className="font-mono font-bold">{yearly.toLocaleString()} ج.م</span>
                         </div>
-                      )}
-
-                      {/* Highlights */}
-                      <div className="grid grid-cols-2 gap-2 mb-4 p-3 rounded-2xl bg-slate-50/80 border border-slate-100 text-center">
-                        <div>
-                          <span className="text-[10px] text-slate-400 block font-bold">ردود الذكاء الاصطناعي</span>
-                          <span className="text-xs font-black text-purple-700 font-mono">
-                            {pkg.aiResponsesLimit?.toLocaleString() || 100} رد
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-slate-400 block font-bold">عدد الفروع</span>
-                          <span className="text-xs font-black text-blue-700 font-mono">
-                            {pkg.maxBranches || 1} {pkg.maxBranches === 1 ? 'فرع' : 'فروع'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Features List */}
-                      <div className="space-y-2 mb-6">
-                        <span className="text-[11px] font-black text-slate-700 block">مميزات الباقة:</span>
-                        {Array.isArray(pkg.features) && pkg.features.map((feat: string, idx: number) => (
-                          <div key={idx} className="flex items-start gap-2 text-xs text-slate-600">
-                            <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                            <span>{feat}</span>
-                          </div>
-                        ))}
                       </div>
                     </div>
 
-                    {/* Card Actions */}
-                    <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleEditPackage(pkg)}
-                        className="flex-1 h-9 rounded-xl text-xs font-bold text-blue-600 border-blue-200 hover:bg-blue-50"
-                      >
-                        <Edit className="w-3.5 h-3.5 ml-1" />
-                        تعديل الباقة
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDeletePackage(pkg.id, pkg.name)}
-                        className="h-9 px-3 rounded-xl text-xs font-bold text-rose-500 hover:bg-rose-50 hover:text-rose-700"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
+                    {/* AI & Branches Highlights */}
+                    <div className="grid grid-cols-2 gap-2 mb-3 p-3 rounded-2xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/60 dark:border-white/5 text-center">
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block font-bold">المساعد الذكي AI</span>
+                        <span className={`text-xs font-black font-mono ${pkg.allowAi === false ? 'text-rose-600' : 'text-purple-700 dark:text-purple-400'}`}>
+                          {pkg.allowAi === false ? '🚫 معطل تماماً' : `${(pkg.aiResponsesLimit || 100).toLocaleString()} رد`}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block font-bold">عدد الفروع</span>
+                        <span className={`text-xs font-black font-mono ${pkg.allowBranches === false ? 'text-slate-600' : 'text-blue-700 dark:text-blue-400'}`}>
+                          {pkg.allowBranches === false ? 'فرع رئيسي فقط' : `${pkg.maxBranches || 1} ${pkg.maxBranches === 1 ? 'فرع' : 'فروع'}`}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Feature Gating Pills Status */}
+                    <div className="flex flex-wrap gap-1.5 mb-4">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${
+                        pkg.allowFinance !== false
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                          : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800 line-through'
+                      }`}>
+                        الحسابات
+                      </span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${
+                        pkg.allowDrugs !== false
+                          ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+                          : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800 line-through'
+                      }`}>
+                        الأدوية
+                      </span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${
+                        pkg.allowPrescriptions !== false
+                          ? 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800'
+                          : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800 line-through'
+                      }`}>
+                        الروشتات
+                      </span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${
+                        pkg.allowOnlineBooking !== false
+                          ? 'bg-cyan-50 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800'
+                          : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800 line-through'
+                      }`}>
+                        الحجز الذاتي
+                      </span>
+                    </div>
+
+                    {/* Features List */}
+                    <div className="space-y-2 mb-6">
+                      <span className="text-[11px] font-black text-foreground block">مميزات الباقة:</span>
+                      {Array.isArray(pkg.features) && pkg.features.map((feat: string, idx: number) => (
+                        <div key={idx} className="flex items-start gap-2 text-xs text-muted-foreground">
+                          <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                          <span>{feat}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                )
-              })}
+
+                  {/* Card Actions */}
+                  <div className="pt-4 border-t border-border flex items-center justify-between gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleEditPackage(pkg)}
+                      className="flex-1 h-9 rounded-xl text-xs font-bold text-blue-600 border-blue-200 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer"
+                    >
+                      <Edit className="w-3.5 h-3.5 ml-1" />
+                      تعديل الباقة والأسعار
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleDeletePackage(pkg.id, pkg.name)}
+                      className="h-9 px-3 rounded-xl text-xs font-bold text-rose-500 hover:bg-rose-50 hover:text-rose-700 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </motion.div>
+              )
+            })}
           </div>
 
           {/* Add / Edit Package Modal with Full Customization */}
@@ -3038,157 +3164,103 @@ function OwnerDashboard() {
                   )}
                 </div>
 
-                {/* 4. Category, Pricing & Offers / Discounts */}
-                <div className="space-y-4 p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                {/* 4. Three-Price Architecture (شهري، 6 شهور، سنوي) */}
+                <div className="space-y-4 p-4 rounded-2xl bg-gradient-to-br from-slate-50 to-blue-50/30 border border-slate-200">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200">
                     <div>
                       <h4 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
                         <Tag className="w-4 h-4 text-emerald-600" />
-                        <span>تصنيف الباقة والأسعار والعروض (عرض كذا بدل كذا)</span>
+                        <span>هيكلة أسعار الباقة (3 أسعار: شهري، 6 شهور، سنوي)</span>
                       </h4>
                       <p className="text-[11px] text-slate-500 mt-0.5">
-                        حدد دورة الفوترة (شهرية، 3 شهور، 6 شهور، سنوية) وضع سعراً قبل الخصم ليظهر مشطوباً كعرض خاص
+                        تحدد هنا الأسعار الثلاثة المباشرة للباقة دون الحاجة لإنشاء باقات منفصلة لكل فترة
                       </p>
                     </div>
 
-                    {/* Category Switcher Buttons (شهري / 3 شهور / 6 شهور / سنوي) */}
-                    <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shrink-0 flex-wrap">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPkgCategory('monthly')
-                          setPkgPeriod('شهري')
-                        }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                          pkgCategory === 'monthly'
-                            ? 'bg-teal-600 text-white shadow-xs'
-                            : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                      >
-                        باقة شهرية
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPkgCategory('3_months')
-                          setPkgPeriod('3 شهور')
-                          if (!pkgDiscountBadge) setPkgDiscountBadge('وفر 15%')
-                        }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                          pkgCategory === '3_months'
-                            ? 'bg-cyan-600 text-white shadow-xs'
-                            : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                      >
-                        <span>3 شهور</span>
-                        <span className="text-[10px] bg-cyan-100 text-cyan-800 px-1 rounded font-bold">ربع سنوي</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPkgCategory('6_months')
-                          setPkgPeriod('6 شهور')
-                          if (!pkgDiscountBadge) setPkgDiscountBadge('وفر 25%')
-                        }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                          pkgCategory === '6_months'
-                            ? 'bg-purple-600 text-white shadow-xs'
-                            : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                      >
-                        <span>6 شهور</span>
-                        <span className="text-[10px] bg-purple-100 text-purple-800 px-1 rounded font-bold">نصف سنوي</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPkgCategory('annual')
-                          setPkgPeriod('سنوي')
-                          if (!pkgDiscountBadge) setPkgDiscountBadge('وفر شهرين مجاناً 🎁')
-                        }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                          pkgCategory === 'annual'
-                            ? 'bg-amber-600 text-white shadow-xs'
-                            : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                      >
-                        <span>سنوية</span>
-                        <span className="text-[10px] bg-amber-400 text-slate-900 px-1 rounded font-bold">توفير</span>
-                      </button>
-                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const m = Number(pkgPriceMonthly) || 0
+                        if (m > 0) {
+                          setPkgPrice6Months(Math.round(m * 6 * 0.9))
+                          setPkgPriceYearly(Math.round(m * 10))
+                          toast.success('تم احتساب أسعار الـ 6 شهور والسنوي تلقائياً بنجاح!')
+                        } else {
+                          toast.error('يرجى إدخال السعر الشهري أولاً')
+                        }
+                      }}
+                      className="h-8 px-3 rounded-xl text-[11px] font-bold text-blue-700 bg-white border-blue-200 hover:bg-blue-50 cursor-pointer flex items-center gap-1.5 shrink-0"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-blue-500" />
+                      <span>احتساب تلقائي للـ 6 شهور والسنوي</span>
+                    </Button>
                   </div>
 
-                  {/* Pricing & Discount Inputs */}
+                  {/* 3 Price Fields */}
                   <div className="grid sm:grid-cols-3 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-slate-700">سعر العرض المطلوب (ج.م) *</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        value={pkgPrice}
-                        onChange={e => setPkgPrice(e.target.value)}
-                        required
-                        placeholder="مثال: 950"
-                        className="h-10 text-xs font-mono font-bold rounded-xl bg-white"
-                      />
-                      <span className="text-[10px] text-slate-400">السعر النهائي الذي يدفعه الطبيب</span>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-slate-700 flex items-center justify-between">
-                        <span>السعر قبل الخصم (بدل كذا)</span>
-                        <span className="text-[10px] text-emerald-600 font-bold">يظهر مشطوباً</span>
+                    {/* Monthly Price */}
+                    <div className="space-y-1.5 p-3 rounded-xl bg-white border border-teal-200 shadow-2xs">
+                      <Label className="text-xs font-black text-teal-800 flex items-center justify-between">
+                        <span>🗓️ سعر الاشتراك الشهري (ج.م) *</span>
                       </Label>
                       <Input
                         type="number"
                         min="0"
-                        value={pkgOriginalPrice}
-                        onChange={e => setPkgOriginalPrice(e.target.value)}
-                        placeholder="مثال: 1200"
-                        className="h-10 text-xs font-mono font-bold rounded-xl bg-white"
+                        value={pkgPriceMonthly}
+                        onChange={e => {
+                          setPkgPriceMonthly(e.target.value)
+                          setPkgPrice(e.target.value)
+                        }}
+                        required
+                        placeholder="مثال: 600"
+                        className="h-10 text-xs font-mono font-bold rounded-xl bg-slate-50"
                       />
-                      <span className="text-[10px] text-slate-400">اتركه فارغاً إن لم يكن هناك خصم</span>
+                      <span className="text-[10px] text-teal-600 font-medium block">لكل شهر</span>
                     </div>
 
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-slate-700">نص شارة الخصم أو العرض</Label>
+                    {/* 6 Months Price */}
+                    <div className="space-y-1.5 p-3 rounded-xl bg-white border border-purple-200 shadow-2xs">
+                      <Label className="text-xs font-black text-purple-800 flex items-center justify-between">
+                        <span>📦 سعر الـ 6 شهور (ج.م) *</span>
+                      </Label>
                       <Input
-                        value={pkgDiscountBadge}
-                        onChange={e => setPkgDiscountBadge(e.target.value)}
-                        placeholder="مثل: وفر 250 ج.م أو خصم 20%"
-                        className="h-10 text-xs rounded-xl bg-white"
+                        type="number"
+                        min="0"
+                        value={pkgPrice6Months}
+                        onChange={e => setPkgPrice6Months(e.target.value)}
+                        required
+                        placeholder="مثال: 3240"
+                        className="h-10 text-xs font-mono font-bold rounded-xl bg-slate-50"
                       />
-                      <span className="text-[10px] text-slate-400">شارة مميزة تظهر بجانب السعر</span>
+                      <span className="text-[10px] text-purple-600 font-medium block">
+                        وفر 10% (يعادل {(Number(pkgPrice6Months) > 0 ? (Number(pkgPrice6Months) / 6).toFixed(0) : 0)} ج.م/شهر)
+                      </span>
+                    </div>
+
+                    {/* Yearly Price */}
+                    <div className="space-y-1.5 p-3 rounded-xl bg-white border border-amber-200 shadow-2xs">
+                      <Label className="text-xs font-black text-amber-800 flex items-center justify-between">
+                        <span>👑 سعر الاشتراك السنوي (ج.م) *</span>
+                      </Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={pkgPriceYearly}
+                        onChange={e => setPkgPriceYearly(e.target.value)}
+                        required
+                        placeholder="مثال: 5760"
+                        className="h-10 text-xs font-mono font-bold rounded-xl bg-slate-50"
+                      />
+                      <span className="text-[10px] text-amber-600 font-medium block">
+                        وفر شهرين (يعادل {(Number(pkgPriceYearly) > 0 ? (Number(pkgPriceYearly) / 12).toFixed(0) : 0)} ج.م/شهر)
+                      </span>
                     </div>
                   </div>
 
-                  {/* Live Discount Preview Box if discount exists */}
-                  {Number(pkgOriginalPrice) > Number(pkgPrice) && (
-                    <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-emerald-800">معاينة عرض السعر للطبيب:</span>
-                        <span className="text-xs font-mono line-through text-slate-400">{Number(pkgOriginalPrice).toLocaleString()} ج.م</span>
-                        <span className="text-xs font-bold text-slate-500">أصبح</span>
-                        <span className="text-sm font-black font-mono text-emerald-700">{Number(pkgPrice).toLocaleString()} ج.م</span>
-                      </div>
-                      <span className="text-[10px] font-black bg-rose-500 text-white px-2 py-0.5 rounded-full shadow-2xs">
-                        {pkgDiscountBadge || `توفير ${(Number(pkgOriginalPrice) - Number(pkgPrice)).toLocaleString()} ج.م`}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Period, AI Limits & Branches */}
-                  <div className="grid sm:grid-cols-3 gap-3 pt-2 border-t border-slate-200">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-slate-700">دورة الفوترة النصية *</Label>
-                      <Input
-                        value={pkgPeriod}
-                        onChange={e => setPkgPeriod(e.target.value)}
-                        placeholder="شهري / سنوي"
-                        required
-                        className="h-10 text-xs rounded-xl bg-white"
-                      />
-                    </div>
+                  {/* Limits: AI responses & Max branches */}
+                  <div className="grid sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200">
                     <div className="space-y-1.5">
                       <Label className="text-xs font-bold text-slate-700">حد ردود AI شهرياً</Label>
                       <Input
@@ -3197,8 +3269,9 @@ function OwnerDashboard() {
                         value={pkgAiLimit}
                         onChange={e => setPkgAiLimit(e.target.value)}
                         className="h-10 text-xs font-mono font-bold rounded-xl bg-white"
-                        placeholder="500"
+                        placeholder="100"
                       />
+                      <span className="text-[10px] text-slate-400">عدد رسائل واستشارات الذكاء الاصطناعي المتاحة</span>
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs font-bold text-slate-700">الحد الأقصى للفروع</Label>
@@ -3211,6 +3284,7 @@ function OwnerDashboard() {
                         className="h-10 text-xs font-mono font-bold rounded-xl bg-white"
                         placeholder="1"
                       />
+                      <span className="text-[10px] text-slate-400">كم فرع طبي مسموح للعيادة بإنشائه</span>
                     </div>
                   </div>
                 </div>
@@ -3246,7 +3320,7 @@ function OwnerDashboard() {
                           <span className="text-[10px] text-slate-400 block">المصروفات والإيرادات وأرباح العيادة</span>
                         </div>
                       </div>
-                      <Switch checked={pkgAllowFinance} onCheckedChange={setPkgAllowFinance} />
+                      <Switch checked={pkgAllowFinance} onCheckedChange={val => handleTogglePackageFeature('finance', val)} />
                     </div>
 
                     {/* 2. Drugs */}
@@ -3262,7 +3336,7 @@ function OwnerDashboard() {
                           <span className="text-[10px] text-slate-400 block">البحث في الأدوية والأسعار اليومية والبدائل</span>
                         </div>
                       </div>
-                      <Switch checked={pkgAllowDrugs} onCheckedChange={setPkgAllowDrugs} />
+                      <Switch checked={pkgAllowDrugs} onCheckedChange={val => handleTogglePackageFeature('drugs', val)} />
                     </div>
 
                     {/* 3. Prescriptions */}
@@ -3278,7 +3352,7 @@ function OwnerDashboard() {
                           <span className="text-[10px] text-slate-400 block">تحرير وطباعة ومشاركة الروشتة للمريض</span>
                         </div>
                       </div>
-                      <Switch checked={pkgAllowPrescriptions} onCheckedChange={setPkgAllowPrescriptions} />
+                      <Switch checked={pkgAllowPrescriptions} onCheckedChange={val => handleTogglePackageFeature('prescriptions', val)} />
                     </div>
 
                     {/* 4. Custom Template */}
@@ -3294,7 +3368,7 @@ function OwnerDashboard() {
                           <span className="text-[10px] text-slate-400 block">رفع تصميم مخصص للروشتة خاص بالعيادة</span>
                         </div>
                       </div>
-                      <Switch checked={pkgAllowCustomTemplate} onCheckedChange={setPkgAllowCustomTemplate} />
+                      <Switch checked={pkgAllowCustomTemplate} onCheckedChange={val => handleTogglePackageFeature('customTemplate', val)} />
                     </div>
 
                     {/* 5. Doctor Branding */}
@@ -3310,7 +3384,7 @@ function OwnerDashboard() {
                           <span className="text-[10px] text-slate-400 block">سماح الطبيب بتغيير الشعار والألوان بنفسه</span>
                         </div>
                       </div>
-                      <Switch checked={pkgAllowBranding} onCheckedChange={setPkgAllowBranding} />
+                      <Switch checked={pkgAllowBranding} onCheckedChange={val => handleTogglePackageFeature('branding', val)} />
                     </div>
 
                     {/* 6. Patient Alerts */}
@@ -3326,7 +3400,7 @@ function OwnerDashboard() {
                           <span className="text-[10px] text-slate-400 block">إرسال رسائل تذكير الدور والمواعيد تلقائياً</span>
                         </div>
                       </div>
-                      <Switch checked={pkgAllowPatientAlerts} onCheckedChange={setPkgAllowPatientAlerts} />
+                      <Switch checked={pkgAllowPatientAlerts} onCheckedChange={val => handleTogglePackageFeature('patientAlerts', val)} />
                     </div>
 
                     {/* 7. AI Chatbot */}
@@ -3342,7 +3416,7 @@ function OwnerDashboard() {
                           <span className="text-[10px] text-slate-400 block">الشات بوت الطبي الذكي وتدريبه للعيادة</span>
                         </div>
                       </div>
-                      <Switch checked={pkgAllowAi} onCheckedChange={setPkgAllowAi} />
+                      <Switch checked={pkgAllowAi} onCheckedChange={val => handleTogglePackageFeature('ai', val)} />
                     </div>
 
                     {/* 8. Branches */}
@@ -3358,7 +3432,7 @@ function OwnerDashboard() {
                           <span className="text-[10px] text-slate-400 block">إمكانية فتح أكثر من فرع طبي للعيادة</span>
                         </div>
                       </div>
-                      <Switch checked={pkgAllowBranches} onCheckedChange={setPkgAllowBranches} />
+                      <Switch checked={pkgAllowBranches} onCheckedChange={val => handleTogglePackageFeature('branches', val)} />
                     </div>
 
                     {/* 9. Online Booking */}
@@ -3374,7 +3448,7 @@ function OwnerDashboard() {
                           <span className="text-[10px] text-slate-400 block">تفعيل رابط الحجز الإلكتروني للمرضى وتتبع الطابور الحي</span>
                         </div>
                       </div>
-                      <Switch checked={pkgAllowOnlineBooking} onCheckedChange={setPkgAllowOnlineBooking} />
+                      <Switch checked={pkgAllowOnlineBooking} onCheckedChange={val => handleTogglePackageFeature('onlineBooking', val)} />
                     </div>
                   </div>
                 </div>

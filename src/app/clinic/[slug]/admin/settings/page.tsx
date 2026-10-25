@@ -438,7 +438,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const baseTabs = [
     { id: 'security', label: t('tab_security', 'الأمان والحساب'), icon: Lock },
     { id: 'profile', label: t('tab_profile', 'الهوية والبيانات'), icon: Building2 },
-    { id: 'branding', label: t('tab_branding', 'هوية العيادة والطباعة'), icon: Palette },
+    ...(canEditBranding ? [{ id: 'branding', label: t('tab_branding', 'هوية العيادة والطباعة'), icon: Palette }] : []),
     { id: 'queue', label: t('tab_queue', 'المواعيد والدور'), icon: Clock },
     { id: 'services', label: t('tab_services', 'الخدمات والأسعار'), icon: ShieldCheck },
     { id: 'payment', label: t('tab_payment', 'طرق الدفع'), icon: Wallet },
