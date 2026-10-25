@@ -24,6 +24,37 @@ interface TvConfig {
   announcementPhrase: 'patient_number' | 'turn_number'
 }
 
+// In-memory cache for decoded audio buffers to allow instant playback
+const ttsAudioCache = new Map<string, AudioBuffer>()
+
+// Convert digits to spelled-out Arabic words so voice engines pronounce full Arabic words
+function numberToArabicWords(num: number | string): string {
+  const clean = String(num).replace(/[^0-9]/g, '')
+  const n = parseInt(clean, 10)
+  if (isNaN(n) || n <= 0) return String(num)
+
+  const ones = [
+    '', 'واحد', 'اثنان', 'ثلاثة', 'أربعة', 'خمسة', 'ستة', 'سبعة', 'ثمانية', 'تسعة', 'عشرة',
+    'أحد عشر', 'اثنا عشر', 'ثلاثة عشر', 'أربعة عشر', 'خمسة عشر', 'ستة عشر', 'سبعة عشر', 'ثمانية عشر', 'تسعة عشر'
+  ]
+  const tens = ['', '', 'عشرون', 'ثلاثون', 'أربعون', 'خمسون', 'ستون', 'سبعون', 'ثمانون', 'تسعون']
+  const hundreds = ['', 'مائة', 'مئتان', 'ثلاثمائة', 'أربعمائة', 'خمسمائة', 'ستمائة', 'سبعمائة', 'ثمانمائة', 'تسعمائة']
+
+  if (n < 20) return ones[n]
+  if (n < 100) {
+    const one = n % 10
+    const ten = Math.floor(n / 10)
+    return one === 0 ? tens[ten] : `${ones[one]} و${tens[ten]}`
+  }
+  if (n < 1000) {
+    const hundred = Math.floor(n / 100)
+    const remainder = n % 100
+    if (remainder === 0) return hundreds[hundred]
+    return `${hundreds[hundred]} و${numberToArabicWords(remainder)}`
+  }
+  return String(num)
+}
+
 export default function WaitingRoomTvPage({
   params
 }: {
@@ -39,7 +70,10 @@ export default function WaitingRoomTvPage({
   const [currentDateStr, setCurrentDateStr] = useState<string>('')
   const [isAudioEnabled, setIsAudioEnabled] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [previousServingTurn, setPreviousServingTurn] = useState<string | number | null>(null)
+
+  // Tracking refs for real-time patient announcements
+  const lastAnnouncedCallKeyRef = useRef<string | null>(null)
+  const isFirstDataLoadRef = useRef<boolean>(true)
 
   // Light / Dark Mode State
   const [themeMode, setThemeMode] = useState<'dark' | 'light'>('dark')
@@ -80,12 +114,61 @@ export default function WaitingRoomTvPage({
     window.speechSynthesis.onvoiceschanged = handleVoices
   }, [])
 
-  // Load Saved Theme and Settings from localStorage
+  // Toggle audio state with persistent storage
+  const setAudioState = (enabled: boolean) => {
+    setIsAudioEnabled(enabled)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`clinic_${slug}_tv_audio`, enabled ? 'true' : 'false')
+    }
+  }
+
+  // Auto-unlock Web Audio Context on first user interaction anywhere on the screen
+  useEffect(() => {
+    const unlockAudio = () => {
+      try {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+        if (AudioCtx) {
+          if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+            audioCtxRef.current = new AudioCtx()
+          }
+          if (audioCtxRef.current.state === 'suspended') {
+            audioCtxRef.current.resume()
+          }
+        }
+        setIsAudioEnabled(prev => {
+          if (!prev) {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem(`clinic_${slug}_tv_audio`, 'true')
+            }
+            return true
+          }
+          return prev
+        })
+      } catch (e) {}
+    }
+
+    window.addEventListener('click', unlockAudio, { once: true })
+    window.addEventListener('touchstart', unlockAudio, { once: true })
+    window.addEventListener('keydown', unlockAudio, { once: true })
+
+    return () => {
+      window.removeEventListener('click', unlockAudio)
+      window.removeEventListener('touchstart', unlockAudio)
+      window.removeEventListener('keydown', unlockAudio)
+    }
+  }, [slug])
+
+  // Load Saved Theme, Settings, and Audio state from localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedTheme = localStorage.getItem(`clinic_${slug}_tv_theme`) as 'dark' | 'light'
       if (savedTheme) {
         setThemeMode(savedTheme)
+      }
+
+      const savedAudio = localStorage.getItem(`clinic_${slug}_tv_audio`)
+      if (savedAudio === 'true') {
+        setIsAudioEnabled(true)
       }
 
       const savedConfig = localStorage.getItem(`clinic_${slug}_tv_settings`)
@@ -202,71 +285,157 @@ export default function WaitingRoomTvPage({
     }
   }
 
-  // Arabic Speech Synthesis Voice Announcement (نداء صوتي لدخول المريض رقم كذا)
-  const speakAnnouncement = (
+  // Universal Cloud TTS Audio Stream via Web Audio API with pitch & acoustic modeling
+  const playCloudTtsAudio = async (text: string, gender: 'female' | 'male'): Promise<boolean> => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+      if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+        audioCtxRef.current = new AudioCtx()
+      }
+      const ctx = audioCtxRef.current
+      if (ctx.state === 'suspended') {
+        await ctx.resume()
+      }
+
+      let audioBuffer = ttsAudioCache.get(text)
+      if (!audioBuffer) {
+        const res = await fetch(`/api/tts?text=${encodeURIComponent(text)}&tl=ar`)
+        if (!res.ok) throw new Error(`TTS status ${res.status}`)
+        const arrayBuffer = await res.arrayBuffer()
+        audioBuffer = await ctx.decodeAudioData(arrayBuffer)
+        ttsAudioCache.set(text, audioBuffer)
+      }
+
+      const source = ctx.createBufferSource()
+      source.buffer = audioBuffer
+
+      if (gender === 'male') {
+        // Deep masculine baritone acoustic processing:
+        // 1. Lower playback rate by 15% (drops pitch by ~3 semitones into authentic male register)
+        source.playbackRate.value = 0.85
+
+        // 2. Low-shelf bass boost at 220Hz (+6dB for chest resonance)
+        const bassFilter = ctx.createBiquadFilter()
+        bassFilter.type = 'lowshelf'
+        bassFilter.frequency.value = 220
+        bassFilter.gain.value = 6
+
+        // 3. Low-pass filter at 3500Hz to eliminate female sibilance
+        const lowpassFilter = ctx.createBiquadFilter()
+        lowpassFilter.type = 'lowpass'
+        lowpassFilter.frequency.value = 3500
+
+        // 4. Output gain
+        const gainNode = ctx.createGain()
+        gainNode.gain.value = 1.3
+
+        source.connect(bassFilter)
+        bassFilter.connect(lowpassFilter)
+        lowpassFilter.connect(gainNode)
+        gainNode.connect(ctx.destination)
+      } else {
+        // Clear, bright feminine vocal processing:
+        // 1. Melodic feminine playback rate
+        source.playbackRate.value = 1.02
+
+        // 2. High clarity presence filter at 2400Hz
+        const presenceFilter = ctx.createBiquadFilter()
+        presenceFilter.type = 'peaking'
+        presenceFilter.frequency.value = 2400
+        presenceFilter.gain.value = 2.5
+
+        // 3. Gentle high-pass filter at 120Hz to eliminate sub-bass rumble
+        const highpassFilter = ctx.createBiquadFilter()
+        highpassFilter.type = 'highpass'
+        highpassFilter.frequency.value = 120
+
+        const gainNode = ctx.createGain()
+        gainNode.gain.value = 1.1
+
+        source.connect(presenceFilter)
+        presenceFilter.connect(highpassFilter)
+        highpassFilter.connect(gainNode)
+        gainNode.connect(ctx.destination)
+      }
+
+      source.start(0)
+      return true
+    } catch (err) {
+      console.warn('Cloud TTS playback error, trying fallbacks:', err)
+      return false
+    }
+  }
+
+  // Arabic Voice Announcement (نداء صوتي لدخول المريض رقم كذا)
+  const speakAnnouncement = async (
     turnNumber: string | number,
     patientName?: string,
     callName = true,
     gender: 'female' | 'male' = tvConfig.voiceGender || 'female',
     phraseType: 'patient_number' | 'turn_number' = tvConfig.announcementPhrase || 'patient_number'
   ) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
+    // 1. Convert digit turn into proper Arabic words (e.g. 5 -> خمسة, 12 -> اثنا عشر)
+    const turnInWords = numberToArabicWords(turnNumber)
+    const namePart = (callName && patientName && patientName.trim()) ? `${patientName.trim()}، ` : ''
+    const prefix = phraseType === 'turn_number' ? 'دور رقم' : 'مريض رقم'
 
+    // Full, grammatically complete Arabic announcement sentence
+    const fullArabicPhrase = `${prefix} ${turnInWords}، ${namePart}تفضل بالدخول لغرفة الكشف.`
+
+    // 2. Primary Method: Universal Cloud TTS Audio Stream via Web Audio API (Guaranteed on all TVs & browsers)
+    const played = await playCloudTtsAudio(fullArabicPhrase, gender)
+    if (played) return
+
+    // 3. Secondary Method: If Cloud TTS fetch failed, try HTML5 Audio element with stream
     try {
-      window.speechSynthesis.cancel()
-
-      const turn = String(turnNumber).replace(/[^0-9]/g, '').trim() || String(turnNumber).trim()
-      const name = (callName && patientName && patientName.trim()) ? `${patientName.trim()}، ` : ''
-      
-      // Phrasing requested by user: "مريض رقم كذا، تفضل بالدخول لغرفة الكشف"
-      const prefix = phraseType === 'turn_number' ? 'دور رقم' : 'مريض رقم'
-      const textToSpeak = `${prefix} ${turn}، ${name}تفضل بالدخول لغرفة الكشف.`
-
-      const utterance = new SpeechSynthesisUtterance(textToSpeak)
-      utterance.lang = 'ar-SA'
-
-      // Get available voices
-      const voices = window.speechSynthesis.getVoices()
-      const arabicVoices = voices.filter(v => v.lang.startsWith('ar') || v.lang.includes('ar-') || v.lang.includes('AR'))
-
-      const femaleKeywords = ['female', 'hoda', 'zeina', 'salma', 'laila', 'zariyah', 'nour', 'fatima', 'maryam', 'amira', 'mona', 'sara']
-      const maleKeywords = ['male', 'shakir', 'naayf', 'maged', 'tarik', 'hamed', 'youssef', 'omar', 'ahmed', 'ali', 'hassan']
-
-      let matchedVoice: SpeechSynthesisVoice | undefined
-
-      if (arabicVoices.length > 0) {
-        if (gender === 'female') {
-          matchedVoice = arabicVoices.find(v => {
-            const n = v.name.toLowerCase()
-            return femaleKeywords.some(kw => n.includes(kw))
-          }) || arabicVoices[0]
-        } else {
-          matchedVoice = arabicVoices.find(v => {
-            const n = v.name.toLowerCase()
-            return maleKeywords.some(kw => n.includes(kw))
-          }) || arabicVoices.find(v => {
-            const n = v.name.toLowerCase()
-            return !femaleKeywords.some(kw => n.includes(kw))
-          }) || arabicVoices[0]
-        }
-      }
-
-      if (matchedVoice) {
-        utterance.voice = matchedVoice
-      }
-
-      // Gender-specific acoustic fine tuning (pitch and rate)
-      if (gender === 'female') {
-        utterance.pitch = 1.25 // Melodic feminine tone
-        utterance.rate = 0.88
+      const audioUrl = `/api/tts?text=${encodeURIComponent(fullArabicPhrase)}&tl=ar`
+      const audioEl = new Audio(audioUrl)
+      if (gender === 'male') {
+        (audioEl as any).preservesPitch = false
+        audioEl.playbackRate = 0.85
       } else {
-        utterance.pitch = 0.82 // Resonant masculine tone
-        utterance.rate = 0.86
+        audioEl.playbackRate = 1.02
       }
+      await audioEl.play()
+      return
+    } catch (e) {
+      // Audio element also failed, try local SpeechSynthesis as last resort
+    }
 
-      window.speechSynthesis.speak(utterance)
-    } catch (err) {
-      console.warn('Speech synthesis error:', err)
+    // 4. Tertiary Fallback: Browser Web Speech API (only if Arabic voices exist, avoiding English voice reciting numbers)
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel()
+        const utterance = new SpeechSynthesisUtterance(fullArabicPhrase)
+        utterance.lang = 'ar-SA'
+
+        const voices = window.speechSynthesis.getVoices()
+        const arabicVoices = voices.filter(v => v.lang.startsWith('ar') || v.lang.includes('ar-') || v.lang.includes('AR'))
+
+        if (arabicVoices.length > 0) {
+          const femaleKeywords = ['female', 'hoda', 'zeina', 'salma', 'laila', 'zariyah', 'nour', 'fatima', 'maryam', 'amira', 'mona', 'sara']
+          const maleKeywords = ['male', 'shakir', 'naayf', 'maged', 'tarik', 'hamed', 'youssef', 'omar', 'ahmed', 'ali', 'hassan']
+
+          let matchedVoice: SpeechSynthesisVoice | undefined
+          if (gender === 'female') {
+            matchedVoice = arabicVoices.find(v => femaleKeywords.some(kw => v.name.toLowerCase().includes(kw))) || arabicVoices[0]
+            utterance.pitch = 1.25
+            utterance.rate = 0.9
+          } else {
+            matchedVoice = arabicVoices.find(v => maleKeywords.some(kw => v.name.toLowerCase().includes(kw))) ||
+              arabicVoices.find(v => !femaleKeywords.some(kw => v.name.toLowerCase().includes(kw))) || arabicVoices[0]
+            utterance.pitch = 0.8
+            utterance.rate = 0.86
+          }
+
+          if (matchedVoice) {
+            utterance.voice = matchedVoice
+          }
+          window.speechSynthesis.speak(utterance)
+        }
+      } catch (err) {
+        console.warn('Speech synthesis fallback error:', err)
+      }
     }
   }
 
@@ -285,7 +454,7 @@ export default function WaitingRoomTvPage({
         genderOverride || tvConfig.voiceGender,
         tvConfig.announcementPhrase
       )
-    }, 600)
+    }, 750)
   }
 
   // Real-time Clinic Listener
@@ -340,18 +509,34 @@ export default function WaitingRoomTvPage({
       .slice(0, 5)
   }, [branchAppointments])
 
-  // Trigger Voice Call when serving turn changes
+  // Trigger Voice Call when serving patient changes, enters, or is recalled
   useEffect(() => {
-    const currentTurn = currentPatient?.queue_number || null
-    if (currentTurn !== null && previousServingTurn !== null && currentTurn !== previousServingTurn) {
+    if (!currentPatient) {
+      // When no patient is being served, reset tracking key so the next entering patient triggers immediately
+      lastAnnouncedCallKeyRef.current = null
+      return
+    }
+
+    const currentCallKey = `${currentPatient.id}_${currentPatient.startedAt || currentPatient.queue_number}`
+
+    // Avoid sudden blast on initial page mount if patient was already active
+    if (isFirstDataLoadRef.current) {
+      isFirstDataLoadRef.current = false
+      lastAnnouncedCallKeyRef.current = currentCallKey
+      return
+    }
+
+    // Patient entered (from null or previous patient) or doctor recalled turn
+    if (lastAnnouncedCallKeyRef.current !== currentCallKey) {
+      lastAnnouncedCallKeyRef.current = currentCallKey
       if (isAudioEnabled) {
-        triggerPatientVoiceCall(currentTurn, currentPatient?.patientName)
+        triggerPatientVoiceCall(
+          currentPatient.queue_number,
+          currentPatient.patientName
+        )
       }
     }
-    if (currentTurn !== previousServingTurn) {
-      setPreviousServingTurn(currentTurn)
-    }
-  }, [currentPatient, previousServingTurn, isAudioEnabled, tvConfig.announceName, tvConfig.voiceGender, tvConfig.announcementPhrase])
+  }, [currentPatient, isAudioEnabled, tvConfig.announceName, tvConfig.voiceGender, tvConfig.announcementPhrase])
 
   // Toggle Theme Mode (Dark <-> Light)
   const toggleTheme = () => {
@@ -489,7 +674,7 @@ export default function WaitingRoomTvPage({
             <button
               onClick={() => {
                 const nextState = !isAudioEnabled
-                setIsAudioEnabled(nextState)
+                setAudioState(nextState)
                 if (nextState) {
                   triggerPatientVoiceCall(
                     currentPatient?.queue_number || '1',
@@ -564,7 +749,7 @@ export default function WaitingRoomTvPage({
           <span>انقر هنا لتفعيل النداء الصوتي الآلي للمرضى والرنين التنبيهي عند استدعاء كل دور 📢</span>
           <button
             onClick={() => {
-              setIsAudioEnabled(true)
+              setAudioState(true)
               triggerPatientVoiceCall(
                 currentPatient?.queue_number || '1',
                 currentPatient?.patientName || 'المريض'
@@ -1073,7 +1258,7 @@ export default function WaitingRoomTvPage({
                 <button
                   type="button"
                   onClick={() => {
-                    setIsAudioEnabled(true)
+                    setAudioState(true)
                     triggerPatientVoiceCall(
                       currentPatient?.queue_number || '5',
                       currentPatient?.patientName || 'أحمد علي',
@@ -1089,7 +1274,7 @@ export default function WaitingRoomTvPage({
                 <button
                   type="button"
                   onClick={() => {
-                    setIsAudioEnabled(true)
+                    setAudioState(true)
                     triggerPatientVoiceCall(
                       currentPatient?.queue_number || '5',
                       currentPatient?.patientName || 'أحمد علي',
