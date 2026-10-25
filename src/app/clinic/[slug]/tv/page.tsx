@@ -17,6 +17,7 @@ import Link from 'next/link'
 interface TvConfig {
   tickerText: string
   instructionsText: string
+  showPatientName: boolean
   announceName: boolean
   tickerSpeed: 'normal' | 'slow' | 'fast'
   tickerDirection: 'rtl' | 'ltr'
@@ -96,7 +97,8 @@ export default function WaitingRoomTvPage({
   const [tvConfig, setTvConfig] = useState<TvConfig>({
     tickerText: '',
     instructionsText: '',
-    announceName: true,
+    showPatientName: false,
+    announceName: false,
     tickerSpeed: 'normal',
     tickerDirection: 'rtl',
     voiceGender: 'female',
@@ -182,6 +184,8 @@ export default function WaitingRoomTvPage({
           setTvConfig(prev => ({
             ...prev,
             ...parsed,
+            showPatientName: parsed.showPatientName ?? false,
+            announceName: parsed.announceName ?? false,
             tickerDirection: parsed.tickerDirection || 'rtl',
             voiceGender: parsed.voiceGender || 'female',
             announcementPhrase: parsed.announcementPhrase || 'patient_number',
@@ -200,6 +204,7 @@ export default function WaitingRoomTvPage({
         ...prev,
         tickerText: clinic.tvSettings.tickerText || prev.tickerText,
         instructionsText: clinic.tvSettings.instructionsText || prev.instructionsText,
+        showPatientName: clinic.tvSettings.showPatientName !== undefined ? clinic.tvSettings.showPatientName : prev.showPatientName,
         announceName: clinic.tvSettings.announceName !== undefined ? clinic.tvSettings.announceName : prev.announceName,
         tickerSpeed: clinic.tvSettings.tickerSpeed || prev.tickerSpeed,
         tickerDirection: clinic.tvSettings.tickerDirection || prev.tickerDirection || 'rtl',
@@ -342,7 +347,7 @@ export default function WaitingRoomTvPage({
     }
   }
 
-  // Universal Studio-Engineered Arabic Voice Stream with Compression, EQ & Room Acoustics
+  // Universal Studio-Engineered Arabic Voice Stream with Compression, EQ & Clean Output
   const playCloudTtsAudio = async (
     text: string,
     gender: 'female' | 'male',
@@ -358,100 +363,57 @@ export default function WaitingRoomTvPage({
         await ctx.resume()
       }
 
-      let audioBuffer = ttsAudioCache.get(text)
+      const cacheKey = `${gender}_${text}`
+      let audioBuffer = ttsAudioCache.get(cacheKey)
       if (!audioBuffer) {
-        const res = await fetch(`/api/tts?text=${encodeURIComponent(text)}&tl=ar`)
+        const res = await fetch(`/api/tts?text=${encodeURIComponent(text)}&gender=${gender}&tl=ar`)
         if (!res.ok) throw new Error(`TTS status ${res.status}`)
         const arrayBuffer = await res.arrayBuffer()
         audioBuffer = await ctx.decodeAudioData(arrayBuffer)
-        ttsAudioCache.set(text, audioBuffer)
+        ttsAudioCache.set(cacheKey, audioBuffer)
       }
 
       const source = ctx.createBufferSource()
       source.buffer = audioBuffer
 
-      // 1. Studio Broadcast Dynamics Compressor for smooth, balanced, intimate vocal delivery
+      // Studio Broadcast Dynamics Compressor for smooth, balanced, clear delivery
       const compressor = ctx.createDynamicsCompressor()
-      compressor.threshold.setValueAtTime(-18, ctx.currentTime)
-      compressor.knee.setValueAtTime(10, ctx.currentTime)
-      compressor.ratio.setValueAtTime(3.5, ctx.currentTime)
-      compressor.attack.setValueAtTime(0.003, ctx.currentTime)
-      compressor.release.setValueAtTime(0.22, ctx.currentTime)
-
-      // 2. Subtle Clinic Hall Acoustic Reflection (Reverb warmth, eliminates dry phone-like harshness)
-      const delayNode = ctx.createDelay()
-      delayNode.delayTime.setValueAtTime(0.040, ctx.currentTime) // 40ms subtle space
-      const delayFeedback = ctx.createGain()
-      delayFeedback.gain.setValueAtTime(0.12, ctx.currentTime)
-      const delayFilter = ctx.createBiquadFilter()
-      delayFilter.type = 'lowpass'
-      delayFilter.frequency.setValueAtTime(2400, ctx.currentTime)
-      delayNode.connect(delayFeedback)
-      delayFeedback.connect(delayFilter)
-      delayFilter.connect(delayNode)
+      compressor.threshold.setValueAtTime(-14, ctx.currentTime)
+      compressor.knee.setValueAtTime(8, ctx.currentTime)
+      compressor.ratio.setValueAtTime(2.5, ctx.currentTime)
+      compressor.attack.setValueAtTime(0.005, ctx.currentTime)
+      compressor.release.setValueAtTime(0.2, ctx.currentTime)
 
       // Master output gain
       const masterGain = ctx.createGain()
       masterGain.gain.setValueAtTime(1.15, ctx.currentTime)
 
       compressor.connect(masterGain)
-      compressor.connect(delayNode)
-      delayNode.connect(masterGain)
       masterGain.connect(ctx.destination)
 
+      // Both male and female now use genuine human neural recordings from Edge Neural TTS!
+      // No artificial pitch-shifting down, no slow-motion warping!
+      const targetRate = tone === 'calm' ? 0.96 : tone === 'quick' ? 1.05 : 1.0
+      source.playbackRate.value = targetRate
+
       if (gender === 'male') {
-        // Deep, dignified, warm masculine voice model
-        // Speed & pitch according to chosen tone
-        source.playbackRate.value = tone === 'calm' ? 0.90 : tone === 'quick' ? 0.97 : 0.93
+        // Subtle warm clarity filter for natural male voice
+        const warmthFilter = ctx.createBiquadFilter()
+        warmthFilter.type = 'peaking'
+        warmthFilter.frequency.value = 220
+        warmthFilter.gain.value = 1.5
 
-        // Low-shelf bass warmth (+3.2dB at 180Hz)
-        const bassFilter = ctx.createBiquadFilter()
-        bassFilter.type = 'lowshelf'
-        bassFilter.frequency.value = 180
-        bassFilter.gain.value = 3.2
-
-        // Presence & diction filter (+1.4dB at 2500Hz)
+        source.connect(warmthFilter)
+        warmthFilter.connect(compressor)
+      } else {
+        // Subtle clarity filter for natural female voice
         const clarityFilter = ctx.createBiquadFilter()
         clarityFilter.type = 'peaking'
-        clarityFilter.frequency.value = 2500
-        clarityFilter.gain.value = 1.4
+        clarityFilter.frequency.value = 4500
+        clarityFilter.gain.value = 1.0
 
-        // Smooth high shelf to remove harsh sibilance (-2.5dB at 7500Hz)
-        const smoothFilter = ctx.createBiquadFilter()
-        smoothFilter.type = 'highshelf'
-        smoothFilter.frequency.value = 7500
-        smoothFilter.gain.value = -2.5
-
-        source.connect(bassFilter)
-        bassFilter.connect(clarityFilter)
-        clarityFilter.connect(smoothFilter)
-        smoothFilter.connect(compressor)
-      } else {
-        // Soft, melodic, soothing feminine voice model
-        // Speed & pitch according to chosen tone
-        source.playbackRate.value = tone === 'calm' ? 0.97 : tone === 'quick' ? 1.05 : 1.0
-
-        // High shelf airy sheen (+2dB at 5800Hz)
-        const airFilter = ctx.createBiquadFilter()
-        airFilter.type = 'highshelf'
-        airFilter.frequency.value = 5800
-        airFilter.gain.value = 2.0
-
-        // Gentle anti-glare notch (-1.8dB at 3100Hz) to remove nasal harshness
-        const notchFilter = ctx.createBiquadFilter()
-        notchFilter.type = 'peaking'
-        notchFilter.frequency.value = 3100
-        notchFilter.gain.value = -1.8
-
-        // High-pass at 85Hz to eliminate unwanted low rumble
-        const highpassFilter = ctx.createBiquadFilter()
-        highpassFilter.type = 'highpass'
-        highpassFilter.frequency.value = 85
-
-        source.connect(airFilter)
-        airFilter.connect(notchFilter)
-        notchFilter.connect(highpassFilter)
-        highpassFilter.connect(compressor)
+        source.connect(clarityFilter)
+        clarityFilter.connect(compressor)
       }
 
       source.start(0)
@@ -473,7 +435,10 @@ export default function WaitingRoomTvPage({
   ) => {
     // 1. Convert digit turn into proper vocalized Arabic words (e.g. 5 -> خَمْسَة)
     const turnInWords = numberToArabicWords(turnNumber)
-    const namePart = (callName && patientName && patientName.trim()) ? `${patientName.trim()} ... ` : ''
+    // Only announce name if BOTH announceName and showPatientName are explicitly enabled
+    const namePart = (callName && tvConfig.announceName && tvConfig.showPatientName && patientName && patientName.trim())
+      ? `${patientName.trim()} ... `
+      : ''
     const prefix = phraseType === 'turn_number' ? 'دَوْرٌ رَقْم' : 'مَرِيضٌ رَقْم'
 
     // Eloquent Arabic phrasing with breathing micro-pauses (...) for natural cadence
@@ -485,14 +450,9 @@ export default function WaitingRoomTvPage({
 
     // 3. Secondary Method: HTML5 Audio stream
     try {
-      const audioUrl = `/api/tts?text=${encodeURIComponent(fullArabicPhrase)}&tl=ar`
+      const audioUrl = `/api/tts?text=${encodeURIComponent(fullArabicPhrase)}&gender=${gender}&tl=ar`
       const audioEl = new Audio(audioUrl)
-      if (gender === 'male') {
-        (audioEl as any).preservesPitch = false
-        audioEl.playbackRate = 0.92
-      } else {
-        audioEl.playbackRate = 0.98
-      }
+      audioEl.playbackRate = 1.0
       await audioEl.play()
       return
     } catch (e) {}
@@ -923,14 +883,16 @@ export default function WaitingRoomTvPage({
                   </motion.div>
                 </div>
 
-                <div className="space-y-2">
-                  <h2 className={`text-3xl sm:text-4xl font-black tracking-wide ${
-                    isDark ? 'text-white' : 'text-slate-900'
-                  }`}>
-                    {currentPatient.patientName}
-                  </h2>
+                <div className="space-y-3">
+                  {tvConfig.showPatientName && currentPatient.patientName && (
+                    <h2 className={`text-3xl sm:text-4xl font-black tracking-wide ${
+                      isDark ? 'text-white' : 'text-slate-900'
+                    }`}>
+                      {currentPatient.patientName}
+                    </h2>
+                  )}
                   <div className="flex items-center justify-center gap-3 flex-wrap">
-                    <span className={`text-base font-bold px-4 py-1.5 rounded-2xl border ${
+                    <span className={`text-lg sm:text-xl font-black px-6 py-2 rounded-2xl border shadow-sm ${
                       isDark
                         ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30'
                         : 'bg-blue-50 text-blue-700 border-blue-200'
@@ -938,11 +900,14 @@ export default function WaitingRoomTvPage({
                       {currentPatient.serviceName || 'كشف طبي'}
                     </span>
                     {currentPatient.branchName && (
-                      <span className={`text-sm font-semibold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                      <span className={`text-sm font-bold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                         • {currentPatient.branchName}
                       </span>
                     )}
                   </div>
+                  <p className={`text-sm font-bold ${isDark ? 'text-emerald-400/90' : 'text-emerald-700'}`}>
+                    ✓ يُرجى التوجه لغرفة الكشف مباشرة
+                  </p>
                 </div>
               </div>
             ) : (
@@ -1036,7 +1001,7 @@ export default function WaitingRoomTvPage({
                         </div>
                         <div>
                           <h4 className={`text-base font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                            {p.patientName}
+                            {tvConfig.showPatientName && p.patientName ? p.patientName : `تذكرة دور #${p.queue_number}`}
                           </h4>
                           <p className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                             {p.serviceName || 'كشف طبي'}
@@ -1434,14 +1399,32 @@ export default function WaitingRoomTvPage({
 
               </div>
 
-              {/* Patient Name Checkbox */}
+              {/* Show Patient Name on Screen Toggle */}
               <div className={`p-3 rounded-2xl border flex items-center justify-between ${
                 isDark ? 'bg-slate-800/40 border-white/10' : 'bg-slate-50 border-slate-200'
               }`}>
                 <div>
-                  <span className="font-bold text-xs block">مناداة اسم المريض مع الرقم</span>
+                  <span className="font-bold text-xs block">إظهار اسم المريض على الشاشة</span>
                   <span className="text-[11px] text-muted-foreground">
-                    {tvConfig.announceName ? 'ينطق: مريض رقم 5، [الاسم]، تفضل بالدخول' : 'ينطق: مريض رقم 5، تفضل بالدخول (لحفظ الخصوصية)'}
+                    {tvConfig.showPatientName ? 'معروض حالياً على الشاشة' : 'مخفي تماماً لحفظ خصوصية المرضى (معروض رقم الدور فقط)'}
+                  </span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={tvConfig.showPatientName}
+                  onChange={(e) => setTvConfig({ ...tvConfig, showPatientName: e.target.checked })}
+                  className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                />
+              </div>
+
+              {/* Patient Name Voice Toggle */}
+              <div className={`p-3 rounded-2xl border flex items-center justify-between ${
+                isDark ? 'bg-slate-800/40 border-white/10' : 'bg-slate-50 border-slate-200'
+              }`}>
+                <div>
+                  <span className="font-bold text-xs block">مناداة اسم المريض بالصوت</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {tvConfig.announceName ? 'ينطق: مريض رقم 5، [الاسم]، تفضل بالدخول' : 'ينطق: مريض رقم 5، تفضل بالدخول (لحفظ الخصوصية وعدم كشف الاسم)'}
                   </span>
                 </div>
                 <input
@@ -1515,7 +1498,8 @@ export default function WaitingRoomTvPage({
                   setTvConfig({
                     tickerText: '',
                     instructionsText: '',
-                    announceName: true,
+                    showPatientName: false,
+                    announceName: false,
                     tickerSpeed: 'normal',
                     tickerDirection: 'rtl',
                     voiceGender: 'female',
