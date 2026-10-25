@@ -818,6 +818,9 @@ function OwnerDashboard() {
     setPkgIcon('crown')
     setPkgColor('#087CF4')
     setPkgPrice(450)
+    setPkgPriceMonthly(450)
+    setPkgPrice6Months(2430)
+    setPkgPriceYearly(4320)
     setPkgOriginalPrice('')
     setPkgDiscountBadge('')
     setPkgCategory('monthly')
@@ -853,6 +856,9 @@ function OwnerDashboard() {
     setPkgIcon(pkg.icon || 'crown')
     setPkgColor(pkg.color || '#087CF4')
     setPkgPrice(pkg.price || 0)
+    setPkgPriceMonthly(pkg.priceMonthly !== undefined ? pkg.priceMonthly : (pkg.price || 0))
+    setPkgPrice6Months(pkg.price6Months !== undefined ? pkg.price6Months : Math.round((Number(pkg.priceMonthly || pkg.price) || 0) * 6 * 0.9))
+    setPkgPriceYearly(pkg.priceYearly !== undefined ? pkg.priceYearly : Math.round((Number(pkg.priceMonthly || pkg.price) || 0) * 10))
     setPkgOriginalPrice(pkg.originalPrice || '')
     setPkgDiscountBadge(pkg.discountBadge || '')
     const detected = getPackageCycle(pkg)
@@ -1072,6 +1078,39 @@ function OwnerDashboard() {
     }
   }
 
+  const applyPackageToClinicState = (selectedPkgName: string) => {
+    setPackageName(selectedPkgName)
+    const sel = packages.find(p => p.name === selectedPkgName)
+    if (sel) {
+      if (sel.aiResponsesLimit !== undefined) setAiResponsesLimit(sel.aiResponsesLimit)
+      if (sel.maxBranches !== undefined) setMaxBranches(sel.maxBranches)
+      setAllowFinance(sel.allowFinance !== false)
+      setAllowDrugs(sel.allowDrugs !== false)
+      setAllowPrescriptions(sel.allowPrescriptions !== false)
+      setAllowCustomTemplate(Boolean(sel.allowCustomTemplate))
+      setAllowDoctorEditBranding(sel.allowBranding !== false)
+      setAllowPatientAlerts(sel.allowPatientAlerts !== false)
+      setAiEnabled(sel.allowAi !== false)
+      setBranchesEnabled(sel.allowBranches !== false && Number(sel.maxBranches || 1) > 1)
+      setAllowOnlineBooking(sel.allowOnlineBooking !== false)
+      setAllowTvScreen(sel.allowTvScreen !== false)
+      toast.success(`تم اختيار «${sel.name}» وتطبيق مميزاتها وصلاحياتها تلقائياً على العيادة! ✨`)
+    } else {
+      const isPro = selectedPkgName.includes('احتراف') || selectedPkgName.includes('Pro')
+      const isVip = selectedPkgName.includes('ماس') || selectedPkgName.includes('VIP')
+      setAllowFinance(isPro || isVip)
+      setAllowDrugs(true)
+      setAllowPrescriptions(true)
+      setAllowCustomTemplate(isPro || isVip)
+      setAllowDoctorEditBranding(isVip)
+      setAllowPatientAlerts(isPro || isVip)
+      setAiEnabled(isPro || isVip)
+      setBranchesEnabled(isVip)
+      setAllowOnlineBooking(true)
+      setAllowTvScreen(isPro || isVip)
+    }
+  }
+
   const handleAddOrUpdateClinic = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
@@ -1133,6 +1172,20 @@ function OwnerDashboard() {
         allowOnlineBooking: allowOnlineBooking !== false,
         allowTvScreen: allowTvScreen !== false,
         tvLockedByOwner: !allowTvScreen,
+
+        packagePermissions: {
+          allowFinance: allowFinance !== false,
+          allowDrugs: allowDrugs !== false,
+          allowPrescriptions: allowPrescriptions !== false,
+          allowCustomTemplate: allowCustomTemplate !== false,
+          allowBranding: allowDoctorEditBranding !== false,
+          allowPatientAlerts: allowPatientAlerts !== false,
+          allowAi: aiEnabled !== false,
+          allowBranches: branchesEnabled !== false,
+          allowOnlineBooking: allowOnlineBooking !== false,
+          allowTvScreen: allowTvScreen !== false,
+          maxBranches: Number(maxBranches) || 1
+        },
 
         heroImage,
         heroTitle,
@@ -4196,50 +4249,81 @@ function OwnerDashboard() {
               </div>
 )}
 
-              {/* Section 5: Subscription & Active Status */}
-              <div className="space-y-3">
-                <h3 className="text-xs font-black text-slate-700 flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-[#087CF4]" />
-                  مدة الاشتراك وباقة العيادة
-                </h3>
-                <div className="grid md:grid-cols-5 gap-4 items-center bg-[#087CF4]/5 p-4 rounded-2xl border border-[#087CF4]/20">
-                  <div className="space-y-1">
-                    <Label className="text-xs font-bold text-slate-600">باقة الاشتراك المعتمدة</Label>
-                    <select
-                      value={packageName}
-                      onChange={e => {
-                        setPackageName(e.target.value)
-                        const sel = packages.find(p => p.name === e.target.value)
-                        if (sel) {
-                          if (sel.aiResponsesLimit) setAiResponsesLimit(sel.aiResponsesLimit)
-                          if (sel.maxBranches) setMaxBranches(sel.maxBranches)
-                          if (sel.allowFinance !== undefined) setAllowFinance(sel.allowFinance)
-                          if (sel.allowDrugs !== undefined) setAllowDrugs(sel.allowDrugs)
-                          if (sel.allowPrescriptions !== undefined) setAllowPrescriptions(sel.allowPrescriptions)
-                          if (sel.allowCustomTemplate !== undefined) setAllowCustomTemplate(sel.allowCustomTemplate)
-                          if (sel.allowBranding !== undefined) setAllowDoctorEditBranding(sel.allowBranding)
-                          if (sel.allowPatientAlerts !== undefined) setAllowPatientAlerts(sel.allowPatientAlerts)
-                          if (sel.allowAi !== undefined) setAiEnabled(sel.allowAi)
-                          if (sel.allowBranches !== undefined) setBranchesEnabled(sel.allowBranches)
-                          if (sel.allowOnlineBooking !== undefined) setAllowOnlineBooking(sel.allowOnlineBooking)
-                        }
-                      }}
-                      className="h-10 text-xs font-bold rounded-xl bg-white border border-slate-200 px-3 w-full focus:outline-none focus:ring-2 focus:ring-[#087CF4]/20 focus:border-[#087CF4] cursor-pointer"
-                    >
-                      {packages.map(p => (
-                        <option key={p.id} value={p.name}>
-                          {p.name} ({p.price} ج.م / {p.period || 'شهري'})
-                        </option>
-                      ))}
-                      {packages.length === 0 && (
-                        <>
-                          <option value="الباقة الأساسية">الباقة الأساسية</option>
-                          <option value="الباقة الاحترافية (Pro)">الباقة الاحترافية (Pro)</option>
-                          <option value="الباقة الماسية (VIP)">الباقة الماسية (VIP)</option>
-                        </>
-                      )}
-                    </select>
+              {/* Section 5: Subscription & Package Selection / Upgrade */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-border">
+                  <h3 className="text-sm font-black text-foreground flex items-center gap-2">
+                    <Crown className="w-4 h-4 text-amber-500" />
+                    <span>باقة العيادة وخطة الاشتراك (Subscription & Package)</span>
+                  </h3>
+                  {editingId ? (
+                    <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 font-black text-xs px-3 py-1 shadow-2xs">
+                      ترقية أو تغيير باقة العيادة ⚡
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-primary/10 text-primary border-primary/20 font-black text-xs px-3 py-1">
+                      تحديد باقة البداية للعيادة
+                    </Badge>
+                  )}
+                </div>
+
+                {/* Prominent Current Package / Upgrade Card */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-primary/5 to-transparent border border-amber-500/30 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center font-black shadow-md shadow-amber-500/20 shrink-0">
+                      <Crown className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-muted-foreground">
+                          {editingId ? 'باقة العيادة الحالية المعتمدة:' : 'الباقة المحددة للعيادة الجديدة:'}
+                        </span>
+                        <span className="text-base font-black text-foreground underline decoration-amber-500 decoration-2 underline-offset-4">
+                          {packageName || 'الباقة الأساسية'}
+                        </span>
+                        {packages.find(p => p.name === packageName) && (
+                          <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-lg bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/30">
+                            {packages.find(p => p.name === packageName)?.price} ج.م / {packages.find(p => p.name === packageName)?.period || 'شهري'}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {editingId
+                          ? 'اختر باقة جديدة لترقية العيادة فوراً، وسيتم فتح وإغلاق كافة المميزات والصلاحيات أدناه تلقائياً بما يتوافق مع الباقة'
+                          : 'عند اختيار أي باقة، يتم ضبط وفتح/إغلاق مميزات العيادة وحدود الذكاء الاصطناعي والفروع تلقائياً'}
+                      </p>
+                    </div>
                   </div>
+
+                  <div className="w-full md:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <div className="space-y-1 w-full md:w-72">
+                      <Label className="text-xs font-black text-foreground block">
+                        {editingId ? 'اختر باقة جديدة للترقية:' : 'اختر باقة العيادة:'}
+                      </Label>
+                      <select
+                        value={packageName}
+                        onChange={e => applyPackageToClinicState(e.target.value)}
+                        className="h-10 text-xs font-black rounded-xl bg-background border-2 border-amber-500/40 text-foreground px-3 w-full focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 cursor-pointer shadow-xs transition-all"
+                      >
+                        {packages.map(p => (
+                          <option key={p.id} value={p.name}>
+                            {p.name} ({p.price} ج.م / {p.period || 'شهري'})
+                          </option>
+                        ))}
+                        {packages.length === 0 && (
+                          <>
+                            <option value="الباقة الأساسية">الباقة الأساسية</option>
+                            <option value="الباقة الاحترافية (Pro)">الباقة الاحترافية (Pro)</option>
+                            <option value="الباقة الماسية (VIP)">الباقة الماسية (VIP)</option>
+                          </>
+                        )}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Subscription Duration & Status Strip */}
+                <div className="grid md:grid-cols-4 gap-4 items-center bg-card p-4 rounded-2xl border border-border shadow-xs">
                   <div className="space-y-1">
                     <Label className="text-xs font-bold text-slate-600">تاريخ التفعيل</Label>
                     <Input
