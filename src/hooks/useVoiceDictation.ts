@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
+import { normalizeArabicMedicalSpeech } from '@/lib/arabicSpeechNormalizer'
 import {
   DictationLanguage,
   DictationStatus,
@@ -273,26 +274,43 @@ export function useVoiceDictation() {
 
         setStatus('listening')
 
-        let sessionFinalChunk = ''
-        let sessionInterimChunk = ''
+        let finalChunks: string[] = []
+        let interimChunks: string[] = []
 
-        // Iterate through all speech segments in the current session
+        // Iterate through speech segments, deduplicating cumulative results
         for (let i = 0; i < event.results.length; i++) {
           const res = event.results[i]
-          const chunk = res[0]?.transcript || ''
-          if (res.isFinal) {
-            sessionFinalChunk += (sessionFinalChunk ? ' ' : '') + chunk.trim()
+          const chunk = res[0]?.transcript?.trim() || ''
+          if (!chunk) continue
+
+          const targetList = res.isFinal ? finalChunks : interimChunks
+          const lastChunk = targetList[targetList.length - 1]
+
+          // If current chunk is cumulative and already includes previous chunk, replace it
+          if (lastChunk && chunk.startsWith(lastChunk)) {
+            targetList[targetList.length - 1] = chunk
+          } else if (lastChunk && lastChunk.endsWith(chunk)) {
+            // Already incorporated, skip
+            continue
           } else {
-            sessionInterimChunk += (sessionInterimChunk ? ' ' : '') + chunk.trim()
+            targetList.push(chunk)
           }
         }
+
+        const sessionFinalChunk = finalChunks.join(' ')
+        const sessionInterimChunk = interimChunks.join(' ')
 
         setInterimText(sessionInterimChunk)
 
         // Combine finalized and interim spoken words cleanly
-        const spoken = [sessionFinalChunk.trim(), sessionInterimChunk.trim()]
+        let spoken = [sessionFinalChunk.trim(), sessionInterimChunk.trim()]
           .filter(Boolean)
           .join(' ')
+
+        // Normalize Arabic medical terminology and deduplicate repeated buffers
+        if (chosenLang.startsWith('ar') && spoken) {
+          spoken = normalizeArabicMedicalSpeech(spoken)
+        }
 
         const updatedText = composeDictatedText(prefix, spoken, suffix)
         options.onTextChange(updatedText)

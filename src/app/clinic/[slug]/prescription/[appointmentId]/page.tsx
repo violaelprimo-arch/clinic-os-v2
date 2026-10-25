@@ -57,6 +57,22 @@ export default function PublicPrescriptionPage({
         if (apptDoc.exists()) {
           apptData = { id: apptDoc.id, ...apptDoc.data() }
           setAppointment(apptData)
+        } else {
+          // Fallback: check if appointmentId is actually a prescription ID
+          const directRxDoc = await getDoc(doc(db, 'prescriptions', appointmentId))
+          if (directRxDoc.exists()) {
+            const rxData = { id: directRxDoc.id, ...directRxDoc.data() } as any
+            setPrescription(rxData)
+            setAppointment({
+              id: rxData.appointment_id || directRxDoc.id,
+              patientName: rxData.patientName,
+              phone: rxData.patientPhone,
+              age: rxData.age,
+              date: rxData.date,
+              diagnosis: rxData.diagnosis,
+              drugs: rxData.drugs
+            })
+          }
         }
 
         // 3. Fetch Prescription if stored separately
@@ -352,7 +368,7 @@ export default function PublicPrescriptionPage({
               date={rxDate}
               diagnosis={rxDiagnosis}
               drugs={rxDrugs}
-              templateMode={clinic?.prescriptionTemplateUrl ? 'custom' : 'standard'}
+              templateMode={prescription?.templateMode || 'standard'}
               topOffset={25}
             />
           </div>

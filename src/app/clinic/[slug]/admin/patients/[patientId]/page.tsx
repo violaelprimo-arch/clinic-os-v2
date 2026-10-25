@@ -45,7 +45,7 @@ export default function PatientProfilePage({
       diagnosis: appt.diagnosis,
       drugs: appt.drugs || [],
       prescriptionTemplateUrl: clinic?.prescriptionTemplateUrl,
-      templateMode: clinic?.prescriptionTemplateUrl ? 'custom' : 'standard',
+      templateMode: appt.prescription_templateMode || appt.templateMode || (clinic?.prescriptionTemplateUrl ? 'custom' : 'standard'),
       showHeaderFooter: true,
       printBackground: true
     })
@@ -607,7 +607,7 @@ export default function PatientProfilePage({
                                   date={appt.date}
                                   diagnosis={appt.diagnosis}
                                   drugs={appt.drugs}
-                                  templateMode={clinic?.prescriptionTemplateUrl ? 'custom' : 'standard'}
+                                  templateMode={appt.prescription_templateMode || appt.templateMode || (clinic?.prescriptionTemplateUrl ? 'custom' : 'standard')}
                                   topOffset={25}
                                 />
                               </div>

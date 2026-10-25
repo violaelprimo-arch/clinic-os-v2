@@ -252,6 +252,9 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           doctorName: clinic?.doctorName || 'طبيب العيادة',
           templateMode,
           topOffset,
+          pageSize,
+          showHeaderFooter,
+          printBackground,
           primaryColor,
           secondaryColor,
           drugs: drugs.filter(d => d.name && d.name.trim() !== ''),
@@ -276,7 +279,8 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
               diagnosis,
               drugs: drugs.filter(d => d.name && d.name.trim() !== ''),
               prescription_id: docRef.id,
-              prescriptionStatus: 'approved'
+              prescriptionStatus: 'approved',
+              prescription_templateMode: templateMode
             })
           } catch (e) {}
         }
@@ -319,9 +323,46 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     }
   }
 
-  // Real PDF WhatsApp sharing: Opens chat instantly (0ms synchronous click), generates & auto-downloads PDF, copies Ctrl+V image
+  // Real PDF WhatsApp sharing: Opens chat with direct PDF link, auto-downloads PDF, copies Ctrl+V image, supports native file sharing
   const handleShareWhatsAppRx = async (modeOverride?: 'auto' | 'app' | 'web') => {
     if (!patientPhone) return toast.error('يرجى إدخال رقم هاتف المريض أولاً')
+
+    // 1. Ensure a prescription record exists so the patient has an active permanent link
+    let rxTargetId = appointmentId || ''
+    if (clinicId && !rxTargetId) {
+      try {
+        const docRef = await addDoc(collection(db, 'prescriptions'), {
+          clinic_id: clinicId,
+          branch_id: selectedBranchId || clinic?.branchId || '',
+          branchName: selectedBranchName || clinic?.branchName || '',
+          patientName,
+          patientPhone,
+          age,
+          diagnosis,
+          instructions,
+          date: dateStr,
+          status: 'approved',
+          doctorName: clinic?.doctorName || 'طبيب العيادة',
+          templateMode,
+          topOffset,
+          pageSize,
+          showHeaderFooter,
+          printBackground,
+          primaryColor,
+          secondaryColor,
+          drugs: drugs.filter(d => d.name && d.name.trim() !== ''),
+          createdAt: new Date().toISOString()
+        })
+        rxTargetId = docRef.id
+      } catch (err) {
+        console.warn('Auto-save prescription warning:', err)
+      }
+    }
+
+    const host = typeof window !== 'undefined' && window.location.origin
+      ? window.location.origin
+      : 'https://www.yalla-clinic.com'
+    const directRxUrl = rxTargetId ? `${host}/clinic/${slug}/prescription/${rxTargetId}` : ''
 
     const message = formatPrescriptionWhatsAppMessage({
       clinicName: clinic?.clinicName || 'العيادة الطبية',
@@ -333,25 +374,50 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       rxNumber: 1042,
       diagnosis,
       instructions,
-      drugs: drugs.filter(d => d.name && d.name.trim() !== '')
-      // Strictly NO directRxUrl sent, zero web links!
+      drugs: drugs.filter(d => d.name && d.name.trim() !== ''),
+      directRxUrl
     })
 
     const targetMode = modeOverride || whatsappTarget || 'auto'
     const cleanFileName = generateCleanRxFileName(patientName, dateStr, 'pdf')
 
-    // 1. OPEN WHATSAPP CHAT SYNCHRONOUSLY IN 0ms (Guarantees zero popup blocker!)
+    // 2. Check if mobile native sharing with actual PDF file attachment is supported
+    if (sheetRef.current && typeof navigator !== 'undefined' && navigator.canShare) {
+      try {
+        const { blob: pdfBlob } = await renderElementToPdfBlob(sheetRef.current, {
+          fileName: cleanFileName,
+          format: pageSize === 'a5' ? 'a5' : 'a4',
+          orientation: 'portrait',
+          scale: 2.2
+        })
+        const pdfFile = new File([pdfBlob], cleanFileName, { type: 'application/pdf' })
+        if (navigator.canShare({ files: [pdfFile] })) {
+          await navigator.share({
+            files: [pdfFile],
+            title: `الروشتة الطبية - ${patientName}`,
+            text: message
+          })
+          toast.success('تمت مشاركة ملف الروشتة PDF بنجاح عبر واتساب! 🚀')
+          return
+        }
+      } catch (e: any) {
+        if (e.name === 'AbortError') return
+        console.warn('Native file share skipped or unsupported, falling back to direct chat:', e)
+      }
+    }
+
+    // 3. OPEN WHATSAPP CHAT SYNCHRONOUSLY IN 0ms (Guarantees zero popup blocker!)
     openManualWhatsAppChat({
       phone: patientPhone,
       message,
       target: targetMode
     })
 
-    toast.success(`تم فتح محادثة المريض (${patientPhone}) في واتساب! جاري تجهيز الـ PDF... 🚀`, {
+    toast.success(`تم فتح محادثة المريض (${patientPhone}) في واتساب مع رابط الـ PDF الرسمي! جاري تجهيز الملف... 🚀`, {
       duration: 4000
     })
 
-    // 2. Generate PDF and clipboard image in background, then auto-download
+    // 4. Generate PDF and clipboard image in background, then auto-download
     if (sheetRef.current) {
       setIsSharingPdf(true)
       try {
@@ -383,7 +449,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           }).catch(() => {})
         }
 
-        toast.success(`✅ تم تجهيز الـ PDF! اسحب الملف للشات المفتوح أو اضغط (Ctrl + V) لإرسال صورة الروشتة فوراً 🚀`, {
+        toast.success(`✅ تم إرفاق رابط الـ PDF بالرسالة وتنزيل الملف! يمكنك أيضاً الضغط على (Ctrl + V) لإرسال صورة الروشتة فوراً 🚀`, {
           duration: 9000
         })
       } catch (err) {
@@ -1165,13 +1231,14 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                 <button
                   type="button"
                   onClick={() => setTemplateMode('standard')}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
                     templateMode === 'standard'
-                      ? 'bg-card text-primary shadow-xs'
+                      ? 'bg-card text-primary shadow-xs ring-1 ring-primary/30'
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  {t('template_luxury_b', 'Option B (النموذج الفاخر)')}
+                  <span>{t('template_luxury_b', 'Option B (النموذج الفاخر)')}</span>
+                  {templateMode === 'standard' && <Check className="w-3.5 h-3.5 text-primary" />}
                 </button>
                 {isCustomTemplateEnabled ? (
                   <button
@@ -1183,13 +1250,20 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                         setTemplateMode('custom')
                       }
                     }}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
                       templateMode === 'custom'
-                        ? 'bg-card text-primary shadow-xs'
+                        ? 'bg-card text-primary shadow-xs ring-1 ring-primary/30'
                         : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
-                    {t('template_clinic_a', 'Option A (تصميم العيادة)')} {clinic?.prescriptionTemplateUrl && '✓'}
+                    <span>{t('template_clinic_a', 'Option A (تصميم العيادة)')}</span>
+                    {templateMode === 'custom' ? (
+                      <Check className="w-3.5 h-3.5 text-primary" />
+                    ) : clinic?.prescriptionTemplateUrl ? (
+                      <span className="text-[10px] px-1.5 py-0.2 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-md font-normal">
+                        {language === 'en' ? 'Available' : 'متاح'}
+                      </span>
+                    ) : null}
                   </button>
                 ) : (
                   <button

@@ -132,7 +132,8 @@ export function formatPrescriptionWhatsAppMessage({
   rxNumber,
   diagnosis,
   instructions,
-  drugs
+  drugs,
+  directRxUrl
 }: {
   clinicName?: string
   doctorName?: string
@@ -179,9 +180,13 @@ export function formatPrescriptionWhatsAppMessage({
     parts.push(`\n📝 *تعليمات وإرشادات الطبيب:*\n${instructions.trim()}`)
   }
 
-  // Purely state that official PDF is attached (NO LINKS!)
-  parts.push(`\n📄 *مرفق ملف الروشتة الطبية الرسمية (PDF)*`)
-  parts.push(`نتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`)
+  if (directRxUrl && directRxUrl.trim()) {
+    parts.push(`\n📄 *ملف الروشتة الرسمية (PDF) متاح للتحميل والطباعة فوراً عبر الرابط التالي:*`)
+    parts.push(`🔗 ${directRxUrl.trim()}`)
+  } else {
+    parts.push(`\n📄 *مرفق ملف الروشتة الطبية الرسمية (PDF)*`)
+  }
+  parts.push(`\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`)
 
   return parts.join('\n')
 }
