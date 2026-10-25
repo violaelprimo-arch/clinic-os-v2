@@ -328,13 +328,13 @@ Please provide available payment methods to confirm activation. Thank you!`
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      {/* Expanded Dialog Width with sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl to guarantee wide, spacious rendering */}
+      {/* Expanded Dialog Width with sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl to guarantee wide, spacious rendering with smooth vertical scrolling */}
       <DialogContent
-        className="w-[96vw] sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl max-h-[92vh] overflow-y-auto p-5 sm:p-8 bg-card/90 backdrop-blur-2xl text-card-foreground rounded-3xl border border-border/80 shadow-2xl relative overflow-hidden"
+        className="w-[96vw] sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl max-h-[88vh] overflow-y-auto overscroll-contain p-5 sm:p-7 bg-card/95 backdrop-blur-2xl text-card-foreground rounded-3xl border border-border/80 shadow-2xl relative"
         dir={dir}
       >
-        {/* Animated Moving Ambient Glow Orbs (خلفية متحركة فائقة الجمال) */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
+        {/* Animated Moving Ambient Glow Orbs clipped neatly inside rounded corners */}
+        <div className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none -z-10">
           <motion.div
             animate={{
               x: [0, 80, -40, 0],
@@ -386,7 +386,7 @@ Please provide available payment methods to confirm activation. Thank you!`
         </DialogHeader>
 
         {/* Current Subscription Status Bar */}
-        <div className="my-3 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-[#0A1B33] to-[#081226] text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl border border-white/10">
+        <div className="my-2.5 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-[#0A1B33] to-[#081226] text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl border border-white/10">
           <div className="space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs text-slate-300 font-bold">
@@ -463,7 +463,7 @@ Please provide available payment methods to confirm activation. Thank you!`
         </div>
 
         {/* Billing Cycle 3-Plan Switcher (شهري - 6 شهور - سنوي) */}
-        <div className="flex items-center justify-center my-4 overflow-x-auto pb-1">
+        <div className="flex items-center justify-center my-2.5 overflow-x-auto pb-1">
           <div className="p-1 rounded-2xl bg-secondary/80 dark:bg-card-elevated border border-border flex items-center gap-1 shadow-inner">
             <button
               type="button"
@@ -570,7 +570,7 @@ Please provide available payment methods to confirm activation. Thank you!`
                 key={pkg.id || idx}
                 whileHover={{ y: -6, scale: 1.01 }}
                 transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-                className={`rounded-3xl p-6 flex flex-col justify-between transition-all duration-300 relative border group ${
+                className={`rounded-3xl p-5 sm:p-5.5 flex flex-col justify-between transition-all duration-300 relative border group ${
                   isCurrentPlan
                     ? 'bg-gradient-to-b from-emerald-500/10 via-card to-card border-emerald-500/80 shadow-xl shadow-emerald-500/15 ring-2 ring-emerald-500/40'
                     : isPop
@@ -692,10 +692,10 @@ Please provide available payment methods to confirm activation. Thank you!`
                   </div>
 
                   {/* Features List */}
-                  <ul className="py-3.5 space-y-2 text-xs">
+                  <ul className="py-2.5 space-y-1.5 text-xs">
                     {(pkg.features || []).map((feat, fIdx) => (
-                      <li key={fIdx} className="flex items-start gap-2 text-muted-foreground leading-snug">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                      <li key={fIdx} className="flex items-start gap-1.5 text-muted-foreground leading-snug">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
                         <span>{feat}</span>
                       </li>
                     ))}

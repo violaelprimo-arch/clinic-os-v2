@@ -68,7 +68,7 @@ function DialogContent({
       <DialogOverlay />
       <DialogPrimitive.Viewport
         data-slot="dialog-viewport"
-        className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+        className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
       >
         <DialogPrimitive.Popup
           data-slot="dialog-content"
@@ -85,7 +85,7 @@ function DialogContent({
               render={
                 <Button
                   variant="ghost"
-                  className="absolute top-3 end-3 print:hidden text-muted-foreground hover:text-foreground"
+                  className="absolute top-3 end-3 z-30 print:hidden text-muted-foreground hover:text-foreground"
                   size="icon-sm"
                 />
               }
