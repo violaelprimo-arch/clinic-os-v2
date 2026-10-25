@@ -103,38 +103,54 @@ export function openManualWhatsAppChat({
   
   let url = ''
   if (isMobile) {
+    // Mobile: direct intent to official WhatsApp app with phone and pre-filled message
     url = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`
   } else if (effectiveTarget === 'app') {
+    // Desktop App: direct protocol to installed WhatsApp Desktop app
     url = `whatsapp://send?phone=${formattedPhone}&text=${encodedText}`
   } else {
-    // Desktop Web directly opens the patient's chat without intermediate landing page
-    url = `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`
+    // Desktop Web: direct link to WhatsApp Web chat input (trailing slash is mandatory for proper web routing)
+    url = `https://web.whatsapp.com/send/?phone=${formattedPhone}&text=${encodedText}`
   }
   
+  // For desktop WhatsApp App: trigger protocol without leaving empty about:blank tabs
+  if (effectiveTarget === 'app' && !isMobile) {
+    const a = document.createElement('a')
+    a.href = url
+    a.style.display = 'none'
+    document.body.appendChild(a)
+    a.click()
+    setTimeout(() => {
+      if (document.body.contains(a)) document.body.removeChild(a)
+    }, 500)
+    return null
+  }
+
+  // For Web & Mobile: open synchronously in a new tab (guaranteed 0ms popup-blocker free)
   try {
     const win = window.open(url, '_blank')
     if (!win || win.closed || typeof win.closed === 'undefined') {
       const a = document.createElement('a')
       a.href = url
-      if (target === 'app') {
-        a.target = '_self'
-      } else {
-        a.target = '_blank'
-        a.rel = 'noopener noreferrer'
-      }
+      a.target = '_blank'
+      a.rel = 'noopener noreferrer'
       document.body.appendChild(a)
       a.click()
-      document.body.removeChild(a)
+      setTimeout(() => {
+        if (document.body.contains(a)) document.body.removeChild(a)
+      }, 500)
     }
     return win
   } catch (err) {
     const a = document.createElement('a')
     a.href = url
-    a.target = target === 'app' ? '_self' : '_blank'
+    a.target = '_blank'
     a.rel = 'noopener noreferrer'
     document.body.appendChild(a)
     a.click()
-    document.body.removeChild(a)
+    setTimeout(() => {
+      if (document.body.contains(a)) document.body.removeChild(a)
+    }, 500)
     return null
   }
 }
@@ -329,29 +345,7 @@ export async function shareDocumentOrImage({
   const mimeType = fileType === 'pdf' ? 'application/pdf' : 'image/png'
   const resolvedFileName = fileName || (fileType === 'pdf' ? 'Document.pdf' : 'Document.png')
 
-  // 1. Try Native WebShare Level 2 (files support on mobile/supported OS)
-  if (blob && typeof navigator !== 'undefined' && navigator.canShare) {
-    try {
-      const testFile = new File([blob], resolvedFileName, { type: mimeType })
-      if (navigator.canShare({ files: [testFile] })) {
-        await navigator.share({
-          files: [testFile],
-          title: documentTitle,
-          text: messageText
-        })
-        toast.success(`تم إرسال ملف ${documentTitle} عبر واتساب بنجاح! 🚀`)
-        return
-      }
-    } catch (shareErr: any) {
-      if (shareErr.name === 'AbortError') {
-        // User cancelled native dialog, no action needed
-        return
-      }
-      console.warn('Native share failed or unaccepted, falling back to desktop flow:', shareErr)
-    }
-  }
-
-  // 2. Desktop Flow: Open WhatsApp directly targeting recipient's phone (0ms popup-free)
+  // 1. Desktop & Mobile: Open WhatsApp directly targeting recipient's phone with pre-filled message
   openManualWhatsAppChat({
     phone: recipientPhone,
     message: messageText,

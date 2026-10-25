@@ -102,38 +102,14 @@ export default function PatientProfilePage({
       const targetMode = targetOverride || getSavedWhatsAppTarget()
       const rxElement = document.getElementById(`rx-sheet-${appt.id}`)
 
-      // 1. Mobile native WebShare with file attachment
-      if (rxElement && typeof navigator !== 'undefined' && navigator.canShare) {
-        try {
-          const { blob: pdfBlob } = await renderElementToPdfBlob(rxElement, {
-            fileName: cleanFileName,
-            format: 'a4',
-            orientation: 'portrait',
-            scale: 2.2
-          })
-          const pdfFile = new File([pdfBlob], cleanFileName, { type: 'application/pdf' })
-          if (navigator.canShare({ files: [pdfFile] })) {
-            await navigator.share({
-              files: [pdfFile],
-              title: `الروشتة الطبية - ${pName}`,
-              text: message
-            })
-            toast.success('تمت مشاركة ملف الروشتة PDF بنجاح عبر واتساب! 🚀')
-            return
-          }
-        } catch (shareErr: any) {
-          if (shareErr.name === 'AbortError') return
-        }
-      }
-
-      // 2. Open WhatsApp chat synchronously in 0ms (Zero popup blocker)
+      // Open WhatsApp chat synchronously in 0ms (Zero popup blocker, opens exact phone, puts Rx in chat!)
       openManualWhatsAppChat({
         phone,
         message,
         target: targetMode
       })
 
-      toast.success('تم فتح محادثة المريض في واتساب مع رابط الروشتة الرسمي! 🚀', { duration: 4000 })
+      toast.success(`تم فتح محادثة المريض (${phone}) وإدراج الروشتة في الشات! اضغط Enter للإرسال 🚀`, { duration: 5000 })
 
       // 3. Desktop Clipboard image copy for Ctrl+V paste (strictly WITHOUT auto-downloading to computer)
       if (rxElement) {

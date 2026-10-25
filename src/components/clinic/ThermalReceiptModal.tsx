@@ -89,40 +89,19 @@ export function ThermalReceiptModal({
       ? `مرحباً ${data.patientName}،\nفاتورتك من عيادة ${data.clinicName} ${data.branchName ? `(فرع ${data.branchName})` : ''}:\n- رقم الفاتورة: #${data.invoiceNumber}\n- الخدمة: ${data.serviceName}\n- المبلغ المطلوب: ${data.netPrice} ج.م\n- حالة الدفع: ${data.paymentStatus === 'paid' ? 'مدفوع ومؤكد' : 'في انتظار التأكيد'}\n📄 مرفق ملف الفاتورة PDF.\nنتمنى لكم دوام الصحة والعافية.`
       : `Hello ${data.patientName},\nYour invoice from ${data.clinicName} ${data.branchName ? `(Branch ${data.branchName})` : ''}:\n- Invoice No: #${data.invoiceNumber}\n- Service: ${data.serviceName}\n- Amount: ${data.netPrice} EGP\n- Payment: ${data.paymentStatus === 'paid' ? 'Paid & Confirmed' : 'Pending Confirmation'}\n📄 Attached PDF receipt.\nWishing you good health.`
 
-    // 1. Mobile native WebShare with file attachment
-    if (receiptRef.current && typeof navigator !== 'undefined' && navigator.canShare) {
-      try {
-        const { blob: pdfBlob } = await renderElementToPdfBlob(receiptRef.current, {
-          fileName: cleanFileName,
-          format: 'thermal',
-          orientation: 'portrait',
-          scale: 2.2
-        })
-        const pdfFile = new File([pdfBlob], cleanFileName, { type: 'application/pdf' })
-        if (navigator.canShare({ files: [pdfFile] })) {
-          await navigator.share({
-            files: [pdfFile],
-            title: `فاتورة طبية - ${data.patientName}`,
-            text: msg
-          })
-          toast.success(isRtl ? 'تمت مشاركة ملف الفاتورة PDF بنجاح عبر واتساب! 🚀' : 'Receipt PDF shared successfully on WhatsApp!')
-          return
-        }
-      } catch (shareErr: any) {
-        if (shareErr.name === 'AbortError') return
-      }
-    }
-
-    // 2. Open WhatsApp chat synchronously in 0ms (Never blocked by popup blocker!)
+    // Open WhatsApp chat synchronously in 0ms (Never blocked by popup blocker, opens exact phone, puts receipt in chat!)
     openManualWhatsAppChat({
       phone: data.patientPhone,
       message: msg,
       target: targetMode
     })
 
-    toast.success(isRtl ? `تم فتح محادثة المريض (${data.patientPhone}) في واتساب! 🚀` : `Opened WhatsApp chat! 🚀`, {
-      duration: 4000
-    })
+    toast.success(
+      isRtl
+        ? `تم فتح محادثة المريض (${data.patientPhone}) وإدراج الفاتورة في الشات! اضغط Enter للإرسال 🚀`
+        : `Opened WhatsApp chat with receipt details! Press Enter to send 🚀`,
+      { duration: 5000 }
+    )
 
     // 3. Desktop Clipboard image copy for Ctrl+V paste (strictly WITHOUT auto-downloading to computer)
     if (receiptRef.current) {

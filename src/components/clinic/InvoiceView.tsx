@@ -151,43 +151,19 @@ export function InvoiceView({
       directInvoiceUrl
     })
 
-    const cleanFileName = `Invoice_${invoice.invoiceNumber || 'receipt'}.pdf`
-
-    // 1. Mobile native WebShare Level 2 (files support)
-    if (printableRef.current && typeof navigator !== 'undefined' && navigator.canShare) {
-      try {
-        const { blob: pdfBlob } = await renderElementToPdfBlob(printableRef.current, {
-          fileName: cleanFileName,
-          format: 'a4',
-          orientation: 'portrait',
-          scale: 2.2
-        })
-        const pdfFile = new File([pdfBlob], cleanFileName, { type: 'application/pdf' })
-        if (navigator.canShare({ files: [pdfFile] })) {
-          await navigator.share({
-            files: [pdfFile],
-            title: `فاتورة طبية - ${invoice.patientName}`,
-            text: msg
-          })
-          toast.success(isRtl ? 'تمت مشاركة ملف الفاتورة PDF بنجاح عبر واتساب! 🚀' : 'Invoice PDF shared successfully on WhatsApp!')
-          return
-        }
-      } catch (e: any) {
-        if (e.name === 'AbortError') return
-        console.warn('Native invoice share skipped or unsupported:', e)
-      }
-    }
-
-    // 2. Open WhatsApp chat synchronously in 0ms (Zero popup blocker)
+    // Open WhatsApp chat synchronously in 0ms (Zero popup blocker, opens exact phone, puts Invoice in chat!)
     openManualWhatsAppChat({
       phone: invoice.patientPhone,
       message: msg,
       target: targetMode
     })
 
-    toast.success(isRtl ? `تم فتح محادثة المريض (${invoice.patientPhone}) في واتساب مع رابط الفاتورة الرسمي! 🚀` : `Opened WhatsApp chat with official invoice link! 🚀`, {
-      duration: 4000
-    })
+    toast.success(
+      isRtl
+        ? `تم فتح محادثة المريض (${invoice.patientPhone}) وإدراج الفاتورة في الشات! اضغط Enter للإرسال 🚀`
+        : `Opened WhatsApp chat with invoice details! Press Enter to send 🚀`,
+      { duration: 5000 }
+    )
 
     // 3. Desktop Clipboard image copy for Ctrl+V paste (strictly WITHOUT auto-downloading to computer)
     if (printableRef.current) {

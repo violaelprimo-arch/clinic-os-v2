@@ -15,7 +15,7 @@ import {
 import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
-import { collection, addDoc, query, where, getDocs, doc, updateDoc, onSnapshot } from 'firebase/firestore'
+import { collection, addDoc, setDoc, query, where, getDocs, doc, updateDoc, onSnapshot } from 'firebase/firestore'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { EGYPTIAN_DRUGS } from '@/lib/egyptian-drugs'
@@ -325,15 +325,17 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     }
   }
 
-  // Real PDF WhatsApp sharing: Opens chat with direct PDF link, auto-downloads PDF, copies Ctrl+V image, supports native file sharing
-  const handleShareWhatsAppRx = async (modeOverride?: 'auto' | 'app' | 'web') => {
+  // Real PDF WhatsApp sharing: Opens chat directly with patient's phone number, auto-populates prescription in chat input, press Enter to send
+  const handleShareWhatsAppRx = (modeOverride?: 'auto' | 'app' | 'web') => {
     if (!patientPhone) return toast.error('يرجى إدخال رقم هاتف المريض أولاً')
 
-    // 1. Ensure a prescription record exists so the patient has an active permanent link
+    // 1. Ensure a prescription record ID exists synchronously (0ms) so patient has an active permanent link
     let rxTargetId = appointmentId || ''
     if (clinicId && !rxTargetId) {
       try {
-        const docRef = await addDoc(collection(db, 'prescriptions'), {
+        const newDocRef = doc(collection(db, 'prescriptions'))
+        rxTargetId = newDocRef.id
+        setDoc(newDocRef, {
           clinic_id: clinicId,
           branch_id: selectedBranchId || clinic?.branchId || '',
           branchName: selectedBranchName || clinic?.branchName || '',
@@ -354,8 +356,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           secondaryColor,
           drugs: drugs.filter(d => d.name && d.name.trim() !== ''),
           createdAt: new Date().toISOString()
-        })
-        rxTargetId = docRef.id
+        }).catch((err) => console.warn('Auto-save prescription warning:', err))
       } catch (err) {
         console.warn('Auto-save prescription warning:', err)
       }
@@ -381,67 +382,30 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     })
 
     const targetMode = modeOverride || whatsappTarget || 'auto'
-    const cleanFileName = generateCleanRxFileName(patientName, dateStr, 'pdf')
 
-    // 2. Check if mobile native sharing with actual PDF file attachment is supported
-    if (sheetRef.current && typeof navigator !== 'undefined' && navigator.canShare) {
-      try {
-        const { blob: pdfBlob } = await renderElementToPdfBlob(sheetRef.current, {
-          fileName: cleanFileName,
-          format: pageSize === 'a5' ? 'a5' : 'a4',
-          orientation: 'portrait',
-          scale: 2.2
-        })
-        const pdfFile = new File([pdfBlob], cleanFileName, { type: 'application/pdf' })
-        if (navigator.canShare({ files: [pdfFile] })) {
-          await navigator.share({
-            files: [pdfFile],
-            title: `الروشتة الطبية - ${patientName}`,
-            text: message
-          })
-          toast.success('تمت مشاركة ملف الروشتة PDF بنجاح عبر واتساب! 🚀')
-          return
-        }
-      } catch (e: any) {
-        if (e.name === 'AbortError') return
-        console.warn('Native file share skipped or unsupported, falling back to direct chat:', e)
-      }
-    }
-
-    // 3. OPEN WHATSAPP CHAT SYNCHRONOUSLY IN 0ms (Guarantees zero popup blocker!)
+    // 2. OPEN WHATSAPP CHAT SYNCHRONOUSLY IN 0ms (Guarantees zero popup blocker, opens exact phone, puts Rx in chat!)
     openManualWhatsAppChat({
       phone: patientPhone,
       message,
       target: targetMode
     })
 
-    toast.success(`تم فتح محادثة المريض (${patientPhone}) في واتساب مع رابط الـ PDF الرسمي! جاري تجهيز الملف... 🚀`, {
-      duration: 4000
+    toast.success(`تم فتح محادثة المريض (${patientPhone}) وإدراج الروشتة في الشات! اضغط Enter للإرسال 🚀`, {
+      duration: 5000
     })
 
-    // 4. Generate clipboard image in background for Ctrl+V paste (strictly WITHOUT computer file download)
-    if (sheetRef.current) {
+    // 3. Optional clipboard image copy in background for Ctrl+V (strictly WITHOUT auto-downloading to computer)
+    if (sheetRef.current && typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
       setIsSharingPdf(true)
-      try {
-        // Copy high-res image to clipboard for instant Ctrl+V pasting
-        if (typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
-          renderElementToImageBlob(sheetRef.current, { scale: 2.5 }).then(async ({ blob: imgBlob }) => {
-            try {
-              await navigator.clipboard.write([
-                new ClipboardItem({ 'image/png': imgBlob })
-              ])
-            } catch {}
-          }).catch(() => {})
-        }
-
-        toast.success(`✅ تم إرفاق رابط الـ PDF الرسمي بالرسالة! يمكنك أيضاً الضغط على (Ctrl + V) لإرسال صورة الروشتة فوراً 🚀`, {
-          duration: 6000
-        })
-      } catch (err) {
-        console.warn('Background PDF generation warning:', err)
-      } finally {
+      renderElementToImageBlob(sheetRef.current, { scale: 2.2 }).then(async ({ blob: imgBlob }) => {
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': imgBlob })
+          ])
+        } catch {}
+      }).catch(() => {}).finally(() => {
         setIsSharingPdf(false)
-      }
+      })
     }
   }
 

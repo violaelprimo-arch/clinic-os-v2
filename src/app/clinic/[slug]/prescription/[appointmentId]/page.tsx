@@ -193,43 +193,21 @@ export default function PublicPrescriptionPage({
       directRxUrl
     })
 
-    const cleanFileName = generateCleanRxFileName(patientName, rxDate, 'pdf')
     const targetMode = targetOverride || getSavedWhatsAppTarget()
 
-    // 1. Mobile native WebShare with file attachment
-    if (printSheetRef.current && typeof navigator !== 'undefined' && navigator.canShare) {
-      try {
-        const { blob: pdfBlob } = await renderElementToPdfBlob(printSheetRef.current, {
-          fileName: cleanFileName,
-          format: 'a4',
-          orientation: 'portrait',
-          scale: 2.2
-        })
-        const pdfFile = new File([pdfBlob], cleanFileName, { type: 'application/pdf' })
-        if (navigator.canShare({ files: [pdfFile] })) {
-          await navigator.share({
-            files: [pdfFile],
-            title: `الروشتة الطبية - ${patientName}`,
-            text: message
-          })
-          toast.success(isRtl ? 'تمت مشاركة ملف الروشتة PDF بنجاح عبر واتساب! 🚀' : 'Prescription shared successfully on WhatsApp!')
-          return
-        }
-      } catch (shareErr: any) {
-        if (shareErr.name === 'AbortError') return
-      }
-    }
-
-    // 2. OPEN WHATSAPP CHAT SYNCHRONOUSLY IN 0ms (Never blocked by popup blocker!)
+    // OPEN WHATSAPP CHAT SYNCHRONOUSLY IN 0ms (Never blocked by popup blocker, opens exact phone, puts Rx in chat!)
     openManualWhatsAppChat({
       phone: patientPhone,
       message,
       target: targetMode
     })
 
-    toast.success(isRtl ? 'تم فتح محادثة المريض في واتساب مع رابط الـ PDF الرسمي! 🚀' : 'Opened WhatsApp chat with official Rx PDF link! 🚀', {
-      duration: 4000
-    })
+    toast.success(
+      isRtl
+        ? `تم فتح محادثة المريض (${patientPhone}) وإدراج الروشتة في الشات! اضغط Enter للإرسال 🚀`
+        : `Opened WhatsApp chat with prescription details! Press Enter to send 🚀`,
+      { duration: 5000 }
+    )
 
     // 3. Desktop Clipboard image copy for Ctrl+V paste (strictly WITHOUT auto-downloading to computer)
     if (printSheetRef.current) {
