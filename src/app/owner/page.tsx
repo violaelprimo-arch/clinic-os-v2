@@ -820,7 +820,7 @@ function OwnerDashboard() {
     setPkgPeriod('شهري')
     setPkgAiLimit(100)
     setPkgMaxBranches(1)
-    setPkgBadge('الأكثر طلباً وموصى بها 🔥')
+    setPkgBadge('')
     setPkgIsPopular(false)
     setPkgAllowFinance(true)
     setPkgAllowDrugs(true)
@@ -2818,7 +2818,7 @@ function OwnerDashboard() {
                   }`}
                 >
                   {/* Top Recommended / Custom Badge */}
-                  {(pkg.badge || isPop) && (
+                  {Boolean(pkg.badge && pkg.badge.trim()) && (
                     <div className="absolute -top-3.5 right-6 z-10">
                       <span className={`px-3.5 py-1 rounded-full text-[11px] font-black shadow-md flex items-center gap-1.5 ${
                         isPop
@@ -2826,7 +2826,7 @@ function OwnerDashboard() {
                           : 'bg-slate-800 text-white'
                       }`}>
                         {isPop && <Sparkles className="w-3.5 h-3.5 text-amber-200" />}
-                        <span>{pkg.badge || '⭐ موصى بها للعيادات'}</span>
+                        <span>{pkg.badge.trim()}</span>
                       </span>
                     </div>
                   )}
@@ -3136,32 +3136,75 @@ function OwnerDashboard() {
                   </div>
                 </div>
 
-                {/* 3. Recommended / Popular Settings */}
-                <div className="space-y-3 p-4 rounded-2xl bg-amber-50/50 border border-amber-200">
+                {/* 3. Badge Text & Recommendation Customization */}
+                <div className="space-y-4 p-4 rounded-2xl bg-amber-50/50 border border-amber-200">
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
                         <Sparkles className="w-4 h-4 text-amber-500" />
-                        <span>تخصيص الباقة الموصى بها (Recommended / الأكثر طلباً)</span>
+                        <span>تمييز الباقة بإطار متوهج (Recommended Card)</span>
                       </h4>
                       <p className="text-[11px] text-slate-500 mt-0.5">
-                        عند التفعيل، تظهر الباقة للطبيب بإطار مميز وشارة براقة كخيار مقترح للعيادات
+                        تفعيل هذا الخيار يمنح كارت الباقة إطاراً متوهجاً ولوناً بارزاً لجذب انتباه الطبيب
                       </p>
                     </div>
                     <Switch checked={pkgIsPopular} onCheckedChange={setPkgIsPopular} />
                   </div>
 
-                  {pkgIsPopular && (
-                    <div className="space-y-1.5 pt-2 border-t border-amber-200">
-                      <Label className="text-xs font-bold text-slate-700">نص شارة التوصية (Badge Text)</Label>
-                      <Input
-                        value={pkgBadge}
-                        onChange={e => setPkgBadge(e.target.value)}
-                        placeholder="مثل: الأكثر طلباً وموصى بها 🔥 أو الخيار الأفضل 💎"
-                        className="h-10 text-xs rounded-xl bg-white"
-                      />
+                  {/* Badge Text Input & Presets - Always Visible and Controllable */}
+                  <div className="space-y-2 pt-3 border-t border-amber-200/80">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-amber-600" />
+                        <span>نص الشارة المعروضة أعلى الكارت (Badge Text):</span>
+                      </Label>
+                      {pkgBadge && (
+                        <button
+                          type="button"
+                          onClick={() => setPkgBadge('')}
+                          className="text-[11px] font-bold text-rose-600 hover:text-rose-800 cursor-pointer"
+                        >
+                          إزالة الشارة نهائياً (فارغ) ✕
+                        </button>
+                      )}
                     </div>
-                  )}
+
+                    <Input
+                      value={pkgBadge}
+                      onChange={e => setPkgBadge(e.target.value)}
+                      placeholder="اكتب هنا نص الشارة (مثل: الأكثر طلباً وموصى بها 🔥) أو اتركه فارغاً"
+                      className="h-10 text-xs rounded-xl bg-white font-bold"
+                    />
+
+                    {/* Quick Preset Badges */}
+                    <div className="space-y-1 pt-1">
+                      <span className="text-[10px] font-bold text-slate-500 block">نماذج ونصوص مقترحة للشارة (اضغط للاختيار السريع):</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          'الأكثر طلباً وموصى بها 🔥',
+                          'الخيار الأفضل 💎',
+                          'الأكثر توفيراً 🌟',
+                          'عرض خاص ومحدود ⚡',
+                          'باقة العيادات الفردية 🩺',
+                          'المراكز الطبية الكبرى 🏥',
+                          'الباقة الشاملة VIP 👑'
+                        ].map((txt, bIdx) => (
+                          <button
+                            key={bIdx}
+                            type="button"
+                            onClick={() => setPkgBadge(txt)}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer border ${
+                              pkgBadge === txt
+                                ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                                : 'bg-white hover:bg-amber-100 text-slate-700 border-amber-200'
+                            }`}
+                          >
+                            {txt}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* 4. Three-Price Architecture (شهري، 6 شهور، سنوي) */}

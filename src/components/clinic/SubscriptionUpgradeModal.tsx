@@ -525,7 +525,7 @@ Please provide available payment methods to confirm activation. Thank you!`
                       <span>{isRtl ? 'باقتك الحالية (نشطة)' : 'Current Active Plan'}</span>
                     </span>
                   </div>
-                ) : (pkg.badge || isPop) ? (
+                ) : (pkg.badge && pkg.badge.trim()) ? (
                   <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-10 whitespace-nowrap">
                     <span className={`px-3.5 py-1 rounded-full text-[11px] font-black shadow-md flex items-center gap-1.5 ${
                       isPop
@@ -533,7 +533,7 @@ Please provide available payment methods to confirm activation. Thank you!`
                         : 'bg-slate-800 text-white'
                     }`}>
                       {isPop && <Sparkles className="w-3.5 h-3.5 text-amber-200" />}
-                      <span>{pkg.badge || (isRtl ? '⭐ موصى بها للعيادات' : '⭐ Recommended')}</span>
+                      <span>{pkg.badge.trim()}</span>
                     </span>
                   </div>
                 ) : null}
