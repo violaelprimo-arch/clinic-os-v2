@@ -25,14 +25,28 @@ import {
   Star,
   Check,
   MessageSquare,
+  Pencil,
+  ArrowUp,
+  ArrowDown,
+  Upload,
+  Image as ImageIcon,
+  Sparkles,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import { useLanguage } from '@/context/LanguageContext'
 import {
   DEFAULT_LANDING_CONFIG,
   landingConfigSchema,
   whatsappNumber,
   type LandingPageConfig,
+  type ScreenshotItem,
   type FeedbackItem,
   type TrialRequestItem,
 } from '@/lib/landing-config'
@@ -377,7 +391,7 @@ function LivePreview({
 const visibilityLabels = {
     showStats: 'الأرقام والإحصائيات',
     showFeatures: 'المميزات',
-    showScreenshots: 'معرض الصور',
+    showScreenshots: 'معرض صور المنصة',
     showClients: 'شريط العملاء',
     showFeedback: 'آراء العملاء',
     allowClientFeedbackSubmission: 'نموذج إرسال الرأي',
@@ -390,7 +404,7 @@ const visibilityLabels = {
 const tabs = [
   ['hero', 'النصوص والإحصائيات'],
   ['features', 'المميزات'],
-  ['screenshots', 'الصور'],
+  ['screenshots', 'صور استعراض المنصة'],
   ['clients', 'العملاء'],
   ['feedback', 'استطلاع الآراء'],
   ['contacts', 'التواصل'],
@@ -413,6 +427,127 @@ export function LandingPageManager() {
     [message, setMessage] = useState('')
   const [inboxError, setInboxError] = useState('')
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false)
+  const [screenshotModalOpen, setScreenshotModalOpen] = useState(false)
+  const [editingScreenshotIndex, setEditingScreenshotIndex] = useState<number | null>(null)
+  const [screenshotDraft, setScreenshotDraft] = useState<ScreenshotItem | null>(null)
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleAddScreenshot = () => {
+    setScreenshotDraft({
+      id: crypto.randomUUID(),
+      title: '',
+      subtitle: '',
+      category: '',
+      imageUrl: '',
+      highlights: [''],
+      titleEn: '',
+      subtitleEn: '',
+      categoryEn: '',
+      highlightsEn: [''],
+      isVisible: true,
+      altText: '',
+      altTextEn: '',
+    })
+    setEditingScreenshotIndex(null)
+    setScreenshotModalOpen(true)
+  }
+
+  const handleEditScreenshot = (index: number) => {
+    const item = config.screenshots[index]
+    setScreenshotDraft({
+      ...item,
+      highlights: Array.isArray(item.highlights) && item.highlights.length ? [...item.highlights] : [''],
+      highlightsEn: Array.isArray(item.highlightsEn) && item.highlightsEn.length ? [...item.highlightsEn] : [''],
+      isVisible: item.isVisible !== false,
+      altText: item.altText || '',
+      altTextEn: item.altTextEn || '',
+    })
+    setEditingScreenshotIndex(index)
+    setScreenshotModalOpen(true)
+  }
+
+  const handleDeleteScreenshot = (index: number) => {
+    const item = config.screenshots[index]
+    const name = item.category || item.title || `الشاشة رقم ${index + 1}`
+    if (!confirm(`هل أنت متأكد من حذف «${name}» من المعرض؟`)) return
+    const next = config.screenshots.filter((_, i) => i !== index)
+    set('screenshots', next)
+  }
+
+  const handleToggleVisibility = (index: number) => {
+    const next = config.screenshots.map((s, i) =>
+      i === index ? { ...s, isVisible: s.isVisible === false } : s,
+    )
+    set('screenshots', next)
+  }
+
+  const handleMoveScreenshot = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1
+    if (targetIndex < 0 || targetIndex >= config.screenshots.length) return
+    const next = [...config.screenshots]
+    const temp = next[index]
+    next[index] = next[targetIndex]
+    next[targetIndex] = temp
+    set('screenshots', next)
+  }
+
+  const handleImageFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+      alert('حجم الصورة كبير، الحد الأقصى المسموح 5 ميجابايت')
+      return
+    }
+    setIsUploadingImage(true)
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = reader.result as string
+      setScreenshotDraft((prev) => (prev ? { ...prev, imageUrl: dataUrl } : null))
+      setIsUploadingImage(false)
+    }
+    reader.onerror = () => {
+      alert('تعذر قراءة ملف الصورة')
+      setIsUploadingImage(false)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleSaveScreenshotDraft = () => {
+    if (!screenshotDraft) return
+    if (!screenshotDraft.category.trim()) {
+      alert('يرجى كتابة اسم التبويب')
+      return
+    }
+    if (!screenshotDraft.title.trim()) {
+      alert('يرجى كتابة عنوان العرض')
+      return
+    }
+    if (!screenshotDraft.imageUrl.trim()) {
+      alert('يرجى إدخال رابط الصورة أو رفع صورة')
+      return
+    }
+
+    const cleanHighlights = (screenshotDraft.highlights || []).map((h) => h.trim()).filter(Boolean)
+    const cleanHighlightsEn = (screenshotDraft.highlightsEn || []).map((h) => h.trim()).filter(Boolean)
+
+    const finalItem: ScreenshotItem = {
+      ...screenshotDraft,
+      highlights: cleanHighlights,
+      highlightsEn: cleanHighlightsEn,
+    }
+
+    let next: ScreenshotItem[]
+    if (editingScreenshotIndex === null) {
+      next = [...config.screenshots, finalItem]
+    } else {
+      next = config.screenshots.map((s, i) => (i === editingScreenshotIndex ? finalItem : s))
+    }
+    set('screenshots', next)
+    setScreenshotModalOpen(false)
+    setScreenshotDraft(null)
+    setEditingScreenshotIndex(null)
+  }
   const dirty = loaded && saved !== JSON.stringify(config)
   const set = <K extends keyof LandingPageConfig>(
     key: K,
@@ -542,17 +677,6 @@ export function LandingPageManager() {
     { key: translated('badge'), label: 'الشارة' },
     { key: translated('title'), label: 'العنوان' },
     { key: translated('description'), label: 'الوصف', type: 'textarea' },
-  ]
-  const shots: Field[] = [
-    { key: translated('title'), label: 'العنوان' },
-    { key: translated('category'), label: 'اسم التبويب' },
-    { key: translated('subtitle'), label: 'الوصف', type: 'textarea' },
-    { key: 'imageUrl', label: 'الصورة', type: 'image' },
-    {
-      key: translated('highlights'),
-      label: 'النقاط البارزة (كل نقطة في سطر)',
-      type: 'textarea',
-    },
   ]
   return (
     <div className="space-y-5" dir="rtl">
@@ -811,91 +935,725 @@ export function LandingPageManager() {
         )}
         {tab === 'screenshots' && (
           <div className="space-y-6">
-            <div className="rounded-3xl border border-border bg-card p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-3xl border border-border bg-card p-5 shadow-sm">
               <div>
                 <h3 className="text-base font-black text-foreground">
-                  {translated('إعدادات الديمو التفاعلي (الصفحة الرئيسية)', 'Interactive Demo Settings')}
+                  {translated('صور استعراض المنصة', 'Platform Showcase Screens')}
                 </h3>
-                <p className="text-xs text-muted-foreground">
+                <p className="mt-1 text-xs text-muted-foreground">
                   {translated(
-                    'تخصيص عنوان ووصف قسم العرض التفاعلي بالصفحة الرئيسية:',
-                    'Customize the title and subtitle of the interactive demo on the homepage:'
+                    'إدارة شاشات المنصة المعروضة في الصفحة الرئيسية: إضافة شاشات جديدة، تعديل النصوص والصور، تغيير الترتيب، أو إخفاء عناصر مؤقتًا.',
+                    'Manage showcase screenshots on the homepage: add screens, edit content, reorder, or toggle visibility.',
                   )}
                 </p>
               </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-muted-foreground">{translated('عنوان القسم بالعربية', 'Title (Arabic)')}</label>
-                  <input
-                    className="landing-input"
-                    value={config.demoSectionTitle || ''}
-                    placeholder="جرّب يلا كلينيك بنفسك"
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => set('demoSectionTitle', e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-muted-foreground">{translated('العنوان بالإنجليزية (اختياري)', 'Title (English)')}</label>
-                  <input
-                    className="landing-input"
-                    dir="ltr"
-                    value={config.english?.demoSectionTitle || ''}
-                    placeholder="Try Yalla Clinic Yourself"
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                      set('english', {
-                        ...config.english,
-                        demoSectionTitle: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div className="space-y-1.5 sm:col-span-2">
-                  <label className="block text-xs font-bold text-muted-foreground">{translated('وصف القسم بالعربية', 'Description (Arabic)')}</label>
-                  <textarea
-                    rows={2}
-                    className="landing-input h-auto py-2"
-                    value={config.demoSectionSubtitle || ''}
-                    placeholder="استكشف واجهات يلا كلينيك الحقيقية: تحكّم في الدور، واكتب الروشتة..."
-                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => set('demoSectionSubtitle', e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1.5 sm:col-span-2">
-                  <label className="block text-xs font-bold text-muted-foreground">{translated('الوصف بالإنجليزية (اختياري)', 'Description (English)')}</label>
-                  <textarea
-                    rows={2}
-                    className="landing-input h-auto py-2"
-                    dir="ltr"
-                    value={config.english?.demoSectionSubtitle || ''}
-                    placeholder="Explore real Yalla Clinic interfaces: manage live queues, write prescriptions..."
-                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                      set('english', {
-                        ...config.english,
-                        demoSectionSubtitle: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-              </div>
+              <Button
+                onClick={handleAddScreenshot}
+                className="gap-2 h-10 rounded-xl font-bold shrink-0 shadow-sm"
+              >
+                <Plus className="size-4" />
+                <span>{translated('إضافة صورة جديدة', 'Add New Screen')}</span>
+              </Button>
             </div>
 
-            <ListEditor
-              title="صور النظام القديمة (أرشيف)"
-              fields={shots}
-              items={config.screenshots}
-              onChange={(items) => set('screenshots', items)}
-              create={() => ({
-                id: crypto.randomUUID(),
-                title: '',
-                subtitle: '',
-                category: '',
-                imageUrl: '',
-                highlights: [],
-                titleEn: '',
-                subtitleEn: '',
-                categoryEn: '',
-                highlightsEn: [],
-              })}
-            />
+            {config.screenshots.length === 0 ? (
+              <div className="rounded-3xl border border-dashed border-border bg-card/60 p-12 text-center space-y-4">
+                <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <ImageIcon className="size-6" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-foreground">
+                    {translated('لا توجد صور في المعرض حاليًا', 'No screenshots in gallery currently')}
+                  </h4>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {translated(
+                      'أضف أول شاشة للبدء في استعراض واجهات المنصة للزوار.',
+                      'Add your first screen to start showcasing platform views to visitors.',
+                    )}
+                  </p>
+                </div>
+                <Button onClick={handleAddScreenshot} variant="outline" className="gap-2">
+                  <Plus className="size-4" />
+                  <span>{translated('إضافة أول صورة', 'Add First Screen')}</span>
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {config.screenshots.map((shot, index) => {
+                  const isVisible = shot.isVisible !== false
+                  const titleText =
+                    (!isRtl && shot.titleEn ? shot.titleEn : shot.title) ||
+                    translated('بدون عنوان', 'Untitled')
+                  const categoryText =
+                    (!isRtl && shot.categoryEn ? shot.categoryEn : shot.category) ||
+                    translated('بدون تبويب', 'Uncategorized')
+                  const highlightsCount = (
+                    (!isRtl && shot.highlightsEn && shot.highlightsEn.length
+                      ? shot.highlightsEn
+                      : shot.highlights) || []
+                  ).length
+
+                  return (
+                    <article
+                      key={shot.id || index}
+                      className={`group flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border p-4 transition-all duration-150 ${
+                        isVisible
+                          ? 'border-border bg-card hover:border-primary/40 shadow-sm'
+                          : 'border-border/60 bg-muted/30 opacity-75'
+                      }`}
+                    >
+                      {/* Left: Thumbnail & Details */}
+                      <div className="flex items-center gap-4 min-w-0 flex-1">
+                        {/* Order Badge */}
+                        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-secondary text-xs font-mono font-bold text-muted-foreground">
+                          #{index + 1}
+                        </span>
+
+                        {/* Thumbnail */}
+                        <div className="relative size-16 shrink-0 overflow-hidden rounded-xl border border-border bg-secondary/30 flex items-center justify-center">
+                          {shot.imageUrl ? (
+                            <img
+                              src={shot.imageUrl}
+                              alt={titleText}
+                              className="h-full w-full object-contain p-1"
+                              onError={(e) => {
+                                ;(e.currentTarget as HTMLElement).style.display = 'none'
+                              }}
+                            />
+                          ) : (
+                            <ImageIcon className="size-6 text-muted-foreground/40" />
+                          )}
+                        </div>
+
+                        {/* Info */}
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
+                              {categoryText}
+                            </span>
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold ${
+                                isVisible
+                                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
+                                  : 'bg-muted text-muted-foreground'
+                              }`}
+                            >
+                              {isVisible ? (
+                                <>
+                                  <Eye className="size-3" />
+                                  <span>{translated('ظاهر بالصفحة', 'Visible')}</span>
+                                </>
+                              ) : (
+                                <>
+                                  <EyeOff className="size-3" />
+                                  <span>{translated('مخفي', 'Hidden')}</span>
+                                </>
+                              )}
+                            </span>
+                            {highlightsCount > 0 && (
+                              <span className="text-[10px] text-muted-foreground font-medium">
+                                • {highlightsCount} {translated('مميزات', 'highlights')}
+                              </span>
+                            )}
+                          </div>
+                          <h4 className="truncate text-sm font-bold text-foreground">
+                            {titleText}
+                          </h4>
+                          {shot.subtitle && (
+                            <p className="truncate text-xs text-muted-foreground">
+                              {!isRtl && shot.subtitleEn ? shot.subtitleEn : shot.subtitle}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Right: Actions */}
+                      <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
+                        {/* Move Up */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          disabled={index === 0}
+                          onClick={() => handleMoveScreenshot(index, 'up')}
+                          className="size-8 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                          title={translated('تحريك لأعلى', 'Move Up')}
+                          aria-label={translated('تحريك لأعلى', 'Move Up')}
+                        >
+                          <ArrowUp className="size-4" />
+                        </Button>
+
+                        {/* Move Down */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          disabled={index === config.screenshots.length - 1}
+                          onClick={() => handleMoveScreenshot(index, 'down')}
+                          className="size-8 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                          title={translated('تحريك لأسفل', 'Move Down')}
+                          aria-label={translated('تحريك لأسفل', 'Move Down')}
+                        >
+                          <ArrowDown className="size-4" />
+                        </Button>
+
+                        {/* Visibility Toggle */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleToggleVisibility(index)}
+                          className={`size-8 ${
+                            isVisible
+                              ? 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10'
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                          title={
+                            isVisible
+                              ? translated('إخفاء من الزوار', 'Hide')
+                              : translated('إظهار للزوار', 'Show')
+                          }
+                          aria-label={
+                            isVisible
+                              ? translated('إخفاء من الزوار', 'Hide')
+                              : translated('إظهار للزوار', 'Show')
+                          }
+                        >
+                          {isVisible ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+                        </Button>
+
+                        {/* Edit */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditScreenshot(index)}
+                          className="gap-1.5 h-8 px-2.5 text-xs font-bold"
+                        >
+                          <Pencil className="size-3.5" />
+                          <span>{translated('تعديل', 'Edit')}</span>
+                        </Button>
+
+                        {/* Delete */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteScreenshot(index)}
+                          className="size-8 text-destructive/70 hover:text-destructive hover:bg-destructive/10"
+                          title={translated('حذف', 'Delete')}
+                          aria-label={translated('حذف', 'Delete')}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    </article>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Add / Edit Screenshot Modal Dialog */}
+            <Dialog open={screenshotModalOpen} onOpenChange={setScreenshotModalOpen}>
+              <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-6" dir="rtl">
+                <DialogHeader>
+                  <DialogTitle className="text-lg font-black">
+                    {editingScreenshotIndex === null
+                      ? translated('إضافة شاشة جديدة لمعرض المنصة', 'Add New Screen to Showcase')
+                      : translated('تعديل شاشة المعرض', 'Edit Showcase Screen')}
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-muted-foreground">
+                    {translated(
+                      'أدخل تفاصيل الشاشة، اسم التبويب، الصورة، ونقاط المميزات التوضيحية.',
+                      'Enter screen details, tab category, image URL or upload, and feature highlights.',
+                    )}
+                  </DialogDescription>
+                </DialogHeader>
+
+                {screenshotDraft && (
+                  <div className="space-y-6 pt-4">
+                    {/* Tab & Title Row */}
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-bold text-foreground">
+                          {translated('اسم التبويب (بالعربية)', 'Tab Category (Arabic)')} *
+                        </label>
+                        <input
+                          className="landing-input"
+                          value={screenshotDraft.category}
+                          placeholder="مثال: لوحة الطبيب، الروشتة، بوابة المريض..."
+                          onChange={(e) =>
+                            setScreenshotDraft((d) =>
+                              d ? { ...d, category: e.target.value } : null,
+                            )
+                          }
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-bold text-foreground">
+                          {translated('اسم التبويب (بالإنجليزية)', 'Tab Category (English)')}
+                        </label>
+                        <input
+                          className="landing-input"
+                          dir="ltr"
+                          value={screenshotDraft.categoryEn || ''}
+                          placeholder="e.g. Doctor workspace, Prescriptions..."
+                          onChange={(e) =>
+                            setScreenshotDraft((d) =>
+                              d ? { ...d, categoryEn: e.target.value } : null,
+                            )
+                          }
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-bold text-foreground">
+                          {translated('عنوان العرض (بالعربية)', 'Display Title (Arabic)')} *
+                        </label>
+                        <input
+                          className="landing-input"
+                          value={screenshotDraft.title}
+                          placeholder="مثال: صورة واضحة ليوم العيادة"
+                          onChange={(e) =>
+                            setScreenshotDraft((d) =>
+                              d ? { ...d, title: e.target.value } : null,
+                            )
+                          }
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-bold text-foreground">
+                          {translated('عنوان العرض (بالإنجليزية)', 'Display Title (English)')}
+                        </label>
+                        <input
+                          className="landing-input"
+                          dir="ltr"
+                          value={screenshotDraft.titleEn || ''}
+                          placeholder="e.g. A clear view of your clinic day"
+                          onChange={(e) =>
+                            setScreenshotDraft((d) =>
+                              d ? { ...d, titleEn: e.target.value } : null,
+                            )
+                          }
+                        />
+                      </div>
+
+                      <div className="space-y-1.5 sm:col-span-2">
+                        <label className="block text-xs font-bold text-foreground">
+                          {translated('الوصف (بالعربية)', 'Description (Arabic)')}
+                        </label>
+                        <textarea
+                          rows={2}
+                          className="landing-input h-auto py-2"
+                          value={screenshotDraft.subtitle}
+                          placeholder="مثال: الحجوزات والدور والإجراءات المهمة في مساحة واحدة."
+                          onChange={(e) =>
+                            setScreenshotDraft((d) =>
+                              d ? { ...d, subtitle: e.target.value } : null,
+                            )
+                          }
+                        />
+                      </div>
+
+                      <div className="space-y-1.5 sm:col-span-2">
+                        <label className="block text-xs font-bold text-foreground">
+                          {translated('الوصف (بالإنجليزية)', 'Description (English)')}
+                        </label>
+                        <textarea
+                          rows={2}
+                          className="landing-input h-auto py-2"
+                          dir="ltr"
+                          value={screenshotDraft.subtitleEn || ''}
+                          placeholder="e.g. Appointments, queue and important actions in one workspace."
+                          onChange={(e) =>
+                            setScreenshotDraft((d) =>
+                              d ? { ...d, subtitleEn: e.target.value } : null,
+                            )
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    {/* Image Input & File Upload */}
+                    <div className="rounded-2xl border border-border bg-card p-4 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-bold text-foreground">
+                          {translated('رابط وصورة الشاشة', 'Screen Image & URL')} *
+                        </label>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleImageFileUpload}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={isUploadingImage}
+                          onClick={() => fileInputRef.current?.click()}
+                          className="gap-1.5 text-xs font-bold"
+                        >
+                          {isUploadingImage ? (
+                            <LoaderCircle className="animate-spin size-3.5" />
+                          ) : (
+                            <Upload className="size-3.5" />
+                          )}
+                          <span>{translated('رفع صورة من جهازك', 'Upload Image File')}</span>
+                        </Button>
+                      </div>
+
+                      <div className="space-y-2">
+                        <input
+                          type="text"
+                          dir="ltr"
+                          className="landing-input"
+                          value={screenshotDraft.imageUrl}
+                          placeholder="https://... أو /landing/dashboard.svg"
+                          onChange={(e) =>
+                            setScreenshotDraft((d) =>
+                              d ? { ...d, imageUrl: e.target.value } : null,
+                            )
+                          }
+                        />
+                        <p className="text-[11px] text-muted-foreground">
+                          {translated(
+                            'يمكنك إدخال رابط HTTPS مباشر، أو مسار داخلي مثل /landing/dashboard.svg، أو النقر على «رفع صورة» لاختيار ملف من جهازك.',
+                            'Enter a direct HTTPS URL, local path like /landing/dashboard.svg, or click upload to select an image from your device.',
+                          )}
+                        </p>
+                      </div>
+
+                      {/* Alt text fields */}
+                      <div className="grid gap-3 sm:grid-cols-2 pt-2 border-t border-border/60">
+                        <div className="space-y-1">
+                          <label className="block text-[11px] font-bold text-muted-foreground">
+                            {translated('النص البديل للصورة (بالعربية)', 'Alt Text (Arabic)')}
+                          </label>
+                          <input
+                            className="landing-input text-xs"
+                            value={screenshotDraft.altText || ''}
+                            placeholder="وصف مختصر لمحتوى الصورة لدعم محركات البحث والوصول"
+                            onChange={(e) =>
+                              setScreenshotDraft((d) =>
+                                d ? { ...d, altText: e.target.value } : null,
+                              )
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-[11px] font-bold text-muted-foreground">
+                            {translated('النص البديل للصورة (بالإنجليزية)', 'Alt Text (English)')}
+                          </label>
+                          <input
+                            className="landing-input text-xs"
+                            dir="ltr"
+                            value={screenshotDraft.altTextEn || ''}
+                            placeholder="Short image description for SEO and accessibility"
+                            onChange={(e) =>
+                              setScreenshotDraft((d) =>
+                                d ? { ...d, altTextEn: e.target.value } : null,
+                              )
+                            }
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Feature Highlights List */}
+                    <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-xs font-bold text-foreground">
+                            {translated(
+                              'نقاط المميزات المعروضة بجانب الصورة',
+                              'Feature Highlights Bullet Points',
+                            )}
+                          </h4>
+                          <p className="text-[11px] text-muted-foreground">
+                            {translated(
+                              'تظهر هذه النقاط بجانب صورة الشاشة مع علامات صح خضراء.',
+                              'These bullet points appear next to the screenshot card with checkmarks.',
+                            )}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setScreenshotDraft((d) =>
+                              d
+                                ? {
+                                    ...d,
+                                    highlights: [...(d.highlights || []), ''],
+                                    highlightsEn: [...(d.highlightsEn || []), ''],
+                                  }
+                                : null,
+                            )
+                          }}
+                          className="gap-1 text-xs font-bold"
+                        >
+                          <Plus className="size-3.5" />
+                          <span>{translated('إضافة ميزة', 'Add Highlight')}</span>
+                        </Button>
+                      </div>
+
+                      <div className="space-y-2">
+                        {(screenshotDraft.highlights || []).map((highlight, hIndex) => (
+                          <div key={hIndex} className="flex items-center gap-2">
+                            <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-secondary text-[10px] font-mono font-bold text-muted-foreground">
+                              {hIndex + 1}
+                            </span>
+                            <input
+                              className="landing-input flex-1 text-xs py-1.5"
+                              value={highlight}
+                              placeholder={`الميزة ${hIndex + 1} (بالعربية)`}
+                              onChange={(e) => {
+                                const next = [...(screenshotDraft.highlights || [])]
+                                next[hIndex] = e.target.value
+                                setScreenshotDraft((d) =>
+                                  d ? { ...d, highlights: next } : null,
+                                )
+                              }}
+                            />
+                            <input
+                              className="landing-input flex-1 text-xs py-1.5"
+                              dir="ltr"
+                              value={(screenshotDraft.highlightsEn || [])[hIndex] || ''}
+                              placeholder={`Highlight ${hIndex + 1} (English)`}
+                              onChange={(e) => {
+                                const next = [...(screenshotDraft.highlightsEn || [])]
+                                next[hIndex] = e.target.value
+                                setScreenshotDraft((d) =>
+                                  d ? { ...d, highlightsEn: next } : null,
+                                )
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              disabled={hIndex === 0}
+                              onClick={() => {
+                                const nextH = [...(screenshotDraft.highlights || [])]
+                                const nextHEn = [...(screenshotDraft.highlightsEn || [])]
+                                ;[nextH[hIndex - 1], nextH[hIndex]] = [
+                                  nextH[hIndex],
+                                  nextH[hIndex - 1],
+                                ]
+                                ;[nextHEn[hIndex - 1], nextHEn[hIndex]] = [
+                                  nextHEn[hIndex],
+                                  nextHEn[hIndex - 1],
+                                ]
+                                setScreenshotDraft((d) =>
+                                  d
+                                    ? {
+                                        ...d,
+                                        highlights: nextH,
+                                        highlightsEn: nextHEn,
+                                      }
+                                    : null,
+                                )
+                              }}
+                              className="size-7 text-muted-foreground hover:text-foreground disabled:opacity-20"
+                            >
+                              <ArrowUp className="size-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              disabled={
+                                hIndex === (screenshotDraft.highlights || []).length - 1
+                              }
+                              onClick={() => {
+                                const nextH = [...(screenshotDraft.highlights || [])]
+                                const nextHEn = [...(screenshotDraft.highlightsEn || [])]
+                                ;[nextH[hIndex + 1], nextH[hIndex]] = [
+                                  nextH[hIndex],
+                                  nextH[hIndex + 1],
+                                ]
+                                ;[nextHEn[hIndex + 1], nextHEn[hIndex]] = [
+                                  nextHEn[hIndex],
+                                  nextHEn[hIndex + 1],
+                                ]
+                                setScreenshotDraft((d) =>
+                                  d
+                                    ? {
+                                        ...d,
+                                        highlights: nextH,
+                                        highlightsEn: nextHEn,
+                                      }
+                                    : null,
+                                )
+                              }}
+                              className="size-7 text-muted-foreground hover:text-foreground disabled:opacity-20"
+                            >
+                              <ArrowDown className="size-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                const nextH = (screenshotDraft.highlights || []).filter(
+                                  (_, i) => i !== hIndex,
+                                )
+                                const nextHEn = (screenshotDraft.highlightsEn || []).filter(
+                                  (_, i) => i !== hIndex,
+                                )
+                                setScreenshotDraft((d) =>
+                                  d
+                                    ? {
+                                        ...d,
+                                        highlights: nextH,
+                                        highlightsEn: nextHEn,
+                                      }
+                                    : null,
+                                )
+                              }}
+                              className="size-7 text-destructive hover:bg-destructive/10"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Visibility Switch */}
+                    <div className="flex items-center justify-between rounded-2xl border border-border bg-card p-4">
+                      <div>
+                        <strong className="block text-xs font-bold text-foreground">
+                          {translated('حالة الظهور في الصفحة الرئيسية', 'Visibility on Homepage')}
+                        </strong>
+                        <span className="text-[11px] text-muted-foreground">
+                          {translated(
+                            'عند إلغاء التفعيل، سيتم إخفاء الشاشة وتبويبها من الزوار تلقائيًا.',
+                            'When unchecked, this screen and its tab will be hidden from visitors.',
+                          )}
+                        </span>
+                      </div>
+                      <label className="relative inline-flex cursor-pointer items-center">
+                        <input
+                          type="checkbox"
+                          className="sr-only peer"
+                          checked={screenshotDraft.isVisible !== false}
+                          onChange={(e) =>
+                            setScreenshotDraft((d) =>
+                              d ? { ...d, isVisible: e.target.checked } : null,
+                            )
+                          }
+                        />
+                        <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                      </label>
+                    </div>
+
+                    {/* Live Preview Panel */}
+                    <div className="rounded-2xl border border-border bg-secondary/20 p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-black text-foreground flex items-center gap-1.5">
+                          <Sparkles className="size-3.5 text-primary" />
+                          <span>
+                            {translated(
+                              'معاينة حية لشكل الشاشة في الموقع',
+                              'Live Preview on Homepage',
+                            )}
+                          </span>
+                        </h4>
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          Tab: {screenshotDraft.category || '—'}
+                        </span>
+                      </div>
+
+                      <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
+                        <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                          <span className="rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">
+                            {screenshotDraft.category ||
+                              translated('اسم التبويب', 'Tab Category')}
+                          </span>
+                          <span className="text-xs font-mono font-bold text-primary">
+                            01 / {Math.max(config.screenshots.length, 1)}
+                          </span>
+                        </div>
+
+                        <div className="grid gap-4 sm:grid-cols-[1.2fr_1fr] items-center">
+                          <div className="relative aspect-[1.4] w-full overflow-hidden rounded-xl border border-border bg-secondary/30 flex items-center justify-center">
+                            {screenshotDraft.imageUrl ? (
+                              <img
+                                src={screenshotDraft.imageUrl}
+                                alt={
+                                  screenshotDraft.altText ||
+                                  screenshotDraft.title ||
+                                  'Preview'
+                                }
+                                className="h-full w-full object-contain p-2"
+                              />
+                            ) : (
+                              <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                                <ImageIcon className="size-8 opacity-40" />
+                                <span className="text-[11px]">
+                                  {translated('معاينة الصورة هنا', 'Image preview here')}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="space-y-2">
+                            <h3 className="text-base font-black text-foreground">
+                              {screenshotDraft.title ||
+                                translated('عنوان العرض يظهر هنا', 'Display title appears here')}
+                            </h3>
+                            <p className="text-xs text-muted-foreground leading-5">
+                              {screenshotDraft.subtitle ||
+                                translated(
+                                  'وصف الشاشة التفصيلي يظهر هنا ليوضح للمستخدمين فائدة هذه الواجهة.',
+                                  'Detailed description appears here.',
+                                )}
+                            </p>
+                            {(screenshotDraft.highlights || []).filter(Boolean).length >
+                              0 && (
+                              <ul className="space-y-1.5 pt-1">
+                                {(screenshotDraft.highlights || [])
+                                  .filter(Boolean)
+                                  .map((h, i) => (
+                                    <li
+                                      key={i}
+                                      className="flex items-center gap-1.5 text-xs text-foreground/90"
+                                    >
+                                      <CheckCircle2 className="size-3.5 text-primary shrink-0" />
+                                      <span>{h}</span>
+                                    </li>
+                                  ))}
+                              </ul>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Modal Actions */}
+                    <div className="flex items-center justify-end gap-3 pt-3 border-t border-border">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setScreenshotModalOpen(false)}
+                      >
+                        {translated('إلغاء', 'Cancel')}
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={handleSaveScreenshotDraft}
+                        className="font-bold px-5"
+                      >
+                        {editingScreenshotIndex === null
+                          ? translated('إضافة الشاشة', 'Add Screen')
+                          : translated('تحديث الشاشة', 'Update Screen')}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
           </div>
         )}
         {tab === 'clients' && (

@@ -5,10 +5,10 @@ const short = z.string().trim().max(250)
 const id = z.string().min(1).max(100)
 const image = z
   .string()
-  .max(2000)
+  .max(1000000)
   .refine(
-    (v) => !v || /^https:\/\//.test(v) || /^\/(?!\/)/.test(v),
-    'استخدم رابط صورة HTTPS أو مسارًا داخل الموقع',
+    (v) => !v || /^https:\/\//.test(v) || /^\/(?!\/)/.test(v) || /^data:image\//.test(v),
+    'استخدم رابط صورة HTTPS أو مسارًا داخل الموقع أو صورة مرفوعة',
   )
 const externalOrLocalLink = z
   .string()
@@ -37,11 +37,14 @@ const screenshot = z.object({
   subtitle: text,
   category: short,
   imageUrl: image,
-  highlights: z.array(short).max(12),
+  highlights: z.array(short).max(20).default([]),
   titleEn: short.default(''),
   subtitleEn: text.default(''),
   categoryEn: short.default(''),
-  highlightsEn: z.array(short).max(12).default([]),
+  highlightsEn: z.array(short).max(20).default([]),
+  isVisible: z.boolean().default(true),
+  altText: z.string().max(300).default(''),
+  altTextEn: z.string().max(300).default(''),
 })
 const client = z.object({
   id,
@@ -132,6 +135,7 @@ export const landingConfigSchema = z.object({
   contacts: z.array(contact).max(500),
 })
 export type LandingPageConfig = z.infer<typeof landingConfigSchema>
+export type ScreenshotItem = z.infer<typeof screenshot>
 export type FeedbackItem = z.infer<typeof feedback>
 export type TrialRequestItem = {
   id: string
@@ -306,6 +310,9 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
         'Queue progress',
         'Quick record access',
       ],
+      isVisible: true,
+      altText: 'شاشة لوحة الطبيب وإدارة الدور في يلا كلينيك',
+      altTextEn: 'Yalla Clinic doctor workspace and queue overview',
     },
     {
       id: 'prescription',
@@ -318,6 +325,9 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
       subtitleEn: 'Visit details, treatment and a print preview side by side.',
       categoryEn: 'Prescriptions',
       highlightsEn: ['Visit diagnosis', 'Medication & dosage', 'Print preview'],
+      isVisible: true,
+      altText: 'شاشة تحرير الروشتة الإلكترونية وطباعتها',
+      altTextEn: 'Digital prescription editor and print preview',
     },
     {
       id: 'patient',
@@ -330,6 +340,9 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
       subtitleEn: 'Book and follow queue progress from a phone.',
       categoryEn: 'Patient portal',
       highlightsEn: ['Choose a service', 'Book on mobile', 'Follow your turn'],
+      isVisible: true,
+      altText: 'شاشة بوابة المريض وحجز المواعيد وتتبع الدور',
+      altTextEn: 'Patient portal for booking and live queue tracking',
     },
     {
       id: 'finance',
@@ -346,6 +359,9 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
         'Date-range reports',
         'Branch insights',
       ],
+      isVisible: true,
+      altText: 'شاشة التقارير المالية والإحصائيات للفروع',
+      altTextEn: 'Financial reports and clinic analytics',
     },
   ],
   clients: [],
@@ -390,6 +406,9 @@ export function mergeLandingConfig(value: unknown): LandingPageConfig {
   const parsed = landingConfigSchema.safeParse({
     ...DEFAULT_LANDING_CONFIG,
     ...data,
+    screenshots: Array.isArray(data.screenshots)
+      ? data.screenshots
+      : DEFAULT_LANDING_CONFIG.screenshots,
     stats: customStats,
     loginUrl: resolvedLoginUrl,
     demoUrl: data.demoUrl && data.demoUrl !== '/clinic/demo/admin' ? data.demoUrl : '/clinic/zizo',

@@ -1,7 +1,7 @@
 'use client'
 
 /* eslint-disable @next/next/no-img-element */
-import { useEffect, useState, useRef, type FormEvent, type ComponentType } from 'react'
+import { useEffect, useState, useRef, useMemo, type FormEvent, type ComponentType } from 'react'
 import Link from 'next/link'
 import {
   Users,
@@ -27,9 +27,9 @@ import {
   Gift,
   LoaderCircle,
   ZoomIn,
+  Image as ImageIcon,
 } from 'lucide-react'
 import { ShowcaseLightbox } from '@/components/landing/ShowcaseLightbox'
-import { InteractiveProductDemo } from '@/components/landing/InteractiveProductDemo'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { LanguageToggle } from '@/components/common/LanguageToggle'
@@ -89,10 +89,15 @@ export function LandingPageContent({
   const [trialMessage, setTrialMessage] = useState('')
   const [trialError, setTrialError] = useState('')
   const [trialWhatsApp, setTrialWhatsApp] = useState('')
+  const [imageLoadErrors, setImageLoadErrors] = useState<Record<string, boolean>>({})
 
-  const screenshots = config.screenshots || []
-  const index = screenshots.length ? slide % screenshots.length : 0
-  const current = screenshots[index]
+  const visibleScreenshots = useMemo(
+    () => (config.screenshots || []).filter((s) => s.isVisible !== false),
+    [config.screenshots],
+  )
+  const hasScreenshots = visibleScreenshots.length > 0
+  const index = hasScreenshots ? slide % visibleScreenshots.length : 0
+  const current = hasScreenshots ? visibleScreenshots[index] : null
 
   // Filter out any mock/placeholder stats completely
   const activeStats = (config.stats || []).filter(
@@ -112,7 +117,8 @@ export function LandingPageContent({
 
   const showFeaturesSection =
     config.visibility.showFeatures && config.features && config.features.length > 0
-  const showShowcaseSection = config.visibility.showScreenshots !== false
+  const showShowcaseSection =
+    config.visibility.showScreenshots !== false && (hasScreenshots || isPreview)
   const showClientsSection =
     config.visibility.showClients && config.clients && config.clients.length > 0
   const showContactsSection =
@@ -138,8 +144,8 @@ export function LandingPageContent({
     : '#contact'
 
   const move = (offset: number) => {
-    if (!screenshots.length) return
-    setSlide((value) => (value + offset + screenshots.length) % screenshots.length)
+    if (!visibleScreenshots.length) return
+    setSlide((value) => (value + offset + visibleScreenshots.length) % visibleScreenshots.length)
   }
 
   // Drag and swipe handling for showcase gallery
@@ -208,12 +214,12 @@ export function LandingPageContent({
   }
 
   useEffect(() => {
-    if (paused || lightboxOpen || screenshots.length < 2) return
+    if (paused || lightboxOpen || visibleScreenshots.length < 2) return
     const timer = setInterval(() => {
-      if (!document.hidden) setSlide((value) => (value + 1) % screenshots.length)
+      if (!document.hidden) setSlide((value) => (value + 1) % visibleScreenshots.length)
     }, 6500)
     return () => clearInterval(timer)
-  }, [screenshots.length, paused, lightboxOpen])
+  }, [visibleScreenshots.length, paused, lightboxOpen])
 
   const previewLink = (event: React.MouseEvent) => {
     if (isPreview) event.preventDefault()
@@ -443,7 +449,7 @@ export function LandingPageContent({
                   </span>
                 </div>
                 <img
-                  src={screenshots[0]?.imageUrl || '/landing/dashboard.svg'}
+                  src={visibleScreenshots[0]?.imageUrl || '/landing/dashboard.svg'}
                   alt={copy('عرض توضيحي للوحة يلا كلينك', 'Illustrative Yalla Clinic workspace')}
                   width="1000"
                   height="720"
@@ -645,11 +651,213 @@ export function LandingPageContent({
         )}
 
         {showShowcaseSection && (
-          <InteractiveProductDemo
-            config={config}
-            onOpenTrial={() => setTrialOpen(true)}
-            trialWhatsappHref={trialWhatsappHref}
-          />
+          <section id="showcase" className="border-y border-border bg-secondary/25 py-20">
+            <div className="mx-auto max-w-7xl px-5 lg:px-8">
+              <div className="mb-10 text-center">
+                <p className="landing-eyebrow">
+                  {copy('جولة في التجربة', 'Meet your next workspace')}
+                </p>
+                <h2 className="landing-title">
+                  {copy('شوف التفاصيل اللي بتفرق.', 'See the details that matter.')}
+                </h2>
+              </div>
+
+              {!hasScreenshots && isPreview ? (
+                <div className="mx-auto max-w-2xl rounded-2xl border border-dashed border-border bg-card/60 p-10 text-center">
+                  <p className="text-sm font-bold text-muted-foreground">
+                    {copy(
+                      'معرض صور المنصة مفعّل، لكن لا توجد صور مضافة أو ظاهرة حاليًا. يمكنك إضافة وتفعيل شاشات من لوحة المالك.',
+                      'Showcase gallery is enabled, but no screenshots are currently visible. Add and enable screens in Owner Dashboard.',
+                    )}
+                  </p>
+                </div>
+              ) : null}
+
+              {hasScreenshots && (
+                <>
+                  <div
+                    className="mb-7 flex items-center justify-start sm:justify-center gap-2 overflow-x-auto pb-2 scrollbar-none px-2 max-w-full"
+                    role="tablist"
+                    aria-label={copy('شاشات النظام', 'Product views')}
+                  >
+                    {visibleScreenshots.map((shot, i) => (
+                      <button
+                        id={'shot-tab-' + i}
+                        key={shot.id}
+                        role="tab"
+                        aria-selected={index === i}
+                        aria-controls="showcase-panel"
+                        tabIndex={index === i ? 0 : -1}
+                        onKeyDown={(e) => {
+                          if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                            e.preventDefault()
+                            const next =
+                              (i + (e.key === 'ArrowRight' ? (isRtl ? -1 : 1) : (isRtl ? 1 : -1)) + visibleScreenshots.length) %
+                              visibleScreenshots.length
+                            setSlide(next)
+                            document.getElementById('shot-tab-' + next)?.focus()
+                          }
+                        }}
+                        onClick={() => {
+                          setSlide(i)
+                          setPaused(true)
+                        }}
+                        className={`shrink-0 whitespace-nowrap rounded-xl border px-4 py-2.5 text-xs font-bold transition-all ${
+                          index === i
+                            ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                            : 'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-secondary/40'
+                        }`}
+                      >
+                        {!isRtl && shot.categoryEn ? shot.categoryEn : shot.category}
+                      </button>
+                    ))}
+                  </div>
+
+                  {current && (
+                    <div
+                      id="showcase-panel"
+                      role="tabpanel"
+                      aria-labelledby={'shot-tab-' + index}
+                      className="grid items-center gap-8 rounded-3xl border border-border bg-card p-5 sm:p-8 lg:grid-cols-[1.5fr_1fr]"
+                    >
+                      <div
+                        className="relative aspect-[1.4] w-full overflow-hidden rounded-2xl border border-border bg-secondary/20 group cursor-pointer select-none"
+                        onMouseDown={handleShowcaseMouseDown}
+                        onMouseMove={handleShowcaseMouseMove}
+                        onMouseUp={handleShowcaseMouseUp}
+                        onTouchStart={handleShowcaseTouchStart}
+                        onTouchEnd={handleShowcaseTouchEnd}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={copy(
+                          'عرض الصورة وتكبيرها (اضغط أو اسحب)',
+                          'View and enlarge image (Click or swipe)',
+                        )}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            setLightboxOpen(true)
+                            setPaused(true)
+                          }
+                        }}
+                      >
+                        {imageLoadErrors[current.id] ? (
+                          <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-6 text-center bg-secondary/30 text-muted-foreground">
+                            <ImageIcon className="size-12 stroke-[1.2] opacity-50" />
+                            <p className="text-xs font-medium">
+                              {copy('تعذر تحميل الصورة من الرابط المحدد', 'Failed to load image from specified URL')}
+                            </p>
+                          </div>
+                        ) : (
+                          <img
+                            key={current.id}
+                            src={current.imageUrl}
+                            alt={(!isRtl && current.altTextEn ? current.altTextEn : current.altText) || (!isRtl && current.titleEn ? current.titleEn : current.title)}
+                            width="1000"
+                            height="720"
+                            loading="eager"
+                            fetchPriority="high"
+                            decoding="async"
+                            draggable={false}
+                            onError={() => setImageLoadErrors((prev) => ({ ...prev, [current.id]: true }))}
+                            className="h-full w-full rounded-2xl object-contain pointer-events-none transition-transform duration-300 group-hover:scale-[1.02]"
+                          />
+                        )}
+                        <div className="absolute bottom-3 end-3 flex items-center gap-1.5 rounded-xl bg-background/85 px-3 py-1.5 text-xs font-semibold text-foreground shadow-md backdrop-blur-sm border border-border transition-all group-hover:bg-background group-hover:scale-105 pointer-events-none">
+                          <ZoomIn className="size-3.5 text-primary" />
+                          <span>{copy('تكبير الصورة', 'Enlarge view')}</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-5">
+                        <span className="text-xs font-mono font-bold text-primary">
+                          {isRtl
+                            ? `${index + 1} من ${visibleScreenshots.length}`
+                            : `${index + 1} of ${visibleScreenshots.length}`}
+                        </span>
+                        <h3 className="text-2xl font-black leading-relaxed">
+                          {!isRtl && current.titleEn ? current.titleEn : current.title}
+                        </h3>
+                        <p className="text-sm leading-7 text-muted-foreground">
+                          {!isRtl && current.subtitleEn ? current.subtitleEn : current.subtitle}
+                        </p>
+                        {((!isRtl && current.highlightsEn && current.highlightsEn.length
+                          ? current.highlightsEn
+                          : current.highlights) || []).length > 0 && (
+                          <ul className="space-y-3">
+                            {((!isRtl && current.highlightsEn && current.highlightsEn.length
+                              ? current.highlightsEn
+                              : current.highlights) || []
+                            ).map((highlight, i) => (
+                              <li key={i} className="flex items-center gap-2 text-sm">
+                                <CheckCircle2 className="size-4 shrink-0 text-primary" />
+                                <span>{highlight}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        <div className="flex gap-2 pt-3">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => {
+                              move(-1)
+                              setPaused(true)
+                            }}
+                            aria-label={copy('الشاشة السابقة', 'Previous view')}
+                          >
+                            <ChevronRight />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => setPaused((v) => !v)}
+                            aria-label={
+                              paused
+                                ? copy('تشغيل العرض', 'Play slideshow')
+                                : copy('إيقاف العرض', 'Pause slideshow')
+                            }
+                          >
+                            {paused ? <Play /> : <Pause />}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => {
+                              move(1)
+                              setPaused(true)
+                            }}
+                            aria-label={copy('الشاشة التالية', 'Next view')}
+                          >
+                            <ChevronLeft />
+                          </Button>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">
+                          {copy(
+                            'صور توضيحية للتجربة؛ تتاح الأدوات وفق إعدادات العيادة والباقات.',
+                            'Illustrative product views. Tools depend on your clinic setup and plan.',
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            {hasScreenshots && (
+              <ShowcaseLightbox
+                open={lightboxOpen}
+                onClose={() => setLightboxOpen(false)}
+                screenshots={visibleScreenshots}
+                currentIndex={index}
+                onNavigate={(i) => {
+                  setSlide(i)
+                  setPaused(true)
+                }}
+                isRtl={isRtl}
+              />
+            )}
+          </section>
         )}
 
         {showReviewsSection && (

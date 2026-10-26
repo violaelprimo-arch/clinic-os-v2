@@ -23,6 +23,9 @@ export interface ShowcaseScreenshot {
   categoryEn?: string
   highlights?: string[]
   highlightsEn?: string[]
+  isVisible?: boolean
+  altText?: string
+  altTextEn?: string
 }
 
 interface ShowcaseLightboxProps {
@@ -402,7 +405,7 @@ export function ShowcaseLightbox({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={currentShot.imageUrl}
-            alt={title}
+            alt={(!isRtl && currentShot.altTextEn ? currentShot.altTextEn : currentShot.altText) || title}
             draggable={false}
             className="max-h-[75vh] max-w-[90vw] object-contain rounded-lg shadow-2xl pointer-events-none select-none border border-white/10"
           />
