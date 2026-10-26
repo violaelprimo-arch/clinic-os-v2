@@ -23,6 +23,7 @@ interface TvConfig {
   tickerSpeed: 'normal' | 'slow' | 'fast'
   tickerDirection: 'rtl' | 'ltr'
   voiceGender: 'female' | 'male'
+  voiceDialect?: 'egyptian' | 'standard'
   announcementPhrase: 'patient_number' | 'turn_number'
   chimeSound: 'luxury' | 'classic' | 'none'
   speechTone: 'calm' | 'natural' | 'quick'
@@ -31,8 +32,41 @@ interface TvConfig {
 // In-memory cache for decoded audio buffers to allow instant playback
 const ttsAudioCache = new Map<string, AudioBuffer>()
 
-// Convert digits to spelled-out Arabic words with vocalized diacritics (تشكيل فصيح)
-function numberToArabicWords(num: number | string): string {
+// Spelled-out Egyptian Colloquial Arabic words (بالعامية المصرية الطبيعية: اتنين، تلاتة، حداشر، خمستاشر...)
+function numberToEgyptianArabicWords(num: number | string): string {
+  const clean = String(num).replace(/[^0-9]/g, '')
+  const n = parseInt(clean, 10)
+  if (isNaN(n)) return String(num)
+  if (n === 0) return 'صفر'
+
+  const ones = [
+    '', 'واحد', 'اتنين', 'تلاتة', 'أربعة', 'خمسة', 'ستة', 'سبعة', 'تمانية', 'تسعة', 'عشرة',
+    'حداشر', 'اتناشر', 'تلاتاشر', 'أربعتاشر', 'خمستاشر', 'ستاشر', 'سبعتاشر', 'تمنتاشر', 'تسعتاشر'
+  ]
+  const tens = ['', '', 'عشرين', 'تلاتين', 'أربعين', 'خمسين', 'ستين', 'سبعين', 'تمانين', 'تسعين']
+  const hundreds = ['', 'مية', 'ميتين', 'تلت مية', 'ربعمية', 'خمسمية', 'ستمية', 'سبعمية', 'تمنمية', 'تسعمية']
+
+  if (n < 20) return ones[n]
+  if (n < 100) {
+    const one = n % 10
+    const ten = Math.floor(n / 10)
+    return one === 0 ? tens[ten] : `${ones[one]} و${tens[ten]}`
+  }
+  if (n < 1000) {
+    const hundred = Math.floor(n / 100)
+    const remainder = n % 100
+    if (remainder === 0) return hundreds[hundred]
+    return `${hundreds[hundred]} و${numberToEgyptianArabicWords(remainder)}`
+  }
+  if (n === 1000) return 'ألف'
+  if (n > 1000 && n < 2000) {
+    return `ألف و${numberToEgyptianArabicWords(n - 1000)}`
+  }
+  return String(num)
+}
+
+// Convert digits to spelled-out Classical Arabic words with vocalized diacritics (تشكيل فصيح)
+function numberToStandardArabicWords(num: number | string): string {
   const clean = String(num).replace(/[^0-9]/g, '')
   const n = parseInt(clean, 10)
   if (isNaN(n) || n <= 0) return String(num)
@@ -54,7 +88,7 @@ function numberToArabicWords(num: number | string): string {
     const hundred = Math.floor(n / 100)
     const remainder = n % 100
     if (remainder === 0) return hundreds[hundred]
-    return `${hundreds[hundred]} وَ${numberToArabicWords(remainder)}`
+    return `${hundreds[hundred]} وَ${numberToStandardArabicWords(remainder)}`
   }
   return String(num)
 }
@@ -103,7 +137,8 @@ export default function WaitingRoomTvPage({
     tickerSpeed: 'normal',
     tickerDirection: 'rtl',
     voiceGender: 'female',
-    announcementPhrase: 'patient_number',
+    voiceDialect: 'egyptian',
+    announcementPhrase: 'turn_number',
     chimeSound: 'luxury',
     speechTone: 'calm'
   })
@@ -189,7 +224,8 @@ export default function WaitingRoomTvPage({
             announceName: parsed.announceName ?? false,
             tickerDirection: parsed.tickerDirection || 'rtl',
             voiceGender: parsed.voiceGender || 'female',
-            announcementPhrase: parsed.announcementPhrase || 'patient_number',
+            voiceDialect: parsed.voiceDialect || 'egyptian',
+            announcementPhrase: parsed.announcementPhrase || 'turn_number',
             chimeSound: parsed.chimeSound || 'luxury',
             speechTone: parsed.speechTone || 'calm'
           }))
@@ -210,7 +246,8 @@ export default function WaitingRoomTvPage({
         tickerSpeed: clinic.tvSettings.tickerSpeed || prev.tickerSpeed,
         tickerDirection: clinic.tvSettings.tickerDirection || prev.tickerDirection || 'rtl',
         voiceGender: clinic.tvSettings.voiceGender || prev.voiceGender || 'female',
-        announcementPhrase: clinic.tvSettings.announcementPhrase || prev.announcementPhrase || 'patient_number',
+        voiceDialect: clinic.tvSettings.voiceDialect || prev.voiceDialect || 'egyptian',
+        announcementPhrase: clinic.tvSettings.announcementPhrase || prev.announcementPhrase || 'turn_number',
         chimeSound: clinic.tvSettings.chimeSound || prev.chimeSound || 'luxury',
         speechTone: clinic.tvSettings.speechTone || prev.speechTone || 'calm'
       }))
@@ -431,19 +468,31 @@ export default function WaitingRoomTvPage({
     patientName?: string,
     callName = true,
     gender: 'female' | 'male' = tvConfig.voiceGender || 'female',
-    phraseType: 'patient_number' | 'turn_number' = tvConfig.announcementPhrase || 'patient_number',
-    tone: 'calm' | 'natural' | 'quick' = tvConfig.speechTone || 'calm'
+    phraseType: 'patient_number' | 'turn_number' = tvConfig.announcementPhrase || 'turn_number',
+    tone: 'calm' | 'natural' | 'quick' = tvConfig.speechTone || 'calm',
+    dialect: 'egyptian' | 'standard' = tvConfig.voiceDialect || 'egyptian'
   ) => {
-    // 1. Convert digit turn into proper vocalized Arabic words (e.g. 5 -> خَمْسَة)
-    const turnInWords = numberToArabicWords(turnNumber)
+    const isEgyptian = dialect === 'egyptian'
+    // 1. Convert digit turn into proper vocalized words (Egyptian dialect or Standard Arabic)
+    const turnInWords = isEgyptian
+      ? numberToEgyptianArabicWords(turnNumber)
+      : numberToStandardArabicWords(turnNumber)
+
     // Only announce name if BOTH announceName and showPatientName are explicitly enabled
     const namePart = (callName && tvConfig.announceName && tvConfig.showPatientName && patientName && patientName.trim())
-      ? `${patientName.trim()} ... `
+      ? `${patientName.trim()} .. `
       : ''
-    const prefix = phraseType === 'turn_number' ? 'دَوْرٌ رَقْم' : 'مَرِيضٌ رَقْم'
 
-    // Eloquent Arabic phrasing with breathing micro-pauses (...) for natural cadence
-    const fullArabicPhrase = `${prefix} ${turnInWords} ... ${namePart}تَفَضَّلْ بِالدُّخُولِ إِلَى عِيَادَةِ الْكَشْفِ.`
+    let fullArabicPhrase: string
+    if (isEgyptian) {
+      // Natural, friendly Egyptian clinic calling phrases (بالعامية المصرية)
+      const prefix = phraseType === 'turn_number' ? 'دور رقم' : 'كشف رقم'
+      fullArabicPhrase = `${prefix} ${turnInWords} .. ${namePart}اتفضل حضرتك لغرفة الكشف.`
+    } else {
+      // Classical vocalized Arabic with diacritics (باللغة الفصحى)
+      const prefix = phraseType === 'turn_number' ? 'دَوْرٌ رَقْم' : 'مَرِيضٌ رَقْم'
+      fullArabicPhrase = `${prefix} ${turnInWords} ... ${namePart}تَفَضَّلْ بِالدُّخُولِ إِلَى عِيَادَةِ الْكَشْفِ.`
+    }
 
     // 2. Primary Method: Universal Cloud TTS Audio Stream via Web Audio Studio Pipeline
     const played = await playCloudTtsAudio(fullArabicPhrase, gender, tone)
@@ -463,25 +512,28 @@ export default function WaitingRoomTvPage({
       try {
         window.speechSynthesis.cancel()
         const utterance = new SpeechSynthesisUtterance(fullArabicPhrase)
-        utterance.lang = 'ar-SA'
+        utterance.lang = 'ar-EG'
 
         const voices = window.speechSynthesis.getVoices()
         const arabicVoices = voices.filter(v => v.lang.startsWith('ar') || v.lang.includes('ar-') || v.lang.includes('AR'))
 
         if (arabicVoices.length > 0) {
-          const femaleKeywords = ['female', 'hoda', 'zeina', 'salma', 'laila', 'zariyah', 'nour', 'fatima', 'maryam', 'amira', 'mona', 'sara']
-          const maleKeywords = ['male', 'shakir', 'naayf', 'maged', 'tarik', 'hamed', 'youssef', 'omar', 'ahmed', 'ali', 'hassan']
+          const egVoices = arabicVoices.filter(v => v.lang.toLowerCase().includes('eg'))
+          const voicePool = egVoices.length > 0 ? egVoices : arabicVoices
+
+          const femaleKeywords = ['female', 'salma', 'hoda', 'zeina', 'laila', 'zariyah', 'nour', 'fatima', 'maryam', 'amira', 'mona', 'sara']
+          const maleKeywords = ['male', 'shakir', 'maged', 'naayf', 'tarik', 'hamed', 'youssef', 'omar', 'ahmed', 'ali', 'hassan']
 
           let matchedVoice: SpeechSynthesisVoice | undefined
           if (gender === 'female') {
-            matchedVoice = arabicVoices.find(v => femaleKeywords.some(kw => v.name.toLowerCase().includes(kw))) || arabicVoices[0]
-            utterance.pitch = 1.15
-            utterance.rate = tone === 'calm' ? 0.88 : tone === 'quick' ? 1.05 : 0.95
+            matchedVoice = voicePool.find(v => femaleKeywords.some(kw => v.name.toLowerCase().includes(kw))) || voicePool[0]
+            utterance.pitch = 1.05
+            utterance.rate = tone === 'calm' ? 0.92 : tone === 'quick' ? 1.08 : 1.0
           } else {
-            matchedVoice = arabicVoices.find(v => maleKeywords.some(kw => v.name.toLowerCase().includes(kw))) ||
-              arabicVoices.find(v => !femaleKeywords.some(kw => v.name.toLowerCase().includes(kw))) || arabicVoices[0]
-            utterance.pitch = 0.85
-            utterance.rate = tone === 'calm' ? 0.84 : tone === 'quick' ? 0.96 : 0.88
+            matchedVoice = voicePool.find(v => maleKeywords.some(kw => v.name.toLowerCase().includes(kw))) ||
+              voicePool.find(v => !femaleKeywords.some(kw => v.name.toLowerCase().includes(kw))) || voicePool[0]
+            utterance.pitch = 0.95
+            utterance.rate = tone === 'calm' ? 0.90 : tone === 'quick' ? 1.05 : 0.96
           }
 
           if (matchedVoice) {
@@ -500,7 +552,8 @@ export default function WaitingRoomTvPage({
     turnNumber: string | number,
     patientName?: string,
     genderOverride?: 'female' | 'male',
-    toneOverride?: 'calm' | 'natural' | 'quick'
+    toneOverride?: 'calm' | 'natural' | 'quick',
+    dialectOverride?: 'egyptian' | 'standard'
   ) => {
     const chimeType = tvConfig.chimeSound || 'luxury'
     playChimeSound(chimeType)
@@ -512,7 +565,8 @@ export default function WaitingRoomTvPage({
         tvConfig.announceName,
         genderOverride || tvConfig.voiceGender,
         tvConfig.announcementPhrase,
-        toneOverride || tvConfig.speechTone
+        toneOverride || tvConfig.speechTone,
+        dialectOverride || tvConfig.voiceDialect
       )
     }, delayMs)
   }
@@ -603,7 +657,7 @@ export default function WaitingRoomTvPage({
         )
       }
     }
-  }, [currentPatient, isAudioEnabled, tvConfig.announceName, tvConfig.voiceGender, tvConfig.announcementPhrase, tvConfig.speechTone, tvConfig.chimeSound])
+  }, [currentPatient, isAudioEnabled, tvConfig.announceName, tvConfig.voiceGender, tvConfig.voiceDialect, tvConfig.announcementPhrase, tvConfig.speechTone, tvConfig.chimeSound])
 
   // Toggle Theme Mode (Dark <-> Light)
   const toggleTheme = () => {
@@ -779,7 +833,7 @@ export default function WaitingRoomTvPage({
                 if (nextState) {
                   triggerPatientVoiceCall(
                     currentPatient?.queue_number || '1',
-                    currentPatient?.patientName || 'المريض'
+                    currentPatient?.patientName
                   )
                 }
               }}
@@ -853,7 +907,7 @@ export default function WaitingRoomTvPage({
               setAudioState(true)
               triggerPatientVoiceCall(
                 currentPatient?.queue_number || '1',
-                currentPatient?.patientName || 'المريض'
+                currentPatient?.patientName
               )
             }}
             className="px-3 py-1 rounded-xl bg-blue-600 text-white font-black text-xs cursor-pointer hover:bg-blue-700 shadow-xs transition-transform active:scale-95"
@@ -1247,7 +1301,50 @@ export default function WaitingRoomTvPage({
 
               </div>
 
-              {/* Voice Gender Selection & Phrasing (تحديد صوت النطق ذكر أو أنثى) */}
+              {/* Voice Dialect Selection (اختيار اللهجة: عامية مصرية أو لغة فصحى) */}
+              <div className={`p-3 rounded-2xl border space-y-1.5 ${
+                isDark ? 'bg-slate-800/40 border-white/10' : 'bg-slate-50 border-slate-200'
+              }`}>
+                <label className="text-xs font-bold block flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Megaphone className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>لهجة النداء الصوتي:</span>
+                  </span>
+                  <span className="text-[11px] text-emerald-500 font-bold">
+                    {(tvConfig.voiceDialect || 'egyptian') === 'egyptian' ? '🇪🇬 عامية مصرية (طبيعية وودودة)' : '🏛️ لغة فصحى (رسمية)'}
+                  </span>
+                </label>
+                <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setTvConfig({ ...tvConfig, voiceDialect: 'egyptian' })}
+                    className={`py-2 rounded-xl text-center text-[11px] font-bold border transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${
+                      (tvConfig.voiceDialect || 'egyptian') === 'egyptian'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                        : isDark
+                          ? 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span>🇪🇬 العامية المصرية (طبيعية)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTvConfig({ ...tvConfig, voiceDialect: 'standard' })}
+                    className={`py-2 rounded-xl text-center text-[11px] font-bold border transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${
+                      tvConfig.voiceDialect === 'standard'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                        : isDark
+                          ? 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span>🏛️ اللغة الفصحى (رسمية)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Voice Gender Selection & Phrasing (تحديد صوت النطق ذكر أو أنثى وصيغة النداء) */}
               <div className="grid sm:grid-cols-2 gap-3">
                 
                 {/* Voice Gender Selector */}
@@ -1296,6 +1393,19 @@ export default function WaitingRoomTvPage({
                   <div className="grid grid-cols-2 gap-1.5 pt-0.5">
                     <button
                       type="button"
+                      onClick={() => setTvConfig({ ...tvConfig, announcementPhrase: 'turn_number' })}
+                      className={`py-1.5 rounded-xl text-center text-[11px] font-bold border transition-colors cursor-pointer ${
+                        (tvConfig.announcementPhrase || 'turn_number') === 'turn_number'
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                          : isDark
+                            ? 'bg-white/5 border-white/10 text-slate-300'
+                            : 'bg-white border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      <span>{(tvConfig.voiceDialect || 'egyptian') === 'egyptian' ? 'دور رقم اتنين 🔢' : 'دَوْر رقم كذا 🔢'}</span>
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setTvConfig({ ...tvConfig, announcementPhrase: 'patient_number' })}
                       className={`py-1.5 rounded-xl text-center text-[11px] font-bold border transition-colors cursor-pointer ${
                         tvConfig.announcementPhrase === 'patient_number'
@@ -1305,20 +1415,7 @@ export default function WaitingRoomTvPage({
                             : 'bg-white border-slate-200 text-slate-700'
                       }`}
                     >
-                      <span>مريض رقم كذا 🩺</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTvConfig({ ...tvConfig, announcementPhrase: 'turn_number' })}
-                      className={`py-1.5 rounded-xl text-center text-[11px] font-bold border transition-colors cursor-pointer ${
-                        tvConfig.announcementPhrase === 'turn_number'
-                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                          : isDark
-                            ? 'bg-white/5 border-white/10 text-slate-300'
-                            : 'bg-white border-slate-200 text-slate-700'
-                      }`}
-                    >
-                      <span>دور رقم كذا 🔢</span>
+                      <span>{(tvConfig.voiceDialect || 'egyptian') === 'egyptian' ? 'كشف رقم اتنين 🩺' : 'مريض رقم كذا 🩺'}</span>
                     </button>
                   </div>
                 </div>
@@ -1466,7 +1563,14 @@ export default function WaitingRoomTvPage({
                 <div>
                   <span className="font-bold text-xs block">مناداة اسم المريض بالصوت</span>
                   <span className="text-[11px] text-muted-foreground">
-                    {tvConfig.announceName ? 'ينطق: مريض رقم 5، [الاسم]، تفضل بالدخول' : 'ينطق: مريض رقم 5، تفضل بالدخول (لحفظ الخصوصية وعدم كشف الاسم)'}
+                    {tvConfig.announceName
+                      ? ((tvConfig.voiceDialect || 'egyptian') === 'egyptian'
+                          ? 'ينطق: دور رقم 2، [الاسم]، اتفضل حضرتك لغرفة الكشف'
+                          : 'ينطق: دَوْر رقم 2، [الاسم]، تفضل بالدخول إلى عيادة الكشف')
+                      : ((tvConfig.voiceDialect || 'egyptian') === 'egyptian'
+                          ? 'ينطق: دور رقم 2، اتفضل حضرتك لغرفة الكشف (لحفظ الخصوصية وعدم كشف الاسم)'
+                          : 'ينطق: دَوْر رقم 2، تفضل بالدخول إلى عيادة الكشف (لحفظ الخصوصية)')
+                    }
                   </span>
                 </div>
                 <input
@@ -1500,7 +1604,7 @@ export default function WaitingRoomTvPage({
                   onClick={() => {
                     setAudioState(true)
                     triggerPatientVoiceCall(
-                      currentPatient?.queue_number || '5',
+                      currentPatient?.queue_number || '2',
                       currentPatient?.patientName || 'أحمد علي',
                       'female'
                     )
@@ -1508,7 +1612,9 @@ export default function WaitingRoomTvPage({
                   className="py-2.5 px-3 rounded-2xl bg-purple-600/15 hover:bg-purple-600/25 text-purple-700 dark:text-purple-300 border border-purple-500/30 flex items-center justify-center gap-1.5 font-black cursor-pointer transition-colors"
                 >
                   <Megaphone className="w-4 h-4" />
-                  <span>تجربة صوت أنثوي ناعم 👩</span>
+                  <span>
+                    {(tvConfig.voiceDialect || 'egyptian') === 'egyptian' ? 'تجربة صوت أنثوي مصري 👩🇪🇬' : 'تجربة صوت أنثوي 👩'}
+                  </span>
                 </button>
 
                 <button
@@ -1516,7 +1622,7 @@ export default function WaitingRoomTvPage({
                   onClick={() => {
                     setAudioState(true)
                     triggerPatientVoiceCall(
-                      currentPatient?.queue_number || '5',
+                      currentPatient?.queue_number || '2',
                       currentPatient?.patientName || 'أحمد علي',
                       'male'
                     )
@@ -1524,7 +1630,9 @@ export default function WaitingRoomTvPage({
                   className="py-2.5 px-3 rounded-2xl bg-blue-600/15 hover:bg-blue-600/25 text-blue-700 dark:text-blue-300 border border-blue-500/30 flex items-center justify-center gap-1.5 font-black cursor-pointer transition-colors"
                 >
                   <Megaphone className="w-4 h-4" />
-                  <span>تجربة صوت ذكوري وقور 👨</span>
+                  <span>
+                    {(tvConfig.voiceDialect || 'egyptian') === 'egyptian' ? 'تجربة صوت ذكوري مصري 👨🇪🇬' : 'تجربة صوت ذكوري 👨'}
+                  </span>
                 </button>
               </div>
 
@@ -1545,7 +1653,8 @@ export default function WaitingRoomTvPage({
                     tickerSpeed: 'normal',
                     tickerDirection: 'rtl',
                     voiceGender: 'female',
-                    announcementPhrase: 'patient_number',
+                    voiceDialect: 'egyptian',
+                    announcementPhrase: 'turn_number',
                     chimeSound: 'luxury',
                     speechTone: 'calm'
                   })
