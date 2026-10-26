@@ -1,5 +1,7 @@
 'use client'
 
+import { ResidentialAreaSelector, ResidentialAreaValue } from '@/components/common/ResidentialAreaSelector'
+
 import React, { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -373,6 +375,7 @@ export function BookingModal({
   const [selectedCountry, setSelectedCountry] = useState<CountryInfo>(DEFAULT_COUNTRY)
   const [age, setAge] = useState<string>('')
   const [gender, setGender] = useState<'ذكر' | 'أنثى'>('أنثى')
+  const [residence, setResidence] = useState<ResidentialAreaValue | null>(null)
   const [phoneError, setPhoneError] = useState<boolean>(false)
   const [phoneErrorMsg, setPhoneErrorMsg] = useState<string>('')
 
@@ -567,6 +570,22 @@ export function BookingModal({
           receiverAccount: resolvedReceiver,
           paymentMethod
         } : null,
+        address: residence?.areaNameAr || undefined,
+        city: residence?.cityNameAr || residence?.governorateNameAr || undefined,
+        patientResidenceSnapshot: residence?.governorateId ? {
+          governorateId: residence.governorateId,
+          governorateNameAr: residence.governorateNameAr || '',
+          governorateNameEn: residence.governorateNameEn || '',
+          cityId: residence.cityId || '',
+          cityNameAr: residence.cityNameAr || '',
+          cityNameEn: residence.cityNameEn || '',
+          areaId: residence.areaId || '',
+          areaNameAr: residence.areaNameAr || '',
+          areaNameEn: residence.areaNameEn || '',
+          customAreaName: residence.customAreaName || undefined,
+          source: residence.source || 'manual',
+          recordedAt: new Date().toISOString()
+        } : null,
         createdAt: new Date().toISOString()
       }
 
@@ -590,6 +609,20 @@ export function BookingModal({
             phone: cleanPhone,
             age: age.trim() || null,
             gender: gender || 'أنثى',
+            residence: residence?.governorateId ? {
+              governorateId: residence.governorateId,
+              governorateNameAr: residence.governorateNameAr || '',
+              governorateNameEn: residence.governorateNameEn || '',
+              cityId: residence.cityId || '',
+              cityNameAr: residence.cityNameAr || '',
+              cityNameEn: residence.cityNameEn || '',
+              areaId: residence.areaId || '',
+              areaNameAr: residence.areaNameAr || '',
+              areaNameEn: residence.areaNameEn || '',
+              customAreaName: residence.customAreaName || undefined,
+              source: residence.source || 'manual',
+              updatedAt: new Date().toISOString()
+            } : null,
             createdAt: new Date().toISOString()
           })
         }
@@ -1023,6 +1056,17 @@ export function BookingModal({
                       </button>
                     </div>
                   </div>
+                </div>
+
+                {/* Optional Residential Area */}
+                <div className="pt-3 border-t border-slate-200/80 dark:border-slate-800">
+                  <ResidentialAreaSelector
+                    value={residence}
+                    onChange={setResidence}
+                    showLocationButton={true}
+                    compact={false}
+                    defaultSource="manual"
+                  />
                 </div>
               </div>
             )}

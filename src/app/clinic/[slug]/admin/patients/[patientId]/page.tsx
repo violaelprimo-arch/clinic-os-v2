@@ -1,5 +1,7 @@
 'use client'
 
+import { ResidentialAreaSelector, ResidentialAreaValue } from '@/components/common/ResidentialAreaSelector'
+
 import { use, useEffect, useState, useRef } from 'react'
 import { db } from '@/lib/firebase'
 import { collection, query, where, getDocs, updateDoc, doc, onSnapshot } from 'firebase/firestore'
@@ -8,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Clock, Phone, ArrowRight, User, Calendar, Pill, DollarSign, Printer, Activity, ChevronDown, ChevronUp, Stethoscope, CheckCircle, Save, MessageCircle, FileText, Download } from 'lucide-react'
+import { Clock, Phone, ArrowRight, User, Calendar, Pill, DollarSign, Printer, Activity, ChevronDown, ChevronUp, Stethoscope, CheckCircle, Save, MessageCircle, FileText, Download, MapPin } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
@@ -144,6 +146,9 @@ export default function PatientProfilePage({
   const [editingDiagnosisFor, setEditingDiagnosisFor] = useState<string | null>(null)
   const [tempDiagnosis, setTempDiagnosis] = useState('')
   const [clinic, setClinic] = useState<any>(null)
+  const [isEditResidenceOpen, setIsEditResidenceOpen] = useState(false)
+  const [editResidenceValue, setEditResidenceValue] = useState<ResidentialAreaValue | null>(null)
+  const [isSavingResidence, setIsSavingResidence] = useState(false)
 
   // Vital Signs State
   const [editingVitalsFor, setEditingVitalsFor] = useState<string | null>(null)
@@ -211,7 +216,8 @@ export default function PatientProfilePage({
               name: latest.patientName || 'مريض بدون اسم',
               age: latest.age || '',
               dob: latest.dob || '',
-              phone: latest.phone || phone
+              phone: latest.phone || phone,
+              residence: latest.patientResidenceSnapshot || latest.residence || null
             })
           } else {
             setAppointments([])
@@ -235,6 +241,46 @@ export default function PatientProfilePage({
       if (unsub) unsub()
     }
   }, [slug, phone])
+
+
+  const handleSaveProfileResidence = async () => {
+    if (appointments.length === 0) return
+    setIsSavingResidence(true)
+    try {
+      const latestAppt = appointments[0]
+      await updateDoc(doc(db, 'appointments', latestAppt.id), {
+        address: editResidenceValue?.areaNameAr || undefined,
+        city: editResidenceValue?.cityNameAr || editResidenceValue?.governorateNameAr || undefined,
+        patientResidenceSnapshot: editResidenceValue?.governorateId ? {
+          governorateId: editResidenceValue.governorateId,
+          governorateNameAr: editResidenceValue.governorateNameAr || '',
+          governorateNameEn: editResidenceValue.governorateNameEn || '',
+          cityId: editResidenceValue.cityId || '',
+          cityNameAr: editResidenceValue.cityNameAr || '',
+          cityNameEn: editResidenceValue.cityNameEn || '',
+          areaId: editResidenceValue.areaId || '',
+          areaNameAr: editResidenceValue.areaNameAr || '',
+          areaNameEn: editResidenceValue.areaNameEn || '',
+          customAreaName: editResidenceValue.customAreaName || undefined,
+          source: 'staff_override',
+          recordedAt: new Date().toISOString()
+        } : null
+      })
+
+      setPatientData((prev: any) => ({
+        ...prev,
+        residence: editResidenceValue
+      }))
+
+      toast.success('تم حفظ وتحديث منطقة السكن للمريض بنجاح')
+      setIsEditResidenceOpen(false)
+    } catch (e) {
+      console.error(e)
+      toast.error('حدث خطأ أثناء حفظ منطقة السكن')
+    } finally {
+      setIsSavingResidence(false)
+    }
+  }
 
   const handleSaveDiagnosis = async (apptId: string) => {
     try {
@@ -284,6 +330,29 @@ export default function PatientProfilePage({
                       <span>{patientData.age ? `${patientData.age} سنة` : patientData.dob}</span>
                     </span>
                   )}
+                </div>
+
+                {/* Residential Area */}
+                <div className="flex items-center justify-center md:justify-start gap-2 flex-wrap mt-2">
+                  <span className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground bg-secondary/60 px-3 py-1 rounded-xl">
+                    <MapPin className="w-3.5 h-3.5 text-primary" />
+                    <span>
+                      {patientData.residence?.governorateNameAr
+                        ? `${patientData.residence.governorateNameAr} - ${patientData.residence.areaNameAr || patientData.residence.cityNameAr}`
+                        : 'منطقة السكن: غير مسجلة'}
+                    </span>
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setEditResidenceValue(patientData.residence)
+                      setIsEditResidenceOpen(true)
+                    }}
+                    className="h-7 text-xs font-bold text-primary hover:bg-primary/10 rounded-lg px-2 cursor-pointer"
+                  >
+                    {patientData.residence?.governorateNameAr ? 'تعديل السكن' : 'استكمال منطقة السكن'}
+                  </Button>
                 </div>
               </div>
               <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-bold px-4 py-2 text-sm rounded-xl">
@@ -620,6 +689,53 @@ export default function PatientProfilePage({
           </div>
         )}
       </div>
+
+      {/* Quick Modal: Complete / Edit Patient Residence */}
+      <Dialog open={isEditResidenceOpen} onOpenChange={setIsEditResidenceOpen}>
+        <DialogContent className="sm:max-w-lg bg-card border border-border" dir={dir}>
+          <DialogHeader>
+            <DialogTitle className="text-base font-black flex items-center gap-2">
+              <MapPin className="w-5 h-5 text-primary" />
+              <span>استكمال وتعديل منطقة السكن للمريض</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            <div className="p-3 rounded-2xl bg-secondary/40 border border-border/80 text-xs">
+              <p className="font-bold text-foreground">{patientData.name}</p>
+              <p className="text-muted-foreground font-mono mt-0.5" dir="ltr">{phone}</p>
+            </div>
+
+            <ResidentialAreaSelector
+              value={editResidenceValue}
+              onChange={setEditResidenceValue}
+              showLocationButton={false}
+              compact={false}
+              defaultSource="staff_override"
+            />
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsEditResidenceOpen(false)}
+                className="rounded-xl"
+              >
+                إلغاء
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSaveProfileResidence}
+                disabled={isSavingResidence}
+                className="yalla-gradient-btn text-white rounded-xl"
+              >
+                {isSavingResidence ? 'جاري الحفظ...' : 'حفظ منطقة السكن'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   )
 }

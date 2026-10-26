@@ -266,7 +266,23 @@ export default function AnalyticsPage({ params }: { params: Promise<{ slug: stri
 
   // Deduplicated Unique Patients in Current Period
   const uniquePatientsList = useMemo(() => {
-    const map = new Map<string, { id: string; name: string; phone: string; age?: any; dob?: string | null; address?: string; city?: string; firstVisitDate: string }>()
+    // Group all current period visits by patient
+    // Supports multiple family members sharing the same phone number (patientId or phone + name)
+    const map = new Map<
+      string,
+      {
+        id: string
+        name: string
+        phone: string
+        age?: any
+        dob?: string | null
+        address?: string
+        city?: string
+        firstVisitDate: string
+        firstCompletedVisit?: any
+        residence?: any
+      }
+    >()
 
     // Sort visits by date ascending
     const sorted = [...currentPeriodAppts].sort((a, b) => {
@@ -276,7 +292,11 @@ export default function AnalyticsPage({ params }: { params: Promise<{ slug: stri
     })
 
     for (const a of sorted) {
-      const patientKey = a.phone || a.patientId || a.id
+      const patientKey =
+        a.patientId ||
+        (a.phone
+          ? `${a.phone}__${(a.patientName || '').trim().toLowerCase()}`
+          : a.id)
       if (!patientKey) continue
 
       if (!map.has(patientKey)) {
@@ -286,10 +306,21 @@ export default function AnalyticsPage({ params }: { params: Promise<{ slug: stri
           phone: a.phone || '',
           age: a.age || null,
           dob: a.dob || null,
-          address: a.address || a.area || '',
-          city: a.city || a.governorate || '',
-          firstVisitDate: a.date || (a.createdAt ? a.createdAt.split('T')[0] : getCairoDateString())
+          address: a.address || a.area || a.patientResidenceSnapshot?.areaNameAr || '',
+          city: a.city || a.governorate || a.patientResidenceSnapshot?.cityNameAr || '',
+          firstVisitDate: a.date || (a.createdAt ? a.createdAt.split('T')[0] : getCairoDateString()),
+          firstCompletedVisit: a.status === 'completed' ? a : undefined,
+          residence: a.patientResidenceSnapshot || a.residence || (a.address || a.city ? { address: a.address, city: a.city } : null)
         })
+      } else {
+        const existing = map.get(patientKey)!
+        // If first completed visit is not yet recorded and this visit is completed, prioritize its historical snapshot
+        if (!existing.firstCompletedVisit && a.status === 'completed') {
+          existing.firstCompletedVisit = a
+          if (a.patientResidenceSnapshot || a.residence) {
+            existing.residence = a.patientResidenceSnapshot || a.residence
+          }
+        }
       }
     }
 
@@ -299,7 +330,11 @@ export default function AnalyticsPage({ params }: { params: Promise<{ slug: stri
   const prevUniquePatientsCount = useMemo(() => {
     const set = new Set<string>()
     for (const a of previousPeriodAppts) {
-      const patientKey = a.phone || a.patientId || a.id
+      const patientKey =
+        a.patientId ||
+        (a.phone
+          ? `${a.phone}__${(a.patientName || '').trim().toLowerCase()}`
+          : a.id)
       if (patientKey) set.add(patientKey)
     }
     return set.size
@@ -316,7 +351,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ slug: stri
     let unrecorded = 0
     let unmapped = 0
 
-    // Initialize map with known geocoded areas
+    // Initialize map with known geocoded areas from authoritative dataset
     for (const reg of EGYPT_AREAS_COORDINATES) {
       areaMap.set(reg.id, {
         id: reg.id,
@@ -331,15 +366,16 @@ export default function AnalyticsPage({ params }: { params: Promise<{ slug: stri
     }
 
     for (const p of uniquePatientsList) {
-      const rawLocation = p.city || p.address
-      const normalized = normalizeArea(rawLocation)
+      // Use residence from first completed visit in period, falling back to profile residence
+      const res = p.residence
+      const normalized = normalizeArea(res)
 
       if (normalized.normalizedId === 'unrecorded') {
         unrecorded++
         continue
       }
 
-      if (normalized.normalizedId === 'unmapped') {
+      if (normalized.normalizedId === 'unmapped' || normalized.normalizedId === 'unmapped_custom') {
         unmapped++
         continue
       }
@@ -347,6 +383,8 @@ export default function AnalyticsPage({ params }: { params: Promise<{ slug: stri
       const existing = areaMap.get(normalized.normalizedId)
       if (existing) {
         existing.patientCount++
+      } else {
+        unmapped++
       }
     }
 

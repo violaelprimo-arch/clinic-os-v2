@@ -1,3 +1,11 @@
+import {
+  EGYPT_GOVERNORATES,
+  findAreaById,
+  CUSTOM_AREA_ID,
+  GovernorateItem,
+  CityItem,
+  AreaItem
+} from '../data/egyptGeographicData'
 /**
  * ClinicOS Analytics & Statistics Engine
  * Comprehensive, production-grade statistical calculation engine
@@ -159,326 +167,109 @@ export interface AreaCoordinate {
   keywords: string[]
 }
 
-export const EGYPT_AREAS_COORDINATES: AreaCoordinate[] = [
-  // Cairo & Major Neighborhoods
-  {
-    id: 'cairo-nasr-city',
-    nameAr: 'مدينة نصر',
-    nameEn: 'Nasr City',
-    governorateAr: 'القاهرة',
-    lat: 30.052,
-    lng: 31.342,
-    keywords: ['مدينة نصر', 'نصر', 'nasr city', 'حي العاشر', 'مكرم عبيد', 'عباس العقاد', 'السراج']
-  },
-  {
-    id: 'cairo-heliopolis',
-    nameAr: 'مصر الجديدة',
-    nameEn: 'Heliopolis',
-    governorateAr: 'القاهرة',
-    lat: 30.088,
-    lng: 31.328,
-    keywords: ['مصر الجديدة', 'هيليوبوليس', 'heliopolis', 'الكوربة', 'روكسي', 'الميرغني']
-  },
-  {
-    id: 'cairo-maadi',
-    nameAr: 'المعادي',
-    nameEn: 'Maadi',
-    governorateAr: 'القاهرة',
-    lat: 29.959,
-    lng: 31.258,
-    keywords: ['المعادي', 'معادي', 'maadi', 'دجلة', 'زهراء المعادي', 'البساتين']
-  },
-  {
-    id: 'cairo-new-cairo',
-    nameAr: 'القاهرة الجديدة (التجمع)',
-    nameEn: 'New Cairo',
-    governorateAr: 'القاهرة',
-    lat: 30.012,
-    lng: 31.491,
-    keywords: ['التجمع', 'القاهرة الجديدة', 'new cairo', 'التجمع الخامس', 'التجمع الاول', 'الرحاب', 'مدينتي', 'الشروق']
-  },
-  {
-    id: 'cairo-shubra',
-    nameAr: 'شبرا',
-    nameEn: 'Shubra',
-    governorateAr: 'القاهرة',
-    lat: 30.083,
-    lng: 31.248,
-    keywords: ['شبرا', 'shubra', 'شبرا مصر', 'شبرا الخيمة', 'الساحل', 'روض الفرج']
-  },
-  {
-    id: 'cairo-downtown',
-    nameAr: 'وسط البلد',
-    nameEn: 'Downtown Cairo',
-    governorateAr: 'القاهرة',
-    lat: 30.044,
-    lng: 31.235,
-    keywords: ['وسط البلد', 'التحرير', 'عابدين', 'الزمالك', 'قصر النيل', 'باب اللوق']
-  },
-  {
-    id: 'cairo-general',
-    nameAr: 'القاهرة (عام)',
-    nameEn: 'Cairo',
-    governorateAr: 'القاهرة',
-    lat: 30.044,
-    lng: 31.235,
-    keywords: ['القاهرة', 'cairo', 'عين شمس', 'الزيتون', 'المطرية', 'حدائق القبة', 'المرج', 'حلوان']
-  },
-
-  // Giza & Neighborhoods
-  {
-    id: 'giza-dokki-mohandessin',
-    nameAr: 'الدقي والمهندسين',
-    nameEn: 'Dokki & Mohandessin',
-    governorateAr: 'الجيزة',
-    lat: 30.048,
-    lng: 31.206,
-    keywords: ['الدقي', 'المهندسين', 'dokki', 'mohandessin', 'ميدان لبنان', 'جامعة الدول', 'البطل احمد عبد العزيز', 'العجوزة']
-  },
-  {
-    id: 'giza-haram-faisal',
-    nameAr: 'الهرم وفيصل',
-    nameEn: 'Haram & Faisal',
-    governorateAr: 'الجيزة',
-    lat: 29.997,
-    lng: 31.148,
-    keywords: ['الهرم', 'فيصل', 'haram', 'faisal', 'العريش', 'الطالبية', 'المريوطية', 'الرماية']
-  },
-  {
-    id: 'giza-october',
-    nameAr: '6 أكتوبر',
-    nameEn: '6th of October',
-    governorateAr: 'الجيزة',
-    lat: 29.972,
-    lng: 30.942,
-    keywords: ['6 اكتوبر', 'أكتوبر', 'october', 'الحصري', 'حدائق اكتوبر', 'غرب سوميد']
-  },
-  {
-    id: 'giza-zayed',
-    nameAr: 'الشيخ زايد',
-    nameEn: 'Sheikh Zayed',
-    governorateAr: 'الجيزة',
-    lat: 30.055,
-    lng: 30.985,
-    keywords: ['الشيخ زايد', 'زايد', 'sheikh zayed', 'هايبر وان']
-  },
-  {
-    id: 'giza-general',
-    nameAr: 'الجيزة (عام)',
-    nameEn: 'Giza',
-    governorateAr: 'الجيزة',
-    lat: 30.013,
-    lng: 31.208,
-    keywords: ['الجيزة', 'giza', 'العمرانية', 'بولاق الدكرور', 'الوراق', 'إمبابة']
-  },
-
-  // Alexandria & Coast
-  {
-    id: 'alex-general',
-    nameAr: 'الإسكندرية',
-    nameEn: 'Alexandria',
-    governorateAr: 'الإسكندرية',
-    lat: 31.200,
-    lng: 29.918,
-    keywords: ['الإسكندرية', 'الاسكندرية', 'alexandria', 'سموحة', 'سيدي جابر', 'محرم بك', 'لوران', 'ميامي', 'المنتزه', 'العجمي']
-  },
-
-  // Delta Governorates
-  {
-    id: 'dakahlia-mansoura',
-    nameAr: 'المنصورة (الدقهلية)',
-    nameEn: 'Mansoura',
-    governorateAr: 'الدقهلية',
-    lat: 31.040,
-    lng: 31.378,
-    keywords: ['المنصورة', 'الدقهلية', 'mansoura', 'ميت غمر', 'السنبلاوين', 'بلقاس', 'طلخا']
-  },
-  {
-    id: 'gharbia-tanta',
-    nameAr: 'طنطا (الغربية)',
-    nameEn: 'Tanta',
-    governorateAr: 'الغربية',
-    lat: 30.786,
-    lng: 31.000,
-    keywords: ['طنطا', 'الغربية', 'tanta', 'المحلة', 'المحلة الكبرى', 'كفر الزيات', 'زفتى']
-  },
-  {
-    id: 'sharqia-zagazig',
-    nameAr: 'الزقازيق (الشرقية)',
-    nameEn: 'Zagazig',
-    governorateAr: 'الشرقية',
-    lat: 30.587,
-    lng: 31.502,
-    keywords: ['الزقازيق', 'الشرقية', 'zagazig', 'العاشر من رمضان', 'بلبيس', 'منيا القمح', 'فاقوس']
-  },
-  {
-    id: 'qalyubia-banha',
-    nameAr: 'بنها (القليوبية)',
-    nameEn: 'Banha',
-    governorateAr: 'القليوبية',
-    lat: 30.466,
-    lng: 31.185,
-    keywords: ['بنها', 'القليوبية', 'banha', 'قليوب', 'طوخ', 'العبور', 'الخانكة']
-  },
-  {
-    id: 'monufia-shibin',
-    nameAr: 'شبين الكوم (المنوفية)',
-    nameEn: 'Shibin El Kom',
-    governorateAr: 'المنوفية',
-    lat: 30.552,
-    lng: 31.009,
-    keywords: ['المنوفية', 'شبين الكوم', 'shibin', 'السادات', 'منوف', 'أشمون', 'قويسنا']
-  },
-  {
-    id: 'beheira-damanhour',
-    nameAr: 'دمنهور (البحيرة)',
-    nameEn: 'Damanhour',
-    governorateAr: 'البحيرة',
-    lat: 31.042,
-    lng: 30.470,
-    keywords: ['البحيرة', 'دمنهور', 'damanhour', 'كفر الدوار', 'إيتاي البارود', 'رشيد']
-  },
-  {
-    id: 'damietta',
-    nameAr: 'دمياط',
-    nameEn: 'Damietta',
-    governorateAr: 'دمياط',
-    lat: 31.417,
-    lng: 31.814,
-    keywords: ['دمياط', 'damietta', 'رأس البر', 'دمياط الجديدة']
-  },
-  {
-    id: 'kafr-el-sheikh',
-    nameAr: 'كفر الشيخ',
-    nameEn: 'Kafr El Sheikh',
-    governorateAr: 'كفر الشيخ',
-    lat: 31.111,
-    lng: 30.939,
-    keywords: ['كفر الشيخ', 'kafr el sheikh', 'دسوق', 'بيلا', 'فوه']
-  },
-
-  // Canal Governorates
-  {
-    id: 'canal-ismailia',
-    nameAr: 'الإسماعيلية',
-    nameEn: 'Ismailia',
-    governorateAr: 'الإسماعيلية',
-    lat: 30.596,
-    lng: 32.271,
-    keywords: ['الإسماعيلية', 'الاسماعيلية', 'ismailia', 'فايد', 'القنطرة']
-  },
-  {
-    id: 'canal-port-said',
-    nameAr: 'بورسعيد',
-    nameEn: 'Port Said',
-    governorateAr: 'بورسعيد',
-    lat: 31.265,
-    lng: 32.301,
-    keywords: ['بورسعيد', 'port said', 'بورفؤاد']
-  },
-  {
-    id: 'canal-suez',
-    nameAr: 'السويس',
-    nameEn: 'Suez',
-    governorateAr: 'السويس',
-    lat: 29.966,
-    lng: 32.549,
-    keywords: ['السويس', 'suez', 'العين السخنة']
-  },
-
-  // Upper Egypt
-  {
-    id: 'fayoum',
-    nameAr: 'الفيوم',
-    nameEn: 'Fayoum',
-    governorateAr: 'الفيوم',
-    lat: 29.308,
-    lng: 30.842,
-    keywords: ['الفيوم', 'fayoum', 'سنورس', 'إبشواي']
-  },
-  {
-    id: 'beni-suef',
-    nameAr: 'بني سويف',
-    nameEn: 'Beni Suef',
-    governorateAr: 'بني سويف',
-    lat: 29.066,
-    lng: 31.099,
-    keywords: ['بني سويف', 'beni suef', 'الواسطى', 'ببا']
-  },
-  {
-    id: 'minya',
-    nameAr: 'المنيا',
-    nameEn: 'Minya',
-    governorateAr: 'المنيا',
-    lat: 28.087,
-    lng: 30.761,
-    keywords: ['المنيا', 'minya', 'ملوي', 'بني مزار', 'مغاغة', 'سمالوط']
-  },
-  {
-    id: 'asyut',
-    nameAr: 'أسيوط',
-    nameEn: 'Asyut',
-    governorateAr: 'أسيوط',
-    lat: 27.180,
-    lng: 31.183,
-    keywords: ['أسيوط', 'اسيوط', 'asyut', 'ديروط', 'القوصية', 'منفلوط', 'أبوتيج']
-  },
-  {
-    id: 'sohag',
-    nameAr: 'سوهاج',
-    nameEn: 'Sohag',
-    governorateAr: 'سوهاج',
-    lat: 26.556,
-    lng: 31.694,
-    keywords: ['سوهاج', 'sohag', 'طهطا', 'جرجا', 'المراغة', 'أخميم']
-  },
-  {
-    id: 'qena-luxor',
-    nameAr: 'قنا والأقصر',
-    nameEn: 'Qena & Luxor',
-    governorateAr: 'قنا',
-    lat: 26.155,
-    lng: 32.716,
-    keywords: ['قنا', 'الأقصر', 'الاقصر', 'qena', 'luxor', 'نجع حمادي', 'دشنا', 'إسنا']
-  },
-  {
-    id: 'aswan',
-    nameAr: 'أسوان',
-    nameEn: 'Aswan',
-    governorateAr: 'أسوان',
-    lat: 24.088,
-    lng: 32.899,
-    keywords: ['أسوان', 'اسوان', 'aswan', 'كوم أمبو', 'إدفو']
-  }
-]
+/**
+ * Authoritative coordinates of all Egyptian districts, cities, and governorates.
+ * Dynamically generated from official CAPMAS administrative geographic data.
+ */
+export const EGYPT_AREAS_COORDINATES: AreaCoordinate[] = EGYPT_GOVERNORATES.flatMap((gov) =>
+  gov.cities.flatMap((city) =>
+    city.areas.map((area) => ({
+      id: area.id,
+      nameAr: area.nameAr,
+      nameEn: area.nameEn,
+      governorateAr: gov.nameAr,
+      lat: area.lat,
+      lng: area.lng,
+      keywords: area.keywords || [area.nameAr, area.nameEn]
+    }))
+  )
+)
 
 /**
- * Normalizes any free-text address or area string to an authoritative Egyptian region
+ * Normalizes any structured residence object or free-text address string to an authoritative Egyptian region
  */
-export function normalizeArea(rawArea?: string | null): {
+export function normalizeArea(rawArea?: string | any | null): {
   normalizedId: string
   labelAr: string
+  labelEn?: string
   governorateAr: string
   isMapped: boolean
   coords: { lat: number; lng: number } | null
 } {
-  if (!rawArea || !rawArea.trim()) {
+  if (!rawArea) {
     return {
       normalizedId: 'unrecorded',
       labelAr: 'منطقة غير مسجلة',
+      labelEn: 'Unrecorded Area',
       governorateAr: 'غير محدد',
       isMapped: false,
       coords: null
     }
   }
 
-  const clean = rawArea.toLowerCase().replace(/[\u064B-\u0652]/g, '').trim()
+  // 1. Structured Residence Object
+  if (typeof rawArea === 'object') {
+    if (rawArea.areaId && rawArea.areaId !== CUSTOM_AREA_ID) {
+      const match = findAreaById(rawArea.areaId)
+      if (match) {
+        return {
+          normalizedId: match.area.id,
+          labelAr: match.area.nameAr,
+          labelEn: match.area.nameEn,
+          governorateAr: match.governorate.nameAr,
+          isMapped: true,
+          coords: { lat: match.area.lat, lng: match.area.lng }
+        }
+      }
+    }
+
+    if (rawArea.customAreaName || rawArea.areaId === CUSTOM_AREA_ID) {
+      return {
+        normalizedId: 'unmapped_custom',
+        labelAr: rawArea.customAreaName || rawArea.areaNameAr || 'منطقة مخصصة غير محددة على الخريطة',
+        labelEn: rawArea.customAreaName || rawArea.areaNameEn || 'Unmapped Custom Area',
+        governorateAr: rawArea.governorateNameAr || 'غير محدد على الخريطة',
+        isMapped: false,
+        coords: null
+      }
+    }
+
+    if (rawArea.governorateNameAr || rawArea.areaNameAr) {
+      const queryStr = `${rawArea.governorateNameAr || ''} ${rawArea.cityNameAr || ''} ${rawArea.areaNameAr || ''}`
+      return normalizeArea(queryStr)
+    }
+
+    return {
+      normalizedId: 'unrecorded',
+      labelAr: 'منطقة غير مسجلة',
+      labelEn: 'Unrecorded Area',
+      governorateAr: 'غير محدد',
+      isMapped: false,
+      coords: null
+    }
+  }
+
+  // 2. Legacy Free-text String
+  const str = String(rawArea).trim()
+  if (!str) {
+    return {
+      normalizedId: 'unrecorded',
+      labelAr: 'منطقة غير مسجلة',
+      labelEn: 'Unrecorded Area',
+      governorateAr: 'غير محدد',
+      isMapped: false,
+      coords: null
+    }
+  }
+
+  const clean = str.toLowerCase().replace(/[ً-ْ]/g, '').trim()
 
   for (const region of EGYPT_AREAS_COORDINATES) {
     if (clean.includes(region.nameAr.toLowerCase())) {
       return {
         normalizedId: region.id,
         labelAr: region.nameAr,
+        labelEn: region.nameEn,
         governorateAr: region.governorateAr,
         isMapped: true,
         coords: { lat: region.lat, lng: region.lng }
@@ -489,6 +280,7 @@ export function normalizeArea(rawArea?: string | null): {
         return {
           normalizedId: region.id,
           labelAr: region.nameAr,
+          labelEn: region.nameEn,
           governorateAr: region.governorateAr,
           isMapped: true,
           coords: { lat: region.lat, lng: region.lng }
@@ -497,17 +289,16 @@ export function normalizeArea(rawArea?: string | null): {
     }
   }
 
-  // Known string but outside primary geocoded points
   return {
     normalizedId: 'unmapped',
-    labelAr: rawArea.trim(),
+    labelAr: str,
+    labelEn: str,
     governorateAr: 'غير محدد على الخريطة',
     isMapped: false,
     coords: null
   }
 }
 
-// ============================================================================
 // 3. AGE DISTRIBUTION & PEDIATRICS
 // ============================================================================
 

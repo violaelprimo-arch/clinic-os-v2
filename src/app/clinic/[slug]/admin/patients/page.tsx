@@ -1,5 +1,7 @@
 'use client'
 
+import { ResidentialAreaSelector, ResidentialAreaValue } from '@/components/common/ResidentialAreaSelector'
+
 import { use, useEffect, useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -8,11 +10,11 @@ import { Badge } from '@/components/ui/badge'
 import {
   Search, UserPlus, Phone, Calendar, Clock, MessageCircle,
   FileText, ChevronLeft, ChevronRight, Filter, User, Plus,
-  FileSignature, ArrowUpDown, MoreVertical, X, Trash2, FileSpreadsheet, Printer
+  FileSignature, ArrowUpDown, MoreVertical, X, Trash2, FileSpreadsheet, Printer, MapPin, AlertCircle
 } from 'lucide-react'
 import Link from 'next/link'
 import { db } from '@/lib/firebase'
-import { collection, query, where, getDocs, addDoc, onSnapshot, doc, deleteDoc } from 'firebase/firestore'
+import { collection, query, where, getDocs, addDoc, onSnapshot, doc, deleteDoc, updateDoc } from 'firebase/firestore'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -32,6 +34,11 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
+  const [residenceFilter, setResidenceFilter] = useState<'ALL' | 'INCOMPLETE' | 'COMPLETED'>('ALL')
+  const [newResidence, setNewResidence] = useState<ResidentialAreaValue | null>(null)
+  const [editingPatientResidence, setEditingPatientResidence] = useState<any | null>(null)
+  const [editResidenceValue, setEditResidenceValue] = useState<ResidentialAreaValue | null>(null)
+  const [isSavingResidence, setIsSavingResidence] = useState<boolean>(false)
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [clinicId, setClinicId] = useState<string | null>(null)
@@ -159,6 +166,9 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
         if (!belongsToBranch) return
       }
 
+      const resObj = d.patientResidenceSnapshot || d.residence || null
+      const hasRes = Boolean(resObj?.governorateId)
+
       if (!pMap.has(d.phone)) {
         pMap.set(d.phone, {
           id: d.phone,
@@ -169,7 +179,10 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
           lastVisit: d.date,
           allVisits: [d.date],
           lastService: d.serviceName || 'كشف',
-          status: 'نشط'
+          status: 'نشط',
+          residence: resObj,
+          hasResidence: hasRes,
+          latestApptId: d.id
         })
       } else {
         const existing = pMap.get(d.phone)
@@ -178,10 +191,19 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
           existing.allVisits.push(d.date)
         }
         if (d.age && !existing.age) existing.age = d.age
+        if (resObj && !existing.hasResidence) {
+          existing.residence = resObj
+          existing.hasResidence = true
+        }
         if (new Date(d.date) > new Date(existing.lastVisit)) {
           existing.lastVisit = d.date
           existing.name = d.patientName
           existing.lastService = d.serviceName || existing.lastService
+          existing.latestApptId = d.id || existing.latestApptId
+          if (resObj) {
+            existing.residence = resObj
+            existing.hasResidence = true
+          }
         }
       }
     })
@@ -192,14 +214,20 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
     return patients.filter(p => {
       const matchSearch = p.name.includes(search) || p.phone.includes(search)
       const matchStatus = statusFilter === 'ALL' || p.status === statusFilter
+      const matchResidence =
+        residenceFilter === 'ALL'
+          ? true
+          : residenceFilter === 'INCOMPLETE'
+          ? !p.hasResidence
+          : p.hasResidence
 
       const hasVisitInRange = (!fromDate && !toDate) || (
         p.allVisits && p.allVisits.some((v: string) => (!fromDate || v >= fromDate) && (!toDate || v <= toDate))
       ) || ((!fromDate || p.lastVisit >= fromDate) && (!toDate || p.lastVisit <= toDate))
 
-      return matchSearch && matchStatus && hasVisitInRange
+      return matchSearch && matchStatus && matchResidence && hasVisitInRange
     })
-  }, [patients, search, statusFilter, fromDate, toDate])
+  }, [patients, search, statusFilter, residenceFilter, fromDate, toDate])
 
   // Pagination slice
   const paginatedPatients = useMemo(() => {
@@ -208,6 +236,56 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
   }, [filtered, currentPage])
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage) || 1
+
+
+  const handleSavePatientResidence = async () => {
+    if (!editingPatientResidence) return
+    setIsSavingResidence(true)
+    try {
+      // Find appointments with this phone to update the latest snapshot and profile
+      const q = query(
+        collection(db, 'appointments'),
+        where('phone', '==', editingPatientResidence.phone)
+      )
+      const snap = await getDocs(q)
+      if (!snap.empty) {
+        // Sort to get latest
+        const docs = snap.docs.sort((a, b) => {
+          const dA = a.data().date || a.data().createdAt || ''
+          const dB = b.data().date || b.data().createdAt || ''
+          return dB.localeCompare(dA)
+        })
+        const latestDoc = docs[0]
+        await updateDoc(doc(db, 'appointments', latestDoc.id), {
+          address: editResidenceValue?.areaNameAr || undefined,
+          city: editResidenceValue?.cityNameAr || editResidenceValue?.governorateNameAr || undefined,
+          patientResidenceSnapshot: editResidenceValue?.governorateId ? {
+            governorateId: editResidenceValue.governorateId,
+            governorateNameAr: editResidenceValue.governorateNameAr || '',
+            governorateNameEn: editResidenceValue.governorateNameEn || '',
+            cityId: editResidenceValue.cityId || '',
+            cityNameAr: editResidenceValue.cityNameAr || '',
+            cityNameEn: editResidenceValue.cityNameEn || '',
+            areaId: editResidenceValue.areaId || '',
+            areaNameAr: editResidenceValue.areaNameAr || '',
+            areaNameEn: editResidenceValue.areaNameEn || '',
+            customAreaName: editResidenceValue.customAreaName || undefined,
+            source: 'staff_override',
+            recordedAt: new Date().toISOString()
+          } : null
+        })
+      }
+
+      toast.success('تم حفظ وتحديث منطقة السكن للمريض بنجاح')
+      setEditingPatientResidence(null)
+      setEditResidenceValue(null)
+    } catch (e) {
+      console.error(e)
+      toast.error('حدث خطأ أثناء حفظ منطقة السكن')
+    } finally {
+      setIsSavingResidence(false)
+    }
+  }
 
   const handleAddNewPatient = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -231,6 +309,24 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
           servicePrice: Number(newPrice),
           date: today,
           status: 'waiting',
+          age: newAge || null,
+          dob: newDob || null,
+          address: newResidence?.areaNameAr || undefined,
+          city: newResidence?.cityNameAr || newResidence?.governorateNameAr || undefined,
+          patientResidenceSnapshot: newResidence?.governorateId ? {
+            governorateId: newResidence.governorateId,
+            governorateNameAr: newResidence.governorateNameAr || '',
+            governorateNameEn: newResidence.governorateNameEn || '',
+            cityId: newResidence.cityId || '',
+            cityNameAr: newResidence.cityNameAr || '',
+            cityNameEn: newResidence.cityNameEn || '',
+            areaId: newResidence.areaId || '',
+            areaNameAr: newResidence.areaNameAr || '',
+            areaNameEn: newResidence.areaNameEn || '',
+            customAreaName: newResidence.customAreaName || undefined,
+            source: 'staff_override',
+            recordedAt: new Date().toISOString()
+          } : null,
           createdAt: new Date().toISOString()
         })
       }
@@ -248,6 +344,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
       setIsAddOpen(false)
       setNewName('')
       setNewPhone('')
+      setNewResidence(null)
       toast.success('تمت إضافة المريض بنجاح إلى السجل')
     } catch (err) {
       toast.error('حدث خطأ أثناء إضافة المريض')
@@ -563,6 +660,17 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                   </div>
                 </div>
 
+                {/* Residential Area Selector */}
+                <div className="pt-2 border-t border-border">
+                  <ResidentialAreaSelector
+                    value={newResidence}
+                    onChange={setNewResidence}
+                    showLocationButton={false}
+                    compact={true}
+                    defaultSource="staff_override"
+                  />
+                </div>
+
                 <div className="pt-3 flex gap-2">
                   <Button
                     type="submit"
@@ -682,7 +790,18 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+          {/* Residence Filter */}
+          <select
+            value={residenceFilter}
+            onChange={e => { setResidenceFilter(e.target.value as any); setCurrentPage(1); }}
+            className="h-10 px-3 rounded-xl border border-border text-xs font-bold text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
+          >
+            <option value="ALL">كل مناطق السكن</option>
+            <option value="INCOMPLETE">⚠️ منطقة السكن غير مكتملة</option>
+            <option value="COMPLETED">✅ منطقة السكن مكتملة</option>
+          </select>
+
           <select
             value={statusFilter}
             onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}
@@ -745,6 +864,39 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                               <span className="text-[10px] text-muted-foreground font-mono sm:hidden">
                                 {patient.phone}
                               </span>
+                              <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                                {patient.hasResidence ? (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                      setEditingPatientResidence(patient)
+                                      setEditResidenceValue(patient.residence)
+                                    }}
+                                    className="inline-flex items-center gap-1 text-[10px] font-bold text-sky-600 dark:text-sky-400 bg-sky-500/10 hover:bg-sky-500/20 px-2 py-0.5 rounded-md border border-sky-500/20 cursor-pointer"
+                                    title="تعديل منطقة السكن"
+                                  >
+                                    <MapPin className="w-3 h-3 shrink-0" />
+                                    <span>{patient.residence.governorateNameAr} - {patient.residence.areaNameAr || patient.residence.cityNameAr}</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                      setEditingPatientResidence(patient)
+                                      setEditResidenceValue(null)
+                                    }}
+                                    className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 px-2 py-0.5 rounded-md border border-amber-500/30 cursor-pointer"
+                                    title="استكمال منطقة السكن"
+                                  >
+                                    <AlertCircle className="w-3 h-3 shrink-0" />
+                                    <span>منطقة السكن غير مكتملة</span>
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </Link>
@@ -872,6 +1024,55 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
           </div>
         </div>
       </div>
+
+      {/* Quick Modal: Complete / Edit Patient Residence */}
+      <Dialog open={editingPatientResidence !== null} onOpenChange={(open) => { if (!open) setEditingPatientResidence(null); }}>
+        <DialogContent className="sm:max-w-lg bg-card border border-border" dir={dir}>
+          <DialogHeader>
+            <DialogTitle className="text-base font-black flex items-center gap-2">
+              <MapPin className="w-5 h-5 text-primary" />
+              <span>استكمال وتعديل منطقة السكن للمريض</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          {editingPatientResidence && (
+            <div className="space-y-4 pt-2">
+              <div className="p-3 rounded-2xl bg-secondary/40 border border-border/80 text-xs">
+                <p className="font-bold text-foreground">{editingPatientResidence.name}</p>
+                <p className="text-muted-foreground font-mono mt-0.5" dir="ltr">{editingPatientResidence.phone}</p>
+              </div>
+
+              <ResidentialAreaSelector
+                value={editResidenceValue}
+                onChange={setEditResidenceValue}
+                showLocationButton={false}
+                compact={false}
+                defaultSource="staff_override"
+              />
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEditingPatientResidence(null)}
+                  className="rounded-xl"
+                >
+                  إلغاء
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleSavePatientResidence}
+                  disabled={isSavingResidence}
+                  className="yalla-gradient-btn text-white rounded-xl"
+                >
+                  {isSavingResidence ? 'جاري الحفظ...' : 'حفظ منطقة السكن'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
     </div>
   )
 }
