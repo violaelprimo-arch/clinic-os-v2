@@ -810,24 +810,93 @@ export function LandingPageManager() {
           />
         )}
         {tab === 'screenshots' && (
-          <ListEditor
-            title="صور النظام"
-            fields={shots}
-            items={config.screenshots}
-            onChange={(items) => set('screenshots', items)}
-            create={() => ({
-              id: crypto.randomUUID(),
-              title: '',
-              subtitle: '',
-              category: '',
-              imageUrl: '',
-              highlights: [],
-              titleEn: '',
-              subtitleEn: '',
-              categoryEn: '',
-              highlightsEn: [],
-            })}
-          />
+          <div className="space-y-6">
+            <div className="rounded-3xl border border-border bg-card p-5 space-y-4">
+              <div>
+                <h3 className="text-base font-black text-foreground">
+                  {translated('إعدادات الديمو التفاعلي (الصفحة الرئيسية)', 'Interactive Demo Settings')}
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  {translated(
+                    'تخصيص عنوان ووصف قسم العرض التفاعلي بالصفحة الرئيسية:',
+                    'Customize the title and subtitle of the interactive demo on the homepage:'
+                  )}
+                </p>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-muted-foreground">{translated('عنوان القسم بالعربية', 'Title (Arabic)')}</label>
+                  <input
+                    className="landing-input"
+                    value={config.demoSectionTitle || ''}
+                    placeholder="جرّب يلا كلينيك بنفسك"
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => set('demoSectionTitle', e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-muted-foreground">{translated('العنوان بالإنجليزية (اختياري)', 'Title (English)')}</label>
+                  <input
+                    className="landing-input"
+                    dir="ltr"
+                    value={config.english?.demoSectionTitle || ''}
+                    placeholder="Try Yalla Clinic Yourself"
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      set('english', {
+                        ...config.english,
+                        demoSectionTitle: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="block text-xs font-bold text-muted-foreground">{translated('وصف القسم بالعربية', 'Description (Arabic)')}</label>
+                  <textarea
+                    rows={2}
+                    className="landing-input h-auto py-2"
+                    value={config.demoSectionSubtitle || ''}
+                    placeholder="استكشف واجهات يلا كلينيك الحقيقية: تحكّم في الدور، واكتب الروشتة..."
+                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => set('demoSectionSubtitle', e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="block text-xs font-bold text-muted-foreground">{translated('الوصف بالإنجليزية (اختياري)', 'Description (English)')}</label>
+                  <textarea
+                    rows={2}
+                    className="landing-input h-auto py-2"
+                    dir="ltr"
+                    value={config.english?.demoSectionSubtitle || ''}
+                    placeholder="Explore real Yalla Clinic interfaces: manage live queues, write prescriptions..."
+                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                      set('english', {
+                        ...config.english,
+                        demoSectionSubtitle: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+
+            <ListEditor
+              title="صور النظام القديمة (أرشيف)"
+              fields={shots}
+              items={config.screenshots}
+              onChange={(items) => set('screenshots', items)}
+              create={() => ({
+                id: crypto.randomUUID(),
+                title: '',
+                subtitle: '',
+                category: '',
+                imageUrl: '',
+                highlights: [],
+                titleEn: '',
+                subtitleEn: '',
+                categoryEn: '',
+                highlightsEn: [],
+              })}
+            />
+          </div>
         )}
         {tab === 'clients' && (
           <ListEditor

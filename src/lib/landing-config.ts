@@ -83,6 +83,8 @@ const english = z.object({
   patientPortalButtonText: short,
   loginButtonText: short,
   footerText: text,
+  demoSectionTitle: short.default(''),
+  demoSectionSubtitle: text.default(''),
 })
 export const landingConfigSchema = z.object({
   heroBadge: text,
@@ -99,6 +101,8 @@ export const landingConfigSchema = z.object({
   patientUrl: link,
   primaryWhatsapp: z.string().max(25),
   footerText: text,
+  demoSectionTitle: short.default(''),
+  demoSectionSubtitle: text.default(''),
   english,
   stats: z
     .array(
@@ -157,6 +161,9 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
   primaryWhatsapp: '201551007018',
   footerText:
     'جميع الحقوق محفوظة لمنصة Yalla Clinic — تطوير YallaCodeX © 2026',
+  demoSectionTitle: 'جرّب يلا كلينيك بنفسك',
+  demoSectionSubtitle:
+    'استكشف واجهات يلا كلينيك الحقيقية: تحكّم في الدور، واكتب الروشتة، وجرّب حجز المريض ومتابعة التقارير في تجربة حية وتفاعلية بالكامل.',
   english: {
     heroBadge: 'One workspace. Every part of your clinic.',
     heroTitle: 'An organized clinic.',
@@ -169,6 +176,9 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
     loginButtonText: 'Clinic login',
     footerText:
       '© 2026 Yalla Clinic. Developed by YallaCodeX. All rights reserved.',
+    demoSectionTitle: 'Try Yalla Clinic Yourself',
+    demoSectionSubtitle:
+      'Explore real Yalla Clinic interfaces: manage live queues, write prescriptions, test patient booking, and monitor finances in a fully interactive demo.',
   },
   stats: [],
   visibility: {
