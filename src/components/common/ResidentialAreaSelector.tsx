@@ -129,13 +129,13 @@ export function ResidentialAreaSelector({
       governorateId: newGovId,
       governorateNameAr: gov?.nameAr || '',
       governorateNameEn: gov?.nameEn || '',
-      cityId: newCityId || undefined,
-      cityNameAr: city?.nameAr || undefined,
-      cityNameEn: city?.nameEn || undefined,
-      areaId: newAreaId || undefined,
-      areaNameAr: isCustom ? (newCustomName || 'أخرى') : (area?.nameAr || undefined),
-      areaNameEn: isCustom ? (newCustomName || 'Other') : (area?.nameEn || undefined),
-      customAreaName: isCustom ? newCustomName : undefined,
+      cityId: newCityId || '',
+      cityNameAr: city?.nameAr || '',
+      cityNameEn: city?.nameEn || '',
+      areaId: newAreaId || '',
+      areaNameAr: isCustom ? (newCustomName || 'أخرى') : (area?.nameAr || ''),
+      areaNameEn: isCustom ? (newCustomName || 'Other') : (area?.nameEn || ''),
+      customAreaName: isCustom ? (newCustomName || '') : '',
       source: newSource
     })
   }

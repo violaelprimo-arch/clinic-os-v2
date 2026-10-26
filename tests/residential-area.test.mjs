@@ -12,6 +12,7 @@ import {
   validateHierarchy
 } from '../src/data/egyptGeographicData.ts'
 import { normalizeArea, EGYPT_AREAS_COORDINATES } from '../src/lib/analyticsService.ts'
+import { removeUndefinedFields } from '../src/lib/queueService.ts'
 
 test('1. Manual Selection & Cascading Reset', () => {
   const govs = getGovernorates()
@@ -254,3 +255,49 @@ test('10. Bilingual Integrity (Arabic and English Names for All Governorates)', 
     }
   }
 })
+
+test('11. Booking Payload Sanitization (Zero Undefined Values for Firestore Safety)', () => {
+  // Test case 1: Patient skips optional residence during booking (like in the user screenshot)
+  const bookingWithoutResidence = {
+    clinic_id: 'zizo',
+    patientName: 'فتحي',
+    phone: '01557540280',
+    age: '99',
+    gender: 'ذكر',
+    address: null,
+    city: null,
+    patientResidenceSnapshot: null,
+    date: '2026-10-26',
+    status: 'waiting',
+    legacyUndefinedField: undefined
+  }
+
+  const cleaned = removeUndefinedFields(bookingWithoutResidence)
+  assert.equal(cleaned.patientName, 'فتحي')
+  assert.equal(cleaned.address, null)
+  assert.equal(cleaned.city, null)
+  assert.equal(cleaned.patientResidenceSnapshot, null)
+  assert.equal('legacyUndefinedField' in cleaned, false, 'Undefined fields must be stripped')
+
+  // Verify recursion on nested object with undefined fields
+  const complexWithUndefined = {
+    a: 1,
+    nested: {
+      b: 2,
+      c: undefined,
+      deep: {
+        d: 'deep-val',
+        e: undefined
+      }
+    },
+    list: [{ x: 10, y: undefined }]
+  }
+
+  const cleanedComplex = removeUndefinedFields(complexWithUndefined)
+  assert.equal(cleanedComplex.nested.b, 2)
+  assert.equal('c' in cleanedComplex.nested, false)
+  assert.equal(cleanedComplex.nested.deep.d, 'deep-val')
+  assert.equal('e' in cleanedComplex.nested.deep, false)
+  assert.equal('y' in cleanedComplex.list[0], false)
+})
+

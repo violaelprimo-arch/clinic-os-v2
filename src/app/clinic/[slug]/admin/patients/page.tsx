@@ -257,8 +257,8 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
         })
         const latestDoc = docs[0]
         await updateDoc(doc(db, 'appointments', latestDoc.id), {
-          address: editResidenceValue?.areaNameAr || undefined,
-          city: editResidenceValue?.cityNameAr || editResidenceValue?.governorateNameAr || undefined,
+          address: editResidenceValue?.areaNameAr || null,
+          city: editResidenceValue?.cityNameAr || editResidenceValue?.governorateNameAr || null,
           patientResidenceSnapshot: editResidenceValue?.governorateId ? {
             governorateId: editResidenceValue.governorateId,
             governorateNameAr: editResidenceValue.governorateNameAr || '',
@@ -269,7 +269,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
             areaId: editResidenceValue.areaId || '',
             areaNameAr: editResidenceValue.areaNameAr || '',
             areaNameEn: editResidenceValue.areaNameEn || '',
-            customAreaName: editResidenceValue.customAreaName || undefined,
+            customAreaName: editResidenceValue.customAreaName || null,
             source: 'staff_override',
             recordedAt: new Date().toISOString()
           } : null
@@ -311,8 +311,8 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
           status: 'waiting',
           age: newAge || null,
           dob: newDob || null,
-          address: newResidence?.areaNameAr || undefined,
-          city: newResidence?.cityNameAr || newResidence?.governorateNameAr || undefined,
+          address: newResidence?.areaNameAr || null,
+          city: newResidence?.cityNameAr || newResidence?.governorateNameAr || null,
           patientResidenceSnapshot: newResidence?.governorateId ? {
             governorateId: newResidence.governorateId,
             governorateNameAr: newResidence.governorateNameAr || '',
@@ -323,7 +323,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
             areaId: newResidence.areaId || '',
             areaNameAr: newResidence.areaNameAr || '',
             areaNameEn: newResidence.areaNameEn || '',
-            customAreaName: newResidence.customAreaName || undefined,
+            customAreaName: newResidence.customAreaName || null,
             source: 'staff_override',
             recordedAt: new Date().toISOString()
           } : null,

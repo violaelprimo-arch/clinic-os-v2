@@ -34,6 +34,29 @@ export interface AtomicAppointmentInput {
 }
 
 /**
+ * Recursively cleans an object by stripping any undefined properties
+ * so Firestore transactions and writes never reject with "Unsupported field value: undefined".
+ */
+export function removeUndefinedFields<T>(obj: T): T {
+  if (obj === null || typeof obj !== 'object') {
+    return obj
+  }
+  if (Array.isArray(obj)) {
+    return obj.map((item) => removeUndefinedFields(item)) as unknown as T
+  }
+  const clean: Record<string, any> = {}
+  for (const [key, val] of Object.entries(obj as Record<string, any>)) {
+    if (val !== undefined) {
+      clean[key] =
+        typeof val === 'object' && val !== null && !(val instanceof Date)
+          ? removeUndefinedFields(val)
+          : val
+    }
+  }
+  return clean as T
+}
+
+/**
  * Atomically generates the next sequential queue number and creates the appointment doc
  * inside a single Firestore transaction.
  *
@@ -95,7 +118,8 @@ export async function createAtomicAppointment(
       createdAt: data.createdAt || new Date().toISOString()
     }
 
-    transaction.set(newDocRef, newApptData)
+    const sanitizedApptData = removeUndefinedFields(newApptData)
+    transaction.set(newDocRef, sanitizedApptData)
 
     return {
       id: newDocRef.id,

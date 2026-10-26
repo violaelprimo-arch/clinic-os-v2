@@ -24,7 +24,7 @@ import {
   Copy
 } from 'lucide-react'
 import { db } from '@/lib/firebase'
-import { createAtomicAppointment } from '@/lib/queueService'
+import { createAtomicAppointment, removeUndefinedFields } from '@/lib/queueService'
 import { collection, addDoc, getDocs, query, where } from 'firebase/firestore'
 import { getClinicBranches, ensureClinicHasMainBranch } from '@/lib/branchService'
 import { createClinicNotification } from '@/lib/notificationService'
@@ -570,8 +570,8 @@ export function BookingModal({
           receiverAccount: resolvedReceiver,
           paymentMethod
         } : null,
-        address: residence?.areaNameAr || undefined,
-        city: residence?.cityNameAr || residence?.governorateNameAr || undefined,
+        address: residence?.areaNameAr || null,
+        city: residence?.cityNameAr || residence?.governorateNameAr || null,
         patientResidenceSnapshot: residence?.governorateId ? {
           governorateId: residence.governorateId,
           governorateNameAr: residence.governorateNameAr || '',
@@ -582,7 +582,7 @@ export function BookingModal({
           areaId: residence.areaId || '',
           areaNameAr: residence.areaNameAr || '',
           areaNameEn: residence.areaNameEn || '',
-          customAreaName: residence.customAreaName || undefined,
+          customAreaName: residence.customAreaName || null,
           source: residence.source || 'manual',
           recordedAt: new Date().toISOString()
         } : null,
@@ -590,7 +590,8 @@ export function BookingModal({
       }
 
       // Atomically allocate next sequential queue number with zero concurrency collisions
-      const { id: newApptId, queueNumber: allocatedQueueNumber } = await createAtomicAppointment(newAppt)
+      const cleanApptPayload = removeUndefinedFields(newAppt)
+      const { id: newApptId, queueNumber: allocatedQueueNumber } = await createAtomicAppointment(cleanApptPayload)
       const docRef = { id: newApptId }
       const myQueueNumber = allocatedQueueNumber
 
@@ -603,7 +604,7 @@ export function BookingModal({
         )
         const accSnap = await getDocs(accQ)
         if (accSnap.empty) {
-          await addDoc(collection(db, 'patient_accounts'), {
+          await addDoc(collection(db, 'patient_accounts'), removeUndefinedFields({
             clinic_id: clinicId,
             name: patientName.trim(),
             phone: cleanPhone,
@@ -619,12 +620,12 @@ export function BookingModal({
               areaId: residence.areaId || '',
               areaNameAr: residence.areaNameAr || '',
               areaNameEn: residence.areaNameEn || '',
-              customAreaName: residence.customAreaName || undefined,
+              customAreaName: residence.customAreaName || null,
               source: residence.source || 'manual',
               updatedAt: new Date().toISOString()
             } : null,
             createdAt: new Date().toISOString()
-          })
+          }))
         }
       } catch (e) {
         console.warn('Could not auto-provision patient account:', e)

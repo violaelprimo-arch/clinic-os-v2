@@ -249,8 +249,8 @@ export default function PatientProfilePage({
     try {
       const latestAppt = appointments[0]
       await updateDoc(doc(db, 'appointments', latestAppt.id), {
-        address: editResidenceValue?.areaNameAr || undefined,
-        city: editResidenceValue?.cityNameAr || editResidenceValue?.governorateNameAr || undefined,
+        address: editResidenceValue?.areaNameAr || null,
+        city: editResidenceValue?.cityNameAr || editResidenceValue?.governorateNameAr || null,
         patientResidenceSnapshot: editResidenceValue?.governorateId ? {
           governorateId: editResidenceValue.governorateId,
           governorateNameAr: editResidenceValue.governorateNameAr || '',
@@ -261,7 +261,7 @@ export default function PatientProfilePage({
           areaId: editResidenceValue.areaId || '',
           areaNameAr: editResidenceValue.areaNameAr || '',
           areaNameEn: editResidenceValue.areaNameEn || '',
-          customAreaName: editResidenceValue.customAreaName || undefined,
+          customAreaName: editResidenceValue.customAreaName || null,
           source: 'staff_override',
           recordedAt: new Date().toISOString()
         } : null
