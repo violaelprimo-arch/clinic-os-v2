@@ -171,6 +171,7 @@ export function formatPrescriptionWhatsAppMessage({
   rxNumber,
   diagnosis,
   instructions,
+  notes,
   drugs,
   directRxUrl
 }: {
@@ -183,6 +184,7 @@ export function formatPrescriptionWhatsAppMessage({
   rxNumber?: string | number
   diagnosis?: string
   instructions?: string
+  notes?: string
   drugs?: Array<{ name: string; dose?: string; duration?: string; notes?: string }>
   directRxUrl?: string // Kept for backwards type compatibility, but NEVER included in message text!
 }): string {
@@ -217,6 +219,10 @@ export function formatPrescriptionWhatsAppMessage({
 
   if (instructions && instructions.trim()) {
     parts.push(`\n📝 *تعليمات وإرشادات الطبيب:*\n${instructions.trim()}`)
+  }
+
+  if (notes && notes.trim()) {
+    parts.push(`\n📋 *ملاحظات الطبيب:*\n${notes.trim()}`)
   }
 
   if (directRxUrl && directRxUrl.trim()) {
@@ -308,7 +314,7 @@ export function formatInvoiceWhatsAppMessage({
   }
 
   parts.push(``)
-  parts.push(`نتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`)
+  parts.push(`نتمنى لكم دوام الصحة والعافية! 🌿`)
 
   return parts.join('\n')
 }

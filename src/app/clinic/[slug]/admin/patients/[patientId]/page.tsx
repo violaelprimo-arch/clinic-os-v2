@@ -46,6 +46,9 @@ export default function PatientProfilePage({
       patientAge: pAge,
       date: appt.date,
       diagnosis: appt.diagnosis,
+      instructions: appt.instructions,
+      notes: appt.notes,
+      vitalSigns: appt.vitalSigns,
       drugs: appt.drugs || [],
       prescriptionTemplateUrl: clinic?.prescriptionTemplateUrl,
       templateMode: appt.prescription_templateMode || appt.templateMode || (clinic?.prescriptionTemplateUrl ? 'custom' : 'standard'),
@@ -173,18 +176,19 @@ export default function PatientProfilePage({
   const handleSaveVitals = async (apptId: string) => {
     setIsSavingVitals(true)
     try {
+      const hasAny = vitalsBpSys.trim() || vitalsBpDia.trim() || vitalsPulse.trim() || vitalsTemp.trim() || vitalsGlucose.trim() || vitalsWeight.trim()
       await updateDoc(doc(db, 'appointments', apptId), {
-        vitalSigns: {
-          bloodPressureSystolic: vitalsBpSys ? Number(vitalsBpSys) : null,
-          bloodPressureDiastolic: vitalsBpDia ? Number(vitalsBpDia) : null,
-          heartRate: vitalsPulse ? Number(vitalsPulse) : null,
-          temperature: vitalsTemp ? Number(vitalsTemp) : null,
-          glucoseLevel: vitalsGlucose ? Number(vitalsGlucose) : null,
-          weightKg: vitalsWeight ? Number(vitalsWeight) : null,
+        vitalSigns: hasAny ? {
+          bloodPressureSystolic: vitalsBpSys ? Number(vitalsBpSys) || vitalsBpSys : null,
+          bloodPressureDiastolic: vitalsBpDia ? Number(vitalsBpDia) || vitalsBpDia : null,
+          heartRate: vitalsPulse ? Number(vitalsPulse) || vitalsPulse : null,
+          temperature: vitalsTemp ? Number(vitalsTemp) || vitalsTemp : null,
+          glucoseLevel: vitalsGlucose ? Number(vitalsGlucose) || vitalsGlucose : null,
+          weightKg: vitalsWeight ? Number(vitalsWeight) || vitalsWeight : null,
           recordedAt: new Date().toISOString()
-        }
+        } : null
       })
-      toast.success('تم حفظ العلامات الحيوية بنجاح')
+      toast.success(hasAny ? 'تم حفظ العلامات الحيوية بنجاح' : 'تم إزالة العلامات الحيوية وإخفاؤها من الملف')
       setEditingVitalsFor(null)
     } catch (err) {
       toast.error('حدث خطأ أثناء حفظ العلامات الحيوية')
@@ -423,102 +427,102 @@ export default function PatientProfilePage({
                   {isExpanded && (
                     <div className="border-t border-border bg-secondary/20 p-5 space-y-6 rounded-b-2xl">
                       
-                      {/* 0. Vital Signs Section (العلامات الحيوية) */}
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <h5 className="font-bold text-sm text-foreground flex items-center gap-1.5">
-                            <Activity className="w-4 h-4 text-rose-500" />
-                            العلامات الحيوية (Vital Signs)
-                          </h5>
-                          {editingVitalsFor !== appt.id && (
-                            <Button
-                              variant="link"
-                              onClick={() => handleOpenEditVitals(appt)}
-                              className="h-auto p-0 text-xs text-primary font-bold"
-                            >
-                              {appt.vitalSigns ? 'تعديل القياسات' : 'تسجيل القياسات'}
-                            </Button>
-                          )}
-                        </div>
-
-                        {editingVitalsFor === appt.id ? (
-                          <div className="bg-card p-4 rounded-xl border border-border space-y-3 shadow-2xs">
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                              <div className="space-y-1">
-                                <label className="text-[11px] font-bold text-muted-foreground">ضغط الدم الانقباضي (SYS)</label>
-                                <Input
-                                  value={vitalsBpSys}
-                                  onChange={e => setVitalsBpSys(e.target.value)}
-                                  placeholder="120"
-                                  className="h-9 text-xs bg-background border-border text-foreground"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <label className="text-[11px] font-bold text-muted-foreground">ضغط الدم الانبساطي (DIA)</label>
-                                <Input
-                                  value={vitalsBpDia}
-                                  onChange={e => setVitalsBpDia(e.target.value)}
-                                  placeholder="80"
-                                  className="h-9 text-xs bg-background border-border text-foreground"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <label className="text-[11px] font-bold text-muted-foreground">النبض (HR bpm)</label>
-                                <Input
-                                  value={vitalsPulse}
-                                  onChange={e => setVitalsPulse(e.target.value)}
-                                  placeholder="75"
-                                  className="h-9 text-xs bg-background border-border text-foreground"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <label className="text-[11px] font-bold text-muted-foreground">درجة الحرارة (°C)</label>
-                                <Input
-                                  value={vitalsTemp}
-                                  onChange={e => setVitalsTemp(e.target.value)}
-                                  placeholder="37.0"
-                                  className="h-9 text-xs bg-background border-border text-foreground"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <label className="text-[11px] font-bold text-muted-foreground">مستوى السكر (mg/dL)</label>
-                                <Input
-                                  value={vitalsGlucose}
-                                  onChange={e => setVitalsGlucose(e.target.value)}
-                                  placeholder="100"
-                                  className="h-9 text-xs bg-background border-border text-foreground"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <label className="text-[11px] font-bold text-muted-foreground">الوزن (kg)</label>
-                                <Input
-                                  value={vitalsWeight}
-                                  onChange={e => setVitalsWeight(e.target.value)}
-                                  placeholder="70"
-                                  className="h-9 text-xs bg-background border-border text-foreground"
-                                />
-                              </div>
-                            </div>
-                            <div className="flex gap-2 pt-2 border-t border-border">
+                      {/* 0. Vital Signs Section (العلامات الحيوية - يحدد الطبيب كتابتها ولو لم تسجل تختفي تماماً) */}
+                      {(appt.vitalSigns && (appt.vitalSigns.bloodPressureSystolic || appt.vitalSigns.bloodPressureDiastolic || appt.vitalSigns.heartRate || appt.vitalSigns.temperature || appt.vitalSigns.glucoseLevel || appt.vitalSigns.weightKg) || editingVitalsFor === appt.id) ? (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h5 className="font-bold text-sm text-foreground flex items-center gap-1.5">
+                              <Activity className="w-4 h-4 text-rose-500" />
+                              العلامات الحيوية (Vital Signs)
+                            </h5>
+                            {editingVitalsFor !== appt.id && (
                               <Button
-                                onClick={() => handleSaveVitals(appt.id)}
-                                disabled={isSavingVitals}
-                                className="yalla-gradient-btn text-white text-xs h-8 font-bold"
+                                variant="link"
+                                onClick={() => handleOpenEditVitals(appt)}
+                                className="h-auto p-0 text-xs text-primary font-bold"
                               >
-                                {isSavingVitals ? 'جاري الحفظ...' : 'حفظ القياسات'}
+                                تعديل القياسات
                               </Button>
-                              <Button
-                                variant="outline"
-                                onClick={() => setEditingVitalsFor(null)}
-                                className="text-xs h-8 font-bold border-border"
-                              >
-                                إلغاء
-                              </Button>
-                            </div>
+                            )}
                           </div>
-                        ) : (
-                          <div className="bg-card p-4 rounded-xl border border-border">
-                            {appt.vitalSigns && (appt.vitalSigns.bloodPressureSystolic || appt.vitalSigns.heartRate || appt.vitalSigns.temperature || appt.vitalSigns.glucoseLevel || appt.vitalSigns.weightKg) ? (
+
+                          {editingVitalsFor === appt.id ? (
+                            <div className="bg-card p-4 rounded-xl border border-border space-y-3 shadow-2xs">
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                <div className="space-y-1">
+                                  <label className="text-[11px] font-bold text-muted-foreground">ضغط الدم الانقباضي (SYS)</label>
+                                  <Input
+                                    value={vitalsBpSys}
+                                    onChange={e => setVitalsBpSys(e.target.value)}
+                                    placeholder="120"
+                                    className="h-9 text-xs bg-background border-border text-foreground"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[11px] font-bold text-muted-foreground">ضغط الدم الانبساطي (DIA)</label>
+                                  <Input
+                                    value={vitalsBpDia}
+                                    onChange={e => setVitalsBpDia(e.target.value)}
+                                    placeholder="80"
+                                    className="h-9 text-xs bg-background border-border text-foreground"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[11px] font-bold text-muted-foreground">النبض (HR bpm)</label>
+                                  <Input
+                                    value={vitalsPulse}
+                                    onChange={e => setVitalsPulse(e.target.value)}
+                                    placeholder="75"
+                                    className="h-9 text-xs bg-background border-border text-foreground"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[11px] font-bold text-muted-foreground">درجة الحرارة (°C)</label>
+                                  <Input
+                                    value={vitalsTemp}
+                                    onChange={e => setVitalsTemp(e.target.value)}
+                                    placeholder="37.0"
+                                    className="h-9 text-xs bg-background border-border text-foreground"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[11px] font-bold text-muted-foreground">مستوى السكر (mg/dL)</label>
+                                  <Input
+                                    value={vitalsGlucose}
+                                    onChange={e => setVitalsGlucose(e.target.value)}
+                                    placeholder="100"
+                                    className="h-9 text-xs bg-background border-border text-foreground"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[11px] font-bold text-muted-foreground">الوزن (kg)</label>
+                                  <Input
+                                    value={vitalsWeight}
+                                    onChange={e => setVitalsWeight(e.target.value)}
+                                    placeholder="70"
+                                    className="h-9 text-xs bg-background border-border text-foreground"
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex gap-2 pt-2 border-t border-border">
+                                <Button
+                                  onClick={() => handleSaveVitals(appt.id)}
+                                  disabled={isSavingVitals}
+                                  className="yalla-gradient-btn text-white text-xs h-8 font-bold"
+                                >
+                                  {isSavingVitals ? 'جاري الحفظ...' : 'حفظ القياسات'}
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  onClick={() => setEditingVitalsFor(null)}
+                                  className="text-xs h-8 font-bold border-border"
+                                >
+                                  إلغاء
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="bg-card p-4 rounded-xl border border-border">
                               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center">
                                 {(appt.vitalSigns.bloodPressureSystolic || appt.vitalSigns.bloodPressureDiastolic) && (
                                   <div className="p-2 rounded-lg bg-secondary/50 border border-border">
@@ -558,14 +562,21 @@ export default function PatientProfilePage({
                                   </div>
                                 )}
                               </div>
-                            ) : (
-                              <p className="text-xs text-muted-foreground italic text-center py-2">
-                                لم يتم تسجيل علامات حيوية لهذه الزيارة بعد.
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex justify-end -mt-1 -mb-2">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditVitals(appt)}
+                            className="text-[11px] font-bold text-muted-foreground hover:text-rose-600 transition-colors flex items-center gap-1.5 cursor-pointer py-1 px-2.5 rounded-lg hover:bg-rose-50/50"
+                          >
+                            <Activity className="w-3.5 h-3.5 text-rose-500" />
+                            <span>+ تسجيل علامات حيوية لهذه الزيارة</span>
+                          </button>
+                        </div>
+                      )}
 
                       {/* 1. Diagnosis Section */}
                       <div className="space-y-3">
@@ -595,8 +606,16 @@ export default function PatientProfilePage({
                             </div>
                           </div>
                         ) : (
-                          <div className="bg-card p-4 rounded-xl border border-border text-sm text-foreground min-h-[60px]">
-                            {appt.diagnosis ? appt.diagnosis : <span className="text-muted-foreground italic">لا يوجد تشخيص مسجل لهذه الزيارة.</span>}
+                          <div className="bg-card p-4 rounded-xl border border-border text-sm text-foreground space-y-2">
+                            <div>
+                              {appt.diagnosis ? appt.diagnosis : <span className="text-muted-foreground italic">لا يوجد تشخيص مسجل لهذه الزيارة.</span>}
+                            </div>
+                            {appt.notes && (
+                              <div className="pt-2 border-t border-border text-xs text-sky-800 dark:text-sky-300 bg-sky-50/50 dark:bg-sky-950/20 p-2.5 rounded-lg flex items-start gap-1.5">
+                                <span className="font-bold shrink-0">ملاحظات الطبيب:</span>
+                                <span className="whitespace-pre-wrap">{appt.notes}</span>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -667,6 +686,9 @@ export default function PatientProfilePage({
                                   age={patientData?.age || appt?.age || patientData?.dob || appt?.dob || ''}
                                   date={appt.date}
                                   diagnosis={appt.diagnosis}
+                                  instructions={appt.instructions}
+                                  notes={appt.notes}
+                                  vitalSigns={appt.vitalSigns}
                                   drugs={appt.drugs}
                                   templateMode={appt.prescription_templateMode || appt.templateMode || (clinic?.prescriptionTemplateUrl ? 'custom' : 'standard')}
                                   topOffset={25}
