@@ -451,7 +451,8 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
       await updateDoc(doc(db, 'appointments', patient.id), {
         status: 'in_progress',
         paymentStatus: 'paid',
-        startedAt: new Date().toISOString()
+        startedAt: new Date().toISOString(),
+        ...(!patient.arrivedAt ? { arrivedAt: patient.createdAt || new Date().toISOString() } : {})
       })
       if (patient.phone) {
         await createClinicNotification({
@@ -606,6 +607,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
           status: 'in_progress',
           paymentStatus: 'paid',
           startedAt: new Date().toISOString(),
+        ...(!patient.arrivedAt ? { arrivedAt: patient.createdAt || new Date().toISOString() } : {}),
           priorityNext: false
         })
 
@@ -655,7 +657,8 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
       await updateDoc(doc(db, 'appointments', patient.id), {
         status: 'waiting',
         priorityNext: true,
-        requeuedAt: new Date().toISOString()
+        requeuedAt: new Date().toISOString(),
+        arrivedAt: new Date().toISOString()
       })
       if (statusTabFilter === 'skipped') {
         setStatusTabFilter('all')

@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 import {
   FileText, Users, DollarSign, Calendar, Settings, Bot,
   LogOut, Receipt, Pill, Bell, Search, ExternalLink, Menu,
-  X, CheckCircle, ChevronLeft, User, Building2, Sparkles, Clock, Crown, Tv
+  X, CheckCircle, ChevronLeft, User, Building2, Sparkles, Clock, Crown, Tv, BarChart3
 } from 'lucide-react'
 import { db, auth } from '@/lib/firebase'
 import { collection, query, where, onSnapshot, doc } from 'firebase/firestore'
@@ -279,6 +279,12 @@ export default function AdminLayout({
       icon: DollarSign
     },
     {
+      id: 'analytics',
+      name: t('nav_analytics', 'التحليلات والإحصائيات'),
+      href: `/clinic/${slug}/admin/analytics`,
+      icon: BarChart3
+    },
+    {
       id: 'ai-training',
       name: t('nav_ai_training', 'المساعد الذكي'),
       href: `/clinic/${slug}/admin/ai-training`,
@@ -352,6 +358,9 @@ export default function AdminLayout({
     if (role === 'doctor') return true
     if (role === 'assistant') {
       if (item.id === 'packages' || item.id === 'branches') return false
+      if (item.id === 'analytics') {
+        return assistantPermissions.includes('analytics') || assistantPermissions.includes('appointments') || assistantPermissions.includes('finance')
+      }
       return assistantPermissions.includes(item.id)
     }
     return false
