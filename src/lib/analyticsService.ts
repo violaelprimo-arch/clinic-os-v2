@@ -234,6 +234,35 @@ export function normalizeArea(rawArea?: string | any | null): {
       }
     }
 
+    // Direct resolution via governorateId and cityId
+    if (rawArea.governorateId) {
+      const gov = EGYPT_GOVERNORATES.find((g) => g.id === rawArea.governorateId)
+      if (gov) {
+        if (rawArea.cityId) {
+          const city = gov.cities.find((c) => c.id === rawArea.cityId)
+          if (city && city.areas.length > 0) {
+            const firstArea = city.areas[0]
+            return {
+              normalizedId: city.id,
+              labelAr: city.nameAr,
+              labelEn: city.nameEn,
+              governorateAr: gov.nameAr,
+              isMapped: true,
+              coords: { lat: firstArea.lat, lng: firstArea.lng }
+            }
+          }
+        }
+        return {
+          normalizedId: gov.id,
+          labelAr: gov.nameAr,
+          labelEn: gov.nameEn,
+          governorateAr: gov.nameAr,
+          isMapped: true,
+          coords: { lat: gov.lat, lng: gov.lng }
+        }
+      }
+    }
+
     if (rawArea.governorateNameAr || rawArea.areaNameAr) {
       const queryStr = `${rawArea.governorateNameAr || ''} ${rawArea.cityNameAr || ''} ${rawArea.areaNameAr || ''}`
       return normalizeArea(queryStr)

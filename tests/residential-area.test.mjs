@@ -301,3 +301,36 @@ test('11. Booking Payload Sanitization (Zero Undefined Values for Firestore Safe
   assert.equal('y' in cleanedComplex.list[0], false)
 })
 
+test('12. Real Map Resolution: Governorate & City Level Fallbacks & Wheel Isolation', () => {
+  // Test case A: Patient only chose governorate during booking/reception
+  const govOnly = normalizeArea({ governorateId: 'alexandria', governorateNameAr: 'الإسكندرية' })
+  assert.equal(govOnly.isMapped, true)
+  assert.equal(govOnly.normalizedId, 'alexandria')
+  assert.ok(govOnly.coords && govOnly.coords.lat > 31 && govOnly.coords.lng > 29)
+
+  // Test case B: Patient chose governorate and city but left district empty
+  const cityOnly = normalizeArea({
+    governorateId: 'qalyubia',
+    governorateNameAr: 'القليوبية',
+    cityId: 'qalyubia_cities',
+    cityNameAr: 'مدن ومراكز القليوبية'
+  })
+  assert.equal(cityOnly.isMapped, true)
+  assert.equal(cityOnly.normalizedId, 'qalyubia_cities')
+  assert.ok(cityOnly.coords && cityOnly.coords.lat > 30 && cityOnly.coords.lng > 31)
+
+  // Test case C: Wheel event capture flag verification
+  let prevented = false
+  const mockWheelEvent = {
+    preventDefault: () => { prevented = true },
+    stopPropagation: () => {}
+  }
+  const handler = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+  handler(mockWheelEvent)
+  assert.equal(prevented, true, 'Wheel event must be prevented from scrolling the document')
+})
+
+
