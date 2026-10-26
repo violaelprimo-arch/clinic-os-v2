@@ -324,6 +324,7 @@ export default function AdminLayout({
   const isPrescriptionsEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'prescriptions', activePackage), [clinic, activePackage])
   const isAiEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'ai', activePackage), [clinic, activePackage])
   const isBranchesEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'branches', activePackage), [clinic, activePackage])
+  const isAnalyticsEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'analytics', activePackage), [clinic, activePackage])
 
   // Route-level lock detector
   const currentLockedFeature = useMemo<FeatureKey | null>(() => {
@@ -343,11 +344,17 @@ export default function AdminLayout({
     if (pathname.includes('/admin/ai-training')) {
       if (!isAiEnabled) return 'ai'
     }
+    if (pathname.includes('/admin/analytics')) {
+      if (!isAnalyticsEnabled) return 'analytics'
+    }
     return null
-  }, [pathname, clinic, isFinanceEnabled, isDrugsEnabled, isPrescriptionsEnabled, isBranchesEnabled, isAiEnabled])
+  }, [pathname, clinic, isFinanceEnabled, isDrugsEnabled, isPrescriptionsEnabled, isBranchesEnabled, isAiEnabled, isAnalyticsEnabled])
 
   // Filter based on role, assistant permissions, and package feature locks
   const filteredNav = navItems.filter(item => {
+    if (clinic?.hiddenTabs && Array.isArray(clinic.hiddenTabs) && clinic.hiddenTabs.includes(item.id)) return false
+    if (activePackage?.hiddenTabs && Array.isArray(activePackage.hiddenTabs) && activePackage.hiddenTabs.includes(item.id)) return false
+    if (item.id === 'analytics' && !isAnalyticsEnabled) return false
     if ((item.id === 'accounts' || item.id === 'finance') && !isFinanceEnabled) return false
     if (item.id === 'drugs' && !isDrugsEnabled) return false
     if (item.id === 'prescriptions' && !isPrescriptionsEnabled) return false

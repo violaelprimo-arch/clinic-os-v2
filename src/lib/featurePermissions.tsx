@@ -16,7 +16,8 @@ import {
   ArrowRight,
   MessageSquare,
   Crown,
-  Tv
+  Tv,
+  BarChart3
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -31,6 +32,7 @@ export type FeatureKey =
   | 'branches'
   | 'onlineBooking'
   | 'tvScreen'
+  | 'analytics'
 
 export interface FeatureMetadata {
   key: FeatureKey
@@ -121,6 +123,14 @@ export const SYSTEM_FEATURES: Record<FeatureKey, FeatureMetadata> = {
     description: 'تشغيل شاشة العيادة الذكية للانتظار مع النداء الصوتي للمرضى والشريط الإخباري المتحرك.',
     category: 'management',
     icon: Tv
+  },
+  analytics: {
+    key: 'analytics',
+    label: 'التحليلات والإحصائيات وتوزيع المرضى الجغرافي',
+    shortLabel: 'التحليلات والإحصائيات',
+    description: 'مؤشرات الأداء، الرسوم البيانية، توزيع المرضى الجغرافي، وإحصائيات الزيارات.',
+    category: 'management',
+    icon: BarChart3
   }
 }
 
@@ -144,6 +154,11 @@ export function isClinicFeatureEnabled(
     return false
   }
   if (feature === 'tvScreen' && (clinic.tvLockedByOwner === true || clinic.allowTvScreen === false)) {
+    return false
+  }
+
+  // Direct tab visibility lock via hiddenTabs
+  if (clinic.hiddenTabs && Array.isArray(clinic.hiddenTabs) && clinic.hiddenTabs.includes(feature)) {
     return false
   }
 
@@ -184,6 +199,9 @@ export function isClinicFeatureEnabled(
       case 'tvScreen':
         if (perms.allowTvScreen === false) return false
         break
+      case 'analytics':
+        if (perms.allowAnalytics === false) return false
+        break
     }
   }
 
@@ -218,6 +236,9 @@ export function isClinicFeatureEnabled(
       break
     case 'tvScreen':
       if (clinic.allowTvScreen === false || clinic.tvLockedByOwner === true) return false
+      break
+    case 'analytics':
+      if (clinic.allowAnalytics === false) return false
       break
   }
 
@@ -254,6 +275,9 @@ export function isClinicFeatureEnabled(
       case 'tvScreen':
         if (perms.allowTvScreen === true) return true
         break
+      case 'analytics':
+        if (perms.allowAnalytics === true) return true
+        break
     }
   }
 
@@ -267,6 +291,10 @@ export function isClinicFeatureEnabled(
       break
     case 'prescriptions':
       if (clinic.allowPrescriptions !== undefined) return Boolean(clinic.allowPrescriptions)
+      break
+    case 'analytics':
+      if (clinic.allowAnalytics !== undefined) return Boolean(clinic.allowAnalytics)
+      break
       break
     case 'customTemplate':
       if (clinic.allowCustomTemplate !== undefined) return Boolean(clinic.allowCustomTemplate)

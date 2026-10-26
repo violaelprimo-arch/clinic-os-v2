@@ -18,7 +18,7 @@ import {
   Copy, CheckCircle, RefreshCw, ChevronLeft, Calendar, Download,
   FileSpreadsheet, Tv, Layers, Key, EyeOff, Package, Crown,
   Gem, Rocket, Stethoscope, Building2, Star, Award, Zap, X, Tag,
-  Palette, Pill, Receipt, Bell, CreditCard
+  Palette, Pill, Receipt, Bell, CreditCard, BarChart3, DollarSign, Settings, FileText
 } from 'lucide-react'
 import { db } from '@/lib/firebase'
 import { collection, addDoc, getDocs, deleteDoc, updateDoc, doc, setDoc, onSnapshot, query, where } from 'firebase/firestore'
@@ -227,6 +227,7 @@ function OwnerDashboard() {
   const [pkgAllowBranches, setPkgAllowBranches] = useState(true)
   const [pkgAllowOnlineBooking, setPkgAllowOnlineBooking] = useState(true)
   const [pkgAllowTvScreen, setPkgAllowTvScreen] = useState(true)
+  const [pkgAllowAnalytics, setPkgAllowAnalytics] = useState(true)
 
   // Clinic Package & AI Limits for active clinic
   const [packageName, setPackageName] = useState('الباقة الأساسية')
@@ -242,6 +243,8 @@ function OwnerDashboard() {
   const [allowPatientAlerts, setAllowPatientAlerts] = useState(true)
   const [allowOnlineBooking, setAllowOnlineBooking] = useState(true)
   const [allowTvScreen, setAllowTvScreen] = useState(true)
+  const [allowAnalytics, setAllowAnalytics] = useState(true)
+  const [clinicHiddenTabs, setClinicHiddenTabs] = useState<string[]>([])
 
   // Edit mode
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -819,7 +822,8 @@ function OwnerDashboard() {
     ai: 'المساعد الطبي الذكي (AI Chatbot) للرد والتدريب',
     branches: 'إدارة الفروع والمراكز المتعددة للعيادة',
     onlineBooking: 'بوابة الحجز الذاتي للمرضى والدور المباشر',
-    tvScreen: 'شاشة التلفزيون الذكية والنداء الصوتي (Smart TV)'
+    tvScreen: 'شاشة التلفزيون الذكية والنداء الصوتي (Smart TV)',
+    analytics: 'التحليلات والإحصائيات وتوزيع المرضى الجغرافي'
   }
 
   const handleTogglePackageFeature = (featureKey: string, checked: boolean) => {
@@ -833,6 +837,7 @@ function OwnerDashboard() {
     else if (featureKey === 'branches') setPkgAllowBranches(checked)
     else if (featureKey === 'onlineBooking') setPkgAllowOnlineBooking(checked)
     else if (featureKey === 'tvScreen') setPkgAllowTvScreen(checked)
+    else if (featureKey === 'analytics') setPkgAllowAnalytics(checked)
 
     const title = FEATURE_TITLES[featureKey]
     if (!title) return
@@ -883,6 +888,8 @@ function OwnerDashboard() {
     setPkgAllowAi(true)
     setPkgAllowBranches(true)
     setPkgAllowOnlineBooking(true)
+    setPkgAllowTvScreen(true)
+    setPkgAllowAnalytics(true)
     setPkgFeatures([
       'روشتات ذكية غير محدودة (A4 / A5)',
       'تصدير PDF وصور عالية الدقة للروشتة',
@@ -923,6 +930,7 @@ function OwnerDashboard() {
     setPkgAllowBranches(pkg.allowBranches !== false)
     setPkgAllowOnlineBooking(pkg.allowOnlineBooking !== false)
     setPkgAllowTvScreen(pkg.allowTvScreen !== false)
+    setPkgAllowAnalytics(pkg.allowAnalytics !== false)
     setPkgFeatures(Array.isArray(pkg.features) ? pkg.features.join('\n') : '')
     setPkgNewFeatureInput('')
     setIsPackageModalOpen(true)
@@ -989,6 +997,7 @@ function OwnerDashboard() {
       allowBranches: pkgAllowBranches,
       allowOnlineBooking: pkgAllowOnlineBooking,
       allowTvScreen: pkgAllowTvScreen,
+      allowAnalytics: pkgAllowAnalytics,
       features: featuresList,
       updatedAt: new Date().toISOString()
     }
@@ -1021,7 +1030,8 @@ function OwnerDashboard() {
               allowAi: pkgAllowAi,
               allowBranches: pkgAllowBranches,
               allowOnlineBooking: pkgAllowOnlineBooking,
-              allowTvScreen: pkgAllowTvScreen
+              allowTvScreen: pkgAllowTvScreen,
+              allowAnalytics: pkgAllowAnalytics
             },
             aiResponsesLimit: Number(pkgAiLimit) || 100,
             maxBranches: Number(pkgMaxBranches) || 1
@@ -1139,6 +1149,7 @@ function OwnerDashboard() {
       setBranchesEnabled(sel.allowBranches !== false && Number(sel.maxBranches || 1) > 1)
       setAllowOnlineBooking(sel.allowOnlineBooking !== false)
       setAllowTvScreen(sel.allowTvScreen !== false)
+      setAllowAnalytics(sel.allowAnalytics !== false)
       toast.success(`تم اختيار «${sel.name}» وتطبيق مميزاتها وصلاحياتها تلقائياً على العيادة! ✨`)
     } else {
       const isPro = selectedPkgName.includes('احتراف') || selectedPkgName.includes('Pro')
@@ -1153,6 +1164,7 @@ function OwnerDashboard() {
       setBranchesEnabled(isVip)
       setAllowOnlineBooking(true)
       setAllowTvScreen(isPro || isVip)
+      setAllowAnalytics(true)
     }
   }
 
@@ -1229,9 +1241,12 @@ function OwnerDashboard() {
           allowBranches: branchesEnabled !== false,
           allowOnlineBooking: allowOnlineBooking !== false,
           allowTvScreen: allowTvScreen !== false,
+          allowAnalytics: allowAnalytics !== false,
           maxBranches: Number(maxBranches) || 1
         },
 
+        allowAnalytics: allowAnalytics !== false,
+        hiddenTabs: clinicHiddenTabs,
         heroImage,
         heroTitle,
         heroSubtitle,
@@ -1376,6 +1391,8 @@ function OwnerDashboard() {
     setAllowPatientAlerts(c.allowPatientAlerts !== false)
     setAllowOnlineBooking(c.allowOnlineBooking !== false)
     setAllowTvScreen(c.allowTvScreen !== false && c.tvLockedByOwner !== true)
+    setAllowAnalytics(c.allowAnalytics !== false)
+    setClinicHiddenTabs(Array.isArray(c.hiddenTabs) ? c.hiddenTabs : [])
     setLogoUrl(c.logoUrl || '')
     setThermalMonoLogoUrl(c.thermalMonoLogoUrl || '')
     setPrimaryColor(c.primaryColor || '#087CF4')
@@ -3726,6 +3743,22 @@ function OwnerDashboard() {
                       </div>
                       <Switch checked={pkgAllowTvScreen} onCheckedChange={val => handleTogglePackageFeature('tvScreen', val)} />
                     </div>
+
+                    {/* Analytics */}
+                    <div className="p-3 rounded-xl bg-white border border-slate-200 flex items-center justify-between sm:col-span-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-cyan-50 text-cyan-600 flex items-center justify-center shrink-0">
+                          <BarChart3 className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <Label className="text-xs font-bold text-slate-800 block cursor-pointer">
+                            التحليلات والإحصائيات وتوزيع المرضى (Analytics)
+                          </Label>
+                          <span className="text-[10px] text-slate-400 block">رسوم بيانية، مؤشرات الأداء، وخريطة التوزيع الجغرافي للمرضى</span>
+                        </div>
+                      </div>
+                      <Switch checked={pkgAllowAnalytics} onCheckedChange={val => handleTogglePackageFeature('analytics', val)} />
+                    </div>
                   </div>
                 </div>
 
@@ -4618,6 +4651,90 @@ function OwnerDashboard() {
                         </div>
                       </div>
                       <Switch checked={allowTvScreen} onCheckedChange={setAllowTvScreen} />
+                    </div>
+
+                    {/* Analytics */}
+                    <div className="p-3 rounded-xl bg-white border border-slate-200 flex items-center justify-between sm:col-span-2 md:col-span-3">
+                      <div className="flex items-center gap-2">
+                        <BarChart3 className="w-4 h-4 text-cyan-600" />
+                        <div>
+                          <Label className="text-xs font-bold text-slate-800 block cursor-pointer">التحليلات والإحصائيات وتوزيع المرضى (Analytics)</Label>
+                          <span className="text-[9px] text-slate-400">إظهار أو حجب تبويب التحليلات والإحصائيات والخريطة الجغرافية للعيادة</span>
+                        </div>
+                      </div>
+                      <Switch checked={allowAnalytics} onCheckedChange={setAllowAnalytics} />
+                    </div>
+
+                    {/* Granular Sidebar Tab Visibility Control */}
+                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 sm:col-span-2 md:col-span-3 space-y-3">
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                        <div className="flex items-center gap-2">
+                          <Layers className="w-4 h-4 text-[#087CF4]" />
+                          <div>
+                            <h4 className="text-xs font-black text-slate-800">
+                              التحكم في ظهور تبويبات القائمة الجانبية (Sidebar Tabs Visibility)
+                            </h4>
+                            <p className="text-[10px] text-slate-500">
+                              إظهار أو إخفاء أي تبويب محدد عن هذه العيادة في لوحة التحكم
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] bg-slate-200/80 text-slate-700 px-2.5 py-0.5 rounded-full font-bold">
+                          {11 - clinicHiddenTabs.length} ظاهر / {clinicHiddenTabs.length} مخفي
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 pt-1">
+                        {[
+                          { id: 'appointments', label: 'لوحة اليوم (Appointments)', desc: 'الطابور اليومي المباشر', icon: Calendar },
+                          { id: 'waiting-tv', label: 'شاشة الانتظار (Smart TV)', desc: 'شاشة التلفزيون والنداء', icon: Tv },
+                          { id: 'patients', label: 'سجل المرضى (Patients)', desc: 'قاعدة بيانات وسجل المرضى', icon: Users },
+                          { id: 'prescriptions', label: 'الروشتات (Prescriptions)', desc: 'تحرير وطباعة الروشتات', icon: FileText },
+                          { id: 'drugs', label: 'دليل الأدوية (Drugs)', desc: 'أسعار وقاعدة الأدوية', icon: Pill },
+                          { id: 'accounts', label: 'الحسابات (Accounts)', desc: 'إيرادات ومصروفات يومية', icon: Receipt },
+                          { id: 'finance', label: 'التقارير المالية (Finance)', desc: 'الأرباح والتقارير المالية', icon: DollarSign },
+                          { id: 'analytics', label: 'التحليلات (Analytics)', desc: 'الإحصائيات وخريطة التوزيع', icon: BarChart3 },
+                          { id: 'ai-training', label: 'المساعد الذكي (AI Assistant)', desc: 'تدريب وشات بوت العيادة', icon: Bot },
+                          { id: 'branches', label: 'إدارة الفروع (Branches)', desc: 'الفروع والمراكز المتعددة', icon: Building2 },
+                          { id: 'settings', label: 'الإعدادات (Settings)', desc: 'إعدادات وهوية العيادة', icon: Settings }
+                        ].map((tab) => {
+                          const isHidden = clinicHiddenTabs.includes(tab.id)
+                          const TabIcon = tab.icon
+                          return (
+                            <div
+                              key={tab.id}
+                              className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 transition-all ${
+                                isHidden
+                                  ? 'bg-rose-50/50 border-rose-200/60 opacity-80'
+                                  : 'bg-white border-slate-200 shadow-2xs'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <TabIcon className={`w-3.5 h-3.5 shrink-0 ${isHidden ? 'text-rose-500' : 'text-[#087CF4]'}`} />
+                                <div className="min-w-0">
+                                  <span className={`text-[11px] font-bold block truncate ${isHidden ? 'text-rose-700 line-through' : 'text-slate-800'}`}>
+                                    {tab.label}
+                                  </span>
+                                  <span className="text-[9px] text-slate-400 block truncate">
+                                    {tab.desc}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <Switch
+                                checked={!isHidden}
+                                onCheckedChange={(show) => {
+                                  if (show) {
+                                    setClinicHiddenTabs(prev => prev.filter(t => t !== tab.id))
+                                  } else {
+                                    setClinicHiddenTabs(prev => Array.from(new Set([...prev, tab.id])))
+                                  }
+                                }}
+                              />
+                            </div>
+                          )
+                        })}
+                      </div>
                     </div>
 
                     {/* Booking Availability (Today Only vs Today + Future Days) */}

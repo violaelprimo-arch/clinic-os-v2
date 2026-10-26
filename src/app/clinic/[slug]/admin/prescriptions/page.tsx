@@ -11,8 +11,13 @@ import {
   Phone, User as UserIcon, Star, Check, MessageCircle,
   FileText, ShieldCheck, ChevronDown, Sparkles, Download, Palette, Image as ImageIcon, Lock,
   Eye, ZoomIn, ZoomOut, ExternalLink, AlertTriangle, Zap, RotateCcw, BookmarkCheck,
-  HeartPulse, Activity, X, Layers
+  HeartPulse, Activity, X, Layers, Pencil
 } from 'lucide-react'
+import {
+  PrescriptionTemplateModal,
+  type PrescriptionTemplate,
+  type TemplateDrugItem
+} from '@/components/clinic/PrescriptionTemplateModal'
 import { motion, AnimatePresence } from 'framer-motion'
 import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 import { toast } from 'sonner'
@@ -58,9 +63,14 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const [patientChronicDiseases, setPatientChronicDiseases] = useState('')
   const [showAllergiesInput, setShowAllergiesInput] = useState(false)
   const [showProtocolPicker, setShowProtocolPicker] = useState(false)
-  const [showSaveProtocolModal, setShowSaveProtocolModal] = useState(false)
-  const [newProtocolName, setNewProtocolName] = useState('')
-  const [isSavingProtocol, setIsSavingProtocol] = useState(false)
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
+  const [templateToEdit, setTemplateToEdit] = useState<PrescriptionTemplate | null>(null)
+  const [templateDraftData, setTemplateDraftData] = useState<{
+    diagnosis?: string
+    instructions?: string
+    drugs?: TemplateDrugItem[]
+  } | null>(null)
+  const [hiddenBuiltinIds, setHiddenBuiltinIds] = useState<string[]>([])
   const [customProtocols, setCustomProtocols] = useState<any[]>([])
   const [isDraftRestored, setIsDraftRestored] = useState(false)
   const draftStorageKey = useMemo(() => `yalla_rx_draft_${slug}`, [slug])
@@ -79,6 +89,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       id: 'gastroenteritis',
       name: 'نزلة معوية حادة (Gastroenteritis)',
       icon: '🦠',
+      isBuiltin: true,
       diagnosis: 'نزلة معوية وتقلصات معوية حادة (Acute Gastroenteritis)',
       instructions: 'الراحة التامة، تناول سوائل دافئة وشوربة خفيفة، تجنب المقليات والمأكولات الحارة ومنتجات الألبان مؤقتاً.',
       drugs: [
@@ -92,6 +103,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       id: 'tonsillitis',
       name: 'التهاب الحلق واللوزتين (Pharyngotonsillitis)',
       icon: '🗣️',
+      isBuiltin: true,
       diagnosis: 'التهاب بكتيري حاد باللوزتين والحلق (Acute Bacterial Tonsillitis)',
       instructions: 'شرب مشروبات دافئة بكثرة، الغرغرة بماء دافئ وملح، تجنب المشروبات المثلجة والمجهود الشاق.',
       drugs: [
@@ -104,6 +116,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       id: 'bronchitis_asthma',
       name: 'حساسية الصدر ونوبات الربو (Asthma / Bronchitis)',
       icon: '🫁',
+      isBuiltin: true,
       diagnosis: 'التهاب الشعب الهوائية مع أزمة حساسية صدرية (Acute Bronchitis / Asthma)',
       instructions: 'الابتعاد التام عن الأتربة والدخان، تجنب الروائح النفاذة والتكييف المباشر، تناول كميات كافية من السوائل الدافئة.',
       drugs: [
@@ -116,6 +129,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       id: 'hypertension',
       name: 'بروتوكول ضبط ضغط الدم (Hypertension)',
       icon: '🩸',
+      isBuiltin: true,
       diagnosis: 'ارتفاع ضغط الدم الشرياني الأولي (Essential Hypertension)',
       instructions: 'تقليل ملح الطعام والمخللات تماماً، قياس ضغط الدم وتسجيله يومياً صباحاً ومساءً، المشي نصف ساعة يومياً.',
       drugs: [
@@ -127,6 +141,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       id: 'flu_cold',
       name: 'نزلات البرد الحادة والإنفلونزا (Acute Flu & Cold)',
       icon: '🤒',
+      isBuiltin: true,
       diagnosis: 'نزلة برد فيروسية حادة واحتقان أنفي (Common Cold & Upper RTI)',
       instructions: 'الراحة بالسرير، الإكثار من فيتامين سي وعصير الليمون والبرتقال، تغطية الفم والأنف وتجنب التيارات الهوائية.',
       drugs: [
@@ -139,7 +154,8 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       id: 'gerd_gastritis',
       name: 'التهاب المعدة وارتجاع المريء (GERD & Gastritis)',
       icon: '💊',
-      diagnosis: 'ارتجاع المريء وحموضة المعدة الحادة (Gastroesophageal Reflux & Hyperacidity)',
+      isBuiltin: true,
+      diagnosis: 'ارتفاع حموضة المعدة وارتجاع المريء (GERD & Hyperacidity)',
       instructions: 'تجنب النوم مباشرة بعد الأكل (الانتظار ساعتين على الأقل)، الامتناع عن المسبكات والقهوة والشوكولاتة والتدخين.',
       drugs: [
         { name: 'Nexium 40mg tab', dosage: 'قرص واحد يومياً صباحاً قبل الإفطار بنصف ساعة', duration: 'لمدة أسبوعين', notes: 'مثبط مضخة البروتون لعلاج الحموضة' },
@@ -147,6 +163,11 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       ]
     }
   ], [])
+
+  // Filter built-in protocols based on clinic preferences
+  const visibleBuiltinProtocols = useMemo(() => {
+    return BUILTIN_PROTOCOLS.filter(p => !hiddenBuiltinIds.includes(p.id))
+  }, [BUILTIN_PROTOCOLS, hiddenBuiltinIds])
 
   // Real-time Drug Allergy Conflict Detection
   const getDrugAllergyConflict = (drugName: string, allergyString: string): string | null => {
@@ -282,6 +303,9 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           const data = cDoc.data()
           setClinic({ id: cDoc.id, ...data })
           setClinicId(cDoc.id)
+          if (data.hiddenProtocolIds && Array.isArray(data.hiddenProtocolIds)) {
+            setHiddenBuiltinIds(data.hiddenProtocolIds)
+          }
           if (data.primaryColor) setPrimaryColor(data.primaryColor)
           if (data.secondaryColor) setSecondaryColor(data.secondaryColor)
           if (data.favorite_drugs && Array.isArray(data.favorite_drugs)) {
@@ -491,49 +515,83 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     toast.success(`تم تطبيق بروتوكول "${protocol.name}" بنجاح ⚡`)
   }
 
-  // Save current prescription as a custom protocol
-  const handleSaveCurrentAsProtocol = async () => {
-    if (!newProtocolName.trim()) {
-      return toast.error('يرجى كتابة اسم البروتوكول / القالب')
-    }
-    const validDrugs = drugs.filter(d => d.name && d.name.trim() !== '')
-    if (validDrugs.length === 0) {
-      return toast.error('يرجى إضافة دواء واحد على الأقل لحفظه في القالب')
-    }
-    setIsSavingProtocol(true)
-    try {
-      await addDoc(collection(db, 'rx_protocols'), {
-        clinic_id: clinicId,
-        name: newProtocolName.trim(),
-        diagnosis: diagnosis || '',
-        instructions: instructions || '',
-        drugs: validDrugs.map(d => ({
-          name: d.name,
-          dosage: d.dosage || '',
-          duration: d.duration || '',
-          notes: d.notes || ''
-        })),
-        createdAt: new Date().toISOString()
-      })
-      setShowSaveProtocolModal(false)
-      setNewProtocolName('')
-      toast.success('تم حفظ البروتوكول في قائمة قوالب العيادة بنجاح ⭐')
-    } catch (e) {
-      toast.error('حدث خطأ أثناء حفظ البروتوكول')
-    } finally {
-      setIsSavingProtocol(false)
-    }
+  // Open Add Template Modal (Blank)
+  const handleOpenAddTemplate = () => {
+    setTemplateToEdit(null)
+    setTemplateDraftData(null)
+    setIsTemplateModalOpen(true)
   }
 
-  // Delete custom protocol
-  const handleDeleteProtocol = async (protocolId: string, protocolName: string) => {
-    if (!confirm(`هل أنت متأكد من حذف بروتوكول "${protocolName}"؟`)) return
+  // Open Edit Template Modal
+  const handleOpenEditTemplate = (tmpl: any) => {
+    setTemplateToEdit({
+      id: tmpl.id,
+      clinic_id: clinicId || '',
+      name: tmpl.name,
+      category: tmpl.category || '',
+      diagnosis: tmpl.diagnosis || '',
+      instructions: tmpl.instructions || '',
+      drugs: (tmpl.drugs || []).map((d: any, idx: number) => ({
+        id: d.id || idx + 1,
+        name: d.name,
+        dosage: d.dosage || '',
+        duration: d.duration || '',
+        notes: d.notes || ''
+      })),
+      isBuiltin: !!tmpl.isBuiltin
+    })
+    setTemplateDraftData(null)
+    setIsTemplateModalOpen(true)
+  }
+
+  // Save current prescription draft as a new template
+  const handleOpenSaveDraftAsTemplate = () => {
+    const validDraftDrugs = drugs.filter(d => d.name && d.name.trim() !== '')
+    if (validDraftDrugs.length === 0 && !diagnosis.trim()) {
+      return toast.error('يرجى كتابة تشخيص أو إضافة دواء في مسودة الروشتة أولاً لحفظه كقالب')
+    }
+    setTemplateToEdit(null)
+    setTemplateDraftData({
+      diagnosis,
+      instructions,
+      drugs: validDraftDrugs.map((d, i) => ({
+        id: d.id || i + 1,
+        name: d.name,
+        dosage: d.dosage || '',
+        duration: d.duration || '',
+        notes: d.notes || ''
+      }))
+    })
+    setIsTemplateModalOpen(true)
+  }
+
+  // Delete template (built-in or custom) with safety confirm dialog
+  const handleDeleteTemplate = async (tmpl: any) => {
+    const templateName = tmpl.name ? tmpl.name.split('(')[0].trim() : 'القالب'
+    const confirmed = window.confirm(`هل تريد حذف قالب «${templateName}»؟ ستبقى الروشتات السابقة محفوظة.`)
+    if (!confirmed) return
+
     try {
-      const { deleteDoc } = await import('firebase/firestore')
-      await deleteDoc(doc(db, 'rx_protocols', protocolId))
-      toast.success('تم حذف القالب بنجاح')
-    } catch (e) {
-      toast.error('حدث خطأ أثناء حذف القالب')
+      if (tmpl.isBuiltin) {
+        // Built-in template: Hide it for this clinic in Firestore
+        setHiddenBuiltinIds(prev => Array.from(new Set([...prev, tmpl.id])))
+        if (clinicId) {
+          const { arrayUnion } = await import('firebase/firestore')
+          await updateDoc(doc(db, 'clinics', clinicId), {
+            hiddenProtocolIds: arrayUnion(tmpl.id)
+          })
+        }
+        toast.success(`تم حذف قالب «${templateName}» بنجاح`)
+      } else {
+        // Custom template: delete doc from rx_protocols
+        const { deleteDoc } = await import('firebase/firestore')
+        await deleteDoc(doc(db, 'rx_protocols', tmpl.id))
+        setCustomProtocols(prev => prev.filter(cp => cp.id !== tmpl.id))
+        toast.success(`تم حذف قالب «${templateName}» بنجاح`)
+      }
+    } catch (err) {
+      console.error('Failed to delete template:', err)
+      toast.error('حدث خطأ أثناء حذف القالب، يرجى المحاولة مرة أخرى')
     }
   }
   const isCustomTemplateEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'customTemplate'), [clinic])
@@ -956,11 +1014,22 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={handleOpenAddTemplate}
+                  className="h-8 text-xs font-bold yalla-gradient-btn text-white hover:opacity-95 rounded-xl gap-1.5 shadow-2xs cursor-pointer"
+                  title="إضافة قالب روشتة جديد للعيادة"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>إضافة قالب</span>
+                </Button>
+
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => setShowSaveProtocolModal(true)}
+                  onClick={handleOpenSaveDraftAsTemplate}
                   className="h-8 text-xs font-bold border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 rounded-xl gap-1 cursor-pointer"
                   title="حفظ الأدوية والتشخيص الحالي كقالب جاهز للعيادة"
                 >
@@ -983,44 +1052,105 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
 
             {/* Protocols Chips */}
             <div className="flex flex-wrap items-center gap-2 pt-1">
-              {BUILTIN_PROTOCOLS.map((p) => (
-                <button
+              {visibleBuiltinProtocols.map((p) => (
+                <div
                   key={p.id}
-                  type="button"
-                  onClick={() => handleApplyProtocol(p)}
-                  className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-secondary hover:bg-primary/10 text-foreground hover:text-primary border border-border hover:border-primary/40 transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-2xs"
-                  title={`تطبيق بروتوكول: ${p.name}`}
+                  className="inline-flex items-center rounded-xl bg-secondary/80 hover:bg-secondary border border-border hover:border-primary/40 transition-all shadow-2xs overflow-hidden group/tmpl max-w-full"
                 >
-                  <span>{p.icon}</span>
-                  <span>{p.name.split('(')[0].trim()}</span>
-                  <span className="text-[10px] text-muted-foreground font-normal">({p.drugs.length})</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyProtocol(p)}
+                    className="px-2.5 py-1.5 text-xs font-bold text-foreground hover:text-primary transition-colors cursor-pointer flex items-center gap-1.5 active:scale-95"
+                    title={`تطبيق بروتوكول: ${p.name}`}
+                  >
+                    <span>{p.icon}</span>
+                    <span className="truncate max-w-[120px] sm:max-w-[180px]">{p.name.split('(')[0].trim()}</span>
+                    <span className="text-[10px] text-muted-foreground font-normal shrink-0">({p.drugs.length})</span>
+                  </button>
+
+                  <div className="flex items-center pe-1 ps-0.5 border-s border-border/60 gap-0.5 shrink-0 bg-background/50">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleOpenEditTemplate(p)
+                      }}
+                      className="p-1 rounded-md text-muted-foreground hover:text-amber-600 hover:bg-amber-500/15 transition-colors cursor-pointer"
+                      title={`تعديل قالب ${p.name}`}
+                      aria-label={`تعديل قالب ${p.name}`}
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleDeleteTemplate(p)
+                      }}
+                      className="p-1 rounded-md text-muted-foreground hover:text-rose-500 hover:bg-rose-500/15 transition-colors cursor-pointer"
+                      title={`حذف قالب ${p.name}`}
+                      aria-label={`حذف قالب ${p.name}`}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
               ))}
 
               {customProtocols.map((cp) => (
                 <div
                   key={cp.id}
-                  className="flex items-center rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs font-bold shadow-2xs overflow-hidden"
+                  className="inline-flex items-center rounded-xl bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs font-bold shadow-2xs overflow-hidden group/tmpl max-w-full"
                 >
                   <button
                     type="button"
                     onClick={() => handleApplyProtocol(cp)}
-                    className="px-2.5 py-1.5 hover:bg-amber-500/20 transition-colors cursor-pointer flex items-center gap-1"
+                    className="px-2.5 py-1.5 hover:bg-amber-500/20 transition-colors cursor-pointer flex items-center gap-1.5 active:scale-95"
+                    title={`تطبيق بروتوكول: ${cp.name}`}
                   >
-                    <Star className="w-3 h-3 fill-amber-400 text-amber-500" />
-                    <span>{cp.name}</span>
-                    <span className="text-[10px] opacity-75">({cp.drugs?.length || 0})</span>
+                    <Star className="w-3 h-3 fill-amber-400 text-amber-500 shrink-0" />
+                    <span className="truncate max-w-[120px] sm:max-w-[180px]">{cp.name}</span>
+                    <span className="text-[10px] opacity-75 shrink-0">({cp.drugs?.length || 0})</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteProtocol(cp.id, cp.name)}
-                    className="p-1.5 text-muted-foreground hover:text-rose-500 hover:bg-rose-500/20 transition-colors cursor-pointer border-s border-amber-500/20"
-                    title="حذف القالب"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
+
+                  <div className="flex items-center pe-1 ps-0.5 border-s border-amber-500/20 gap-0.5 shrink-0 bg-background/50">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleOpenEditTemplate(cp)
+                      }}
+                      className="p-1 rounded-md text-muted-foreground hover:text-amber-600 hover:bg-amber-500/20 transition-colors cursor-pointer"
+                      title={`تعديل قالب ${cp.name}`}
+                      aria-label={`تعديل قالب ${cp.name}`}
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleDeleteTemplate(cp)
+                      }}
+                      className="p-1 rounded-md text-muted-foreground hover:text-rose-500 hover:bg-rose-500/20 transition-colors cursor-pointer"
+                      title={`حذف قالب ${cp.name}`}
+                      aria-label={`حذف قالب ${cp.name}`}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
               ))}
+
+              {visibleBuiltinProtocols.length === 0 && customProtocols.length === 0 && (
+                <div className="py-2 px-3 text-xs text-muted-foreground rounded-xl bg-muted/30 border border-dashed border-border w-full text-center">
+                  لا توجد قوالب روشتات حالياً. اضغط على «إضافة قالب» لإنشاء أول قالب خاص بالعيادة!
+                </div>
+              )}
             </div>
           </div>
           
@@ -1955,60 +2085,33 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
 
       </div>
 
-      {/* Save Protocol Modal */}
-      {showSaveProtocolModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-md bg-card border border-border rounded-3xl p-6 shadow-2xl space-y-4"
-          >
-            <div className="flex items-center justify-between pb-3 border-b border-border">
-              <h3 className="font-black text-sm text-foreground flex items-center gap-2">
-                <BookmarkCheck className="w-5 h-5 text-amber-500" />
-                حفظ الروشتة الحالية كقالب جاهز للعيادة
-              </h3>
-              <button
-                onClick={() => setShowSaveProtocolModal(false)}
-                className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-xs font-bold text-muted-foreground">اسم القالب (مثال: بروتوكول علاج حب الشباب، متابعة السكر)</Label>
-              <Input
-                value={newProtocolName}
-                onChange={(e) => setNewProtocolName(e.target.value)}
-                placeholder="اكتب اسم القالب هنا..."
-                className="h-10 text-xs rounded-xl bg-background border-border text-foreground"
-                autoFocus
-              />
-              <p className="text-[11px] text-muted-foreground">
-                سيتم حفظ التشخيص الحالي مع قائمة الأدوية ({drugs.filter(d => d.name && d.name.trim()).length} أدوية) للاستخدام المباشر بنقرة واحدة لاحقاً.
-              </p>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <Button
-                variant="ghost"
-                onClick={() => setShowSaveProtocolModal(false)}
-                className="h-9 text-xs font-bold rounded-xl cursor-pointer"
-              >
-                إلغاء
-              </Button>
-              <Button
-                onClick={handleSaveCurrentAsProtocol}
-                disabled={isSavingProtocol || !newProtocolName.trim()}
-                className="h-9 px-4 text-xs font-bold yalla-gradient-btn text-white rounded-xl shadow-xs cursor-pointer"
-              >
-                {isSavingProtocol ? 'جاري الحفظ...' : 'حفظ القالب 💾'}
-              </Button>
-            </div>
-          </motion.div>
-        </div>
-      )}
+      {/* Add / Edit Prescription Template Modal */}
+      <PrescriptionTemplateModal
+        isOpen={isTemplateModalOpen}
+        onClose={() => {
+          setIsTemplateModalOpen(false)
+          setTemplateToEdit(null)
+          setTemplateDraftData(null)
+        }}
+        clinicId={clinicId || ''}
+        templateToEdit={templateToEdit}
+        initialDraftData={templateDraftData}
+        onHideBuiltin={(id) => {
+          setHiddenBuiltinIds(prev => Array.from(new Set([...prev, id])))
+        }}
+        onSaved={(savedTmpl) => {
+          // If was an update to an existing custom protocol in state, update it
+          setCustomProtocols(prev => {
+            const idx = prev.findIndex(p => p.id === savedTmpl.id)
+            if (idx >= 0) {
+              const copy = [...prev]
+              copy[idx] = savedTmpl
+              return copy
+            }
+            return [savedTmpl, ...prev]
+          })
+        }}
+      />
     </div>
   )
 }
