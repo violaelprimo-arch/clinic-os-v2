@@ -1,6 +1,6 @@
 .landing-page {
   /* Removed smooth scroll on root to eliminate wheel/trackpad lag and latency */
-  contain: layout style;
+  contain: style;
 }
 .landing-page section[id] {
   scroll-margin-top: 90px;

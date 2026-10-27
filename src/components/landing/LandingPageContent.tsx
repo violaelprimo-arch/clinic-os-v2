@@ -727,6 +727,12 @@ export function LandingPageContent({
                         onMouseUp={handleShowcaseMouseUp}
                         onTouchStart={handleShowcaseTouchStart}
                         onTouchEnd={handleShowcaseTouchEnd}
+                        onClick={() => {
+                          if (!isDraggingShowcaseRef.current) {
+                            setLightboxOpen(true)
+                            setPaused(true)
+                          }
+                        }}
                         role="button"
                         tabIndex={0}
                         aria-label={copy(
