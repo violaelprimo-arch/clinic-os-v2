@@ -1006,7 +1006,13 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                   #{currentPatient.queue_number}
                 </div>
                 <div className="min-w-0 flex-1 text-start">
-                  <h4 className="text-lg font-black text-foreground truncate">{currentPatient.patientName}</h4>
+                  <Link
+                    href={`/clinic/${clinic.slug}/admin/patients/${encodeURIComponent(currentPatient.patientId || currentPatient.phone || currentPatient.id)}`}
+                    className="text-lg font-black text-foreground hover:text-primary hover:underline transition-colors block truncate"
+                    title="فتح ملف المريض المتكامل"
+                  >
+                    {currentPatient.patientName}
+                  </Link>
                   <p className="text-xs text-muted-foreground font-mono font-bold">{currentPatient.phone}</p>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-secondary text-foreground border border-border">
@@ -1108,7 +1114,13 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                   #{nextPatient.queue_number}
                 </div>
                 <div className="min-w-0 flex-1 text-start">
-                  <h4 className="font-black text-base text-foreground truncate">{nextPatient.patientName}</h4>
+                  <Link
+                    href={`/clinic/${clinic.slug}/admin/patients/${encodeURIComponent(nextPatient.patientId || nextPatient.phone || nextPatient.id)}`}
+                    className="font-black text-base text-foreground hover:text-primary hover:underline transition-colors block truncate"
+                    title="فتح ملف المريض المتكامل"
+                  >
+                    {nextPatient.patientName}
+                  </Link>
                   <p className="text-xs text-muted-foreground font-mono font-bold">{nextPatient.phone}</p>
                   <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 inline-block mt-1">
                     {tDynamic(nextPatient.serviceName)}
@@ -1468,7 +1480,13 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                                 <span className="text-sm leading-tight font-black">{b.queue_number || '--'}</span>
                               </div>
                               <div className="min-w-0">
-                                <h3 className="font-bold text-sm text-foreground truncate">{b.patientName}</h3>
+                                <Link
+                                  href={`/clinic/${clinic.slug}/admin/patients/${encodeURIComponent(b.patientId || b.phone || b.id)}`}
+                                  className="font-bold text-sm text-foreground hover:text-primary hover:underline transition-colors block truncate"
+                                  title="فتح ملف المريض المتكامل"
+                                >
+                                  {b.patientName}
+                                </Link>
                                 <div className="flex items-center gap-1.5 mt-0.5">
                                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
                                     {tDynamic(b.serviceName) || t('consultation', 'كشف')}
@@ -1680,7 +1698,13 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
 
                             <div className="min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <h3 className="font-bold text-sm text-foreground truncate">{b.patientName}</h3>
+                                <Link
+                                  href={`/clinic/${clinic.slug}/admin/patients/${encodeURIComponent(b.patientId || b.phone || b.id)}`}
+                                  className="font-bold text-sm text-foreground hover:text-primary hover:underline transition-colors block truncate"
+                                  title="فتح ملف المريض المتكامل"
+                                >
+                                  {b.patientName}
+                                </Link>
                                 {/* Service Pill */}
                                 <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
                                   {tDynamic(b.serviceName) || t('consultation', 'كشف')}

@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useRef, useState, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import {
   X,
   ZoomIn,
@@ -48,10 +49,15 @@ export function ShowcaseLightbox({
   const [scale, setScale] = useState(1)
   const [position, setPosition] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const dragStartRef = useRef({ x: 0, y: 0, posX: 0, posY: 0 })
   const containerRef = useRef<HTMLDivElement>(null)
   const lastActiveElementRef = useRef<HTMLElement | null>(null)
   const touchStartRef = useRef<{ x: number; y: number; time: number; distance?: number } | null>(null)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const currentShot = screenshots[currentIndex]
 
@@ -267,20 +273,21 @@ export function ShowcaseLightbox({
     }
   }
 
-  if (!open || !currentShot) return null
+  if (!open || !currentShot || !mounted || typeof document === 'undefined') return null
 
   const title = !isRtl && currentShot.titleEn ? currentShot.titleEn : currentShot.title
   const subtitle = !isRtl && currentShot.subtitleEn ? currentShot.subtitleEn : currentShot.subtitle
 
-  return (
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
       aria-label={isRtl ? 'معاينة الصورة المكبرة' : 'Enlarged Image Preview'}
-      className="fixed inset-0 z-[100] flex flex-col bg-black/92 backdrop-blur-md select-none text-white animate-in fade-in duration-200"
+      className="fixed inset-0 z-[9999] h-screen w-screen flex flex-col justify-between bg-black/95 backdrop-blur-md select-none text-white overflow-hidden animate-in fade-in duration-200"
+      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100vh', margin: 0, padding: 0 }}
     >
       {/* Top Bar with Controls */}
-      <header className="flex h-16 shrink-0 items-center justify-between border-b border-white/10 px-4 sm:px-6">
+      <header className="flex h-14 sm:h-16 shrink-0 items-center justify-between border-b border-white/10 px-4 sm:px-6 bg-black/60 backdrop-blur-md z-30">
         <div className="flex items-center gap-3">
           <span className="font-mono text-sm text-primary font-bold">
             {String(currentIndex + 1).padStart(2, '0')} / {String(screenshots.length).padStart(2, '0')}
@@ -298,7 +305,7 @@ export function ShowcaseLightbox({
             size="icon"
             onClick={zoomOut}
             disabled={scale <= 1}
-            className="text-white/80 hover:text-white hover:bg-white/10 size-9 disabled:opacity-30"
+            className="text-white/80 hover:text-white hover:bg-white/10 size-9 disabled:opacity-30 cursor-pointer"
             title={isRtl ? 'تصغير (-)' : 'Zoom Out (-)'}
             aria-label={isRtl ? 'تصغير' : 'Zoom Out'}
           >
@@ -315,7 +322,7 @@ export function ShowcaseLightbox({
             size="icon"
             onClick={zoomIn}
             disabled={scale >= 3.5}
-            className="text-white/80 hover:text-white hover:bg-white/10 size-9 disabled:opacity-30"
+            className="text-white/80 hover:text-white hover:bg-white/10 size-9 disabled:opacity-30 cursor-pointer"
             title={isRtl ? 'تكبير (+)' : 'Zoom In (+)'}
             aria-label={isRtl ? 'تكبير' : 'Zoom In'}
           >
@@ -328,7 +335,7 @@ export function ShowcaseLightbox({
             size="icon"
             onClick={resetZoom}
             disabled={scale === 1 && position.x === 0 && position.y === 0}
-            className="text-white/80 hover:text-white hover:bg-white/10 size-9 disabled:opacity-30"
+            className="text-white/80 hover:text-white hover:bg-white/10 size-9 disabled:opacity-30 cursor-pointer"
             title={isRtl ? 'إعادة ضبط الحجم (0)' : 'Reset Zoom (0)'}
             aria-label={isRtl ? 'إعادة ضبط الحجم' : 'Reset Zoom'}
           >
@@ -342,7 +349,7 @@ export function ShowcaseLightbox({
             variant="ghost"
             size="icon"
             onClick={onClose}
-            className="text-white/80 hover:text-white hover:bg-white/10 size-9"
+            className="text-white/80 hover:text-white hover:bg-white/15 size-9 rounded-xl cursor-pointer"
             title={isRtl ? 'إغلاق (Esc)' : 'Close (Esc)'}
             aria-label={isRtl ? 'إغلاق' : 'Close'}
           >
@@ -351,12 +358,17 @@ export function ShowcaseLightbox({
         </div>
       </header>
 
-      {/* Main Image Viewport */}
+      {/* Main Image Viewport (Centered) */}
       <div
         ref={containerRef}
-        className={`relative flex-1 overflow-hidden flex items-center justify-center p-4 sm:p-8 ${
+        className={`relative flex-1 w-full h-full min-h-0 overflow-hidden flex items-center justify-center p-3 sm:p-6 ${
           scale > 1 ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default'
         }`}
+        onClick={(e) => {
+          if (e.target === containerRef.current) {
+            onClose()
+          }
+        }}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -374,7 +386,7 @@ export function ShowcaseLightbox({
                 e.stopPropagation()
                 handlePrev()
               }}
-              className="absolute start-3 sm:start-6 top-1/2 -translate-y-1/2 z-20 flex size-11 items-center justify-center rounded-full bg-black/60 text-white/90 hover:bg-black/90 hover:text-white backdrop-blur-sm border border-white/15 transition-all shadow-lg hover:scale-105 active:scale-95"
+              className="absolute start-3 sm:start-6 top-1/2 -translate-y-1/2 z-20 flex size-11 items-center justify-center rounded-full bg-black/60 text-white/90 hover:bg-black/90 hover:text-white backdrop-blur-sm border border-white/15 transition-all shadow-lg hover:scale-105 active:scale-95 cursor-pointer"
               aria-label={isRtl ? 'الصورة السابقة' : 'Previous Image'}
             >
               {isRtl ? <ChevronRight className="size-6" /> : <ChevronLeft className="size-6" />}
@@ -386,7 +398,7 @@ export function ShowcaseLightbox({
                 e.stopPropagation()
                 handleNext()
               }}
-              className="absolute end-3 sm:end-6 top-1/2 -translate-y-1/2 z-20 flex size-11 items-center justify-center rounded-full bg-black/60 text-white/90 hover:bg-black/90 hover:text-white backdrop-blur-sm border border-white/15 transition-all shadow-lg hover:scale-105 active:scale-95"
+              className="absolute end-3 sm:end-6 top-1/2 -translate-y-1/2 z-20 flex size-11 items-center justify-center rounded-full bg-black/60 text-white/90 hover:bg-black/90 hover:text-white backdrop-blur-sm border border-white/15 transition-all shadow-lg hover:scale-105 active:scale-95 cursor-pointer"
               aria-label={isRtl ? 'الصورة التالية' : 'Next Image'}
             >
               {isRtl ? <ChevronLeft className="size-6" /> : <ChevronRight className="size-6" />}
@@ -394,26 +406,26 @@ export function ShowcaseLightbox({
           </>
         )}
 
-        {/* Scaled & Panned Image */}
+        {/* Scaled & Panned Image (Strictly Centered horizontally and vertically) */}
         <div
           style={{
             transform: `translate3d(${position.x}px, ${position.y}px, 0) scale(${scale})`,
             transition: isDragging ? 'none' : 'transform 0.2s cubic-bezier(0.2, 0, 0, 1)',
           }}
-          className="will-change-transform max-w-full max-h-full flex items-center justify-center"
+          className="will-change-transform max-w-full max-h-full flex items-center justify-center m-auto"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={currentShot.imageUrl}
             alt={(!isRtl && currentShot.altTextEn ? currentShot.altTextEn : currentShot.altText) || title}
             draggable={false}
-            className="max-h-[75vh] max-w-[90vw] object-contain rounded-lg shadow-2xl pointer-events-none select-none border border-white/10"
+            className="max-h-[calc(100vh-140px)] max-w-[calc(100vw-24px)] sm:max-w-[calc(100vw-100px)] w-auto h-auto object-contain rounded-xl shadow-2xl pointer-events-none select-none border border-white/10 mx-auto"
           />
         </div>
 
         {/* Pan hint when zoomed */}
         {scale > 1 && (
-          <div className="absolute bottom-16 start-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 rounded-full bg-black/75 px-3 py-1.5 text-xs text-white/80 backdrop-blur-sm border border-white/10 pointer-events-none">
+          <div className="absolute bottom-6 start-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 rounded-full bg-black/75 px-3 py-1.5 text-xs text-white/80 backdrop-blur-sm border border-white/10 pointer-events-none">
             <Move className="size-3.5 text-primary" />
             <span>{isRtl ? 'اسحب للتحريك في جميع الاتجاهات' : 'Drag to pan around'}</span>
           </div>
@@ -421,12 +433,13 @@ export function ShowcaseLightbox({
       </div>
 
       {/* Footer Info & Caption */}
-      <footer className="shrink-0 border-t border-white/10 bg-black/50 px-4 py-3 text-center sm:px-6 backdrop-blur-sm">
+      <footer className="shrink-0 border-t border-white/10 bg-black/60 px-4 py-3 text-center sm:px-6 backdrop-blur-sm z-30">
         <h3 className="text-sm font-bold text-white/95">{title}</h3>
         {subtitle && (
           <p className="mt-0.5 text-xs text-white/60 line-clamp-1">{subtitle}</p>
         )}
       </footer>
-    </div>
+    </div>,
+    document.body
   )
 }

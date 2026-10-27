@@ -27,6 +27,10 @@ interface TvConfig {
   announcementPhrase: 'patient_number' | 'turn_number'
   chimeSound: 'luxury' | 'classic' | 'none'
   speechTone: 'calm' | 'natural' | 'quick'
+  repeatCount?: 1 | 2 | 3
+  repeatIntervalSeconds?: number
+  volume?: number
+  roomNumber?: string
 }
 
 // In-memory cache for decoded audio buffers to allow instant playback
@@ -140,7 +144,11 @@ export default function WaitingRoomTvPage({
     voiceDialect: 'egyptian',
     announcementPhrase: 'turn_number',
     chimeSound: 'luxury',
-    speechTone: 'calm'
+    speechTone: 'calm',
+    repeatCount: 1,
+    repeatIntervalSeconds: 3,
+    volume: 100,
+    roomNumber: ''
   })
 
   // Audio Context Ref
@@ -227,7 +235,11 @@ export default function WaitingRoomTvPage({
             voiceDialect: parsed.voiceDialect || 'egyptian',
             announcementPhrase: parsed.announcementPhrase || 'turn_number',
             chimeSound: parsed.chimeSound || 'luxury',
-            speechTone: parsed.speechTone || 'calm'
+            speechTone: parsed.speechTone || 'calm',
+            repeatCount: parsed.repeatCount || 1,
+            repeatIntervalSeconds: parsed.repeatIntervalSeconds || 3,
+            volume: parsed.volume !== undefined ? parsed.volume : 100,
+            roomNumber: parsed.roomNumber || ''
           }))
         } catch (e) {}
       }
@@ -249,7 +261,11 @@ export default function WaitingRoomTvPage({
         voiceDialect: clinic.tvSettings.voiceDialect || prev.voiceDialect || 'egyptian',
         announcementPhrase: clinic.tvSettings.announcementPhrase || prev.announcementPhrase || 'turn_number',
         chimeSound: clinic.tvSettings.chimeSound || prev.chimeSound || 'luxury',
-        speechTone: clinic.tvSettings.speechTone || prev.speechTone || 'calm'
+        speechTone: clinic.tvSettings.speechTone || prev.speechTone || 'calm',
+        repeatCount: clinic.tvSettings.repeatCount || prev.repeatCount || 1,
+        repeatIntervalSeconds: clinic.tvSettings.repeatIntervalSeconds || prev.repeatIntervalSeconds || 3,
+        volume: clinic.tvSettings.volume !== undefined ? clinic.tvSettings.volume : (prev.volume ?? 100),
+        roomNumber: clinic.tvSettings.roomNumber || prev.roomNumber || ''
       }))
     }
   }, [clinic?.tvSettings])
@@ -385,87 +401,100 @@ export default function WaitingRoomTvPage({
     }
   }
 
-  // Universal Studio-Engineered Arabic Voice Stream with Compression, EQ & Clean Output
+  // Audio Queue to prevent overlapping voice announcements (طابور تشغيل صوتي)
+  const announcementQueueRef = useRef<Array<() => Promise<void>>>([])
+  const isPlayingQueueRef = useRef(false)
+
+  const processAnnouncementQueue = async () => {
+    if (isPlayingQueueRef.current) return
+    if (announcementQueueRef.current.length === 0) return
+
+    isPlayingQueueRef.current = true
+    const nextTask = announcementQueueRef.current.shift()
+    if (nextTask) {
+      try {
+        await nextTask()
+      } catch (err) {
+        console.warn('Queue announcement error:', err)
+      }
+    }
+    isPlayingQueueRef.current = false
+    if (announcementQueueRef.current.length > 0) {
+      processAnnouncementQueue()
+    }
+  }
+
+  const enqueueAnnouncement = (task: () => Promise<void>) => {
+    announcementQueueRef.current.push(task)
+    processAnnouncementQueue()
+  }
+
+  // Universal Studio-Engineered Arabic Voice Stream with Crisp Neural Quality & Clean Volume
   const playCloudTtsAudio = async (
     text: string,
     gender: 'female' | 'male',
     tone: 'calm' | 'natural' | 'quick' = tvConfig.speechTone || 'calm'
   ): Promise<boolean> => {
-    try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
-      if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
-        audioCtxRef.current = new AudioCtx()
+    return new Promise(async (resolve) => {
+      try {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+        if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+          audioCtxRef.current = new AudioCtx()
+        }
+        const ctx = audioCtxRef.current
+        if (ctx.state === 'suspended') {
+          await ctx.resume()
+        }
+
+        const rateParam = tone === 'calm' ? '-6%' : tone === 'quick' ? '+8%' : '0%'
+        const cacheKey = `${gender}_${rateParam}_${text}`
+        let audioBuffer = ttsAudioCache.get(cacheKey)
+        if (!audioBuffer) {
+          const res = await fetch(`/api/tts?text=${encodeURIComponent(text)}&gender=${gender}&tl=ar&rate=${encodeURIComponent(rateParam)}`)
+          if (!res.ok) throw new Error(`TTS status ${res.status}`)
+          const arrayBuffer = await res.arrayBuffer()
+          audioBuffer = await ctx.decodeAudioData(arrayBuffer)
+          ttsAudioCache.set(cacheKey, audioBuffer)
+        }
+
+        const source = ctx.createBufferSource()
+        source.buffer = audioBuffer
+
+        // Dynamics Compressor for studio clarity
+        const compressor = ctx.createDynamicsCompressor()
+        compressor.threshold.setValueAtTime(-12, ctx.currentTime)
+        compressor.knee.setValueAtTime(6, ctx.currentTime)
+        compressor.ratio.setValueAtTime(2.2, ctx.currentTime)
+        compressor.attack.setValueAtTime(0.005, ctx.currentTime)
+        compressor.release.setValueAtTime(0.2, ctx.currentTime)
+
+        // Master Volume Gain controlled by user setting
+        const masterGain = ctx.createGain()
+        const userVol = Math.max(0, Math.min(100, tvConfig.volume ?? 100)) / 100
+        masterGain.gain.setValueAtTime(userVol * 1.25, ctx.currentTime)
+
+        source.connect(compressor)
+        compressor.connect(masterGain)
+        masterGain.connect(ctx.destination)
+
+        // Crucial: Keep natural pitch (1.0x) without vinyl warping!
+        source.playbackRate.value = 1.0
+
+        source.onended = () => resolve(true)
+        source.start(0)
+      } catch (err) {
+        console.warn('Cloud TTS playback error, trying fallbacks:', err)
+        resolve(false)
       }
-      const ctx = audioCtxRef.current
-      if (ctx.state === 'suspended') {
-        await ctx.resume()
-      }
-
-      const cacheKey = `${gender}_${text}`
-      let audioBuffer = ttsAudioCache.get(cacheKey)
-      if (!audioBuffer) {
-        const res = await fetch(`/api/tts?text=${encodeURIComponent(text)}&gender=${gender}&tl=ar`)
-        if (!res.ok) throw new Error(`TTS status ${res.status}`)
-        const arrayBuffer = await res.arrayBuffer()
-        audioBuffer = await ctx.decodeAudioData(arrayBuffer)
-        ttsAudioCache.set(cacheKey, audioBuffer)
-      }
-
-      const source = ctx.createBufferSource()
-      source.buffer = audioBuffer
-
-      // Studio Broadcast Dynamics Compressor for smooth, balanced, clear delivery
-      const compressor = ctx.createDynamicsCompressor()
-      compressor.threshold.setValueAtTime(-14, ctx.currentTime)
-      compressor.knee.setValueAtTime(8, ctx.currentTime)
-      compressor.ratio.setValueAtTime(2.5, ctx.currentTime)
-      compressor.attack.setValueAtTime(0.005, ctx.currentTime)
-      compressor.release.setValueAtTime(0.2, ctx.currentTime)
-
-      // Master output gain
-      const masterGain = ctx.createGain()
-      masterGain.gain.setValueAtTime(1.15, ctx.currentTime)
-
-      compressor.connect(masterGain)
-      masterGain.connect(ctx.destination)
-
-      // Both male and female now use genuine human neural recordings from Edge Neural TTS!
-      // No artificial pitch-shifting down, no slow-motion warping!
-      const targetRate = tone === 'calm' ? 0.96 : tone === 'quick' ? 1.05 : 1.0
-      source.playbackRate.value = targetRate
-
-      if (gender === 'male') {
-        // Subtle warm clarity filter for natural male voice
-        const warmthFilter = ctx.createBiquadFilter()
-        warmthFilter.type = 'peaking'
-        warmthFilter.frequency.value = 220
-        warmthFilter.gain.value = 1.5
-
-        source.connect(warmthFilter)
-        warmthFilter.connect(compressor)
-      } else {
-        // Subtle clarity filter for natural female voice
-        const clarityFilter = ctx.createBiquadFilter()
-        clarityFilter.type = 'peaking'
-        clarityFilter.frequency.value = 4500
-        clarityFilter.gain.value = 1.0
-
-        source.connect(clarityFilter)
-        clarityFilter.connect(compressor)
-      }
-
-      source.start(0)
-      return true
-    } catch (err) {
-      console.warn('Cloud TTS playback error, trying fallbacks:', err)
-      return false
-    }
+    })
   }
 
   // Arabic Voice Announcement (نداء صوتي لدخول المريض رقم كذا)
   const speakAnnouncement = async (
     turnNumber: string | number,
     patientName?: string,
+    patientGender?: string,
+    patientPronunciation?: string,
     callName = true,
     gender: 'female' | 'male' = tvConfig.voiceGender || 'female',
     phraseType: 'patient_number' | 'turn_number' = tvConfig.announcementPhrase || 'turn_number',
@@ -473,47 +502,71 @@ export default function WaitingRoomTvPage({
     dialect: 'egyptian' | 'standard' = tvConfig.voiceDialect || 'egyptian'
   ) => {
     const isEgyptian = dialect === 'egyptian'
-    // 1. Convert digit turn into proper vocalized words (Egyptian dialect or Standard Arabic)
     const turnInWords = isEgyptian
       ? numberToEgyptianArabicWords(turnNumber)
       : numberToStandardArabicWords(turnNumber)
 
-    // Only announce name if BOTH announceName and showPatientName are explicitly enabled
-    const namePart = (callName && tvConfig.announceName && tvConfig.showPatientName && patientName && patientName.trim())
-      ? `${patientName.trim()} .. `
-      : ''
-
     let fullArabicPhrase: string
     if (isEgyptian) {
-      // Natural, friendly Egyptian clinic calling phrases (بالعامية المصرية)
-      const prefix = phraseType === 'turn_number' ? 'دور رقم' : 'كشف رقم'
-      fullArabicPhrase = `${prefix} ${turnInWords} .. ${namePart}اتفضل حضرتك لغرفة الكشف.`
+      const roomPhrase = tvConfig.roomNumber?.trim()
+        ? ` رقم ${numberToEgyptianArabicWords(tvConfig.roomNumber.trim())}`
+        : ''
+
+      // Patient gender from record
+      const cleanGender = patientGender ? String(patientGender).trim().toLowerCase() : ''
+      const isMalePatient = cleanGender === 'male' || cleanGender === 'ذكر' || cleanGender === 'ولد'
+      const isFemalePatient = cleanGender === 'female' || cleanGender === 'أنثى' || cleanGender === 'انثى' || cleanGender === 'بنت'
+
+      // Spoken name: check if custom pronunciation override exists, else clean name
+      const effectiveName = (patientPronunciation && patientPronunciation.trim()) || (patientName && patientName.trim()) || ''
+      const shouldCallName = Boolean(callName && tvConfig.announceName && tvConfig.showPatientName && effectiveName)
+
+      if (shouldCallName) {
+        if (isMalePatient) {
+          fullArabicPhrase = `أستاذ ${effectiveName}، دور حضرتك جه، اتفضل لغرفة الكشف${roomPhrase}.`
+        } else if (isFemalePatient) {
+          fullArabicPhrase = `أستاذة ${effectiveName}، دور حضرتك جه، اتفضلي لغرفة الكشف${roomPhrase}.`
+        } else {
+          // Neutral respectful Egyptian phrasing without assuming gender
+          fullArabicPhrase = `${effectiveName}، دور حضرتك جه، اتفضل حضرتك لغرفة الكشف${roomPhrase}.`
+        }
+      } else {
+        // By Turn Number
+        const prefix = phraseType === 'patient_number' ? 'كشف رقم' : 'دور رقم'
+        fullArabicPhrase = `${prefix} ${turnInWords}، اتفضل حضرتك لغرفة الكشف${roomPhrase}.`
+      }
     } else {
-      // Classical vocalized Arabic with diacritics (باللغة الفصحى)
+      // Standard Classical Arabic
       const prefix = phraseType === 'turn_number' ? 'دَوْرٌ رَقْم' : 'مَرِيضٌ رَقْم'
+      const namePart = (callName && tvConfig.announceName && tvConfig.showPatientName && patientName && patientName.trim())
+        ? `${patientName.trim()} ... `
+        : ''
       fullArabicPhrase = `${prefix} ${turnInWords} ... ${namePart}تَفَضَّلْ بِالدُّخُولِ إِلَى عِيَادَةِ الْكَشْفِ.`
     }
 
-    // 2. Primary Method: Universal Cloud TTS Audio Stream via Web Audio Studio Pipeline
+    // 1. Primary Method: Studio-Engineered Cloud TTS (Edge Neural ar-EG-Shakir / ar-EG-Salma)
     const played = await playCloudTtsAudio(fullArabicPhrase, gender, tone)
     if (played) return
 
-    // 3. Secondary Method: HTML5 Audio stream
+    // 2. Secondary Method: HTML5 Audio stream
     try {
       const audioUrl = `/api/tts?text=${encodeURIComponent(fullArabicPhrase)}&gender=${gender}&tl=ar`
       const audioEl = new Audio(audioUrl)
       audioEl.playbackRate = 1.0
-      await audioEl.play()
+      await new Promise<void>((res) => {
+        audioEl.onended = () => res()
+        audioEl.onerror = () => res()
+        audioEl.play().catch(() => res())
+      })
       return
     } catch (e) {}
 
-    // 4. Tertiary Fallback: Browser Web Speech API (only if real Arabic voices exist)
+    // 3. Tertiary Fallback: Browser Web Speech API
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel()
         const utterance = new SpeechSynthesisUtterance(fullArabicPhrase)
         utterance.lang = 'ar-EG'
-
         const voices = window.speechSynthesis.getVoices()
         const arabicVoices = voices.filter(v => v.lang.startsWith('ar') || v.lang.includes('ar-') || v.lang.includes('AR'))
 
@@ -527,19 +580,23 @@ export default function WaitingRoomTvPage({
           let matchedVoice: SpeechSynthesisVoice | undefined
           if (gender === 'female') {
             matchedVoice = voicePool.find(v => femaleKeywords.some(kw => v.name.toLowerCase().includes(kw))) || voicePool[0]
-            utterance.pitch = 1.05
+            utterance.pitch = 1.0
             utterance.rate = tone === 'calm' ? 0.92 : tone === 'quick' ? 1.08 : 1.0
           } else {
             matchedVoice = voicePool.find(v => maleKeywords.some(kw => v.name.toLowerCase().includes(kw))) ||
               voicePool.find(v => !femaleKeywords.some(kw => v.name.toLowerCase().includes(kw))) || voicePool[0]
-            utterance.pitch = 0.95
+            utterance.pitch = 1.0
             utterance.rate = tone === 'calm' ? 0.90 : tone === 'quick' ? 1.05 : 0.96
           }
 
           if (matchedVoice) {
             utterance.voice = matchedVoice
           }
-          window.speechSynthesis.speak(utterance)
+          await new Promise<void>((res) => {
+            utterance.onend = () => res()
+            utterance.onerror = () => res()
+            window.speechSynthesis.speak(utterance)
+          })
         }
       } catch (err) {
         console.warn('Speech synthesis fallback error:', err)
@@ -547,28 +604,40 @@ export default function WaitingRoomTvPage({
     }
   }
 
-  // Combined Chime + Voice Call Trigger
+  // Combined Chime + Voice Call Trigger with Audio Queue & Repeat
   const triggerPatientVoiceCall = (
     turnNumber: string | number,
     patientName?: string,
+    patientGender?: string,
+    patientPronunciation?: string,
     genderOverride?: 'female' | 'male',
     toneOverride?: 'calm' | 'natural' | 'quick',
     dialectOverride?: 'egyptian' | 'standard'
   ) => {
-    const chimeType = tvConfig.chimeSound || 'luxury'
-    playChimeSound(chimeType)
-    const delayMs = chimeType === 'none' ? 120 : 1050
-    setTimeout(() => {
-      speakAnnouncement(
-        turnNumber,
-        patientName,
-        tvConfig.announceName,
-        genderOverride || tvConfig.voiceGender,
-        tvConfig.announcementPhrase,
-        toneOverride || tvConfig.speechTone,
-        dialectOverride || tvConfig.voiceDialect
-      )
-    }, delayMs)
+    enqueueAnnouncement(async () => {
+      const times = tvConfig.repeatCount || 1
+      for (let i = 0; i < times; i++) {
+        const chimeType = tvConfig.chimeSound || 'luxury'
+        playChimeSound(chimeType)
+        const delayMs = chimeType === 'none' ? 100 : 1050
+        await new Promise(r => setTimeout(r, delayMs))
+        await speakAnnouncement(
+          turnNumber,
+          patientName,
+          patientGender,
+          patientPronunciation,
+          tvConfig.announceName,
+          genderOverride || tvConfig.voiceGender,
+          tvConfig.announcementPhrase,
+          toneOverride || tvConfig.speechTone,
+          dialectOverride || tvConfig.voiceDialect
+        )
+        if (i < times - 1) {
+          const pauseSec = tvConfig.repeatIntervalSeconds || 3
+          await new Promise(r => setTimeout(r, pauseSec * 1000))
+        }
+      }
+    })
   }
 
   // Real-time Clinic Listener
@@ -653,7 +722,9 @@ export default function WaitingRoomTvPage({
       if (isAudioEnabled) {
         triggerPatientVoiceCall(
           currentPatient.queue_number,
-          currentPatient.patientName
+          currentPatient.patientName,
+          currentPatient.gender || currentPatient.patientGender,
+          currentPatient.callNamePronunciation || currentPatient.pronunciation
         )
       }
     }
@@ -1565,7 +1636,7 @@ export default function WaitingRoomTvPage({
                   <span className="text-[11px] text-muted-foreground">
                     {tvConfig.announceName
                       ? ((tvConfig.voiceDialect || 'egyptian') === 'egyptian'
-                          ? 'ينطق: دور رقم 2، [الاسم]، اتفضل حضرتك لغرفة الكشف'
+                          ? 'ينطق: دور حضرتك جه يا أستاذ/أستاذة [الاسم]، اتفضل لغرفة الكشف'
                           : 'ينطق: دَوْر رقم 2، [الاسم]، تفضل بالدخول إلى عيادة الكشف')
                       : ((tvConfig.voiceDialect || 'egyptian') === 'egyptian'
                           ? 'ينطق: دور رقم 2، اتفضل حضرتك لغرفة الكشف (لحفظ الخصوصية وعدم كشف الاسم)'
@@ -1579,6 +1650,112 @@ export default function WaitingRoomTvPage({
                   onChange={(e) => setTvConfig({ ...tvConfig, announceName: e.target.checked })}
                   className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
                 />
+              </div>
+
+              {/* Room Number & Repeat Settings Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {/* Room Number (رقم غرفة الكشف) */}
+                <div className={`p-3 rounded-2xl border space-y-1.5 ${
+                  isDark ? 'bg-slate-800/40 border-white/10' : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <label className="text-xs font-bold block">رقم غرفة الكشف (اختياري):</label>
+                  <input
+                    type="text"
+                    value={tvConfig.roomNumber || ''}
+                    onChange={(e) => setTvConfig({ ...tvConfig, roomNumber: e.target.value })}
+                    placeholder="مثال: 2 أو 3"
+                    className={`w-full p-2 rounded-xl border text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold ${
+                      isDark ? 'bg-slate-800/80 border-white/10 text-white' : 'bg-white border-slate-200 text-slate-900'
+                    }`}
+                  />
+                  <span className="text-[10px] text-muted-foreground block">
+                    {tvConfig.roomNumber?.trim()
+                      ? `ينطق: اتفضل حضرتك لغرفة الكشف رقم ${numberToEgyptianArabicWords(tvConfig.roomNumber.trim())}`
+                      : 'ينطق: اتفضل حضرتك لغرفة الكشف'}
+                  </span>
+                </div>
+
+                {/* Volume Slider (مستوى الصوت) */}
+                <div className={`p-3 rounded-2xl border space-y-1.5 ${
+                  isDark ? 'bg-slate-800/40 border-white/10' : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <div className="flex items-center justify-between text-xs font-bold">
+                    <span>مستوى صوت النداء:</span>
+                    <span className="text-blue-600 dark:text-blue-400 font-mono font-black">{tvConfig.volume ?? 100}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="20"
+                    max="100"
+                    step="10"
+                    value={tvConfig.volume ?? 100}
+                    onChange={(e) => setTvConfig({ ...tvConfig, volume: Number(e.target.value) })}
+                    className="w-full accent-blue-600 cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] text-muted-foreground">
+                    <span>هادئ 50%</span>
+                    <span>متوسط 80%</span>
+                    <span>مرتفع 100%</span>
+                  </div>
+                </div>
+
+                {/* Repeat Count (عدد مرات تكرار النداء) */}
+                <div className={`p-3 rounded-2xl border space-y-1.5 ${
+                  isDark ? 'bg-slate-800/40 border-white/10' : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <label className="text-xs font-bold block">تكرار نداء المريض:</label>
+                  <div className="grid grid-cols-3 gap-1">
+                    {[
+                      { val: 1, label: 'مرة واحدة' },
+                      { val: 2, label: 'مرتان' },
+                      { val: 3, label: '3 مرات' }
+                    ].map((item) => (
+                      <button
+                        key={item.val}
+                        type="button"
+                        onClick={() => setTvConfig({ ...tvConfig, repeatCount: item.val as any })}
+                        className={`py-1.5 rounded-xl text-center text-[10px] font-bold border transition-colors cursor-pointer ${
+                          (tvConfig.repeatCount || 1) === item.val
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                            : isDark
+                              ? 'bg-white/5 border-white/10 text-slate-300'
+                              : 'bg-white border-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Repeat Interval (الفاصل الزمني بين التكرار) */}
+                <div className={`p-3 rounded-2xl border space-y-1.5 ${
+                  isDark ? 'bg-slate-800/40 border-white/10' : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <label className="text-xs font-bold block">الفاصل بين التكرار:</label>
+                  <div className="grid grid-cols-3 gap-1">
+                    {[
+                      { sec: 2, label: '2 ثوانٍ' },
+                      { sec: 3, label: '3 ثوانٍ' },
+                      { sec: 5, label: '5 ثوانٍ' }
+                    ].map((item) => (
+                      <button
+                        key={item.sec}
+                        type="button"
+                        onClick={() => setTvConfig({ ...tvConfig, repeatIntervalSeconds: item.sec })}
+                        className={`py-1.5 rounded-xl text-center text-[10px] font-bold border transition-colors cursor-pointer ${
+                          (tvConfig.repeatIntervalSeconds || 3) === item.sec
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                            : isDark
+                              ? 'bg-white/5 border-white/10 text-slate-300'
+                              : 'bg-white border-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {/* Instructions Text Input */}
@@ -1605,7 +1782,9 @@ export default function WaitingRoomTvPage({
                     setAudioState(true)
                     triggerPatientVoiceCall(
                       currentPatient?.queue_number || '2',
-                      currentPatient?.patientName || 'أحمد علي',
+                      currentPatient?.patientName || 'منى أحمد',
+                      'female',
+                      undefined,
                       'female'
                     )
                   }}
@@ -1613,7 +1792,7 @@ export default function WaitingRoomTvPage({
                 >
                   <Megaphone className="w-4 h-4" />
                   <span>
-                    {(tvConfig.voiceDialect || 'egyptian') === 'egyptian' ? 'تجربة صوت أنثوي مصري 👩🇪🇬' : 'تجربة صوت أنثوي 👩'}
+                    {(tvConfig.voiceDialect || 'egyptian') === 'egyptian' ? 'تجربة صوت سيدة مصرية 👩🇪🇬' : 'تجربة صوت أنثوي 👩'}
                   </span>
                 </button>
 
@@ -1623,7 +1802,9 @@ export default function WaitingRoomTvPage({
                     setAudioState(true)
                     triggerPatientVoiceCall(
                       currentPatient?.queue_number || '2',
-                      currentPatient?.patientName || 'أحمد علي',
+                      currentPatient?.patientName || 'أحمد محمد',
+                      'male',
+                      undefined,
                       'male'
                     )
                   }}
@@ -1631,7 +1812,7 @@ export default function WaitingRoomTvPage({
                 >
                   <Megaphone className="w-4 h-4" />
                   <span>
-                    {(tvConfig.voiceDialect || 'egyptian') === 'egyptian' ? 'تجربة صوت ذكوري مصري 👨🇪🇬' : 'تجربة صوت ذكوري 👨'}
+                    {(tvConfig.voiceDialect || 'egyptian') === 'egyptian' ? 'تجربة صوت رجل مصري 👨🇪🇬' : 'تجربة صوت ذكوري 👨'}
                   </span>
                 </button>
               </div>
@@ -1656,7 +1837,11 @@ export default function WaitingRoomTvPage({
                     voiceDialect: 'egyptian',
                     announcementPhrase: 'turn_number',
                     chimeSound: 'luxury',
-                    speechTone: 'calm'
+                    speechTone: 'calm',
+                    repeatCount: 1,
+                    repeatIntervalSeconds: 3,
+                    volume: 100,
+                    roomNumber: ''
                   })
                   toast.info('تم استعادة النصوص والإعدادات الافتراضية')
                 }}
