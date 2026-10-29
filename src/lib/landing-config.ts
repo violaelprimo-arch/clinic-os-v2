@@ -5,7 +5,7 @@ const short = z.string().trim().max(250)
 const id = z.string().min(1).max(100)
 const image = z
   .string()
-  .max(2000)
+  .max(1000000)
   .refine(
     (v) => !v || /^https?:\/\//.test(v) || /^\/(?!\/)/.test(v),
     'استخدم رابط صورة صالح أو مسارًا داخل الموقع',

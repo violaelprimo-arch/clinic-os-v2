@@ -22,7 +22,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
-import { collection, addDoc, setDoc, query, where, getDocs, doc, updateDoc, onSnapshot } from 'firebase/firestore'
+import { collection, addDoc, setDoc, query, where, getDocs, getDoc, doc, updateDoc, onSnapshot } from 'firebase/firestore'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { EGYPTIAN_DRUGS } from '@/lib/egyptian-drugs'
@@ -75,6 +75,15 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const [dictationLang, setDictationLang] = useState<DictationLanguage>('ar-EG')
   const diagnosisInputRef = useRef<HTMLInputElement>(null)
   const instructionsInputRef = useRef<HTMLInputElement>(null)
+
+  const [notes, setNotes] = useState('')
+  const [includeVitals, setIncludeVitals] = useState(false)
+  const [bpSys, setBpSys] = useState('')
+  const [bpDia, setBpDia] = useState('')
+  const [pulse, setPulse] = useState('')
+  const [temp, setTemp] = useState('')
+  const [glucose, setGlucose] = useState('')
+  const [weight, setWeight] = useState('')
   const [selectedBranchId, setSelectedBranchId] = useState('')
   const [selectedBranchName, setSelectedBranchName] = useState('')
   const [whatsappTarget, setWhatsappTarget] = useState<'auto' | 'app' | 'web'>('auto')
@@ -652,6 +661,43 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       toast.error('حدث خطأ أثناء حذف القالب، يرجى المحاولة مرة أخرى')
     }
   }
+
+  // Pre-load appointment details if appointmentId query parameter is provided
+  useEffect(() => {
+    if (!appointmentId) return
+    const fetchAppt = async () => {
+      try {
+        const apptSnap = await getDoc(doc(db, 'appointments', appointmentId))
+        if (apptSnap.exists()) {
+          const data = apptSnap.data()
+          if (data.patientName && !patientName) setPatientName(data.patientName)
+          if (data.phone && !patientPhone) setPatientPhone(data.phone)
+          if ((data.age || data.dob) && !age) setAge(data.age || data.dob)
+          if (data.diagnosis && !diagnosis) setDiagnosis(data.diagnosis)
+          if (data.instructions && !instructions) setInstructions(data.instructions)
+          if (data.notes && !notes) setNotes(data.notes)
+          if (data.branch_id && !selectedBranchId) setSelectedBranchId(data.branch_id)
+          if (data.branchName && !selectedBranchName) setSelectedBranchName(data.branchName)
+          if (data.vitalSigns) {
+            setIncludeVitals(true)
+            if (data.vitalSigns.bloodPressureSystolic) setBpSys(String(data.vitalSigns.bloodPressureSystolic))
+            if (data.vitalSigns.bloodPressureDiastolic) setBpDia(String(data.vitalSigns.bloodPressureDiastolic))
+            if (data.vitalSigns.heartRate) setPulse(String(data.vitalSigns.heartRate))
+            if (data.vitalSigns.temperature) setTemp(String(data.vitalSigns.temperature))
+            if (data.vitalSigns.glucoseLevel) setGlucose(String(data.vitalSigns.glucoseLevel))
+            if (data.vitalSigns.weightKg) setWeight(String(data.vitalSigns.weightKg))
+          }
+          if (data.drugs && Array.isArray(data.drugs) && data.drugs.length > 0) {
+            setDrugs(data.drugs.map((d: any, idx: number) => ({ id: Date.now() + idx, ...d })))
+          }
+        }
+      } catch (e) {
+        console.error('Error prefetching appointment for prescription:', e)
+      }
+    }
+    fetchAppt()
+  }, [appointmentId])
+
   const isCustomTemplateEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'customTemplate'), [clinic])
   const isDrugsDbEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'drugs'), [clinic])
 
@@ -686,6 +732,16 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     setIsSaving(true)
     try {
       if (clinicId) {
+        const vitalsData = includeVitals && (bpSys || bpDia || pulse || temp || glucose || weight) ? {
+          bloodPressureSystolic: bpSys.trim() ? Number(bpSys.trim()) || bpSys.trim() : null,
+          bloodPressureDiastolic: bpDia.trim() ? Number(bpDia.trim()) || bpDia.trim() : null,
+          heartRate: pulse.trim() ? Number(pulse.trim()) || pulse.trim() : null,
+          temperature: temp.trim() ? Number(temp.trim()) || temp.trim() : null,
+          glucoseLevel: glucose.trim() ? Number(glucose.trim()) || glucose.trim() : null,
+          weightKg: weight.trim() ? Number(weight.trim()) || weight.trim() : null,
+          recordedAt: new Date().toISOString()
+        } : null
+
         const docRef = await addDoc(collection(db, 'prescriptions'), {
           clinic_id: clinicId,
           branch_id: selectedBranchId || clinic?.branchId || '',
@@ -698,6 +754,8 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           instructions,
           allergies: patientAllergies || '',
           chronicDiseases: patientChronicDiseases || '',
+          notes: notes.trim(),
+          vitalSigns: vitalsData,
           date: dateStr,
           status: 'approved',
           doctorName: clinic?.doctorName || 'طبيب العيادة',
@@ -737,6 +795,9 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           try {
             await updateDoc(doc(db, 'appointments', appointmentId), {
               diagnosis,
+              instructions,
+              notes: notes.trim(),
+              vitalSigns: vitalsData,
               drugs: drugs.filter(d => d.name && d.name.trim() !== ''),
               allergies: patientAllergies || '',
               chronicDiseases: patientChronicDiseases || '',
@@ -852,6 +913,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       rxNumber: 1042,
       diagnosis,
       instructions,
+      notes: notes.trim(),
       drugs: drugs.filter(d => d.name && d.name.trim() !== ''),
       directRxUrl
     })
@@ -945,6 +1007,15 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       date: dateStr,
       diagnosis,
       instructions,
+      notes,
+      vitalSigns: includeVitals ? {
+        bloodPressureSystolic: bpSys,
+        bloodPressureDiastolic: bpDia,
+        heartRate: pulse,
+        temperature: temp,
+        glucoseLevel: glucose,
+        weightKg: weight
+      } : null,
       drugs: drugs.filter(d => d.name && d.name.trim() !== ''),
       primaryColor,
       secondaryColor,
@@ -1256,6 +1327,111 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                 className="h-10 text-xs rounded-xl bg-background border-border text-foreground"
               />
             </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-bold text-muted-foreground">{t('clinical_notes', 'خانة الملاحظات الطبية / ملاحظات إضافية')}</Label>
+              <textarea
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                placeholder={t('clinical_notes_placeholder', 'ملاحظات الطبيب، المتابعة السريرية، التاريخ المرضي، أو أي ملاحظات تخص المريض...')}
+                className="w-full min-h-[72px] p-3 text-xs rounded-xl bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 resize-y"
+                rows={2}
+              />
+            </div>
+          </div>
+
+          {/* Vital Signs Card (العلامات الحيوية - يحدد الطبيب كتابتها من عدمه) */}
+          <div className="yalla-card p-4 space-y-3 border border-border">
+            <div className="flex items-center justify-between pb-2 border-b border-border">
+              <div className="flex items-center gap-2">
+                <Activity className="w-4 h-4 text-rose-500" />
+                <h4 className="font-bold text-xs text-foreground">
+                  العلامات الحيوية (Vital Signs)
+                </h4>
+                <Badge variant="outline" className={`text-[10px] font-bold ${includeVitals ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-secondary text-muted-foreground'}`}>
+                  {includeVitals ? 'مدرجة بالروشتة والملف' : 'مخفية'}
+                </Badge>
+              </div>
+
+              <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-foreground">
+                <input
+                  type="checkbox"
+                  checked={includeVitals}
+                  onChange={(e) => setIncludeVitals(e.target.checked)}
+                  className="rounded text-primary focus:ring-primary w-4 h-4 cursor-pointer"
+                />
+                <span>كتابة العلامات الحيوية</span>
+              </label>
+            </div>
+
+            {includeVitals ? (
+              <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5 pt-1">
+                <div className="space-y-1">
+                  <Label className="text-[10.5px] font-bold text-muted-foreground">ضغط (SYS)</Label>
+                  <Input
+                    value={bpSys}
+                    onChange={e => setBpSys(e.target.value)}
+                    placeholder="120"
+                    className="h-9 text-xs rounded-lg bg-background border-border text-foreground"
+                    dir="ltr"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10.5px] font-bold text-muted-foreground">ضغط (DIA)</Label>
+                  <Input
+                    value={bpDia}
+                    onChange={e => setBpDia(e.target.value)}
+                    placeholder="80"
+                    className="h-9 text-xs rounded-lg bg-background border-border text-foreground"
+                    dir="ltr"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10.5px] font-bold text-muted-foreground">نبض (HR bpm)</Label>
+                  <Input
+                    value={pulse}
+                    onChange={e => setPulse(e.target.value)}
+                    placeholder="75"
+                    className="h-9 text-xs rounded-lg bg-background border-border text-foreground"
+                    dir="ltr"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10.5px] font-bold text-muted-foreground">حرارة (°C)</Label>
+                  <Input
+                    value={temp}
+                    onChange={e => setTemp(e.target.value)}
+                    placeholder="37.0"
+                    className="h-9 text-xs rounded-lg bg-background border-border text-foreground"
+                    dir="ltr"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10.5px] font-bold text-muted-foreground">سكر (mg/dL)</Label>
+                  <Input
+                    value={glucose}
+                    onChange={e => setGlucose(e.target.value)}
+                    placeholder="100"
+                    className="h-9 text-xs rounded-lg bg-background border-border text-foreground"
+                    dir="ltr"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10.5px] font-bold text-muted-foreground">وزن (kg)</Label>
+                  <Input
+                    value={weight}
+                    onChange={e => setWeight(e.target.value)}
+                    placeholder="70"
+                    className="h-9 text-xs rounded-lg bg-background border-border text-foreground"
+                    dir="ltr"
+                  />
+                </div>
+              </div>
+            ) : (
+              <p className="text-[11px] text-muted-foreground">
+                العلامات الحيوية غير مفعلة، ولن تظهر بالروشتة وتختفي تماماً من ملف المريض. فعّل الخيار أعلاه لإدخالها.
+              </p>
+            )}
           </div>
 
           {/* High-Alert Allergy Banner (Pulsing VisionOS card when patient has recorded allergies) */}
@@ -1972,6 +2148,15 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                     diagnosis={diagnosis}
                     drugs={drugs.filter(d => d.name && d.name.trim() !== '')}
                     instructions={instructions}
+                    notes={notes}
+                    vitalSigns={includeVitals ? {
+                      bloodPressureSystolic: bpSys,
+                      bloodPressureDiastolic: bpDia,
+                      heartRate: pulse,
+                      temperature: temp,
+                      glucoseLevel: glucose,
+                      weightKg: weight
+                    } : null}
                     templateMode={templateMode}
                     topOffset={topOffset}
                     primaryColor={primaryColor}

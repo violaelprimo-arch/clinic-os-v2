@@ -1822,6 +1822,8 @@ export default function PatientDashboardPage() {
                 diagnosis={selectedRx.diagnosis}
                 drugs={selectedRx.drugs || []}
                 instructions={selectedRx.instructions}
+                notes={selectedRx.notes}
+                vitalSigns={selectedRx.vitalSigns}
                 branchName={selectedRx.branchName}
                 prescriptionNumber={selectedRx.id?.slice(0, 8)}
               />

@@ -136,6 +136,9 @@ export default function PublicPrescriptionPage({
   const patientAge = prescription?.age || appointment?.age || appointment?.dob || ''
   const rxDate = prescription?.date || appointment?.date || new Date().toISOString().split('T')[0]
   const rxDiagnosis = prescription?.diagnosis || appointment?.diagnosis || ''
+  const rxInstructions = prescription?.instructions || appointment?.instructions || ''
+  const rxNotes = prescription?.notes || appointment?.notes || ''
+  const rxVitalSigns = prescription?.vitalSigns || appointment?.vitalSigns || null
   const rxDrugs = prescription?.drugs || appointment?.drugs || []
   const patientPhone = appointment?.phone || prescription?.patientPhone || ''
 
@@ -155,7 +158,9 @@ export default function PublicPrescriptionPage({
       patientAge,
       date: rxDate,
       diagnosis: rxDiagnosis,
-      instructions: prescription?.instructions,
+      instructions: rxInstructions,
+      notes: rxNotes,
+      vitalSigns: rxVitalSigns,
       drugs: rxDrugs,
       prescriptionTemplateUrl: clinic?.prescriptionTemplateUrl,
       templateMode: prescription?.templateMode || 'standard',
@@ -396,7 +401,9 @@ export default function PublicPrescriptionPage({
               date={rxDate}
               diagnosis={rxDiagnosis}
               drugs={rxDrugs}
-              instructions={prescription?.instructions}
+              instructions={rxInstructions}
+              notes={rxNotes}
+              vitalSigns={rxVitalSigns}
               templateMode={prescription?.templateMode || 'standard'}
               topOffset={prescription?.topOffset || 25}
               pageSize={prescription?.pageSize || 'a4'}

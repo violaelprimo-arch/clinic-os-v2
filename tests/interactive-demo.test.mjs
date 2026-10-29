@@ -52,47 +52,53 @@ test('2. Verify strict isolation from production database (zero firestore import
   }
 })
 
-test('3. Verify Homepage integrates InteractiveProductDemo and replaces static screenshots', () => {
+test('3. Verify Homepage restores dynamic screenshots showcase and removes embedded demo', () => {
   const landingContent = fs.readFileSync(
     path.resolve(process.cwd(), 'src/components/landing/LandingPageContent.tsx'),
     'utf8',
   )
 
   assert.ok(
-    landingContent.includes("import { InteractiveProductDemo } from '@/components/landing/InteractiveProductDemo'"),
-    'LandingPageContent must import InteractiveProductDemo',
+    landingContent.includes("import { ShowcaseLightbox } from '@/components/landing/ShowcaseLightbox'"),
+    'LandingPageContent must import ShowcaseLightbox',
   )
   assert.ok(
-    landingContent.includes('<InteractiveProductDemo'),
-    'LandingPageContent must render <InteractiveProductDemo',
+    !landingContent.includes('<InteractiveProductDemo'),
+    'LandingPageContent must not render <InteractiveProductDemo',
   )
   assert.ok(
-    !landingContent.includes('شوف التفاصيل اللي بتفرق'),
-    'Old static screenshot title must be replaced from the main showcase section',
+    landingContent.includes('شوف التفاصيل اللي بتفرق'),
+    'Restored screenshots gallery title must be present in the main showcase section',
+  )
+  assert.ok(
+    landingContent.includes('visibleScreenshots'),
+    'Showcase section must dynamically filter visible screenshots',
   )
 })
 
-test('4. Verify LandingPageConfig schema supports customizable demo section title & subtitle', () => {
+test('4. Verify LandingPageConfig schema supports dynamic screenshots with isVisible and altText', () => {
   const configContent = fs.readFileSync(
     path.resolve(process.cwd(), 'src/lib/landing-config.ts'),
     'utf8',
   )
 
-  assert.ok(configContent.includes('demoSectionTitle: short.default('), 'Schema must support demoSectionTitle')
-  assert.ok(configContent.includes('demoSectionSubtitle: text.default('), 'Schema must support demoSectionSubtitle')
-  assert.ok(configContent.includes('جرّب يلا كلينيك بنفسك'), 'Default Arabic title must be present')
-  assert.ok(configContent.includes('Try Yalla Clinic Yourself'), 'Default English title must be present')
+  assert.ok(configContent.includes('isVisible: z.boolean().default(true)'), 'Schema must support isVisible')
+  assert.ok(configContent.includes('altText: z.string()'), 'Schema must support altText')
+  assert.ok(configContent.includes('ScreenshotItem'), 'Must export ScreenshotItem type')
 })
 
-test('5. Verify LandingPageManager allows customizing demo section title and description', () => {
+test('5. Verify LandingPageManager provides complete showcase management interface', () => {
   const lpmContent = fs.readFileSync(
     path.resolve(process.cwd(), 'src/components/owner/LandingPageManager.tsx'),
     'utf8',
   )
 
-  assert.ok(lpmContent.includes('demoSectionTitle'), 'LandingPageManager must allow setting demoSectionTitle')
-  assert.ok(lpmContent.includes('demoSectionSubtitle'), 'LandingPageManager must allow setting demoSectionSubtitle')
-  assert.ok(lpmContent.includes('إعدادات الديمو التفاعلي'), 'Interactive demo settings card must be present')
+  assert.ok(lpmContent.includes('صور استعراض المنصة'), 'LandingPageManager must have Platform Showcase section')
+  assert.ok(lpmContent.includes('handleAddScreenshot'), 'Must support adding screenshots')
+  assert.ok(lpmContent.includes('handleEditScreenshot'), 'Must support editing screenshots')
+  assert.ok(lpmContent.includes('handleDeleteScreenshot'), 'Must support deleting screenshots')
+  assert.ok(lpmContent.includes('handleToggleVisibility'), 'Must support toggling screenshot visibility')
+  assert.ok(lpmContent.includes('handleMoveScreenshot'), 'Must support reordering screenshots')
 })
 
 test('6. Verify in-memory state engine simulates full connected clinic lifecycle', () => {

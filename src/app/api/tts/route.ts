@@ -15,8 +15,17 @@ async function generateSecMsGecToken(): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase()
 }
 
+function escapeSsml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+}
+
 // Synthesize authentic natural neural voices via Microsoft Edge Speech Services
-function synthesizeEdgeTTS(text: string, voice: string): Promise<ArrayBuffer> {
+function synthesizeEdgeTTS(text: string, voice: string, rate: string = '0%'): Promise<ArrayBuffer> {
   return new Promise(async (resolve, reject) => {
     try {
       const token = await generateSecMsGecToken()
@@ -58,7 +67,8 @@ function synthesizeEdgeTTS(text: string, voice: string): Promise<ArrayBuffer> {
         ws.send(configMsg)
 
         const reqId = crypto.randomUUID().replace(/-/g, '')
-        const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="ar-EG"><voice name="${voice}"><prosody rate="0%" pitch="0%">${text}</prosody></voice></speak>`
+        const safeText = escapeSsml(text)
+        const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="ar-EG"><voice name="${voice}"><prosody rate="${rate}" pitch="0%">${safeText}</prosody></voice></speak>`
         const ssmlMsg = `X-RequestId:${reqId}\r\nContent-Type:application/ssml+xml\r\nPath:ssml\r\n\r\n${ssml}`
         ws.send(ssmlMsg)
       }
@@ -123,6 +133,8 @@ export async function GET(req: NextRequest) {
   const cleanText = text.trim().slice(0, 250)
   const gender = req.nextUrl.searchParams.get('gender') || 'female'
   const lang = req.nextUrl.searchParams.get('tl') || 'ar'
+  const rawRate = req.nextUrl.searchParams.get('rate') || '0%'
+  const safeRate = /^[+-]?\d{1,2}%$/.test(rawRate) ? rawRate : '0%'
 
   // Primary: Authentic Neural Edge Voices
   // Male: ar-EG-ShakirNeural (Natural Egyptian male broadcaster)
@@ -130,7 +142,7 @@ export async function GET(req: NextRequest) {
   const edgeVoice = gender === 'male' ? 'ar-EG-ShakirNeural' : 'ar-EG-SalmaNeural'
 
   try {
-    const edgeAudioBuffer = await synthesizeEdgeTTS(cleanText, edgeVoice)
+    const edgeAudioBuffer = await synthesizeEdgeTTS(cleanText, edgeVoice, safeRate)
     if (edgeAudioBuffer && edgeAudioBuffer.byteLength > 1000) {
       return new NextResponse(edgeAudioBuffer, {
         status: 200,

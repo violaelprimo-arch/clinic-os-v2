@@ -33,6 +33,15 @@ export interface A4PrescriptionProps {
     notes?: string
   }>
   instructions?: string
+  notes?: string
+  vitalSigns?: {
+    bloodPressureSystolic?: string | number
+    bloodPressureDiastolic?: string | number
+    heartRate?: string | number
+    temperature?: string | number
+    glucoseLevel?: string | number
+    weightKg?: string | number
+  } | any
   templateMode?: 'standard' | 'custom'
   topOffset?: number
   primaryColor?: string
@@ -53,6 +62,8 @@ export function A4Prescription({
   diagnosis,
   drugs = [],
   instructions,
+  notes,
+  vitalSigns,
   templateMode = 'standard',
   topOffset = 25,
   primaryColor,
@@ -77,6 +88,16 @@ export function A4Prescription({
   const syndicate = clinic?.certificationEntity || (isRtl ? 'نقابة الأطباء' : 'Physicians Syndicate')
 
   const validDrugs = (drugs || []).filter((d: any) => d.name && d.name.trim())
+
+  const hasVitals = !!(
+    vitalSigns &&
+    (vitalSigns.bloodPressureSystolic ||
+      vitalSigns.bloodPressureDiastolic ||
+      vitalSigns.heartRate ||
+      vitalSigns.temperature ||
+      vitalSigns.glucoseLevel ||
+      vitalSigns.weightKg)
+  )
 
   return (
     <>
@@ -343,7 +364,7 @@ export function A4Prescription({
 
             {/* Diagnosis (if present) */}
             {diagnosis && (
-              <div className="border-t border-slate-200/80 px-3.5 py-1.5 flex items-center gap-2 bg-blue-50/50 rounded-b-xl">
+              <div className={`border-t border-slate-200/80 px-3.5 py-1.5 flex items-center gap-2 bg-blue-50/50 ${hasVitals ? '' : 'rounded-b-xl'}`}>
                 <Stethoscope className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                 <span className="text-[10.5px] font-bold text-blue-700 shrink-0">
                   {language === 'en' ? 'Clinical Diagnosis:' : 'التشخيص الطبي:'}
@@ -351,6 +372,55 @@ export function A4Prescription({
                 <span className="text-[11px] sm:text-xs font-black text-slate-900">
                   {diagnosis}
                 </span>
+              </div>
+            )}
+
+            {/* Vital Signs (if present) */}
+            {hasVitals && (
+              <div className="border-t border-slate-200/80 px-3.5 py-1.5 flex flex-wrap items-center gap-2 bg-rose-50/40 rounded-b-xl">
+                <div className="flex items-center gap-1 font-bold text-rose-700 shrink-0">
+                  <Activity className="w-3.5 h-3.5 text-rose-600" />
+                  <span className="text-[10.5px] font-bold">
+                    {language === 'en' ? 'Vital Signs:' : 'العلامات الحيوية:'}
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 font-bold text-[10.5px]">
+                  {(vitalSigns.bloodPressureSystolic || vitalSigns.bloodPressureDiastolic) && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-rose-200 text-slate-800 shadow-2xs">
+                      <span className="text-[9.5px] text-slate-400 font-semibold">BP:</span>
+                      <strong className="font-mono text-slate-900">{vitalSigns.bloodPressureSystolic || '--'}/{vitalSigns.bloodPressureDiastolic || '--'}</strong>
+                      <span className="text-[9px] text-slate-400">mmHg</span>
+                    </span>
+                  )}
+                  {vitalSigns.heartRate && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-rose-200 text-slate-800 shadow-2xs">
+                      <span className="text-[9.5px] text-slate-400 font-semibold">Pulse:</span>
+                      <strong className="font-mono text-rose-600">{vitalSigns.heartRate}</strong>
+                      <span className="text-[9px] text-slate-400">bpm</span>
+                    </span>
+                  )}
+                  {vitalSigns.temperature && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-amber-200 text-slate-800 shadow-2xs">
+                      <span className="text-[9.5px] text-slate-400 font-semibold">Temp:</span>
+                      <strong className="font-mono text-amber-700">{vitalSigns.temperature}</strong>
+                      <span className="text-[9px] text-slate-400">°C</span>
+                    </span>
+                  )}
+                  {vitalSigns.glucoseLevel && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-blue-200 text-slate-800 shadow-2xs">
+                      <span className="text-[9.5px] text-slate-400 font-semibold">Glucose:</span>
+                      <strong className="font-mono text-blue-700">{vitalSigns.glucoseLevel}</strong>
+                      <span className="text-[9px] text-slate-400">mg/dL</span>
+                    </span>
+                  )}
+                  {vitalSigns.weightKg && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-teal-200 text-slate-800 shadow-2xs">
+                      <span className="text-[9.5px] text-slate-400 font-semibold">Weight:</span>
+                      <strong className="font-mono text-teal-700">{vitalSigns.weightKg}</strong>
+                      <span className="text-[9px] text-slate-400">kg</span>
+                    </span>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -441,7 +511,7 @@ export function A4Prescription({
           </div>
 
           {/* =========================================================================
-              4. CLINICAL INSTRUCTIONS BOX
+              4. CLINICAL INSTRUCTIONS & NOTES BOXES
              ========================================================================= */}
           {instructions && (
             <div className={`mt-3 p-3 bg-amber-50/70 rounded-xl border border-amber-200/80 ${isA5 ? 'text-[10px]' : 'text-xs'} leading-relaxed`}>
@@ -450,6 +520,17 @@ export function A4Prescription({
                 <span>{language === 'en' ? 'Important Clinical Instructions:' : 'إرشادات وتعليمات الطبيب للمريض:'}</span>
               </div>
               <p className="text-amber-950 font-medium whitespace-pre-wrap">{instructions}</p>
+            </div>
+          )}
+
+          {/* Clinical Notes (if present) */}
+          {notes && (
+            <div className={`mt-2.5 p-3 bg-sky-50/70 rounded-xl border border-sky-200/80 ${isA5 ? 'text-[10px]' : 'text-xs'} leading-relaxed`}>
+              <div className="flex items-center gap-1.5 font-black text-sky-900 mb-1">
+                <FileText className="w-3.5 h-3.5 text-sky-600" />
+                <span>{language === 'en' ? 'Doctor Notes / Clinical Remarks:' : 'ملاحظات الطبيب:'}</span>
+              </div>
+              <p className="text-sky-950 font-medium whitespace-pre-wrap">{notes}</p>
             </div>
           )}
         </div>

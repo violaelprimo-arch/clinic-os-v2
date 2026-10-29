@@ -94,6 +94,15 @@ export interface PrescriptionPrintData {
     notes?: string
   }>
   instructions?: string
+  notes?: string
+  vitalSigns?: {
+    bloodPressureSystolic?: string | number
+    bloodPressureDiastolic?: string | number
+    heartRate?: string | number
+    temperature?: string | number
+    glucoseLevel?: string | number
+    weightKg?: string | number
+  } | any
   primaryColor?: string
   secondaryColor?: string
   prescriptionTemplateUrl?: string
@@ -1213,6 +1222,15 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
   const degree = data.degreeTitle || data.certificationTitle || 'عضو الجمعية الطبية المصرية'
   const syndicate = 'نقابة الأطباء'
   const validDrugs = (data.drugs || []).filter((d) => d.name && d.name.trim())
+  const hasVitals = !!(
+    data.vitalSigns &&
+    (data.vitalSigns.bloodPressureSystolic ||
+      data.vitalSigns.bloodPressureDiastolic ||
+      data.vitalSigns.heartRate ||
+      data.vitalSigns.temperature ||
+      data.vitalSigns.glucoseLevel ||
+      data.vitalSigns.weightKg)
+  )
 
   return `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -1419,6 +1437,38 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
       color: #1e3a8a;
     }
 
+    .vitals-strip {
+      background: #fff1f2;
+      border: 1px solid #fecdd3;
+      border-radius: 6px;
+      padding: ${isA5 ? '3px 8px' : '5px 10px'};
+      margin-bottom: ${isA5 ? '6px' : '10px'};
+      font-size: ${isA5 ? '7pt' : '8.5pt'};
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+    }
+    .vitals-label {
+      color: #e11d48;
+      font-weight: 900;
+    }
+    .vital-pill {
+      background: #ffffff;
+      border: 1px solid #fecdd3;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-weight: bold;
+      color: #1e293b;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .vital-pill strong {
+      font-family: monospace;
+      color: #881337;
+    }
+
     /* Rx Symbol */
     .rx-bar {
       display: flex;
@@ -1554,6 +1604,23 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
       page-break-inside: avoid;
     }
     .instructions-title {
+      font-weight: 900;
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    /* Notes Box */
+    .notes-box {
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      border-radius: 8px;
+      padding: ${isA5 ? '5px 8px' : '7px 12px'};
+      margin-top: 6px;
+      font-size: ${isA5 ? '7.5pt' : '9pt'};
+      color: #0369a1;
+      page-break-inside: avoid;
+    }
+    .notes-title {
       font-weight: 900;
       display: block;
       margin-bottom: 2px;
@@ -1698,6 +1765,28 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
       </div>
       ` : ''}
 
+      <!-- Vital Signs (if present) -->
+      ${hasVitals ? `
+      <div class="vitals-strip">
+        <span class="vitals-label">العلامات الحيوية:</span>
+        ${(data.vitalSigns.bloodPressureSystolic || data.vitalSigns.bloodPressureDiastolic) ? `
+          <span class="vital-pill">BP: <strong>${data.vitalSigns.bloodPressureSystolic || '--'}/${data.vitalSigns.bloodPressureDiastolic || '--'}</strong> mmHg</span>
+        ` : ''}
+        ${data.vitalSigns.heartRate ? `
+          <span class="vital-pill">نبض: <strong>${data.vitalSigns.heartRate}</strong> bpm</span>
+        ` : ''}
+        ${data.vitalSigns.temperature ? `
+          <span class="vital-pill">حرارة: <strong>${data.vitalSigns.temperature}</strong> °C</span>
+        ` : ''}
+        ${data.vitalSigns.glucoseLevel ? `
+          <span class="vital-pill">سكر: <strong>${data.vitalSigns.glucoseLevel}</strong> mg/dL</span>
+        ` : ''}
+        ${data.vitalSigns.weightKg ? `
+          <span class="vital-pill">وزن: <strong>${data.vitalSigns.weightKg}</strong> kg</span>
+        ` : ''}
+      </div>
+      ` : ''}
+
       <!-- 3. Rx Section -->
       <div class="rx-bar">
         <span class="rx-symbol">℞</span>
@@ -1741,6 +1830,14 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
       <div class="instructions-box">
         <strong class="instructions-title">إرشادات وتعليمات الطبيب:</strong>
         <div>${data.instructions}</div>
+      </div>
+      ` : ''}
+
+      <!-- Clinical Notes Box -->
+      ${data.notes ? `
+      <div class="notes-box">
+        <strong class="notes-title">ملاحظات الطبيب:</strong>
+        <div>${data.notes}</div>
       </div>
       ` : ''}
 
