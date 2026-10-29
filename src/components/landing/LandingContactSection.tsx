@@ -41,6 +41,30 @@ export function LandingContactSection({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
 
+  React.useEffect(() => {
+    const handleSelectType = (e: any) => {
+      if (e.detail && ['suggestion', 'complaint', 'inquiry'].includes(e.detail)) {
+        setType(e.detail)
+      }
+    }
+    const checkHash = () => {
+      if (typeof window === 'undefined') return
+      const hash = window.location.hash
+      if (hash === '#complaints' || hash.includes('complaint')) {
+        setType('complaint')
+      } else if (hash === '#suggestions' || hash.includes('suggestion')) {
+        setType('suggestion')
+      }
+    }
+    checkHash()
+    window.addEventListener('select-contact-type', handleSelectType)
+    window.addEventListener('hashchange', checkHash)
+    return () => {
+      window.removeEventListener('select-contact-type', handleSelectType)
+      window.removeEventListener('hashchange', checkHash)
+    }
+  }, [])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 

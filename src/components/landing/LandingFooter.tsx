@@ -68,6 +68,11 @@ export function LandingFooter({ config }: LandingFooterProps) {
               <li>
                 <a
                   href="#contact"
+                  onClick={() => {
+                    if (typeof window !== 'undefined') {
+                      window.dispatchEvent(new CustomEvent('select-contact-type', { detail: 'complaint' }))
+                    }
+                  }}
                   className="hover:text-sky-600 dark:hover:text-sky-400 transition-colors font-medium flex items-center gap-1.5"
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
