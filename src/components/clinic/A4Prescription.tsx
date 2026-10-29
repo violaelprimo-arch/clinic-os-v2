@@ -51,7 +51,6 @@ export interface A4PrescriptionProps {
   pageSize?: 'a4' | 'a5'
   showHeaderFooter?: boolean
   printBackground?: boolean
-  vitalSigns?: any
 }
 
 export function A4Prescription({
@@ -72,8 +71,7 @@ export function A4Prescription({
   prescriptionNumber,
   pageSize = 'a4',
   showHeaderFooter = true,
-  printBackground = true,
-  vitalSigns
+  printBackground = true
 }: A4PrescriptionProps) {
   const { t, tDynamic, language, isRtl } = useLanguage()
   const safeOffset = typeof topOffset === 'number' && topOffset <= 60 && topOffset >= 0 ? topOffset : 25

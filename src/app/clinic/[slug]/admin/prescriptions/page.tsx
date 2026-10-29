@@ -767,15 +767,6 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           primaryColor,
           secondaryColor,
           drugs: drugs.filter(d => d.name && d.name.trim() !== ''),
-          vitalSigns: (vitalsBpSys || vitalsBpDia || vitalsPulse || vitalsTemp || vitalsGlucose || vitalsWeight) ? {
-            bloodPressureSystolic: vitalsBpSys ? Number(vitalsBpSys) : null,
-            bloodPressureDiastolic: vitalsBpDia ? Number(vitalsBpDia) : null,
-            heartRate: vitalsPulse ? Number(vitalsPulse) : null,
-            temperature: vitalsTemp ? Number(vitalsTemp) : null,
-            glucoseLevel: vitalsGlucose ? Number(vitalsGlucose) : null,
-            weightKg: vitalsWeight ? Number(vitalsWeight) : null,
-            recordedAt: new Date().toISOString()
-          } : null,
           createdAt: new Date().toISOString()
         })
 
@@ -803,16 +794,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
               chronicDiseases: patientChronicDiseases || '',
               prescription_id: docRef.id,
               prescriptionStatus: 'approved',
-              prescription_templateMode: templateMode,
-              vitalSigns: (vitalsBpSys || vitalsBpDia || vitalsPulse || vitalsTemp || vitalsGlucose || vitalsWeight) ? {
-                bloodPressureSystolic: vitalsBpSys ? Number(vitalsBpSys) : null,
-                bloodPressureDiastolic: vitalsBpDia ? Number(vitalsBpDia) : null,
-                heartRate: vitalsPulse ? Number(vitalsPulse) : null,
-                temperature: vitalsTemp ? Number(vitalsTemp) : null,
-                glucoseLevel: vitalsGlucose ? Number(vitalsGlucose) : null,
-                weightKg: vitalsWeight ? Number(vitalsWeight) : null,
-                recordedAt: new Date().toISOString()
-              } : null
+              prescription_templateMode: templateMode
             })
           } catch (e) {}
         }
@@ -2165,14 +2147,6 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                     pageSize={pageSize}
                     showHeaderFooter={showHeaderFooter}
                     printBackground={printBackground}
-                    vitalSigns={{
-                      bloodPressureSystolic: vitalsBpSys,
-                      bloodPressureDiastolic: vitalsBpDia,
-                      heartRate: vitalsPulse,
-                      temperature: vitalsTemp,
-                      glucoseLevel: vitalsGlucose,
-                      weightKg: vitalsWeight
-                    }}
                   />
                 </div>
               </div>
