@@ -38,11 +38,23 @@ export function formatWaitDuration(mins: number, isCurrentTurn = false): string 
   const hours = Math.floor(mins / 60)
   const remMins = mins % 60
   if (hours < 24) {
-    return `حوالي ${hours} ساعة و ${remMins} دقيقة`
+    if (remMins > 0) {
+      return `حوالي ${hours} ساعة و ${remMins} دقيقة`
+    }
+    return `حوالي ${hours} ساعة`
   }
   const days = Math.floor(hours / 24)
   const remHours = hours % 24
-  return `حوالي ${days} يوم و ${remHours} ساعة`
+  if (remHours > 0 && remMins > 0) {
+    return `حوالي ${days} يوم و ${remHours} ساعة و ${remMins} دقيقة`
+  }
+  if (remHours > 0) {
+    return `حوالي ${days} يوم و ${remHours} ساعة`
+  }
+  if (remMins > 0) {
+    return `حوالي ${days} يوم و ${remMins} دقيقة`
+  }
+  return `حوالي ${days} يوم`
 }
 
 export const isUrgentCase = (d: any): boolean =>
@@ -238,12 +250,13 @@ export function calculatePatientLivePosition({
   allTodayAppointments: any[]
   clinic?: any
 }): PatientQueueStatusResult {
-  const targetBranch = targetAppointment?.branch_id && clinic?.branches
-    ? clinic.branches.find((b: any) => b.id === targetAppointment.branch_id)
+  const target = targetAppointment || (Array.isArray(allTodayAppointments) ? allTodayAppointments.find(a => a.id === targetAppointmentId) : null)
+  const clinicBranchObj = target?.branch_id && clinic?.branches
+    ? clinic.branches.find((b: any) => b.id === target.branch_id)
     : null
-  const avgMins = Number(targetBranch?.slotDuration || targetBranch?.averageVisitTime || clinic?.averageVisitTime || clinic?.average_consultation_time) || 15
+  const avgMins = Number(clinicBranchObj?.slotDuration || clinicBranchObj?.averageVisitTime || clinic?.averageVisitTime || clinic?.average_consultation_time) || 15
 
-  if (!targetAppointment) {
+  if (!target) {
     return {
       status: 'not_found',
       statusLabel: 'غير مسجل',
@@ -258,9 +271,17 @@ export function calculatePatientLivePosition({
     }
   }
 
-  // 1. Branch isolation: filter appointments by target's branch_id (if branch_id exists)
-  const branchFilteredAppts = targetAppointment.branch_id
-    ? allTodayAppointments.filter(a => !a.branch_id || a.branch_id === targetAppointment.branch_id || a.branchName === targetAppointment.branchName)
+  // 1. Branch isolation: filter appointments strictly by branch (A08 Fix: prevent undefined === undefined leakage)
+  const targetBranchId = target.branch_id || target.branchId
+  const branchFilteredAppts = targetBranchId
+    ? allTodayAppointments.filter(a => {
+        const aBranch = a.branch_id || a.branchId
+        if (aBranch) return aBranch === targetBranchId
+        if (target.branchName && a.branchName) {
+          return a.branchName === target.branchName
+        }
+        return false
+      })
     : allTodayAppointments
 
   // 2. Identify currently examining patient in this branch
@@ -273,7 +294,7 @@ export function calculatePatientLivePosition({
     : null
 
   // 3. Handle non-waiting explicit statuses
-  const rawStatus = targetAppointment.status || 'waiting'
+  const rawStatus = target.status || 'waiting'
 
   if (rawStatus === 'completed') {
     return {
@@ -343,24 +364,18 @@ export function calculatePatientLivePosition({
   const doctorBusyWithOther = Boolean(inProgressAppt && inProgressAppt.id !== targetAppointmentId)
 
   // How many prior queue tickets exist and what is their status?
-  const myQueueNum = Number(targetAppointment.queue_number) || 1
+  const myQueueNum = Number(target.queue_number) || 1
   const priorAppts = branchFilteredAppts.filter(a => a.id !== targetAppointmentId && (Number(a.queue_number) || 0) < myQueueNum)
   const priorCompleted = priorAppts.filter(a => a.status === 'completed').length
   const priorSkipped = priorAppts.filter(a => a.status === 'skipped' || a.status === 'cancelled' || a.status === 'no_show').length
   const priorFinished = priorCompleted + priorSkipped
   const priorActive = priorAppts.filter(a => a.status === 'waiting' || a.status === 'in_progress' || !a.status).length
 
-  // Calculate actual patients ahead:
-  let totalAhead = (myIndex >= 0 ? myIndex : orderedWaiting.length) + (doctorBusyWithOther ? 1 : 0)
-
-  if (priorActive > 0 && totalAhead < priorActive) {
-    totalAhead = priorActive
-  } else if (totalAhead === 0 && myQueueNum > 1 && priorFinished === 0) {
-    totalAhead = myQueueNum - 1
-  }
+  // Calculate actual patients ahead based on sorted dynamic queue (A07 & A09 Fix: eliminate phantom tickets and preserve urgent priority)
+  const totalAhead = (myIndex >= 0 ? myIndex : orderedWaiting.length) + (doctorBusyWithOther ? 1 : 0)
 
   // Is it truly their turn?
-  const isCurrentTurn = totalAhead === 0 && (myQueueNum <= 1 || priorFinished >= myQueueNum - 1)
+  const isCurrentTurn = totalAhead === 0 && !doctorBusyWithOther
   const isNextInLine = !isCurrentTurn && totalAhead === 1
 
   const waitMins = isCurrentTurn ? 0 : totalAhead * avgMins

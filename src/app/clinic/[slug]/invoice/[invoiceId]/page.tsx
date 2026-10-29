@@ -1,6 +1,7 @@
 'use client'
 
 import { use, useEffect, useState } from 'react'
+import { notFound } from 'next/navigation'
 import { db } from '@/lib/firebase'
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore'
 import { Button } from '@/components/ui/button'
@@ -27,6 +28,7 @@ export default function PublicInvoicePage({
   const [clinic, setClinic] = useState<any>(null)
   const [invoice, setInvoice] = useState<InvoiceData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isNotFound, setIsNotFound] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -38,6 +40,10 @@ export default function PublicInvoicePage({
         if (!cSnap.empty) {
           clinicData = { id: cSnap.docs[0].id, ...cSnap.docs[0].data() }
           setClinic(clinicData)
+        } else {
+          setIsNotFound(true)
+          notFound()
+          return
         }
 
         // 2. Fetch Invoice / Appointment Record
@@ -48,9 +54,19 @@ export default function PublicInvoicePage({
         try {
           const directDoc = await getDoc(doc(db, 'appointments', decodedInvoiceId))
           if (directDoc.exists()) {
-            apptData = { id: directDoc.id, ...directDoc.data() }
+            const raw = { id: directDoc.id, ...directDoc.data() } as any
+            if (raw.clinic_id !== clinicData.id) {
+              setIsNotFound(true)
+              notFound()
+              return
+            }
+            apptData = raw
           }
-        } catch {}
+        } catch (err: any) {
+          if (err?.digest?.includes('NEXT_NOT_FOUND') || err?.message?.includes('NEXT_NOT_FOUND')) {
+            throw err
+          }
+        }
 
         // Try querying by invoiceNumber
         if (!apptData && clinicData) {
@@ -88,6 +104,13 @@ export default function PublicInvoicePage({
         }
 
         if (apptData) {
+          // Strictly eliminate IDOR: verify apptData.clinic_id === clinicData.id
+          if (apptData.clinic_id !== clinicData.id) {
+            setIsNotFound(true)
+            notFound()
+            return
+          }
+
           const isPaid = apptData.payment_status === 'paid' || apptData.paymentStatus === 'paid'
           const origPrice = Number(apptData.servicePrice || 0) + (Number(apptData.discountApplied) || 0)
           const disc = Number(apptData.discountApplied) || 0
@@ -115,7 +138,11 @@ export default function PublicInvoicePage({
             queueNumber: apptData.queue_number
           })
         }
-      } catch (err) {
+      } catch (err: any) {
+        if (err?.digest?.includes('NEXT_NOT_FOUND') || err?.message?.includes('NEXT_NOT_FOUND')) {
+          setIsNotFound(true)
+          return
+        }
         console.error('Error fetching public invoice:', err)
       } finally {
         setLoading(false)
@@ -124,6 +151,10 @@ export default function PublicInvoicePage({
 
     fetchData()
   }, [slug, invoiceId])
+
+  if (isNotFound) {
+    notFound()
+  }
 
   if (loading) {
     return (

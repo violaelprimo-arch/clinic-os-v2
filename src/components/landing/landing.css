@@ -109,11 +109,324 @@ textarea.landing-input {
     transform: translateX(-50%);
   }
 }
+
+/* ============================================================ */
+/* Animated Mesh Background & Ambient Lighting */
+/* ============================================================ */
+.landing-bg-wrapper {
+  position: relative;
+  overflow: hidden;
+}
+
+.landing-ambient-orb {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  filter: blur(90px);
+  opacity: 0.16;
+  will-change: transform;
+}
+
+.dark .landing-ambient-orb {
+  opacity: 0.10;
+}
+
+.landing-ambient-orb-1 {
+  top: 3%;
+  left: -8%;
+  width: 480px;
+  height: 480px;
+  background: radial-gradient(circle, #0066dc 0%, #00a8e8 70%, transparent 100%);
+  animation: orb-float-1 25s ease-in-out infinite alternate;
+}
+
+.landing-ambient-orb-2 {
+  top: 22%;
+  right: -6%;
+  width: 420px;
+  height: 420px;
+  background: radial-gradient(circle, #38bdf8 0%, #6366f1 70%, transparent 100%);
+  animation: orb-float-2 30s ease-in-out infinite alternate;
+}
+
+.landing-ambient-orb-3 {
+  bottom: 12%;
+  left: 15%;
+  width: 550px;
+  height: 550px;
+  background: radial-gradient(circle, #0284c7 0%, #38bdf8 70%, transparent 100%);
+  animation: orb-float-3 35s ease-in-out infinite alternate;
+}
+
+@keyframes orb-float-1 {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(70px, 50px, 0) scale(1.08); }
+  100% { transform: translate3d(-30px, 90px, 0) scale(0.95); }
+}
+
+@keyframes orb-float-2 {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-90px, 40px, 0) scale(1.12); }
+  100% { transform: translate3d(40px, -30px, 0) scale(0.92); }
+}
+
+@keyframes orb-float-3 {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(50px, -70px, 0) scale(1.06); }
+  100% { transform: translate3d(-40px, 20px, 0) scale(1); }
+}
+
+/* Motion Level Classes */
+.motion-none .landing-ambient-orb,
+.motion-none .landing-aurora,
+.motion-none .landing-marquee-track {
+  animation: none !important;
+}
+
+.motion-subtle .landing-ambient-orb {
+  animation-duration: 40s;
+}
+
+.motion-advanced .landing-ambient-orb {
+  animation-duration: 18s;
+}
+
+/* Motion Speed Modifiers */
+.speed-slow .landing-ambient-orb {
+  animation-duration: 55s;
+}
+.speed-fast .landing-ambient-orb {
+  animation-duration: 16s;
+}
+
+/* ============================================================ */
+/* Top Scroll Progress Bar                                      */
+/* ============================================================ */
+.landing-scroll-progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #0066dc, #00a8e8, #38bdf8);
+  z-index: 100;
+  transform-origin: 0% 50%;
+  transform: scaleX(0);
+  will-change: transform;
+  pointer-events: none;
+  box-shadow: 0 0 14px rgba(0, 168, 232, 0.7);
+}
+
+/* ============================================================ */
+/* Perspective Grid Overlay                                     */
+/* ============================================================ */
+.landing-perspective-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(0, 102, 220, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 102, 220, 0.05) 1px, transparent 1px);
+  background-size: 52px 52px;
+  mask-image: radial-gradient(ellipse 70% 50% at 50% 20%, #000 25%, transparent 80%);
+  pointer-events: none;
+}
+
+.dark .landing-perspective-grid {
+  background-image:
+    linear-gradient(to right, rgba(56, 189, 248, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(56, 189, 248, 0.06) 1px, transparent 1px);
+}
+
+/* ============================================================ */
+/* Aurora Ambient Mesh Glow                                     */
+/* ============================================================ */
+.landing-aurora {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% -10%, rgba(0, 102, 220, 0.16), transparent 60%),
+    radial-gradient(circle at 15% 25%, rgba(0, 168, 232, 0.12), transparent 45%),
+    radial-gradient(circle at 85% 30%, rgba(99, 102, 241, 0.09), transparent 55%);
+  pointer-events: none;
+  filter: blur(50px);
+}
+
+.dark .landing-aurora {
+  background:
+    radial-gradient(circle at 50% -10%, rgba(0, 102, 220, 0.22), transparent 65%),
+    radial-gradient(circle at 15% 25%, rgba(0, 168, 232, 0.18), transparent 50%),
+    radial-gradient(circle at 85% 30%, rgba(99, 102, 241, 0.14), transparent 60%);
+}
+
+/* ============================================================ */
+/* Desktop Ambient Cursor Spotlight                             */
+/* ============================================================ */
+.landing-cursor-glow {
+  position: fixed;
+  width: 550px;
+  height: 550px;
+  border-radius: 9999px;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(0, 168, 232, 0.06) 0%, rgba(0, 102, 220, 0.02) 45%, transparent 70%);
+  transform: translate(-50%, -50%);
+  z-index: 1;
+  transition: opacity 0.3s ease;
+  will-change: left, top;
+}
+
+.dark .landing-cursor-glow {
+  background: radial-gradient(circle, rgba(0, 168, 232, 0.10) 0%, rgba(99, 102, 241, 0.03) 50%, transparent 70%);
+}
+
+/* ============================================================ */
+/* Card Depth & Edge Glow                                       */
+/* ============================================================ */
+.landing-card-glow {
+  position: relative;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s ease;
+}
+
+/* Ensure features and interactive cards are never stuck at opacity: 0 */
+#features .landing-card-glow {
+  opacity: 1 !important;
+}
+
+.landing-card-glow:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px -8px rgba(0, 102, 220, 0.16), 0 0 0 1px rgba(0, 168, 232, 0.4);
+}
+
+.dark .landing-card-glow:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 32px -8px rgba(0, 168, 232, 0.22), 0 0 0 1px rgba(0, 168, 232, 0.5);
+}
+
+/* ============================================================ */
+/* Unified Page-Wide Scroll Reveal & Stagger Animation          */
+/* ============================================================ */
+.landing-reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+
+.landing-reveal.is-revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.landing-reveal-scale {
+  opacity: 0;
+  transform: scale(0.96) translateY(18px);
+  transition: opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1), transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+
+.landing-reveal-scale.is-revealed {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+/* Stagger Delays */
+.delay-75 { transition-delay: 75ms; }
+.delay-150 { transition-delay: 150ms; }
+.delay-225 { transition-delay: 225ms; }
+.delay-300 { transition-delay: 300ms; }
+.delay-375 { transition-delay: 375ms; }
+.delay-450 { transition-delay: 450ms; }
+
+/* Safe Fallback: Motion none or reduced motion never keeps items hidden */
+.motion-none .landing-reveal,
+.motion-none .landing-reveal-scale,
+.no-section-motion .landing-reveal,
+.no-section-motion .landing-reveal-scale {
+  opacity: 1 !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-reveal,
+  .landing-reveal-scale {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}
+
+/* ============================================================ */
+/* Buttery Smooth FAQ Grid Accordion (Zero Layout Snap)          */
+/* ============================================================ */
+.landing-faq-accordion-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.landing-faq-accordion-body.is-open {
+  grid-template-rows: 1fr;
+}
+
+.landing-faq-accordion-content {
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ============================================================ */
+/* Step Connector Trail Animation                               */
+/* ============================================================ */
+.landing-step-connector {
+  position: absolute;
+  top: 48px;
+  left: 15%;
+  right: 15%;
+  height: 2px;
+  background: linear-gradient(90deg, #0066dc, #00a8e8, #6366f1);
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+/* ============================================================ */
+/* Tactile Press & Tap Feedback                                  */
+/* ============================================================ */
+.landing-btn-press {
+  transition: transform 0.14s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.14s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+.landing-btn-press:active {
+  transform: scale(0.97);
+}
+
+/* ============================================================ */
+/* Safe-area insets for mobile & iOS notch                      */
+/* ============================================================ */
+.safe-pb-modal {
+  padding-bottom: max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 1.25rem));
+}
+.safe-pt-modal {
+  padding-top: max(1.5rem, calc(env(safe-area-inset-top, 0px) + 1.25rem));
+}
+
 @media (prefers-reduced-motion: reduce) {
   .landing-page {
     scroll-behavior: auto;
   }
   .landing-marquee-track {
     animation: none;
+  }
+  .landing-ambient-orb,
+  .landing-aurora {
+    animation: none !important;
+  }
+  .landing-cursor-glow {
+    display: none !important;
+  }
+  .landing-card-glow:hover {
+    transform: none !important;
+  }
+  .landing-btn-press:active {
+    transform: none !important;
   }
 }

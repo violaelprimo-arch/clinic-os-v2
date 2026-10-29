@@ -12,6 +12,7 @@ export type OwnerTab =
   | 'add'
   | 'settings'
   | 'landing'
+  | 'clinic-requests'
 export const OwnerNavigationContext = createContext<{
   activeTab: OwnerTab
   setActiveTab: Dispatch<SetStateAction<OwnerTab>>

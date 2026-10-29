@@ -52,11 +52,11 @@ export default function UpdatePassword({ params }: { params: Promise<{ slug: str
     fetchClinic()
   }, [slug])
 
-  // Step 1: Doctor requests OTP
+  // Step 1: Doctor requests OTP (A04 - Hashed server-side OTP)
   const handleRequestOtp = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!email.trim()) {
-      setError(isRtl ? 'يرجى إدخال البريد الإلكتروني للطبيب المسجل.' : 'Please enter registered physician email.')
+      setError(isRtl ? 'يرجى إدخال البريد الإلكتروني للطبيب المسجل في العيادة.' : 'Please enter registered doctor email.')
       return
     }
 
@@ -64,59 +64,31 @@ export default function UpdatePassword({ params }: { params: Promise<{ slug: str
     setError(null)
 
     try {
-      const q = query(collection(db, 'clinics'), where('slug', '==', slug))
-      const snapshot = await getDocs(q)
-      if (snapshot.empty) {
-        setError(isRtl ? 'لم يتم العثور على بيانات هذه العيادة.' : 'Clinic records not found.')
-        return
-      }
-
-      const cDoc = snapshot.docs[0]
-      const data = cDoc.data()
-      const cleanInputEmail = email.trim().toLowerCase()
-      const registeredEmail = (data.doctorEmail || '').trim().toLowerCase()
-
-      if (registeredEmail && cleanInputEmail !== registeredEmail) {
-        setError(isRtl ? 'البريد الإلكتروني المدخل لا يطابق البريد الإلكتروني المسجل لهذه العيادة.' : 'Email entered does not match registered clinic email.')
-        return
-      }
-
-      // Generate 6-digit OTP
-      const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString()
-
-      // Save OTP to Firestore
-      await updateDoc(doc(db, 'clinics', cDoc.id), {
-        resetPasswordOtp: generatedOtp,
-        resetPasswordRequestedAt: new Date().toISOString()
-      })
-
-      // Send OTP to Doctor's Gmail via API
-      try {
-        await fetch('/api/send-otp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: cleanInputEmail,
-            otp: generatedOtp,
-            doctorName: data.doctorName,
-            clinicName: data.clinicName
-          })
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'request',
+          slug,
+          email: email.trim().toLowerCase()
         })
-      } catch (sendErr) {
-        console.warn('send-otp fetch warning:', sendErr)
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || (isRtl ? 'حدث خطأ أثناء إرسال الطلب' : 'Error sending request'))
+        return
       }
 
-      setClinic((prev: any) => ({ ...prev, resetPasswordOtp: generatedOtp }))
       setStep('verify')
-      toast.success(isRtl ? 'تم إرسال رمز التحقق (OTP) إلى بريدك الإلكتروني بنجاح!' : 'OTP code sent to your email successfully!')
+      toast.success(data.message || (isRtl ? 'تم إرسال رمز التحقق إلى بريدك الإلكتروني' : 'OTP code sent'))
     } catch (err: any) {
-      setError((isRtl ? 'حدث خطأ أثناء إرسال الطلب: ' : 'Error sending request: ') + (err.message || ''))
+      setError((isRtl ? 'حدث خطأ في الاتصال: ' : 'Connection error: ') + (err.message || ''))
     } finally {
       setIsLoading(false)
     }
   }
 
-  // Step 2: Doctor verifies OTP and sets new password
+  // Step 2: Doctor verifies OTP and sets new password (A04 - Server verification & Hash update)
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -137,27 +109,22 @@ export default function UpdatePassword({ params }: { params: Promise<{ slug: str
     setIsLoading(true)
 
     try {
-      const q = query(collection(db, 'clinics'), where('slug', '==', slug))
-      const snapshot = await getDocs(q)
-      if (snapshot.empty) {
-        setError(isRtl ? 'لم يتم العثور على بيانات العيادة.' : 'Clinic data not found.')
-        return
-      }
-
-      const cDoc = snapshot.docs[0]
-      const data = cDoc.data()
-
-      if (!data.resetPasswordOtp || data.resetPasswordOtp.trim() !== otp.trim()) {
-        setError(isRtl ? 'رمز التحقق (OTP) غير صحيح أو منتهي الصلاحية.' : 'Invalid or expired OTP code.')
-        return
-      }
-
-      // Update password & clear OTP
-      await updateDoc(doc(db, 'clinics', cDoc.id), {
-        doctorPassword: password,
-        resetPasswordOtp: null,
-        resetPasswordRequestedAt: null
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'verify-and-reset',
+          slug,
+          email: email.trim().toLowerCase(),
+          otp: otp.trim(),
+          newPassword: password
+        })
       })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || (isRtl ? 'فشل إعادة تعيين كلمة المرور' : 'Failed to reset password'))
+        return
+      }
 
       toast.success(isRtl ? 'تم تحديث كلمة المرور بنجاح! يتم الآن توجيهك لصفحة تسجيل الدخول...' : 'Password updated successfully! Redirecting to sign in...')
       setTimeout(() => {

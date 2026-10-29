@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { collection, query, where, getDocs, addDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+import { hashPassword, createSessionToken } from '@/lib/auth-crypto'
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,6 +15,13 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    if (String(password).length < 6) {
+      return NextResponse.json(
+        { error: 'يجب ألا تقل كلمة المرور عن 6 خانات' },
+        { status: 400 }
+      )
+    }
+
     const cleanPhone = String(phone).trim().replace(/\s+/g, '')
     const cleanName = String(name).trim()
     const cleanAge = String(age || '').trim()
@@ -23,7 +31,7 @@ export async function POST(req: NextRequest) {
     const cSnap = await getDocs(cQ)
     const clinicId = cSnap.empty ? slug : cSnap.docs[0].id
 
-    // Check if phone already exists
+    // Check if phone already exists in this clinic
     const checkQ = query(
       collection(db, 'patient_accounts'),
       where('clinic_id', '==', clinicId),
@@ -38,29 +46,54 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // Cryptographically hash password (A03 - P0 Hardening)
+    const passwordHash = await hashPassword(String(password))
+
     const newDoc = await addDoc(collection(db, 'patient_accounts'), {
       clinic_id: clinicId,
       name: cleanName,
       phone: cleanPhone,
       age: cleanAge,
-      password: String(password),
+      passwordHash,
       createdAt: new Date().toISOString()
     })
 
-    return NextResponse.json(
+    const patientData = {
+      id: newDoc.id,
+      name: cleanName,
+      phone: cleanPhone,
+      age: cleanAge,
+      clinic_id: clinicId,
+      slug
+    }
+
+    const token = await createSessionToken({
+      role: 'patient',
+      name: cleanName,
+      phone: cleanPhone,
+      clinicId,
+      slug,
+      patientId: newDoc.id
+    })
+
+    const response = NextResponse.json(
       {
         success: true,
-        patient: {
-          id: newDoc.id,
-          name: cleanName,
-          phone: cleanPhone,
-          age: cleanAge,
-          clinic_id: clinicId,
-          slug
-        }
+        token,
+        patient: patientData
       },
       { status: 201 }
     )
+
+    response.cookies.set('patient_session', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 30 * 24 * 60 * 60
+    })
+
+    return response
   } catch (error: any) {
     console.error('Patient register API error:', error)
     return NextResponse.json(

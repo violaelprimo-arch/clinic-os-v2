@@ -67,6 +67,8 @@ function base64url(bytes: Uint8Array) {
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
 }
+let cachedPrivateKey: { keyText: string; cryptoKey: CryptoKey } | undefined
+
 export async function signServiceJwt(payload: Record<string, unknown>) {
   const { key } = getFirebaseServerCredentials()
   const body =
@@ -75,17 +77,23 @@ export async function signServiceJwt(payload: Record<string, unknown>) {
     ) +
     '.' +
     base64url(new TextEncoder().encode(JSON.stringify(payload)))
-  const der = Uint8Array.from(
-    atob(key.replace(/-----[^-]+-----/g, '').replace(/\s/g, '')),
-    (c) => c.charCodeAt(0),
-  )
-  const privateKey = await crypto.subtle.importKey(
-    'pkcs8',
-    der,
-    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  )
+  let privateKey: CryptoKey
+  if (cachedPrivateKey && cachedPrivateKey.keyText === key) {
+    privateKey = cachedPrivateKey.cryptoKey
+  } else {
+    const der = Uint8Array.from(
+      atob(key.replace(/-----[^-]+-----/g, '').replace(/\s/g, '')),
+      (c) => c.charCodeAt(0),
+    )
+    privateKey = await crypto.subtle.importKey(
+      'pkcs8',
+      der,
+      { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+      false,
+      ['sign'],
+    )
+    cachedPrivateKey = { keyText: key, cryptoKey: privateKey }
+  }
   const signature = await crypto.subtle.sign(
     'RSASSA-PKCS1-v1_5',
     privateKey,

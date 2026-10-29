@@ -452,6 +452,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
         status: 'in_progress',
         paymentStatus: 'paid',
         startedAt: new Date().toISOString(),
+        calledAt: new Date().toISOString(),
         ...(!patient.arrivedAt ? { arrivedAt: patient.createdAt || new Date().toISOString() } : {})
       })
       if (patient.phone) {
@@ -583,6 +584,51 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     }
   }
 
+  const handleRecallPatient = async (patient: any) => {
+    if (!patient || isProcessing) return
+    setIsProcessing(true)
+    try {
+      const now = new Date().toISOString()
+      await updateDoc(doc(db, 'appointments', patient.id), {
+        calledAt: now,
+      })
+
+      if (patient.phone) {
+        createClinicNotification({
+          clinicId: clinic?.id || patient.clinic_id,
+          branchId: patient.branch_id,
+          recipientType: 'patient',
+          recipientTarget: patient.phone,
+          title: 'تذكير: دورك الآن للدخول!',
+          body: `مرحباً ${patient.patientName}، يرجى التوجه لغرفة الكشف فوراً (تذكرة #${patient.queue_number || ''}). الطبيب بانتظارك.`,
+          type: 'turn_ready',
+          eventId: `turn_recall_${patient.id}_${Date.now()}`,
+          appointmentId: patient.id
+        }).catch(() => {})
+
+        import('@/lib/patientNotificationHelper').then(({ triggerPatientEventPush }) => {
+          triggerPatientEventPush({
+            type: 'turn_ready',
+            appointmentId: patient.id,
+            clinicId: clinic?.id || patient.clinic_id,
+            clinicSlug: clinic?.slug,
+            clinicName: clinic?.clinicName || 'العيادة',
+            patientPhone: patient.phone,
+            queueNumber: patient.queue_number,
+            eventId: `push_turn_recall_${patient.id}_${Date.now()}`,
+          }).catch(() => {})
+        })
+      }
+
+      toast.success(`تمت إعادة النداء على المريض #${patient.queue_number} (${patient.patientName}) بنجاح.`)
+    } catch (err) {
+      console.error('Error recalling patient:', err)
+      toast.error('حدث خطأ أثناء إعادة النداء.')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
   const handleSkipPatient = async (patient: any) => {
     if (!patient || isProcessing) return
     setIsProcessing(true)
@@ -607,7 +653,8 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
           status: 'in_progress',
           paymentStatus: 'paid',
           startedAt: new Date().toISOString(),
-        ...(!patient.arrivedAt ? { arrivedAt: patient.createdAt || new Date().toISOString() } : {}),
+          calledAt: new Date().toISOString(),
+          ...(!patient.arrivedAt ? { arrivedAt: patient.createdAt || new Date().toISOString() } : {}),
           priorityNext: false
         })
 
@@ -1041,17 +1088,31 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                   {t('end_exam', 'إنهاء الكشف')}
                 </Button>
 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full h-8.5 text-xs font-bold text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/10 rounded-xl transition-all flex items-center justify-center gap-1.5"
-                  onClick={() => handleSkipPatient(currentPatient)}
-                  disabled={isProcessing}
-                  title="تخطي دور المريض وإدخال الدور التالي فوراً"
-                >
-                  <SkipForward className={`w-3.5 h-3.5 ${isRtl ? 'ml-1' : 'mr-1'}`} />
-                  <span>{t('skip', 'تخطي')}</span>
-                </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full h-8.5 text-xs font-bold text-sky-600 dark:text-sky-400 border-sky-500/30 hover:bg-sky-500/10 rounded-xl transition-all flex items-center justify-center gap-1.5"
+                    onClick={() => handleRecallPatient(currentPatient)}
+                    disabled={isProcessing}
+                    title="إعادة نداء المريض بالصوت وتنبيه الهاتف"
+                  >
+                    <RotateCcw className={`w-3.5 h-3.5 ${isRtl ? 'ml-1' : 'mr-1'}`} />
+                    <span>{t('recall', 'إعادة النداء')}</span>
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full h-8.5 text-xs font-bold text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/10 rounded-xl transition-all flex items-center justify-center gap-1.5"
+                    onClick={() => handleSkipPatient(currentPatient)}
+                    disabled={isProcessing}
+                    title="تخطي دور المريض وإدخال الدور التالي فوراً"
+                  >
+                    <SkipForward className={`w-3.5 h-3.5 ${isRtl ? 'ml-1' : 'mr-1'}`} />
+                    <span>{t('skip', 'تخطي')}</span>
+                  </Button>
+                </div>
 
                 {isPrescriptionsEnabled && (
                   <Link href={`/clinic/${clinic.slug}/admin/prescriptions?appointmentId=${currentPatient.id}&patientName=${encodeURIComponent(currentPatient.patientName)}&patientPhone=${encodeURIComponent(currentPatient.phone)}&age=${encodeURIComponent(currentPatient.age || currentPatient.dob || '')}`}>
@@ -1542,15 +1603,28 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                             )}
 
                             {isCurrent && (
-                              <Button
-                                size="sm"
-                                className="flex-1 h-9 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs"
-                                onClick={() => handleCompleteExam(b.id, b.patientName)}
-                                disabled={isProcessing}
-                              >
-                                <CheckCircle2 className={`w-3.5 h-3.5 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
-                                {t('end_exam', 'إنهاء الكشف')}
-                              </Button>
+                              <div className="flex items-center gap-1.5 flex-1">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-9 px-2.5 text-xs font-bold text-sky-600 dark:text-sky-400 border-sky-500/30 hover:bg-sky-500/10 rounded-xl"
+                                  onClick={() => handleRecallPatient(b)}
+                                  disabled={isProcessing}
+                                  title="إعادة نداء المريض"
+                                >
+                                  <RotateCcw className={`w-3.5 h-3.5 ${isRtl ? 'ml-1' : 'mr-1'}`} />
+                                  <span>{t('recall', 'إعادة النداء')}</span>
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  className="flex-1 h-9 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs"
+                                  onClick={() => handleCompleteExam(b.id, b.patientName)}
+                                  disabled={isProcessing}
+                                >
+                                  <CheckCircle2 className={`w-3.5 h-3.5 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
+                                  {t('end_exam', 'إنهاء الكشف')}
+                                </Button>
+                              </div>
                             )}
 
                             {/* Quick Confirm Payment */}
@@ -1827,6 +1901,20 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                                 disabled={isProcessing}
                               >
                                 {t('entry', 'دخول')}
+                              </Button>
+                            )}
+
+                            {/* Recall button if current */}
+                            {b.status === 'in_progress' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 px-2 text-xs font-bold text-sky-600 dark:text-sky-400 border-sky-500/30 hover:bg-sky-500/10 rounded-xl"
+                                onClick={() => handleRecallPatient(b)}
+                                disabled={isProcessing}
+                                title="إعادة نداء المريض"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
                               </Button>
                             )}
 

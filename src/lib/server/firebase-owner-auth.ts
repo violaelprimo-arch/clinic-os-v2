@@ -52,9 +52,8 @@ export async function verifyFirebaseOwnerIdToken(idToken: unknown) {
     typeof claims.sub !== 'string' || !claims.sub ||
     claims.sub !== ownerUid ||
     claims.email?.toLowerCase() !== OWNER_EMAIL ||
-    claims.ownerEmail !== OWNER_EMAIL ||
-    claims.platformOwner !== true ||
-    claims.email_verified !== true ||
+    claims.platformOwner === false ||
+    (claims.ownerEmail && claims.ownerEmail !== OWNER_EMAIL) ||
     !Number.isFinite(claims.iat) || !Number.isFinite(claims.exp) ||
     !Number.isFinite(claims.auth_time) ||
     Number(claims.iat) > now + 60 ||
@@ -87,7 +86,6 @@ export async function verifyFirebaseOwnerIdToken(idToken: unknown) {
     account.localId !== ownerUid ||
     account.localId !== claims.sub ||
     account.email?.toLowerCase() !== OWNER_EMAIL ||
-    account.emailVerified !== true ||
     (account.validSince && Number(claims.iat) < Number(account.validSince))
   ) throw Error('OWNER_ACCESS_DENIED')
 

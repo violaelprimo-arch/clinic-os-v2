@@ -21,8 +21,7 @@ export async function GET(
     const clinicId = clinicDoc ? clinicDoc.id : slug
     const clinicData = clinicDoc ? clinicDoc.data() : null
 
-    const now = new Date()
-    const today = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split('T')[0]
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date())
 
     const apptQ = query(
       collection(db, 'appointments'),

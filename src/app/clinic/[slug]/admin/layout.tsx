@@ -18,6 +18,7 @@ import { BranchSelector } from '@/components/clinic/BranchSelector'
 import { NotificationCenter } from '@/components/clinic/NotificationCenter'
 import { TechnicalSupportButton } from '@/components/clinic/TechnicalSupportButton'
 import { SubscriptionUpgradeModal } from '@/components/clinic/SubscriptionUpgradeModal'
+import { MustChangePasswordModal } from '@/components/clinic/MustChangePasswordModal'
 import { isClinicFeatureEnabled, LockedFeatureScreen, FeatureKey } from '@/lib/featurePermissions'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { LanguageToggle } from '@/components/common/LanguageToggle'
@@ -36,6 +37,8 @@ export default function AdminLayout({
   const { t, language, dir, isRtl } = useLanguage()
   const [role, setRole] = useState<string | null>(null)
   const [sessionVerified, setSessionVerified] = useState(false)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [mustChangePassword, setMustChangePassword] = useState(false)
   const [clinic, setClinic] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
@@ -128,7 +131,7 @@ export default function AdminLayout({
       return
     }
 
-    // Verify session token with server
+    // Verify session token with server (A01 - P0 Server Verification)
     const token = localStorage.getItem('clinic_session_token')
     if (token) {
       fetch('/api/auth/session', {
@@ -138,8 +141,12 @@ export default function AdminLayout({
         .then(res => res.json())
         .then(data => {
           if (data.authenticated && data.user?.role) {
+            setIsAuthenticated(true)
             setRole(data.user.role)
             localStorage.setItem('clinic_role', data.user.role)
+            if (data.user.mustChangePassword) {
+              setMustChangePassword(true)
+            }
             if (data.user.role === 'assistant' && data.user.branchId) {
               setSelectedBranchId(data.user.branchId)
               localStorage.setItem('clinic_selected_branch', data.user.branchId)
@@ -148,14 +155,22 @@ export default function AdminLayout({
                 localStorage.setItem('clinic_locked_branch_name', data.user.branchName)
               }
             }
+          } else {
+            localStorage.removeItem('clinic_session_token')
+            localStorage.removeItem('clinic_role')
+            window.location.href = `/clinic/${slug}/login`
           }
         })
         .catch((error) => {
           console.error('Could not verify clinic session:', error)
+          localStorage.removeItem('clinic_session_token')
+          localStorage.removeItem('clinic_role')
+          window.location.href = `/clinic/${slug}/login`
         })
         .finally(() => setSessionVerified(true))
     } else {
-      setSessionVerified(true)
+      localStorage.removeItem('clinic_role')
+      window.location.href = `/clinic/${slug}/login`
     }
 
     const q = query(collection(db, 'clinics'), where('slug', '==', slug))
@@ -394,7 +409,7 @@ export default function AdminLayout({
     window.location.href = `/clinic/${slug}/admin/patients?search=${encodeURIComponent(searchQuery)}`
   }
 
-  if (loading) {
+  if (loading || !sessionVerified || !isAuthenticated) {
     return <ClinicLoading fullScreen size="lg" label={t('loading', 'جاري تحميل نظام العيادة...')} />
   }
 
@@ -818,6 +833,13 @@ export default function AdminLayout({
           })}
         </nav>
       </div>
+
+      {/* Mandatory First-Login Password Change Modal */}
+      <MustChangePasswordModal
+        slug={slug}
+        isOpen={mustChangePassword}
+        onSuccess={() => setMustChangePassword(false)}
+      />
 
       {/* Subscription Upgrade Modal */}
       {showPackagesInClinics && (

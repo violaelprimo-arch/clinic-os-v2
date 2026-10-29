@@ -1,11 +1,74 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { verifySessionToken } from '@/lib/auth-crypto'
 
 export const BASE_PLATFORM_DOMAINS = ['yalla-clinic.com', 'yalaa-clinic.com']
+
+async function handleAdminAuth(req: NextRequest, targetClinicSlug: string, subdomain: string | null) {
+  const sessionToken = req.cookies.get('clinic_session')?.value
+  let isAuthorized = false
+
+  if (sessionToken) {
+    const verifyResult = await verifySessionToken(sessionToken)
+    if (verifyResult.valid && verifyResult.payload) {
+      const { role, slug } = verifyResult.payload
+      if (role === 'owner') {
+        isAuthorized = true
+      } else if (role === 'doctor' || role === 'assistant') {
+        if (!slug || slug === targetClinicSlug) {
+          isAuthorized = true
+        }
+      }
+    }
+  }
+
+  if (!isAuthorized) {
+    const loginUrl = subdomain
+      ? new URL('/login', req.url)
+      : new URL(`/clinic/${targetClinicSlug}/login`, req.url)
+
+    const response = NextResponse.redirect(loginUrl, 307)
+    response.cookies.delete('clinic_session')
+    return response
+  }
+
+  if (subdomain) {
+    if (req.nextUrl.pathname.startsWith(`/clinic/${subdomain}`)) {
+      return NextResponse.next()
+    }
+    const targetPath = req.nextUrl.pathname === '/' ? `/clinic/${subdomain}` : `/clinic/${subdomain}${req.nextUrl.pathname}`
+    const rewriteUrl = new URL(targetPath, req.url)
+    const response = NextResponse.rewrite(rewriteUrl)
+    response.headers.set('x-clinic-slug', subdomain)
+    return response
+  }
+
+  return NextResponse.next()
+}
 
 export function middleware(req: NextRequest) {
   const url = req.nextUrl
   const hostname = req.headers.get('host') || ''
   const pathname = url.pathname
+
+  // 0. Immediately drop malicious vulnerability scanner probes without invoking Next.js SSR
+  const lowerPath = pathname.toLowerCase()
+  if (
+    lowerPath.includes('wp-') ||
+    lowerPath.includes('wlwmanifest') ||
+    lowerPath.includes('xmlrpc') ||
+    lowerPath.endsWith('.php') ||
+    lowerPath.includes('service-account') ||
+    lowerPath.includes('.env') ||
+    lowerPath.includes('.git')
+  ) {
+    return new Response('Not Found', {
+      status: 404,
+      headers: {
+        'Content-Type': 'text/plain',
+        'Cache-Control': 'public, max-age=86400, s-maxage=86400',
+      },
+    })
+  }
 
   // 1. Skip internal assets, static files, and API routes
   if (
@@ -19,10 +82,6 @@ export function middleware(req: NextRequest) {
   }
 
   // 2. Extract subdomain
-  // Matches:
-  // - dr-ahmed.yalla-clinic.com -> dr-ahmed
-  // - owner.yalla-clinic.com -> owner
-  // - dr-ahmed.localhost:3000 -> dr-ahmed
   let subdomain: string | null = null
   const cleanHost = hostname.split(':')[0].toLowerCase()
 
@@ -54,14 +113,32 @@ export function middleware(req: NextRequest) {
     subdomain = null
   }
 
-  // 4. Clinic Doctor Subdomain rewrite:
-  // https://[slug].yalla-clinic.com/ => /clinic/[slug]
-  // https://[slug].yalla-clinic.com/admin => /clinic/[slug]/admin
-  // https://[slug].yalla-clinic.com/patient => /clinic/[slug]/patient
-  // https://[slug].yalla-clinic.com/track/xyz => /clinic/[slug]/track/xyz
-  // https://[slug].yalla-clinic.com/prescription/xyz => /clinic/[slug]/prescription/xyz
+  // Determine effective clinic slug and admin route check (A01 - P0 Protection)
+  let targetClinicSlug: string | null = null
+  let isAdminRoute = false
+
   if (subdomain) {
-    // If the path already has /clinic/[subdomain], don't double rewrite
+    targetClinicSlug = subdomain
+    if (pathname === '/admin' || pathname.startsWith('/admin/')) {
+      isAdminRoute = true
+    }
+  }
+
+  if (pathname.startsWith('/clinic/')) {
+    const segments = pathname.split('/')
+    targetClinicSlug = segments[2] || targetClinicSlug
+    if (segments[3] === 'admin') {
+      isAdminRoute = true
+    }
+  }
+
+  // 4. SERVER-SIDE ENFORCEMENT FOR ADMIN ROUTES (A01 - P0)
+  if (isAdminRoute && targetClinicSlug) {
+    return handleAdminAuth(req, targetClinicSlug, subdomain)
+  }
+
+  // 5. Clinic Doctor Subdomain rewrite:
+  if (subdomain) {
     if (pathname.startsWith(`/clinic/${subdomain}`)) {
       return NextResponse.next()
     }
@@ -74,7 +151,7 @@ export function middleware(req: NextRequest) {
     return response
   }
 
-  // 5. Default: No subdomain
+  // 6. Default: No subdomain
   return NextResponse.next()
 }
 

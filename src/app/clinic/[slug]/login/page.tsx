@@ -65,42 +65,24 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
     setIsLoading(true);
     setError(null);
     try {
-      const q = query(collection(db, 'clinics'), where('slug', '==', slug));
-      const snapshot = await getDocs(q);
-      if (!snapshot.empty) {
-        const cDoc = snapshot.docs[0];
-        const data = cDoc.data();
-        if ((data.doctorEmail || '').trim().toLowerCase() === email.trim().toLowerCase()) {
-          const otp = Math.floor(100000 + Math.random() * 900000).toString();
-          await updateDoc(doc(db, 'clinics', cDoc.id), {
-            resetPasswordOtp: otp,
-            resetPasswordRequestedAt: new Date().toISOString()
-          });
-
-          // Send OTP directly to doctor's email
-          try {
-            await fetch('/api/send-otp', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                email: email.trim(),
-                otp,
-                doctorName: data.doctorName,
-                clinicName: data.clinicName
-              })
-            });
-          } catch (sendErr) {
-            console.warn('send-otp error:', sendErr);
-          }
-
-          setResetOtpSent(true);
-          toast.success(isRtl ? 'تم إرسال رمز التحقق (OTP) إلى بريدك الإلكتروني بنجاح.' : 'OTP verification code sent to your email successfully.');
-        } else {
-          setError(isRtl ? 'البريد الإلكتروني غير مسجل.' : 'Email is not registered.');
-        }
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'request',
+          slug,
+          email: email.trim().toLowerCase()
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || (isRtl ? 'حدث خطأ أثناء طلب استعادة كلمة المرور.' : 'An error occurred while requesting password reset.'));
+        return;
       }
-    } catch (err) {
-      setError(isRtl ? 'حدث خطأ أثناء طلب استعادة كلمة المرور.' : 'An error occurred while requesting password reset.');
+      setResetOtpSent(true);
+      toast.success(data.message || (isRtl ? 'تم إرسال رمز التحقق (OTP) إلى بريدك الإلكتروني بنجاح.' : 'OTP verification code sent to your email successfully.'));
+    } catch (err: any) {
+      setError(err.message || (isRtl ? 'حدث خطأ أثناء طلب استعادة كلمة المرور.' : 'An error occurred while requesting password reset.'));
     } finally {
       setIsLoading(false);
     }
@@ -119,27 +101,28 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
     setIsLoading(true);
     setError(null);
     try {
-      const q = query(collection(db, 'clinics'), where('slug', '==', slug));
-      const snapshot = await getDocs(q);
-      if (!snapshot.empty) {
-        const cDoc = snapshot.docs[0];
-        const data = cDoc.data();
-        if (data.resetPasswordOtp === resetOtp.trim()) {
-          await updateDoc(doc(db, 'clinics', cDoc.id), {
-            doctorPassword: newPassword,
-            resetPasswordOtp: null,
-            resetPasswordRequestedAt: null
-          });
-          toast.success(isRtl ? 'تم تغيير كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول.' : 'Password reset successfully. You can now log in.');
-          setIsResetMode(false);
-          setResetOtpSent(false);
-          setPassword(newPassword);
-        } else {
-          setError(isRtl ? 'رمز التحقق (OTP) غير صحيح أو منتهي الصلاحية.' : 'Invalid or expired OTP code.');
-        }
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'verify-and-reset',
+          slug,
+          email: email.trim().toLowerCase(),
+          otp: resetOtp.trim(),
+          newPassword
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || (isRtl ? 'رمز التحقق (OTP) غير صحيح أو منتهي الصلاحية.' : 'Invalid or expired OTP code.'));
+        return;
       }
-    } catch (err) {
-      setError(isRtl ? 'حدث خطأ أثناء تغيير كلمة المرور.' : 'An error occurred while resetting password.');
+      toast.success(data.message || (isRtl ? 'تم تغيير كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول.' : 'Password reset successfully. You can now log in.'));
+      setIsResetMode(false);
+      setResetOtpSent(false);
+      setPassword(newPassword);
+    } catch (err: any) {
+      setError(err.message || (isRtl ? 'حدث خطأ أثناء تغيير كلمة المرور.' : 'An error occurred while resetting password.'));
     } finally {
       setIsLoading(false);
     }

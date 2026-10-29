@@ -27,7 +27,15 @@ export function OwnerAccessGate({ children }: { children: ReactNode }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ idToken }),
     })
-    const data = await response.json()
+    const text = await response.text()
+    let data: any
+    try {
+      data = JSON.parse(text)
+    } catch {
+      throw Error(response.status === 503 || response.status === 504 || response.status === 502
+        ? 'الخدمة غير متاحة مؤقتاً أو استنفذ الخادم وقت المعالجة. يرجى إعادة المحاولة.'
+        : `استجابة غير متوقعة من الخادم (${response.status}).`)
+    }
     if (!response.ok)
       throw Error((data.error || 'تعذر تسجيل الدخول.') + (data.code ? ` [${data.code}]` : ''))
     return data

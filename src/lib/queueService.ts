@@ -58,13 +58,14 @@ export function removeUndefinedFields<T>(obj: T): T {
 
 /**
  * Atomically generates the next sequential queue number and creates the appointment doc
- * inside a single Firestore transaction.
+ * inside a single Firestore transaction with atomic quota checking (A06 - P1 Concurrency Protection).
  *
- * This completely prevents race-condition collisions when multiple patients
+ * This completely prevents race-condition collisions and quota overbooking when multiple patients
  * submit booking requests simultaneously.
  */
 export async function createAtomicAppointment(
-  data: AtomicAppointmentInput
+  data: AtomicAppointmentInput,
+  maxLimit: number = 0
 ): Promise<{ id: string; queueNumber: number }> {
   const clinicId = data.clinic_id
   const dateStr = data.date
@@ -84,15 +85,25 @@ export async function createAtomicAppointment(
     where('date', '==', dateStr)
   )
   const snap = await getDocs(q)
-  const existingNums = snap.docs.map((d) => Number(d.data().queue_number) || 0)
+  const activeExisting = snap.docs.filter(d => d.data().status !== 'cancelled')
+  const existingNums = activeExisting.map((d) => Number(d.data().queue_number) || 0)
   const maxExisting = existingNums.length > 0 ? Math.max(0, ...existingNums) : 0
+  const activeCountExisting = activeExisting.length
 
   // 2. Run Firestore transaction to atomically lock the counter and write the appointment
   const result = await runTransaction(db, async (transaction) => {
     const counterSnap = await transaction.get(counterRef)
     let currentCounter = 0
+    let totalBookings = 0
     if (counterSnap.exists()) {
-      currentCounter = Number(counterSnap.data()?.lastQueueNumber) || 0
+      const cData = counterSnap.data()
+      currentCounter = Number(cData?.lastQueueNumber) || 0
+      totalBookings = Number(cData?.totalBookings) || currentCounter
+    }
+
+    const effectiveTotal = Math.max(totalBookings, activeCountExisting)
+    if (maxLimit > 0 && effectiveTotal >= maxLimit) {
+      throw new Error(`QUOTA_EXCEEDED:${maxLimit}`)
     }
 
     const assignedQueueNumber = Math.max(currentCounter, maxExisting) + 1
@@ -104,6 +115,7 @@ export async function createAtomicAppointment(
         clinicId,
         date: dateStr,
         lastQueueNumber: assignedQueueNumber,
+        totalBookings: effectiveTotal + 1,
         updatedAt: new Date().toISOString()
       },
       { merge: true }

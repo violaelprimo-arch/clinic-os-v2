@@ -35,6 +35,7 @@ import {
 } from '@/lib/branchService'
 import { sanitizeAddress, isPlaceholderAddress, extractCoordsFromLink } from '@/lib/mapsHelper'
 import { useLanguage } from '@/context/LanguageContext'
+import { ClinicLoading } from '@/components/clinic/ClinicLoading'
 
 export default function BranchesPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -299,6 +300,10 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
     } catch (err) {
       toast.error('حدث خطأ أثناء أرشفة الفرع')
     }
+  }
+
+  if (isLoading || !clinic) {
+    return <ClinicLoading fullScreen size="lg" label={t('loading_branches', language === 'en' ? 'Loading branches...' : 'جاري تحميل الفروع...')} />
   }
 
   return (

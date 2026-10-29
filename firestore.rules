@@ -2,6 +2,10 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
     function isPlatformOwner() {
       return request.auth != null
         && request.auth.token.platformOwner == true
@@ -10,87 +14,135 @@ service cloud.firestore {
         && request.auth.token.email_verified == true;
     }
 
+    function isClinicTenant(clinicId) {
+      return isAuthenticated() && (
+        isPlatformOwner() ||
+        request.auth.token.clinic_id == clinicId ||
+        request.auth.token.clinicId == clinicId ||
+        request.auth.uid == clinicId
+      );
+    }
+
     // Platform Owner & Site Settings
     match /site_settings/landing_page {
       allow get: if true;
       allow list, write: if isPlatformOwner();
     }
+    match /site_settings/{settingId} {
+      allow read, write: if isPlatformOwner();
+    }
     match /landing_feedback/{id} { allow read, write: if isPlatformOwner(); }
     match /trial_requests/{id} { allow read, write: if isPlatformOwner(); }
+    match /landing_inquiries/{id} { allow read, write: if isPlatformOwner(); }
     match /landing_rate_limits/{id} { allow read, write: if false; }
+    match /owners/{ownerId} { allow read, write: if isPlatformOwner(); }
+    match /settings/{settingId} { allow read, write: if isPlatformOwner(); }
 
     // Clinics Collection
     match /clinics/{clinicId} {
       allow read: if true;
-      allow write: if true;
-    }
-
-    // Appointments Collection
-    match /appointments/{apptId} {
-      allow read: if true;
-      allow write: if true;
-    }
-
-    // Prescriptions Collection (الروشتات الطبية)
-    match /prescriptions/{prescriptionId} {
-      // Patients, doctors, and clinics can read prescriptions
-      allow read: if true;
-      // Doctors/clinics can create, update, and manage prescriptions
-      allow create, update, delete: if true;
-    }
-
-    // Patient Accounts (حسابات وسجلات المرضى)
-    match /patient_accounts/{accId} {
-      allow read, write: if true;
+      allow create: if isPlatformOwner();
+      allow update: if isPlatformOwner() || isClinicTenant(clinicId);
+      allow delete: if isPlatformOwner();
     }
 
     // Branches Collection (فروع العيادة)
     match /branches/{branchId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create: if isPlatformOwner() || (isAuthenticated() && isClinicTenant(request.resource.data.clinic_id));
+      allow update, delete: if isPlatformOwner() || (isAuthenticated() && isClinicTenant(resource.data.clinic_id));
     }
 
-    // Notifications & Outbox (الإشعارات والرسائل)
+    // Appointments Collection (A02 - Hardened)
+    match /appointments/{apptId} {
+      // Direct get allowed for individual tracking/invoice links
+      allow get: if isPlatformOwner()
+        || (isAuthenticated() && isClinicTenant(resource.data.clinic_id))
+        || resource == null
+        || resource.data.clinic_id != null;
+      // Bulk listing strictly restricted to authorized clinic staff, platform owner, or authenticated patient
+      allow list: if isPlatformOwner()
+        || (isAuthenticated() && isClinicTenant(resource.data.clinic_id));
+      // Creation allowed by clinic staff or public booking with mandatory clinic_id
+      allow create: if (isAuthenticated() && (isPlatformOwner() || isClinicTenant(request.resource.data.clinic_id)))
+        || (request.resource.data.clinic_id != null && request.resource.data.patientName != null);
+      // Modification and deletion strictly restricted to authenticated clinic staff or platform owner
+      allow update, delete: if isPlatformOwner()
+        || (isAuthenticated() && isClinicTenant(resource.data.clinic_id));
+    }
+
+    // Prescriptions Collection (الروشتات الطبية - A02 Hardened)
+    match /prescriptions/{prescriptionId} {
+      // Direct get allowed for individual prescription link
+      allow get: if isPlatformOwner()
+        || (isAuthenticated() && isClinicTenant(resource.data.clinic_id))
+        || resource == null
+        || resource.data.clinic_id != null;
+      // Bulk listing strictly restricted to authorized clinic staff or platform owner
+      allow list: if isPlatformOwner()
+        || (isAuthenticated() && isClinicTenant(resource.data.clinic_id));
+      // Only authenticated doctors/clinics or platform owner can create, update, and manage prescriptions
+      allow create: if isPlatformOwner()
+        || (isAuthenticated() && isClinicTenant(request.resource.data.clinic_id));
+      allow update, delete: if isPlatformOwner()
+        || (isAuthenticated() && isClinicTenant(resource.data.clinic_id));
+    }
+
+    // Patient Accounts (حسابات وسجلات المرضى - A02 Hardened)
+    match /patient_accounts/{accId} {
+      allow read: if isPlatformOwner()
+        || (isAuthenticated() && isClinicTenant(resource.data.clinic_id));
+      allow create: if (isAuthenticated() && (isPlatformOwner() || isClinicTenant(request.resource.data.clinic_id)))
+        || (request.resource.data.clinic_id != null && request.resource.data.phone != null);
+      allow update, delete: if isPlatformOwner()
+        || (isAuthenticated() && isClinicTenant(resource.data.clinic_id));
+    }
+
+    // Notifications & Outbox (الإشعارات والرسائل - A02 / A13 Hardened)
     match /notifications/{notifId} {
-      allow read, write: if true;
+      allow read, write: if isAuthenticated();
     }
     match /notification_outbox/{outboxId} {
-      allow read, write: if true;
+      allow read, write: if isPlatformOwner();
     }
     match /pushSubscriptions/{subId} {
-      allow read, write: if true;
+      allow read: if isPlatformOwner();
+      allow write: if request.resource.data.endpoint != null;
     }
     match /push_subscriptions/{subId} {
-      allow read, write: if true;
+      allow read: if isPlatformOwner();
+      allow write: if request.resource.data.endpoint != null;
     }
     match /push_outbox/{outboxId} {
-      allow read, write: if true;
+      allow read, write: if isPlatformOwner();
+    }
+
+    // Daily counters for atomic sequential turns
+    match /clinic_daily_counters/{counterId} {
+      allow read: if true;
+      allow write: if true;
     }
 
     // System, Packages & Audit Logs
     match /packages/{pkgId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isPlatformOwner();
     }
     match /platformSettings/{settingId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isPlatformOwner();
     }
     match /system/{sysId} {
-      allow read, write: if true;
+      allow read, write: if isPlatformOwner();
     }
     match /market_prices/{priceId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isPlatformOwner();
     }
     match /audit_logs/{logId} {
-      allow read, write: if true;
-    }
-
-    // Users Collection
-    match /users/{userId} {
-      allow read, write: if true;
-    }
-
-    // Fallback: Default allow
-    match /{document=**} {
-      allow read, write: if true;
+      allow read: if isPlatformOwner();
+      allow create: if true; // Allows audit logging across authenticated API routes
+      allow update, delete: if false; // Immutable audit trails
     }
   }
 }

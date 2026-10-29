@@ -78,8 +78,8 @@ export default function PatientLoginPage() {
           return
         }
 
-        if (!password || password.length < 4) {
-          toast.error('كلمة المرور يجب أن تكون 4 أحرف أو أرقام على الأقل')
+        if (!password || password.length < 6) {
+          toast.error('كلمة المرور يجب أن تكون 6 أحرف أو أرقام على الأقل')
           setLoading(false)
           return
         }
@@ -90,44 +90,38 @@ export default function PatientLoginPage() {
           return
         }
 
-        // Check if phone already registered in this clinic (matching any format)
-        const checkQ = query(
-          collection(db, 'patient_accounts'),
-          where('clinic_id', '==', clinicId),
-          where('phone', 'in', phoneVariants.slice(0, 10))
-        )
-        const checkSnap = await getDocs(checkQ)
+        const res = await fetch('/api/patient/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            slug,
+            name: name.trim(),
+            phone: cleanPhone,
+            age: age.trim(),
+            password
+          })
+        })
+        const data = await res.json()
 
-        if (!checkSnap.empty) {
-          toast.error('رقم الهاتف مسجل بالفعل في هذه العيادة. يرجى تسجيل الدخول.')
-          setMode('login')
+        if (!res.ok || !data.success) {
+          toast.error(data.error || 'فشل إنشاء الحساب')
+          if (res.status === 409) setMode('login')
           setLoading(false)
           return
         }
 
-        // Create new account with standardized international phone
-        await addDoc(collection(db, 'patient_accounts'), {
-          clinic_id: clinicId,
-          name: name.trim(),
-          phone: cleanPhone,
-          age: age.trim(),
-          password: password,
-          createdAt: new Date().toISOString()
-        })
-
         toast.success('تم إنشاء حسابك الطبي بنجاح!')
-
         localStorage.setItem(
           'patient_auth',
           JSON.stringify({
-            phone: cleanPhone,
-            name: name.trim(),
-            age: age.trim(),
-            clinic_id: clinicId,
-            clinicSlug: slug
+            phone: data.patient.phone,
+            name: data.patient.name,
+            age: data.patient.age,
+            clinic_id: data.patient.clinic_id,
+            clinicSlug: slug,
+            token: data.token
           })
         )
-
         router.push(`/clinic/${slug}/patient`)
       } else {
         // Mode: Login
@@ -137,76 +131,36 @@ export default function PatientLoginPage() {
           return
         }
 
-        const loginQ = query(
-          collection(db, 'patient_accounts'),
-          where('clinic_id', '==', clinicId),
-          where('phone', 'in', phoneVariants.slice(0, 10))
-        )
-        const loginSnap = await getDocs(loginQ)
+        const res = await fetch('/api/patient/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            slug,
+            phone: cleanPhone,
+            password
+          })
+        })
+        const data = await res.json()
 
-        if (loginSnap.empty) {
-          // Check if patient booked before in appointments collection
-          const apptQ = query(
-            collection(db, 'appointments'),
-            where('clinic_id', '==', clinicId),
-            where('phone', 'in', phoneVariants.slice(0, 10))
-          )
-          const apptSnap = await getDocs(apptQ)
-
-          if (!apptSnap.empty) {
-            const firstAppt = apptSnap.docs[0].data()
-            const patientResolvedName = firstAppt.patientName || 'المريض'
-            const patientResolvedAge = firstAppt.age || ''
-
-            // Auto-activate account with this new password
-            await addDoc(collection(db, 'patient_accounts'), {
-              clinic_id: clinicId,
-              name: patientResolvedName,
-              phone: cleanPhone,
-              age: patientResolvedAge,
-              password: password,
-              createdAt: new Date().toISOString()
-            })
-
-            toast.success('تم تفعيل حسابك الطبي وربطه بحجوزاتك السابقة بنجاح')
-            localStorage.setItem(
-              'patient_auth',
-              JSON.stringify({
-                phone: cleanPhone,
-                name: patientResolvedName,
-                age: patientResolvedAge,
-                clinic_id: clinicId,
-                clinicSlug: slug
-              })
-            )
-            router.push(`/clinic/${slug}/patient`)
-            return
+        if (!res.ok || !data.success) {
+          toast.error(data.error || 'رقم الهاتف أو كلمة المرور غير صحيحة')
+          if (res.status === 404) {
+            setMode('register')
           }
-
-          toast.error('رقم الهاتف غير مسجل في هذه العيادة. يرجى إنشاء حساب جديد.')
-          setMode('register')
           setLoading(false)
           return
         }
 
-        const userDoc = loginSnap.docs[0]
-        const userData = userDoc.data()
-
-        if (userData.password && userData.password !== password) {
-          toast.error('كلمة المرور غير صحيحة. يرجى المحاولة مرة أخرى.')
-          setLoading(false)
-          return
-        }
-
-        toast.success(`مرحباً بك ${userData.name || ''}`)
+        toast.success(`مرحباً بك ${data.patient.name || ''}`)
         localStorage.setItem(
           'patient_auth',
           JSON.stringify({
-            phone: cleanPhone,
-            name: userData.name || 'المريض',
-            age: userData.age || '',
-            clinic_id: clinicId,
-            clinicSlug: slug
+            phone: data.patient.phone,
+            name: data.patient.name,
+            age: data.patient.age,
+            clinic_id: data.patient.clinic_id,
+            clinicSlug: slug,
+            token: data.token
           })
         )
         router.push(`/clinic/${slug}/patient`)

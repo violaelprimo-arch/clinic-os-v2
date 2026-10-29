@@ -15,7 +15,8 @@ import {
   Sparkles,
   CheckCircle2,
   AlertCircle,
-  Award
+  Award,
+  Activity
 } from 'lucide-react'
 import { useLanguage } from '@/context/LanguageContext'
 
@@ -41,6 +42,7 @@ export interface A4PrescriptionProps {
   pageSize?: 'a4' | 'a5'
   showHeaderFooter?: boolean
   printBackground?: boolean
+  vitalSigns?: any
 }
 
 export function A4Prescription({
@@ -59,7 +61,8 @@ export function A4Prescription({
   prescriptionNumber,
   pageSize = 'a4',
   showHeaderFooter = true,
-  printBackground = true
+  printBackground = true,
+  vitalSigns
 }: A4PrescriptionProps) {
   const { t, tDynamic, language, isRtl } = useLanguage()
   const safeOffset = typeof topOffset === 'number' && topOffset <= 60 && topOffset >= 0 ? topOffset : 25
@@ -304,6 +307,39 @@ export function A4Prescription({
                 </div>
               </div>
             </div>
+
+            {/* Vital Signs (if present) */}
+            {vitalSigns && (vitalSigns.bloodPressureSystolic || vitalSigns.bloodPressureDiastolic || vitalSigns.heartRate || vitalSigns.temperature || vitalSigns.glucoseLevel || vitalSigns.weightKg) && (
+              <div className="border-t border-slate-200/80 px-3.5 py-1.5 flex flex-wrap items-center gap-2 bg-slate-50/70 rounded-b-xl text-[10px] sm:text-[11px]">
+                <Activity className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                <span className="font-bold text-slate-600 shrink-0">{language === 'en' ? 'Vital Signs:' : 'العلامات الحيوية:'}</span>
+                {(vitalSigns.bloodPressureSystolic || vitalSigns.bloodPressureDiastolic) && (
+                  <span className="bg-white px-2 py-0.5 rounded border border-slate-200 font-bold text-slate-800 font-mono">
+                    BP: {vitalSigns.bloodPressureSystolic || '--'}/{vitalSigns.bloodPressureDiastolic || '--'}
+                  </span>
+                )}
+                {vitalSigns.heartRate && (
+                  <span className="bg-white px-2 py-0.5 rounded border border-slate-200 font-bold text-slate-800 font-mono">
+                    HR: {vitalSigns.heartRate} bpm
+                  </span>
+                )}
+                {vitalSigns.temperature && (
+                  <span className="bg-white px-2 py-0.5 rounded border border-slate-200 font-bold text-slate-800 font-mono">
+                    Temp: {vitalSigns.temperature}°C
+                  </span>
+                )}
+                {vitalSigns.glucoseLevel && (
+                  <span className="bg-white px-2 py-0.5 rounded border border-slate-200 font-bold text-slate-800 font-mono">
+                    Glucose: {vitalSigns.glucoseLevel} mg/dL
+                  </span>
+                )}
+                {vitalSigns.weightKg && (
+                  <span className="bg-white px-2 py-0.5 rounded border border-slate-200 font-bold text-slate-800 font-mono">
+                    Weight: {vitalSigns.weightKg} kg
+                  </span>
+                )}
+              </div>
+            )}
 
             {/* Diagnosis (if present) */}
             {diagnosis && (

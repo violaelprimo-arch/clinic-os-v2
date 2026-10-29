@@ -6,8 +6,11 @@ import {
   type LandingPageConfig,
   type FeedbackItem,
   type TrialRequestItem,
+  type LandingInquiryItem,
 } from './landing-config'
+
 export * from './landing-config'
+
 export async function landingApi<T>(
   path: string,
   method = 'GET',
@@ -25,13 +28,18 @@ export async function landingApi<T>(
         }),
   })
   const data = await response.json()
-  if (!response.ok)
-    throw new Error(
+  if (!response.ok) {
+    const error: any = new Error(
       (data.error || 'تعذر إتمام الطلب.') +
         (data.code ? ` [${data.code}]` : ''),
     )
+    error.code = data.code
+    error.fieldErrors = data.fieldErrors
+    throw error
+  }
   return data as T
 }
+
 export function subscribeToLandingPageConfig(
   callback: (config: LandingPageConfig) => void,
 ) {
@@ -70,13 +78,16 @@ export function subscribeToLandingPageConfig(
     document.removeEventListener('visibilitychange', onVisible)
   }
 }
+
 export async function getLandingPageConfig() {
   return (await landingApi<{ config: LandingPageConfig }>('/api/owner/landing'))
     .config
 }
+
 export async function saveLandingPageConfig(config: LandingPageConfig) {
   await landingApi('/api/owner/landing', 'PUT', config)
 }
+
 export async function submitClientFeedback(
   data: Omit<FeedbackItem, 'id' | 'createdAt' | 'approved'> & {
     website?: string
@@ -84,13 +95,19 @@ export async function submitClientFeedback(
 ) {
   await landingApi('/api/landing/feedback', 'POST', data)
 }
+
 export async function submitFreeTrialRequest(
   data: Omit<TrialRequestItem, 'id' | 'createdAt' | 'status'> & {
     website?: string
   },
-) {
-  await landingApi('/api/landing/trials', 'POST', data)
+): Promise<{ success: boolean; requestNumber?: string; requestId?: string; message?: string }> {
+  return await landingApi<{ success: boolean; requestNumber?: string; requestId?: string; message?: string }>(
+    '/api/landing/trials',
+    'POST',
+    data,
+  )
 }
+
 export async function getFreeTrialRequests() {
   return (
     await landingApi<{ requests: TrialRequestItem[] }>(
@@ -98,10 +115,37 @@ export async function getFreeTrialRequests() {
     )
   ).requests
 }
+
 export async function getClientFeedback() {
   return (
     await landingApi<{ feedback: FeedbackItem[] }>(
       '/api/owner/landing/feedback',
     )
   ).feedback
+}
+
+export async function submitLandingInquiry(data: {
+  type: 'suggestion' | 'complaint' | 'inquiry'
+  name: string
+  contact: string
+  subject: string
+  message: string
+  website?: string
+}) {
+  await landingApi('/api/landing/inquiries', 'POST', data)
+}
+
+export async function getLandingInquiries() {
+  return (
+    await landingApi<{ inquiries: LandingInquiryItem[] }>(
+      '/api/owner/landing/inquiries',
+    )
+  ).inquiries
+}
+
+export async function updateLandingInquiry(
+  id: string,
+  updates: { status?: string; internalNotes?: string }
+) {
+  await landingApi('/api/owner/landing/inquiries', 'PATCH', { id, ...updates })
 }

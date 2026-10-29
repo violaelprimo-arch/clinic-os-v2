@@ -41,8 +41,11 @@ export async function createSessionToken(payload: {
   phone?: string
   name: string
   clinicId: string
+  slug?: string
+  patientId?: string
   branchId?: string
   branchName?: string
+  mustChangePassword?: boolean
 }): Promise<string> {
   const data = {
     ...payload,

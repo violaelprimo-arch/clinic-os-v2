@@ -12,8 +12,28 @@ export class ApiError extends Error {
   }
 }
 export function assertSameOrigin(request: NextRequest) {
-  if (request.headers.get('origin') !== request.nextUrl.origin)
-    throw new ApiError(403, 'ORIGIN_REJECTED', 'هذا الطلب غير مسموح.')
+  const origin = request.headers.get('origin')
+  if (!origin) return
+  try {
+    const originUrl = new URL(origin)
+    const nextUrl = request.nextUrl
+    if (
+      origin === nextUrl.origin ||
+      originUrl.hostname === nextUrl.hostname ||
+      originUrl.hostname === 'localhost' ||
+      originUrl.hostname.endsWith('.localhost') ||
+      ['yalla-clinic.com', 'yalaa-clinic.com'].some(
+        (domain) =>
+          originUrl.hostname === domain ||
+          originUrl.hostname.endsWith('.' + domain),
+      )
+    ) {
+      return
+    }
+  } catch {
+    // Fall through to throw
+  }
+  throw new ApiError(403, 'ORIGIN_REJECTED', 'هذا الطلب غير مسموح.')
 }
 export async function requireOwner(request: NextRequest) {
   const secret =

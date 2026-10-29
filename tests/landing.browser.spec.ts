@@ -368,6 +368,7 @@ test('owner can manage collaborators and publish linked client cards', async ({
       logoUrl: '',
       link: '',
       collaborationNote: 'رعاية طبية متخصصة',
+      visible: true,
       nameEn: '',
       specialtyEn: '',
     },

@@ -80,14 +80,18 @@ export async function POST(req: NextRequest) {
     const assignedBranchId = isDoctorMatch ? undefined : (matchedSecondaryAss?.branchId || clinic.assistantBranchId || undefined)
     const assignedBranchName = isDoctorMatch ? undefined : (matchedSecondaryAss?.branchName || clinic.assistantBranchName || undefined)
 
+    const isMustChangePassword = isDoctorMatch && clinic.mustChangePassword === true
+
     // Create cryptographically signed session token
     const token = await createSessionToken({
       role,
       email: trimmedEmail,
       name: userName,
       clinicId,
+      slug,
       branchId: assignedBranchId,
-      branchName: assignedBranchName
+      branchName: assignedBranchName,
+      mustChangePassword: isMustChangePassword
     })
 
     // Record audit log
@@ -109,7 +113,8 @@ export async function POST(req: NextRequest) {
         clinicId,
         slug,
         branchId: assignedBranchId,
-        branchName: assignedBranchName
+        branchName: assignedBranchName,
+        mustChangePassword: isMustChangePassword
       }
     })
 

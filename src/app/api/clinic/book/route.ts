@@ -3,38 +3,25 @@ import { collection, query, where, getDocs, addDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { createClinicNotification } from '@/lib/notificationService'
 import { dispatchPatientPushNotification } from '@/lib/pushDispatcher'
-import { verifySessionToken } from '@/lib/auth-crypto'
 import { createAtomicAppointment } from '@/lib/queueService'
 
 export async function POST(req: NextRequest) {
   try {
-    const sessionToken = req.cookies.get('clinic_session')?.value
-    if (sessionToken) {
-      const session = await verifySessionToken(sessionToken)
-      if (session.valid && session.payload?.role === 'doctor') {
-        return NextResponse.json(
-          { error: 'حساب الطبيب لا يمكنه استخدام بوابة حجز المرضى.' },
-          { status: 403 },
-        )
-      }
-    }
-
     const body = await req.json().catch(() => ({}))
     const {
-      clinicId: rawClinicId,
       slug = 'zizo',
-      branchId = null,
-      branchName = 'الفرع الرئيسي',
-      serviceId = '1',
-      serviceName = 'كشف عادي',
-      servicePrice = 250,
-      date,
-      time = '10:30 ص',
       patientName,
       patientPhone,
+      age,
       birthDate,
-      gender = 'أنثى',
-      age
+      gender,
+      serviceId = '1',
+      serviceName = 'كشف عادي',
+      servicePrice,
+      branchId,
+      branchName,
+      date,
+      time = '10:00 AM'
     } = body
 
     if (!patientName || !patientPhone) {
@@ -47,21 +34,60 @@ export async function POST(req: NextRequest) {
     const cleanPhone = String(patientPhone).trim().replace(/\s+/g, '')
     const cleanName = String(patientName).trim()
 
-    // Resolve clinic and check maxDailyBookings quota
-    let clinicId = rawClinicId
-    let maxLimit = 0
+    // 1. Resolve clinic document strictly from database by slug (A05 - P1 Isolation)
     const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
     const cSnap = await getDocs(cQ)
-    if (!cSnap.empty) {
-      const cData = cSnap.docs[0].data()
-      maxLimit = Number(cData.maxDailyBookings) || 0
-      if (!clinicId) clinicId = cSnap.docs[0].id
+    if (cSnap.empty) {
+      return NextResponse.json(
+        { error: 'العيادة المطلوبة غير موجودة في النظام' },
+        { status: 404 }
+      )
     }
-    if (!clinicId) clinicId = slug
 
+    const cDoc = cSnap.docs[0]
+    const cData = cDoc.data()
+    const clinicId = cDoc.id
+
+    // 2. Enforce clinic active status & subscription validity (A05 - P1 Protection)
+    if (cData.isActive === false) {
+      return NextResponse.json(
+        { error: 'عذراً، هذه العيادة متوقفة حالياً عن استقبال الحجوزات' },
+        { status: 403 }
+      )
+    }
+
+    if (cData.expirationDate) {
+      const expDate = new Date(cData.expirationDate)
+      if (!isNaN(expDate.getTime()) && expDate < new Date()) {
+        return NextResponse.json(
+          { error: 'عذراً، اشتراك هذه العيادة منتهي حالياً، يرجى التواصل مع إدارة العيادة' },
+          { status: 403 }
+        )
+      }
+    }
+
+    const maxLimit = Number(cData.maxDailyBookings) || 0
     const bookingDate = date || new Date().toISOString().split('T')[0]
 
-    // Calculate real sequential queue number
+    // 3. Enforce server-side service price and reject client tampering (A05 - P1 Protection)
+    let verifiedServicePrice = 0
+    let verifiedServiceName = String(serviceName || 'كشف عيادة')
+
+    if (Array.isArray(cData.services) && cData.services.length > 0) {
+      const matched = cData.services.find(
+        (s: any) => String(s.id) === String(serviceId) || String(s.name).trim() === String(serviceName).trim()
+      )
+      if (matched) {
+        verifiedServicePrice = Number(matched.price) || 0
+        verifiedServiceName = matched.name || verifiedServiceName
+      } else {
+        verifiedServicePrice = Number(servicePrice) || 0
+      }
+    } else {
+      verifiedServicePrice = Number(servicePrice) || 0
+    }
+
+    // 4. Calculate existing queue count for initial aheadCount estimate
     const qAppts = query(
       collection(db, 'appointments'),
       where('clinic_id', '==', clinicId),
@@ -70,20 +96,13 @@ export async function POST(req: NextRequest) {
     const apptSnap = await getDocs(qAppts)
     const activeAppts = apptSnap.docs.filter((d) => d.data().status !== 'cancelled')
 
-    if (maxLimit > 0 && activeAppts.length >= maxLimit) {
-      return NextResponse.json(
-        { error: `عذراً، اكتمل الحد الأقصى للحجوزات لهذا اليوم (${maxLimit} كشف)` },
-        { status: 400 }
-      )
-    }
-
     const aheadCount = activeAppts.filter(
       (d) => d.data().status === 'waiting' || !d.data().status
     ).length
 
     const isUrgent =
-      String(serviceName).includes('مستعجل') ||
-      String(serviceName).includes('طوارئ') ||
+      String(verifiedServiceName).includes('مستعجل') ||
+      String(verifiedServiceName).includes('طوارئ') ||
       String(serviceId) === '3'
 
     let calculatedAge = age ? String(age).trim() : ''
@@ -105,8 +124,8 @@ export async function POST(req: NextRequest) {
       birthDate: birthDate || null,
       gender: gender || 'أنثى',
       serviceId: String(serviceId),
-      serviceName: String(serviceName),
-      servicePrice: Number(servicePrice) || 0,
+      serviceName: verifiedServiceName,
+      servicePrice: verifiedServicePrice,
       isUrgent,
       date: bookingDate,
       time: String(time),
@@ -116,8 +135,24 @@ export async function POST(req: NextRequest) {
       createdAt: new Date().toISOString()
     }
 
-    // Atomically allocate next sequential queue number with zero concurrency collisions
-    const { id: newApptId, queueNumber } = await createAtomicAppointment(newAppt)
+    // 5. Atomically allocate sequential queue number and verify quota inside single transaction (A06 - P1 Concurrency)
+    let newApptId: string
+    let queueNumber: number
+
+    try {
+      const atomicRes = await createAtomicAppointment(newAppt, maxLimit)
+      newApptId = atomicRes.id
+      queueNumber = atomicRes.queueNumber
+    } catch (atomicErr: any) {
+      if (atomicErr?.message?.startsWith('QUOTA_EXCEEDED')) {
+        return NextResponse.json(
+          { error: `عذراً، اكتمل الحد الأقصى للحجوزات لهذا اليوم (${maxLimit} كشف)` },
+          { status: 400 }
+        )
+      }
+      throw atomicErr
+    }
+
     const docRef = { id: newApptId }
 
     // Auto-create patient account if missing
@@ -176,8 +211,9 @@ export async function POST(req: NextRequest) {
           aheadCount,
           date: bookingDate,
           time,
-          branchName,
-          patientName: cleanName
+          branchName: branchName || 'الفرع الرئيسي',
+          patientName: cleanName,
+          servicePrice: verifiedServicePrice
         }
       },
       { status: 201 }

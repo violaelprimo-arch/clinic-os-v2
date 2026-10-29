@@ -25,6 +25,7 @@ import { useLanguage } from '@/context/LanguageContext'
 import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import { cleanPhoneForWhatsApp, validatePhoneNumber, DEFAULT_COUNTRY, CountryInfo, getPhoneSearchVariants } from '@/lib/countryPhoneHelper'
 import { openManualWhatsAppChat } from '@/lib/whatsappShare'
+import { createAtomicAppointment } from '@/lib/queueService'
 
 export default function PatientsPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -300,8 +301,8 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
     setIsAdding(true)
     try {
       if (clinicId) {
-        const today = new Date().toISOString().split('T')[0]
-        await addDoc(collection(db, 'appointments'), {
+        const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date())
+        await createAtomicAppointment({
           clinic_id: clinicId,
           patientName: newName,
           phone: newPhone,

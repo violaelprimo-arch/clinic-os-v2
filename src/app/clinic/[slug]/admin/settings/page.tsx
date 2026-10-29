@@ -27,6 +27,7 @@ import { extractCoordsFromLink, safeImageUrl } from '@/lib/mapsHelper'
 import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import { cleanPhoneForWhatsApp } from '@/lib/countryPhoneHelper'
 import { formatWeeklyScheduleSummary, syncClinicScheduleToMainBranch } from '@/lib/branchService'
+import { hashPassword, verifyPassword } from '@/lib/auth-crypto'
 
 export default function ClinicSettings({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -43,6 +44,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const [secondaryColor, setSecondaryColor] = useState('#2F80ED')
   const [supportNumbers, setSupportNumbers] = useState<any[]>([]);
   const [newDoctorEmail, setNewDoctorEmail] = useState('');
+  const [currentDoctorPassword, setCurrentDoctorPassword] = useState('');
   const [newDoctorPassword, setNewDoctorPassword] = useState('');
   const [newDoctorPasswordConfirm, setNewDoctorPasswordConfirm] = useState('');
   const [currentRole, setCurrentRole] = useState('')
@@ -271,7 +273,17 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
 
   const handleSave = async () => {
+    let hashedDoctorPassword = ''
     if (newDoctorPassword) {
+      if (!currentDoctorPassword) {
+        toast.error('يرجى إدخال كلمة المرور الحالية لتأكيد هويتك قبل تعيين كلمة مرور جديدة')
+        return
+      }
+      const isCurrentValid = await verifyPassword(currentDoctorPassword, clinic?.doctorPasswordHash || clinic?.doctorPassword)
+      if (!isCurrentValid) {
+        toast.error('كلمة المرور الحالية غير صحيحة')
+        return
+      }
       if (newDoctorPassword.length < 6) {
         toast.error('يجب ألا تقل كلمة المرور الجديدة عن 6 خانات')
         return
@@ -280,6 +292,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         toast.error('كلمتا المرور غير متطابقتين، يرجى التأكد من تطابق كلمة المرور وتأكيدها')
         return
       }
+      hashedDoctorPassword = await hashPassword(newDoctorPassword)
     }
     setIsSaving(true)
     try {
@@ -329,7 +342,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         isClinicOpen,
         showPrices,
         ...(newDoctorEmail ? { doctorEmail: newDoctorEmail } : {}),
-        ...(newDoctorPassword ? { doctorPassword: newDoctorPassword } : {}),
+        ...(hashedDoctorPassword ? { doctorPasswordHash: hashedDoctorPassword, doctorPassword: null, mustChangePassword: false, passwordLastChangedAt: new Date().toISOString() } : {}),
         isWalletEnabled,
         isInstapayEnabled,
         queueNormal: Number(queueNormal) ?? 3,

@@ -21,8 +21,14 @@ export function ClinicPublicAccessGuard({
   const [result, setResult] = useState<GuardResult | null>(null)
   const isBypassed =
     pathname.startsWith(`/clinic/${slug}/admin`) ||
+    pathname === '/admin' ||
+    pathname.startsWith('/admin/') ||
     pathname === `/clinic/${slug}/login` ||
-    pathname.startsWith(`/clinic/${slug}/login/`)
+    pathname === '/login' ||
+    pathname.startsWith('/login/') ||
+    pathname.includes('/tv') ||
+    pathname.includes('/track') ||
+    pathname.includes('/prescription')
 
   useEffect(() => {
     if (isBypassed) return

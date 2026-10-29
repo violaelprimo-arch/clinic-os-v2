@@ -17,7 +17,16 @@ export function LandingHome({
     initialConfig || DEFAULT_LANDING_CONFIG,
   )
 
-  useEffect(() => subscribeToLandingPageConfig(setConfig), [])
+  useEffect(() => {
+    const unsub = subscribeToLandingPageConfig((newConfig) => {
+      if (newConfig) {
+        setConfig(newConfig)
+      }
+    })
+    return () => {
+      if (typeof unsub === 'function') unsub()
+    }
+  }, [])
 
   return <LandingPageContent config={config} />
 }

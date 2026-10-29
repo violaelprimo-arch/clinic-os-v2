@@ -1,6 +1,7 @@
 'use client'
 
 import { use, useEffect, useState, useRef } from 'react'
+import { notFound } from 'next/navigation'
 import { db } from '@/lib/firebase'
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore'
 import { Button } from '@/components/ui/button'
@@ -34,6 +35,7 @@ export default function PublicPrescriptionPage({
   const [appointment, setAppointment] = useState<any>(null)
   const [prescription, setPrescription] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [isNotFound, setIsNotFound] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
   const [isDownloadingImage, setIsDownloadingImage] = useState(false)
   const [isSharing, setIsSharing] = useState(false)
@@ -50,6 +52,10 @@ export default function PublicPrescriptionPage({
         if (!cSnap.empty) {
           clinicData = { id: cSnap.docs[0].id, ...cSnap.docs[0].data() }
           setClinic(clinicData)
+        } else {
+          setIsNotFound(true)
+          notFound()
+          return
         }
 
         // 2. Fetch Appointment
@@ -57,15 +63,27 @@ export default function PublicPrescriptionPage({
         let apptData: any = null
         if (apptDoc.exists()) {
           apptData = { id: apptDoc.id, ...apptDoc.data() }
+          // Strictly eliminate IDOR: verify apptData.clinic_id === clinicData.id
+          if (apptData.clinic_id !== clinicData.id) {
+            setIsNotFound(true)
+            notFound()
+            return
+          }
           setAppointment(apptData)
         } else {
           // Fallback: check if appointmentId is actually a prescription ID
           const directRxDoc = await getDoc(doc(db, 'prescriptions', appointmentId))
           if (directRxDoc.exists()) {
             const rxData = { id: directRxDoc.id, ...directRxDoc.data() } as any
+            if (rxData.clinic_id && rxData.clinic_id !== clinicData.id) {
+              setIsNotFound(true)
+              notFound()
+              return
+            }
             setPrescription(rxData)
             setAppointment({
               id: rxData.appointment_id || directRxDoc.id,
+              clinic_id: rxData.clinic_id,
               patientName: rxData.patientName,
               phone: rxData.patientPhone,
               age: rxData.age,
@@ -77,20 +95,30 @@ export default function PublicPrescriptionPage({
         }
 
         // 3. Fetch Prescription if stored separately
-        const qRx = query(collection(db, 'prescriptions'), where('appointment_id', '==', appointmentId))
-        const rxSnap = await getDocs(qRx)
-        if (!rxSnap.empty) {
-          setPrescription({ id: rxSnap.docs[0].id, ...rxSnap.docs[0].data() })
-        } else if (apptData?.drugs && apptData.drugs.length > 0) {
-          setPrescription({
-            patientName: apptData.patientName,
-            age: apptData.age || apptData.dob,
-            date: apptData.date,
-            diagnosis: apptData.diagnosis,
-            drugs: apptData.drugs
-          })
+        if (apptData && clinicData) {
+          const qRx = query(
+            collection(db, 'prescriptions'),
+            where('appointment_id', '==', appointmentId),
+            where('clinic_id', '==', clinicData.id)
+          )
+          const rxSnap = await getDocs(qRx)
+          if (!rxSnap.empty) {
+            setPrescription({ id: rxSnap.docs[0].id, ...rxSnap.docs[0].data() })
+          } else if (apptData?.drugs && apptData.drugs.length > 0) {
+            setPrescription({
+              patientName: apptData.patientName,
+              age: apptData.age || apptData.dob,
+              date: apptData.date,
+              diagnosis: apptData.diagnosis,
+              drugs: apptData.drugs
+            })
+          }
         }
-      } catch (err) {
+      } catch (err: any) {
+        if (err?.digest?.includes('NEXT_NOT_FOUND') || err?.message?.includes('NEXT_NOT_FOUND')) {
+          setIsNotFound(true)
+          return
+        }
         console.error('Error fetching prescription:', err)
       } finally {
         setLoading(false)
@@ -99,6 +127,10 @@ export default function PublicPrescriptionPage({
 
     fetchData()
   }, [slug, appointmentId])
+
+  if (isNotFound) {
+    notFound()
+  }
 
   const patientName = prescription?.patientName || appointment?.patientName || (isRtl ? 'المريض' : 'Patient')
   const patientAge = prescription?.age || appointment?.age || appointment?.dob || ''

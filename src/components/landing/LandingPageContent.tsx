@@ -1,1016 +1,776 @@
 'use client'
 
-/* eslint-disable @next/next/no-img-element */
-import { useEffect, useState, useRef, type FormEvent, type ComponentType } from 'react'
-import Link from 'next/link'
-import {
-  Users,
-  Calendar,
-  FileSignature,
-  Database,
-  TrendingUp,
-  Bot,
-  Building2,
-  Smartphone,
-  ArrowUpRight,
-  Check,
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  MessageCircle,
-  Phone,
-  Star,
-  Sparkles,
-  Pause,
-  Play,
-  ShieldCheck,
-  Gift,
-  LoaderCircle,
-  ZoomIn,
-} from 'lucide-react'
-import { ShowcaseLightbox } from '@/components/landing/ShowcaseLightbox'
-import { InteractiveProductDemo } from '@/components/landing/InteractiveProductDemo'
-import { ClinicLogo } from '@/components/clinic/ClinicLogo'
-import { ThemeToggle } from '@/components/common/ThemeToggle'
-import { LanguageToggle } from '@/components/common/LanguageToggle'
-import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog'
-import { useLanguage } from '@/context/LanguageContext'
-import {
-  submitClientFeedback,
-  submitFreeTrialRequest,
-} from '@/lib/landing-service'
+import React, { useState, useEffect, useRef } from 'react'
+import { LandingNavbar } from './LandingNavbar'
+import { LandingHeroSection } from './LandingHeroSection'
+import { LandingStatsSection } from './LandingStatsSection'
+import { LandingFeaturesSection } from './LandingFeaturesSection'
+import { SystemGalleryCarousel } from './SystemGalleryCarousel'
+import { LandingStepsSection } from './LandingStepsSection'
+import { LandingTestimonialsSection } from './LandingTestimonialsSection'
+import { LandingPricingSection } from './LandingPricingSection'
+import { LandingFaqSection } from './LandingFaqSection'
+import { LandingContactSection } from './LandingContactSection'
+import { LandingCtaSection } from './LandingCtaSection'
+import { LandingFooter } from './LandingFooter'
+import { MessageCircle, X, Loader2, CheckCircle2, ShieldCheck, ArrowLeft, ArrowRight, AlertCircle } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { submitFreeTrialRequest } from '@/lib/landing-service'
 import { whatsappNumber, type LandingPageConfig } from '@/lib/landing-config'
+import { useLanguage } from '@/context/LanguageContext'
+import { useScrollReveal } from './useScrollReveal'
+import { toast } from 'sonner'
 import './landing.css'
 
-const icons: Record<string, ComponentType<{ className?: string }>> = {
-  Users,
-  Calendar,
-  FileSignature,
-  Database,
-  TrendingUp,
-  Bot,
-  Building2,
-  Smartphone,
-  Sparkles,
-  ShieldCheck,
-}
-
-export function LandingPageContent({
-  config,
-  isPreview = false,
-}: {
+interface LandingPageContentProps {
   config: LandingPageConfig
   isPreview?: boolean
-}) {
-  const { isRtl, dir } = useLanguage()
-  const copy = (ar: string, en: string) => (isRtl ? ar : en)
-  const headline = (key: keyof LandingPageConfig['english']) =>
-    isRtl ? String(config[key]) : config.english[key] || String(config[key])
+}
 
-  const [slide, setSlide] = useState(0)
-  const [paused, setPaused] = useState(false)
+export function LandingPageContent({ config, isPreview = false }: LandingPageContentProps) {
+  const { isRtl } = useLanguage()
   const [trialOpen, setTrialOpen] = useState(false)
-  const [lightboxOpen, setLightboxOpen] = useState(false)
-  const showTrialBanner = false
+  const [selectedPlanName, setSelectedPlanName] = useState<string>('')
 
-  const [feedbackBusy, setFeedbackBusy] = useState(false)
-  const [feedbackMessage, setFeedbackMessage] = useState('')
-  const [feedbackError, setFeedbackError] = useState('')
-  const [rating, setRating] = useState(5)
+  // Trial form state
+  const [doctorName, setDoctorName] = useState('')
+  const [clinicName, setClinicName] = useState('')
+  const [specialty, setSpecialty] = useState('')
+  const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
+  const [governorate, setGovernorate] = useState('')
+  const [city, setCity] = useState('')
+  const [address, setAddress] = useState('')
+  const [expectedPatientsPerDay, setExpectedPatientsPerDay] = useState('')
+  const [notes, setNotes] = useState('')
+  const [honeypot, setHoneypot] = useState('')
+  const [isSubmittingTrial, setIsSubmittingTrial] = useState(false)
+  const [trialSuccess, setTrialSuccess] = useState(false)
+  const [submittedRequestNumber, setSubmittedRequestNumber] = useState<string>('')
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
-  const [trialBusy, setTrialBusy] = useState(false)
-  const [trialMessage, setTrialMessage] = useState('')
-  const [trialError, setTrialError] = useState('')
-  const [trialWhatsApp, setTrialWhatsApp] = useState('')
+  // Form input refs for auto-focusing invalid fields
+  const doctorNameInputRef = useRef<HTMLInputElement>(null)
+  const clinicNameInputRef = useRef<HTMLInputElement>(null)
+  const specialtyInputRef = useRef<HTMLInputElement>(null)
+  const phoneInputRef = useRef<HTMLInputElement>(null)
+  const emailInputRef = useRef<HTMLInputElement>(null)
 
-  const screenshots = config.screenshots || []
-  const index = screenshots.length ? slide % screenshots.length : 0
-  const current = screenshots[index]
-
-  // Filter out any mock/placeholder stats completely
-  const activeStats = (config.stats || []).filter(
-    (s) =>
-      s.value &&
-      s.label &&
-      !s.label.includes('بوابات') &&
-      !s.label.includes('طرق دفع') &&
-      !s.label.includes('أدوات لإدارة'),
-  )
-  const showStatsSection = config.visibility.showStats && activeStats.length > 0
-
-  // Filter approved reviews only
-  const approvedFeedbacks = (config.feedbacks || []).filter((f) => f.approved)
-  const showReviewsSection =
-    config.visibility.showFeedback && approvedFeedbacks.length > 0
-
-  const showFeaturesSection =
-    config.visibility.showFeatures && config.features && config.features.length > 0
-  const showShowcaseSection = config.visibility.showScreenshots !== false
-  const showClientsSection =
-    config.visibility.showClients && config.clients && config.clients.length > 0
-  const showContactsSection =
-    config.visibility.showContacts && config.contacts && config.contacts.length > 0
-
-  const primary =
+  const primaryContact =
     config.contacts.find((c) => c.isPrimary && c.whatsappEnabled) ||
     config.contacts.find((c) => c.whatsappEnabled)
-  const number = whatsappNumber(
-    primary?.whatsappNumber || config.primaryWhatsapp || '201551007018',
-  )
-  const whatsapp = number ? `https://wa.me/${number}` : 'https://wa.me/201551007018'
-  const trialWhatsappHref = `${whatsapp}?text=${encodeURIComponent(
-    copy('اريد طلب نسخة مجانية تجريبية', 'I want to request a free trial version'),
-  )}`
-  const supportHref = whatsapp
-    ? `${whatsapp}?text=${encodeURIComponent(
-        copy(
-          'مرحبًا، أحتاج إلى التواصل مع الدعم الفني لمنصة Yalla Clinic.',
-          'Hello, I need to contact Yalla Clinic technical support.',
-        ),
-      )}`
-    : '#contact'
+  const number = whatsappNumber(primaryContact?.whatsappNumber || config.primaryWhatsapp || '201551007018')
+  const whatsappUrl = number ? `https://wa.me/${number}` : 'https://wa.me/201551007018'
 
-  const move = (offset: number) => {
-    if (!screenshots.length) return
-    setSlide((value) => (value + offset + screenshots.length) % screenshots.length)
-  }
-
-  // Drag and swipe handling for showcase gallery
-  const showcaseDragStart = useRef<{ x: number; y: number; time: number } | null>(null)
-  const isDraggingShowcaseRef = useRef(false)
-
-  const handleShowcaseMouseDown = (e: React.MouseEvent) => {
-    showcaseDragStart.current = { x: e.clientX, y: e.clientY, time: Date.now() }
-    isDraggingShowcaseRef.current = false
-    setPaused(true)
-  }
-
-  const handleShowcaseMouseMove = (e: React.MouseEvent) => {
-    if (!showcaseDragStart.current) return
-    const dist = Math.hypot(
-      e.clientX - showcaseDragStart.current.x,
-      e.clientY - showcaseDragStart.current.y,
-    )
-    if (dist > 8) {
-      isDraggingShowcaseRef.current = true
-    }
-  }
-
-  const handleShowcaseMouseUp = (e: React.MouseEvent) => {
-    if (!showcaseDragStart.current) return
-    const deltaX = e.clientX - showcaseDragStart.current.x
-    const deltaY = e.clientY - showcaseDragStart.current.y
-    const elapsed = Date.now() - showcaseDragStart.current.time
-    const wasDragging = isDraggingShowcaseRef.current
-
-    showcaseDragStart.current = null
-    isDraggingShowcaseRef.current = false
-
-    if (wasDragging && Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY)) {
-      move(deltaX < 0 ? 1 : -1)
-    } else if (!wasDragging && elapsed < 400 && Math.hypot(deltaX, deltaY) < 10) {
-      setLightboxOpen(true)
-      setPaused(true)
-    }
-  }
-
-  const handleShowcaseTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length === 1) {
-      const touch = e.touches[0]
-      showcaseDragStart.current = { x: touch.clientX, y: touch.clientY, time: Date.now() }
-      isDraggingShowcaseRef.current = false
-      setPaused(true)
-    }
-  }
-
-  const handleShowcaseTouchEnd = (e: React.TouchEvent) => {
-    if (!showcaseDragStart.current || e.changedTouches.length === 0) return
-    const touch = e.changedTouches[0]
-    const deltaX = touch.clientX - showcaseDragStart.current.x
-    const deltaY = touch.clientY - showcaseDragStart.current.y
-    const elapsed = Date.now() - showcaseDragStart.current.time
-
-    showcaseDragStart.current = null
-
-    if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY)) {
-      move(deltaX < 0 ? 1 : -1)
-    } else if (Math.hypot(deltaX, deltaY) < 15 && elapsed < 500) {
-      setLightboxOpen(true)
-      setPaused(true)
-    }
-  }
-
+  // Scroll Progress Bar
   useEffect(() => {
-    if (paused || lightboxOpen || screenshots.length < 2) return
-    const timer = setInterval(() => {
-      if (!document.hidden) setSlide((value) => (value + 1) % screenshots.length)
-    }, 6500)
-    return () => clearInterval(timer)
-  }, [screenshots.length, paused, lightboxOpen])
+    const handleScroll = () => {
+      const totalScroll = document.documentElement.scrollHeight - window.innerHeight
+      if (totalScroll <= 0) return
+      const progress = Math.min(1, Math.max(0, window.scrollY / totalScroll))
+      const bar = document.getElementById('landing-scroll-progress')
+      if (bar) {
+        bar.style.transform = `scaleX(${progress})`
+      }
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
-  const previewLink = (event: React.MouseEvent) => {
-    if (isPreview) event.preventDefault()
-  }
+  // Desktop Ambient Cursor Spotlight
+  const cursorRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (
+      config.themeSettings?.motionLevel === 'none' ||
+      config.themeSettings?.enableBackgroundAnimation === false
+    )
+      return
+    const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0
+    if (isTouch) return
 
-  async function sendFeedback(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (isPreview) return
-    const form = event.currentTarget
-    const values = new FormData(form)
-    setFeedbackBusy(true)
-    setFeedbackMessage('')
-    setFeedbackError('')
+    let rafId: number
+    let targetX = -1000
+    let targetY = -1000
+    let curX = -1000
+    let curY = -1000
+
+    const onPointerMove = (e: MouseEvent) => {
+      targetX = e.clientX
+      targetY = e.clientY
+    }
+
+    const updateCursor = () => {
+      curX += (targetX - curX) * 0.15
+      curY += (targetY - curY) * 0.15
+      if (cursorRef.current) {
+        cursorRef.current.style.left = `${curX}px`
+        cursorRef.current.style.top = `${curY}px`
+      }
+      rafId = requestAnimationFrame(updateCursor)
+    }
+
+    window.addEventListener('pointermove', onPointerMove, { passive: true })
+    rafId = requestAnimationFrame(updateCursor)
+
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove)
+      cancelAnimationFrame(rafId)
+    }
+  }, [config.themeSettings?.motionLevel, config.themeSettings?.enableBackgroundAnimation])
+
+  // Scroll reveal trigger
+  useScrollReveal(
+    config.themeSettings?.enableSectionMotion !== false &&
+      config.themeSettings?.motionLevel !== 'none'
+  )
+
+  const handleTrialSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setFieldErrors({})
+
+    const clientErrors: Record<string, string> = {}
+    if (!doctorName.trim() || doctorName.trim().length < 2) {
+      clientErrors.doctorName = 'اسم الطبيب يجب أن يتكون من حرفين على الأقل'
+    }
+    if (!clinicName.trim() || clinicName.trim().length < 2) {
+      clientErrors.clinicName = 'اسم العيادة يجب أن يتكون من حرفين على الأقل'
+    }
+    if (!phone.trim()) {
+      clientErrors.phone = 'رقم الهاتف مطلوب'
+    }
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      clientErrors.email = 'يرجى إدخال بريد إلكتروني صحيح (مثال: doctor@example.com)'
+    }
+
+    if (Object.keys(clientErrors).length > 0) {
+      setFieldErrors(clientErrors)
+      if (clientErrors.doctorName) doctorNameInputRef.current?.focus()
+      else if (clientErrors.clinicName) clinicNameInputRef.current?.focus()
+      else if (clientErrors.phone) phoneInputRef.current?.focus()
+      else if (clientErrors.email) emailInputRef.current?.focus()
+      toast.error('يرجى مراجعة الحقول المحددة وتصحيح البيانات')
+      return
+    }
+
+    setIsSubmittingTrial(true)
     try {
-      await submitClientFeedback({
-        authorName: String(values.get('authorName')),
-        clinicName: String(values.get('clinicName')),
-        specialty: String(values.get('specialty') || ''),
-        comment: String(values.get('comment')),
-        rating,
-        website: String(values.get('website') || ''),
+      const response = await submitFreeTrialRequest({
+        doctorName: doctorName.trim(),
+        clinicName: clinicName.trim(),
+        specialty: specialty.trim() || 'طب عام',
+        phone: phone.trim(),
+        email: email.trim(),
+        governorate: governorate.trim(),
+        city: city.trim(),
+        address: address.trim(),
+        expectedPatientsPerDay: expectedPatientsPerDay.trim(),
+        notes: (selectedPlanName ? `[الباقة المطلوبة: ${selectedPlanName}] ` : '') + notes.trim(),
+        website: honeypot,
       })
-      form.reset()
-      setRating(5)
-      setFeedbackMessage(
-        copy(
-          'شكرًا لرأيك! وصل للمراجعة، وسيظهر بعد موافقة الإدارة.',
-          'Thank you! Your review has been received and will appear after approval.',
-        ),
-      )
-    } catch (error) {
-      setFeedbackError(
-        error instanceof Error
-          ? error.message
-          : copy('تعذر إرسال الرأي. حاول مرة أخرى.', 'Could not submit your review. Please retry.'),
-      )
+
+      if (response?.requestNumber) {
+        setSubmittedRequestNumber(response.requestNumber)
+      }
+      setTrialSuccess(true)
+      toast.success('تم تسجيل طلب التجربة بنجاح!')
+    } catch (err: any) {
+      if (err?.fieldErrors && typeof err.fieldErrors === 'object' && Object.keys(err.fieldErrors).length > 0) {
+        setFieldErrors(err.fieldErrors)
+        if (err.fieldErrors.doctorName) doctorNameInputRef.current?.focus()
+        else if (err.fieldErrors.clinicName) clinicNameInputRef.current?.focus()
+        else if (err.fieldErrors.specialty) specialtyInputRef.current?.focus()
+        else if (err.fieldErrors.phone) phoneInputRef.current?.focus()
+        else if (err.fieldErrors.email) emailInputRef.current?.focus()
+        toast.error(err.message || 'يرجى مراجعة الحقول المحددة وتصحيح البيانات')
+      } else {
+        toast.error(err?.message || 'تعذر إرسال الطلب، يرجى المحاولة ثانيةً')
+      }
     } finally {
-      setFeedbackBusy(false)
+      setIsSubmittingTrial(false)
     }
   }
 
-  async function sendTrial(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (isPreview) return
-    const form = event.currentTarget
-    const values = new FormData(form)
-    setTrialBusy(true)
-    setTrialMessage('')
-    setTrialError('')
-    const data = {
-      doctorName: String(values.get('doctorName')),
-      clinicName: String(values.get('clinicName')),
-      specialty: String(values.get('specialty')),
-      phone: String(values.get('phone')),
-      email: String(values.get('email')),
-      notes: String(values.get('notes') || ''),
-      website: String(values.get('website') || ''),
-    }
-    try {
-      await submitFreeTrialRequest(data)
-      setTrialMessage(
-        copy(
-          'تم تسجيل طلبك. هنتواصل معاك لتجهيز التجربة.',
-          'Your request is saved. Our team will contact you to arrange the trial.',
-        ),
-      )
-      const url = whatsapp
-        ? whatsapp +
-          '?text=' +
-          encodeURIComponent(
-            copy(
-              `مرحبًا، سجلت طلب تجربة يلا كلينك لمدة ${config.trialDaysCount} أيام.\nالطبيب: ${data.doctorName}\nالعيادة: ${data.clinicName}\nالتخصص: ${data.specialty}\nالهاتف: ${data.phone}`,
-              `Hello, I submitted a ${config.trialDaysCount}-day Yalla Clinic trial request.\nDoctor: ${data.doctorName}\nClinic: ${data.clinicName}\nSpecialty: ${data.specialty}\nPhone: ${data.phone}`,
-            ),
-          )
-        : ''
-      setTrialWhatsApp(url)
-      form.reset()
-      if (values.get('openWhatsapp') === 'on' && url) window.location.assign(url)
-    } catch (error) {
-      setTrialError(
-        error instanceof Error
-          ? error.message
-          : copy('تعذر إرسال الطلب. حاول مرة أخرى.', 'Could not submit your request. Please retry.'),
-      )
-    } finally {
-      setTrialBusy(false)
+  const vis = config.visibility
+  const order = config.sectionOrder || [
+    'navbar',
+    'hero',
+    'stats',
+    'features',
+    'gallery',
+    'steps',
+    'testimonials',
+    'partners',
+    'pricing',
+    'faq',
+    'contact',
+    'cta',
+    'footer',
+  ]
+
+  // Render individual sections based on key
+  const renderSectionInner = (sectionKey: string) => {
+    switch (sectionKey) {
+      case 'navbar':
+        if (!vis.showNavbar) return null
+        return (
+          <LandingNavbar
+            key="navbar"
+            config={config}
+            onOpenTrial={() => {
+              setSelectedPlanName('')
+              setTrialOpen(true)
+            }}
+          />
+        )
+
+      case 'hero':
+        if (!vis.showHero) return null
+        return (
+          <LandingHeroSection
+            key="hero"
+            badge={isRtl ? config.heroBadge : config.english.heroBadge || config.heroBadge}
+            title={isRtl ? config.heroTitle : config.english.heroTitle || config.heroTitle}
+            highlight={isRtl ? config.heroHighlight : config.english.heroHighlight || config.heroHighlight}
+            subtitle={isRtl ? config.heroSubtitle : config.english.heroSubtitle || config.heroSubtitle}
+            heroImage={config.heroImage}
+            trialButtonText={isRtl ? config.trialButtonText : config.english.trialButtonText || config.trialButtonText}
+            galleryButtonText={isRtl ? config.galleryButtonText : config.english.galleryButtonText || config.galleryButtonText}
+            loginButtonText={isRtl ? config.loginButtonText : config.english.loginButtonText || config.loginButtonText}
+            loginUrl={config.loginUrl}
+            trialDaysCount={config.trialDaysCount}
+            enable3DTilt={config.themeSettings?.enable3DTilt !== false}
+            enableHero3D={config.themeSettings?.enableHero3D !== false}
+            motionLevel={config.themeSettings?.motionLevel || 'subtle'}
+            motionSpeed={config.themeSettings?.motionSpeed || 'normal'}
+            onOpenTrial={() => {
+              setSelectedPlanName('')
+              setTrialOpen(true)
+            }}
+          />
+        )
+
+      case 'stats':
+        if (!vis.showStats) return null
+        return <LandingStatsSection key="stats" stats={config.stats} />
+
+      case 'features':
+        if (!vis.showFeatures) return null
+        return <LandingFeaturesSection key="features" features={config.features} />
+
+      case 'gallery':
+        if (!vis.showScreenshots) return null
+        return (
+          <SystemGalleryCarousel
+            key="gallery"
+            screenshots={config.screenshots}
+            autoplay={config.gallerySettings?.autoplay}
+            intervalSeconds={config.gallerySettings?.intervalSeconds}
+            sectionTitle={isRtl ? config.demoSectionTitle : config.english.demoSectionTitle || config.demoSectionTitle}
+            sectionSubtitle={isRtl ? config.demoSectionSubtitle : config.english.demoSectionSubtitle || config.demoSectionSubtitle}
+          />
+        )
+
+      case 'steps':
+        if (!vis.showSteps) return null
+        return <LandingStepsSection key="steps" steps={config.steps} />
+
+      case 'testimonials':
+      case 'partners':
+        // Testimonials handles both feedbacks and partner client logos smoothly
+        if (sectionKey === 'testimonials' && !vis.showFeedback && !vis.showClients) return null
+        if (sectionKey === 'partners' && order.includes('testimonials')) return null // avoid duplicate
+        return (
+          <LandingTestimonialsSection
+            key="testimonials"
+            feedbacks={config.feedbacks}
+            clients={config.clients}
+            showFeedback={vis.showFeedback}
+            showClients={vis.showClients}
+          />
+        )
+
+      case 'pricing':
+        if (!vis.showPricing) return null
+        return (
+          <LandingPricingSection
+            key="pricing"
+            plans={config.pricingPlans}
+            onSelectPlan={(plan) => {
+              setSelectedPlanName(plan)
+              setTrialOpen(true)
+            }}
+          />
+        )
+
+      case 'faq':
+        if (!vis.showFaq) return null
+        return <LandingFaqSection key="faq" faqItems={config.faqItems} />
+
+      case 'contact':
+        if (!vis.showContactForm) return null
+        return (
+          <LandingContactSection
+            key="contact"
+            contacts={config.contacts}
+            primaryWhatsapp={config.primaryWhatsapp}
+          />
+        )
+
+      case 'cta':
+        if (!vis.showTrialBanner) return null
+        return (
+          <LandingCtaSection
+            key="cta"
+            trialDaysCount={config.trialDaysCount}
+            whatsappUrl={whatsappUrl}
+            onOpenTrial={() => {
+              setSelectedPlanName('')
+              setTrialOpen(true)
+            }}
+          />
+        )
+
+      case 'footer':
+        if (!vis.showFooter) return null
+        return <LandingFooter key="footer" config={config} />
+
+      default:
+        return null
     }
   }
+
+  const renderSection = (sectionKey: string) => {
+    const el = renderSectionInner(sectionKey)
+    if (!el) return null
+    return (
+      <div
+        key={sectionKey}
+        data-section-id={sectionKey}
+        onClick={
+          isPreview
+            ? (e) => {
+                e.stopPropagation()
+                if (window.parent && window.parent !== window) {
+                  window.parent.postMessage(
+                    { type: 'section-selected', sectionId: sectionKey },
+                    location.origin
+                  )
+                }
+              }
+            : undefined
+        }
+        className={
+          isPreview
+            ? 'group relative transition-all duration-200 hover:outline-2 hover:outline-sky-500 hover:outline-offset-2 cursor-pointer'
+            : undefined
+        }
+      >
+        {isPreview && (
+          <div className="absolute top-2 left-2 z-30 opacity-0 group-hover:opacity-100 transition-opacity bg-sky-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow pointer-events-none">
+            انقر للتعديل: {sectionKey}
+          </div>
+        )}
+        {el}
+      </div>
+    )
+  }
+
+  const motionClass = `motion-${config.themeSettings?.motionLevel || 'subtle'}`
+  const speedClass = `speed-${config.themeSettings?.motionSpeed || 'normal'}`
+  const radiusClass = config.themeSettings?.borderRadiusPreset || 'rounded-2xl'
+  const sectionMotionClass =
+    config.themeSettings?.enableSectionMotion === false ? 'no-section-motion' : ''
 
   return (
-    <div className="landing-page min-h-screen bg-background text-foreground" dir={dir}>
-      <header className="sticky top-0 z-40 border-b border-border/70 bg-background/95 backdrop-blur-md will-change-transform contain-paint">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-4 lg:px-8">
-          <Link href="/" aria-label="Yalla Clinic" onClick={previewLink}>
-            <ClinicLogo size="md" />
-          </Link>
-          <nav
-            aria-label={copy('روابط الصفحة', 'Page navigation')}
-            className="hidden items-center gap-6 text-sm font-bold text-muted-foreground lg:flex"
-          >
-            {showFeaturesSection && (
-              <a href="#features" className="transition-colors hover:text-foreground">
-                {copy('المميزات', 'Features')}
-              </a>
-            )}
-            {showShowcaseSection && (
-              <a href="#showcase" className="transition-colors hover:text-foreground">
-                {copy('جولة في النظام', 'Product tour')}
-              </a>
-            )}
-            {showReviewsSection && (
-              <a href="#reviews" className="transition-colors hover:text-foreground">
-                {copy('آراء العملاء', 'Reviews')}
-              </a>
-            )}
-            {showContactsSection && (
-              <a href="#contact" className="transition-colors hover:text-foreground">
-                {copy('تواصل معنا', 'Contact')}
-              </a>
-            )}
-          </nav>
-          <div className="flex items-center gap-2">
-            <LanguageToggle variant="icon" />
-            <ThemeToggle />
-            <Link
-              href={config.loginUrl}
-              onClick={previewLink}
-              className="hidden rounded-xl border border-border bg-card px-4 py-2 text-xs font-bold sm:block transition-colors hover:border-primary/40 hover:bg-secondary/40"
-            >
-              {headline('loginButtonText')}
-            </Link>
-            <a
-              href={trialWhatsappHref}
-              onClick={previewLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hidden sm:inline-flex h-10 items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-4 text-xs font-black text-white shadow-xs transition-all hover:scale-105"
-            >
-              <Gift className="size-3.5" />
-              {copy('تجربة مجانية 7 أيام', '7-Day Free Trial')}
-            </a>
-            {showTrialBanner && config.visibility.showTrialBanner && (
-              <Button
-                className="h-10 rounded-xl px-4 text-xs"
-                onClick={() => setTrialOpen(true)}
-              >
-                {headline('trialButtonText')}
-                <ArrowUpRight className="size-4" />
-              </Button>
-            )}
-          </div>
-        </div>
-      </header>
-      <main>
-        <section className="landing-hero relative overflow-hidden border-b border-border/60">
-          <div className="landing-grid pointer-events-none absolute inset-0 opacity-40" />
-          <div className="pointer-events-none absolute -top-40 start-0 size-[500px] rounded-full [background:radial-gradient(circle,hsl(var(--primary)/0.12)_0%,transparent_70%)]" />
-          <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-5 pb-20 pt-14 lg:grid-cols-[1.05fr_1fr] lg:px-8 lg:pb-24 lg:pt-24">
-            <div className="space-y-7">
-              <p className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-2 text-xs font-bold text-primary">
-                <span className="size-2 rounded-full bg-primary" />
-                {headline('heroBadge')}
-              </p>
-              <h1 className="text-[clamp(2.6rem,5.3vw,4.8rem)] font-black leading-[1.18] tracking-tight">
-                {headline('heroTitle')}
-                <span className="mt-2 block bg-gradient-to-l from-primary via-primary to-cyan-500 bg-clip-text text-transparent">
-                  {headline('heroHighlight')}
-                </span>
-              </h1>
-              <p className="max-w-xl text-base leading-8 text-muted-foreground sm:text-lg sm:leading-9">
-                {headline('heroSubtitle')}
-              </p>
-              <div className="flex flex-wrap items-center gap-3">
-                <a
-                  href={trialWhatsappHref}
-                  onClick={previewLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex min-h-12 items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-emerald-600/25 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-emerald-600/35 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-600"
-                >
-                  <MessageCircle className="size-4.5" />
-                  {copy('طلب نسخة مجانية تجريبية لمدة 7 أيام', 'Request a 7-day free trial')}
-                  <ArrowUpRight className="size-4" />
-                </a>
-                {showShowcaseSection && (
-                  <a
-                    href="#showcase"
-                    onClick={previewLink}
-                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-card px-5 py-3 text-sm font-bold transition-all duration-200 hover:-translate-y-1 hover:border-primary/35 hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
-                  >
-                    <Play className="size-4 text-primary" />
-                    {copy('شوف النظام من جوه', 'Take a product tour')}
-                  </a>
-                )}
-                <a
-                  href={supportHref}
-                  onClick={previewLink}
-                  target={whatsapp ? '_blank' : undefined}
-                  rel={whatsapp ? 'noopener noreferrer' : undefined}
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-card px-5 py-3 text-sm font-bold text-muted-foreground transition-all duration-200 hover:-translate-y-1 hover:border-primary/35 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
-                >
-                  <Phone className="size-4 text-primary" />
-                  {copy('تواصل مع الدعم الفني', 'Contact technical support')}
-                </a>
-              </div>
-              <div className="flex flex-wrap gap-5 border-t border-border/80 pt-5 text-xs font-bold text-muted-foreground">
-                <span className="flex gap-2">
-                  <Check className="size-4 text-primary" />
-                  {copy('الدكتور والاستقبال في نفس الصورة', 'One view for doctors and reception')}
-                </span>
-                <span className="flex gap-2">
-                  <Check className="size-4 text-primary" />
-                  {copy('تجربة مناسبة للموبايل', 'Designed for mobile')}
-                </span>
-              </div>
-            </div>
-            <div className="relative min-w-0 py-6">
-              <div className="pointer-events-none absolute inset-0 rounded-full [background:radial-gradient(circle,hsl(var(--primary)/0.12)_0%,transparent_70%)]" />
-              <div className="relative overflow-hidden rounded-3xl border border-border bg-card p-2 shadow-2xl shadow-primary/10 transition-transform duration-500 hover:rotate-0 hover:scale-[1.01] sm:rotate-[-2deg]">
-                <div className="mb-2 flex items-center justify-between px-4 py-3 text-[10px] text-muted-foreground">
-                  <span className="font-bold">YALLA CLINIC / WORKSPACE</span>
-                  <span className="flex gap-1">
-                    <i className="size-2 rounded-full bg-rose-300" />
-                    <i className="size-2 rounded-full bg-amber-300" />
-                    <i className="size-2 rounded-full bg-emerald-300" />
-                  </span>
-                </div>
-                <img
-                  src={screenshots[0]?.imageUrl || '/landing/dashboard.svg'}
-                  alt={copy('عرض توضيحي للوحة يلا كلينك', 'Illustrative Yalla Clinic workspace')}
-                  width="1000"
-                  height="720"
-                  fetchPriority="high"
-                  loading="eager"
-                  decoding="async"
-                  className="aspect-[1.4] w-full rounded-2xl object-contain bg-secondary/30"
-                />
-              </div>
-              <div className="absolute -bottom-1 end-2 rounded-2xl border border-border bg-card p-4 shadow-xl sm:-end-4">
-                <div className="flex items-center gap-3">
-                  <span className="grid size-10 place-items-center rounded-xl bg-emerald-500/10 text-emerald-600">
-                    <CheckCircle2 className="size-5" />
-                  </span>
-                  <span>
-                    <strong className="block text-sm">
-                      {copy('كل خطوة متصلة باللي بعدها', 'Every step, connected')}
-                    </strong>
-                    <span className="text-[11px] text-muted-foreground">
-                      {copy('حجز ← كشف ← روشتة ← متابعة', 'Booking → Visit → Prescription → Follow-up')}
-                    </span>
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-          {showStatsSection && (
-            <div className="relative mx-auto grid max-w-7xl grid-cols-2 gap-7 border-t border-border px-5 py-8 sm:grid-cols-4 lg:px-8">
-              {activeStats.map((stat, i) => (
-                <div key={i}>
-                  <strong className="block text-2xl font-black text-primary sm:text-3xl">
-                    {!isRtl && stat.valueEn ? stat.valueEn : stat.value}
-                  </strong>
-                  <span className="mt-1 block text-xs text-muted-foreground">
-                    {!isRtl && stat.labelEn ? stat.labelEn : stat.label}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
+    <div
+      dir={isRtl ? 'rtl' : 'ltr'}
+      className={`min-h-screen bg-[#f8fbff] dark:bg-[#050d1a] text-slate-900 dark:text-white antialiased transition-colors relative overflow-hidden ${motionClass} ${speedClass} ${radiusClass} ${sectionMotionClass}`}
+    >
+      {/* Top Scroll Progress Indicator */}
+      <div
+        id="landing-scroll-progress"
+        aria-hidden="true"
+        className="landing-scroll-progress-bar"
+      />
 
-        {/* Dedicated 7-day Free Trial Section */}
-        <section className="border-b border-border/60 bg-gradient-to-b from-emerald-500/[0.04] via-transparent to-transparent py-8">
-          <div className="relative mx-auto max-w-7xl px-5 lg:px-8">
-            <div className="relative overflow-hidden rounded-3xl border border-emerald-500/30 bg-gradient-to-r from-emerald-950/40 via-card to-background p-6 sm:p-8 shadow-xl shadow-emerald-950/5 flex flex-col md:flex-row items-center justify-between gap-6">
-              <div className="space-y-1.5 text-center md:text-start">
-                <span className="inline-flex items-center gap-2 text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                  <Gift className="size-4" />
-                  {copy('عرض تجريبي خاص بالأطباء والعيادات', 'Special trial for doctors and clinics')}
-                </span>
-                <h3 className="text-xl sm:text-2xl font-black text-foreground">
-                  {copy('طلب نسخة مجانية تجريبية لمدة 7 أيام', 'Request a 7-day free trial')}
-                </h3>
-                <p className="text-xs sm:text-sm text-muted-foreground">
-                  {copy(
-                    'تواصل فوري ومباشر مع الدعم الفني عبر واتساب لتفعيل نسختك وتجهيز بيانات العيادة مجانًا بالكامل.',
-                    'Direct contact with technical support on WhatsApp to activate your trial and configure your clinic at zero cost.',
-                  )}
-                </p>
-              </div>
-              <a
-                href={trialWhatsappHref}
-                onClick={previewLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex min-h-13 shrink-0 items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 px-8 py-3.5 text-sm sm:text-base font-black text-white shadow-lg shadow-emerald-600/25 transition-all duration-200 hover:scale-105 active:scale-95"
-              >
-                <MessageCircle className="size-5" />
-                {copy('طلب نسخة مجانية تجريبية لمدة 7 أيام', 'Request a 7-day free trial')}
-                <ArrowUpRight className="size-4" />
-              </a>
-            </div>
-          </div>
-        </section>
-
-        {showClientsSection && (
-          <section
-            id="clients"
-            aria-label={copy('العملاء المتعاونون', 'Our collaborators')}
-            className="mx-auto max-w-7xl px-5 py-16 lg:px-8"
-          >
-            <div className="mb-8 text-center">
-              <p className="landing-eyebrow">{copy('شركاء النجاح', 'OUR PARTNERS')}</p>
-              <h2 className="landing-title">{copy('العملاء المتعاونون', 'Our collaborators')}</h2>
-              <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-muted-foreground">
-                {copy(
-                  'نعتز بثقة العيادات والمراكز التي اختارت يلا كلينك لتنظيم عملها.',
-                  'We value the clinics and centers that trust Yalla Clinic to support their work.',
-                )}
-              </p>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {config.clients.map((client) => {
-                const name = !isRtl && client.nameEn ? client.nameEn : client.name
-                const description = client.collaborationNote || client.specialty
-                const card = (
-                  <>
-                    <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-2xl border border-border/70 bg-secondary/60 p-2 transition-transform duration-300 group-hover:scale-105">
-                      {client.logoUrl ? (
-                        <img
-                          src={client.logoUrl}
-                          alt={name}
-                          className="size-full object-contain"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <Building2 className="size-8 text-primary/70" />
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <h3 className="truncate font-black">{name}</h3>
-                      {description && (
-                        <p className="mt-1 line-clamp-2 text-xs leading-6 text-muted-foreground">
-                          {description}
-                        </p>
-                      )}
-                      {client.link && (
-                        <span className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-primary">
-                          {copy('زيارة الموقع', 'Visit website')}
-                          <ArrowUpRight className="size-3.5" />
-                        </span>
-                      )}
-                    </div>
-                  </>
-                )
-                const cardClass =
-                  'group flex min-h-28 items-center gap-4 rounded-3xl border border-border/70 bg-card/80 p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-primary/35 hover:shadow-xl hover:shadow-primary/5'
-
-                return client.link ? (
-                  <a
-                    key={client.id}
-                    href={client.link}
-                    target={client.link.startsWith('https://') ? '_blank' : undefined}
-                    rel={client.link.startsWith('https://') ? 'noopener noreferrer' : undefined}
-                    className={cardClass}
-                    dir={dir}
-                  >
-                    {card}
-                  </a>
-                ) : (
-                  <article key={client.id} className={cardClass} dir={dir}>
-                    {card}
-                  </article>
-                )
-              })}
-            </div>
-          </section>
-        )}
-
-        {showFeaturesSection && (
-          <section id="features" className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
-            <div className="mb-10 flex flex-wrap items-end justify-between gap-5">
-              <div>
-                <p className="landing-eyebrow">
-                  {copy('يومك أبسط، عيادتك أقوى', 'A simpler day. A stronger clinic.')}
-                </p>
-                <h2 className="landing-title">
-                  {copy('كل أدواتك. في مكان واحد.', 'All your tools. One workspace.')}
-                </h2>
-              </div>
-              <p className="max-w-sm text-sm leading-7 text-muted-foreground">
-                {copy(
-                  'أدوات مترابطة تساعد فريقك يركز في الخدمة، من غير التنقل بين أنظمة مختلفة.',
-                  'Connected tools help your team focus on care, with less switching between systems.',
-                )}
-              </p>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {config.features.map((feature, i) => {
-                const Icon = icons[feature.iconName] || Sparkles
-                return (
-                  <article
-                    key={feature.id}
-                    className="group rounded-3xl border border-border bg-card p-6 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/5"
-                  >
-                    <div className="mb-8 flex items-center justify-between">
-                      <span className="grid size-12 place-items-center rounded-2xl bg-primary/8 text-primary">
-                        <Icon className="size-6" />
-                      </span>
-                      <span className="text-xs font-mono text-muted-foreground/50">
-                        {String(i + 1).padStart(2, '0')}
-                      </span>
-                    </div>
-                    <p className="mb-2 text-[10px] font-bold text-primary">
-                      {!isRtl && feature.badgeEn ? feature.badgeEn : feature.badge}
-                    </p>
-                    <h3 className="mb-3 text-base font-black">
-                      {!isRtl && feature.titleEn ? feature.titleEn : feature.title}
-                    </h3>
-                    <p className="text-sm leading-7 text-muted-foreground">
-                      {!isRtl && feature.descriptionEn ? feature.descriptionEn : feature.description}
-                    </p>
-                  </article>
-                )
-              })}
-            </div>
-          </section>
-        )}
-
-        {showShowcaseSection && (
-          <InteractiveProductDemo
-            config={config}
-            onOpenTrial={() => setTrialOpen(true)}
-            trialWhatsappHref={trialWhatsappHref}
+      {/* Desktop Ambient Cursor Spotlight */}
+      {config.themeSettings?.enableBackgroundAnimation !== false &&
+        config.themeSettings?.motionLevel !== 'none' && (
+          <div
+            ref={cursorRef}
+            aria-hidden="true"
+            className="landing-cursor-glow hidden lg:block"
           />
         )}
 
-        {showReviewsSection && (
-          <section id="reviews" className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
-            <div className="mb-10">
-              <p className="landing-eyebrow">
-                {copy('مساحة لصوتكم', 'Your experience matters')}
-              </p>
-              <h2 className="landing-title">
-                {copy('تجربتك بتخلّينا نطوّر.', 'Your feedback helps us improve.')}
-              </h2>
-            </div>
-            <div className="grid gap-8 lg:grid-cols-[1.2fr_1fr]">
-              <div className="grid content-start gap-4 sm:grid-cols-2">
-                {approvedFeedbacks.map((review) => (
-                  <article
-                    key={review.id}
-                    className="rounded-3xl border border-border bg-card p-6 shadow-sm"
-                  >
-                    <div
-                      className="mb-4 flex gap-1"
-                      aria-label={`${review.rating}/5`}
-                    >
-                      {Array.from({ length: 5 }, (_, i) => (
-                        <Star
-                          key={i}
-                          className={`size-4 ${i < review.rating ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/30'}`}
-                        />
-                      ))}
-                    </div>
-                    <blockquote className="mb-6 text-sm leading-8">
-                      “{review.comment}”
-                    </blockquote>
-                    <p className="text-sm font-black">{review.authorName}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {review.clinicName}
-                    </p>
-                  </article>
-                ))}
+      {/* Multi-Layer Ambient Background: Aurora, Grid & Floating Diffuse Orbs */}
+      {config.themeSettings?.enableBackgroundAnimation !== false &&
+        config.themeSettings?.motionLevel !== 'none' && (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none fixed inset-0 overflow-hidden z-0"
+          >
+            <div className="landing-aurora" />
+            <div className="landing-perspective-grid" />
+            <div className="landing-ambient-orb landing-ambient-orb-1" />
+            <div className="landing-ambient-orb landing-ambient-orb-2" />
+            <div className="landing-ambient-orb landing-ambient-orb-3" />
+          </div>
+        )}
+
+      {/* Dynamic Ordered Sections */}
+      <div className="relative z-10">
+        {order.map((key) => renderSection(key))}
+      </div>
+
+      {/* Floating WhatsApp Action Button */}
+      {vis.showFloatingWhatsapp && (
+        <a
+          href={whatsappUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all cursor-pointer group"
+          title="محادثة واتساب مباشرة"
+        >
+          <MessageCircle className="w-7 h-7" />
+          <span className="sr-only">واتساب</span>
+        </a>
+      )}
+
+      {/* ============================================================ */}
+      {/* FREE TRIAL REQUEST MODAL */}
+      {/* ============================================================ */}
+      <Dialog open={trialOpen} onOpenChange={setTrialOpen}>
+        <DialogContent className="max-w-lg p-6 sm:p-8 rounded-3xl bg-white dark:bg-[#081526] border border-sky-100 dark:border-slate-800 space-y-4">
+          <DialogHeader className="text-right">
+            <DialogTitle className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">
+              {isRtl
+                ? `طلب تجربة مجانية لعيادتك (${config.trialDaysCount} يوماً)`
+                : `Request Free Clinic Trial (${config.trialDaysCount} Days)`}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500 dark:text-slate-400">
+              {isRtl
+                ? 'املأ بيانات العيادة وسيتم تجهيز حسابك فوراً والتواصل معك لتفعيل النظام.'
+                : 'Fill in your clinic info and our team will set up your trial workspace immediately.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {trialSuccess ? (
+            <div className="py-6 text-center space-y-4">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-100 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto shadow-sm">
+                <CheckCircle2 className="w-7 h-7" />
               </div>
-              {config.visibility.allowClientFeedbackSubmission && (
-                <form
-                  onSubmit={sendFeedback}
-                  className="rounded-3xl border border-border bg-card p-6 sm:p-8"
+              <h4 className="font-black text-lg text-slate-900 dark:text-white">
+                تم استلام طلب تسجيل عيادتك بنجاح!
+              </h4>
+
+              {submittedRequestNumber && (
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-sky-50 dark:bg-sky-950/70 border border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-300 text-xs font-mono shadow-xs">
+                  <span className="font-sans font-bold">رقم الطلب المرجعي:</span>
+                  <span className="font-black text-sm tracking-wider">{submittedRequestNumber}</span>
+                </div>
+              )}
+
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto leading-relaxed">
+                سيتواصل معك فريق Yalla Clinic لمراجعة التفاصيل وتجهيز بيانات الدخول ولوحة تحكم العيادة مباشرة.
+              </p>
+              <div className="pt-2 flex flex-col sm:flex-row gap-2">
+                <a
+                  href={`${whatsappUrl}?text=${encodeURIComponent(
+                    `مرحبًا، سجلت طلب تسجيل عيادة في يلا كلينك (رقم الطلب: ${submittedRequestNumber || 'جديد'}) باسم د. ${doctorName} لعيادة ${clinicName}.`
+                  )}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex-1 py-3 rounded-xl bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm hover:bg-emerald-600 transition-colors"
                 >
-                  <h3 className="mb-5 text-lg font-black">
-                    {copy('قول لنا رأيك', 'Tell us what you think')}
-                  </h3>
-                  <fieldset className="mb-5">
-                    <legend className="mb-2 text-xs font-bold">
-                      {copy('تقييمك', 'Your rating')} *
-                    </legend>
-                    <div className="flex gap-2">
-                      {[1, 2, 3, 4, 5].map((value) => (
-                        <button
-                          type="button"
-                          key={value}
-                          aria-label={copy(
-                            `${value} من 5 نجوم`,
-                            `${value} out of 5 stars`,
-                          )}
-                          aria-pressed={rating === value}
-                          onClick={() => setRating(value)}
-                          className="rounded-lg p-1.5 focus-visible:outline-2 focus-visible:outline-primary"
-                        >
-                          <Star
-                            className={`size-7 ${value <= rating ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/30'}`}
-                          />
-                        </button>
-                      ))}
-                    </div>
-                  </fieldset>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <label className="landing-label">
-                      {copy('الاسم', 'Name')} *
-                      <input
-                        name="authorName"
-                        required
-                        minLength={2}
-                        maxLength={250}
-                        autoComplete="name"
-                        className="landing-input"
-                      />
-                    </label>
-                    <label className="landing-label">
-                      {copy('اسم العيادة', 'Clinic name')} *
-                      <input
-                        name="clinicName"
-                        required
-                        minLength={2}
-                        maxLength={250}
-                        className="landing-input"
-                      />
-                    </label>
-                  </div>
-                  <label className="landing-label mt-4">
-                    {copy('التخصص (اختياري)', 'Specialty (optional)')}
-                    <input
-                      name="specialty"
-                      maxLength={250}
-                      className="landing-input"
-                    />
+                  <MessageCircle className="w-4 h-4" />
+                  <span>متابعة مع المبيعات على واتساب فوراً</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTrialOpen(false)
+                    setTrialSuccess(false)
+                    setSubmittedRequestNumber('')
+                  }}
+                  className="py-3 px-5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                >
+                  إغلاق
+                </button>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleTrialSubmit} className="space-y-3.5">
+              {selectedPlanName && (
+                <div className="p-2.5 rounded-xl bg-sky-50 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-800 text-xs font-bold text-sky-700 dark:text-sky-300 flex items-center justify-between">
+                  <span>الباقة المختارة: {selectedPlanName}</span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPlanName('')}
+                    className="text-[10px] text-slate-400 hover:text-rose-500 underline"
+                  >
+                    تغيير
+                  </button>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    اسم الطبيب <span className="text-rose-500">*</span>
                   </label>
-                  <label className="landing-label mt-4">
-                    {copy('رأيك في التجربة', 'Your experience')} *
-                    <textarea
-                      name="comment"
-                      required
-                      minLength={5}
-                      maxLength={2000}
-                      rows={3}
-                      className="landing-input h-auto py-3"
-                    />
+                  <input
+                    ref={doctorNameInputRef}
+                    type="text"
+                    required
+                    value={doctorName}
+                    onChange={(e) => {
+                      setDoctorName(e.target.value)
+                      if (fieldErrors.doctorName) setFieldErrors(prev => ({ ...prev, doctorName: '' }))
+                    }}
+                    placeholder="د. محمد علي"
+                    className={`w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border text-xs text-slate-900 dark:text-white transition-all ${
+                      fieldErrors.doctorName
+                        ? 'border-rose-500 ring-2 ring-rose-500/20'
+                        : 'border-slate-200 dark:border-slate-700 focus:border-sky-500'
+                    }`}
+                  />
+                  {fieldErrors.doctorName && (
+                    <p className="text-[11px] font-bold text-rose-500 mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>{fieldErrors.doctorName}</span>
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    اسم العيادة / المركز <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    ref={clinicNameInputRef}
+                    type="text"
+                    required
+                    value={clinicName}
+                    onChange={(e) => {
+                      setClinicName(e.target.value)
+                      if (fieldErrors.clinicName) setFieldErrors(prev => ({ ...prev, clinicName: '' }))
+                    }}
+                    placeholder="عيادة الشفاء التخصصية"
+                    className={`w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border text-xs text-slate-900 dark:text-white transition-all ${
+                      fieldErrors.clinicName
+                        ? 'border-rose-500 ring-2 ring-rose-500/20'
+                        : 'border-slate-200 dark:border-slate-700 focus:border-sky-500'
+                    }`}
+                  />
+                  {fieldErrors.clinicName && (
+                    <p className="text-[11px] font-bold text-rose-500 mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>{fieldErrors.clinicName}</span>
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    التخصص الطبي
+                  </label>
+                  <input
+                    ref={specialtyInputRef}
+                    type="text"
+                    value={specialty}
+                    onChange={(e) => {
+                      setSpecialty(e.target.value)
+                      if (fieldErrors.specialty) setFieldErrors(prev => ({ ...prev, specialty: '' }))
+                    }}
+                    placeholder="باطنة / أطفال / عظام..."
+                    className={`w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border text-xs text-slate-900 dark:text-white transition-all ${
+                      fieldErrors.specialty
+                        ? 'border-rose-500 ring-2 ring-rose-500/20'
+                        : 'border-slate-200 dark:border-slate-700 focus:border-sky-500'
+                    }`}
+                  />
+                  {fieldErrors.specialty && (
+                    <p className="text-[11px] font-bold text-rose-500 mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>{fieldErrors.specialty}</span>
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    رقم الهاتف (واتساب) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    ref={phoneInputRef}
+                    type="tel"
+                    required
+                    value={phone}
+                    onChange={(e) => {
+                      setPhone(e.target.value)
+                      if (fieldErrors.phone) setFieldErrors(prev => ({ ...prev, phone: '' }))
+                    }}
+                    placeholder="010XXXXXXXX"
+                    className={`w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border text-xs text-slate-900 dark:text-white transition-all ${
+                      fieldErrors.phone
+                        ? 'border-rose-500 ring-2 ring-rose-500/20'
+                        : 'border-slate-200 dark:border-slate-700 focus:border-sky-500'
+                    }`}
+                    dir="ltr"
+                  />
+                  {fieldErrors.phone && (
+                    <p className="text-[11px] font-bold text-rose-500 mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>{fieldErrors.phone}</span>
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  البريد الإلكتروني <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  ref={emailInputRef}
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value)
+                    if (fieldErrors.email) setFieldErrors(prev => ({ ...prev, email: '' }))
+                  }}
+                  placeholder="doctor@example.com"
+                  className={`w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border text-xs text-slate-900 dark:text-white transition-all ${
+                    fieldErrors.email
+                      ? 'border-rose-500 ring-2 ring-rose-500/20'
+                      : 'border-slate-200 dark:border-slate-700 focus:border-sky-500'
+                  }`}
+                  dir="ltr"
+                />
+                {fieldErrors.email && (
+                  <p className="text-[11px] font-bold text-rose-500 mt-1 flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{fieldErrors.email}</span>
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    المحافظة
                   </label>
                   <input
                     type="text"
-                    name="website"
-                    tabIndex={-1}
-                    autoComplete="off"
-                    aria-hidden="true"
-                    className="hidden"
+                    value={governorate}
+                    onChange={(e) => setGovernorate(e.target.value)}
+                    placeholder="القاهرة / الجيزة / الإسكندرية..."
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
                   />
-                  <p className="mb-4 mt-3 text-[11px] leading-6 text-muted-foreground">
-                    {copy(
-                      'يظهر اسمك واسم العيادة ورأيك بعد مراجعة الإدارة. لا تضف بيانات مرضى.',
-                      'Your name, clinic and review are published after moderation. Do not include patient information.',
-                    )}
-                  </p>
-                  {feedbackError && (
-                    <p role="alert" className="mb-3 text-sm text-destructive">
-                      {feedbackError}
-                    </p>
-                  )}
-                  {feedbackMessage && (
-                    <p role="status" className="mb-3 text-sm text-emerald-600">
-                      {feedbackMessage}
-                    </p>
-                  )}
-                  <Button
-                    type="submit"
-                    disabled={isPreview || feedbackBusy}
-                    className="h-11 w-full"
-                  >
-                    {feedbackBusy && <LoaderCircle className="animate-spin" />}
-                    {isPreview
-                      ? copy('النموذج معطل في البروفة', 'Form disabled in preview')
-                      : copy('إرسال الرأي للمراجعة', 'Submit for review')}
-                  </Button>
-                </form>
-              )}
-            </div>
-          </section>
-        )}
+                </div>
 
-        {showContactsSection && (
-          <section id="contact" className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
-            <div className="mb-9">
-              <p className="landing-eyebrow">{copy('نتكلم؟', 'Let’s talk')}</p>
-              <h2 className="landing-title">
-                {copy('فريقنا قريب منك.', 'We’re here to help.')}
-              </h2>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {config.contacts.map((contact) => {
-                const wa = whatsappNumber(contact.whatsappNumber || contact.number)
-                return (
-                  <article
-                    key={contact.id}
-                    className="rounded-3xl border border-border bg-card p-6 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-primary/35 hover:shadow-xl hover:shadow-primary/5"
-                  >
-                    <span className="mb-5 grid size-11 place-items-center rounded-2xl bg-primary/10 text-primary">
-                      <Phone className="size-5" />
-                    </span>
-                    <h3 className="text-sm font-bold">
-                      {!isRtl && contact.roleTitleEn ? contact.roleTitleEn : contact.roleTitle}
-                      {contact.isPrimary && (
-                        <span className="ms-2 rounded-full bg-primary/10 px-2 py-1 text-[9px] text-primary">
-                          {copy('الرقم الرئيسي', 'Primary')}
-                        </span>
-                      )}
-                    </h3>
-                    <p className="my-4 text-start text-2xl font-black" dir="ltr">
-                      {contact.number}
-                    </p>
-                    <div className="flex gap-3 text-xs font-bold">
-                      <a
-                        onClick={previewLink}
-                        href={'tel:+' + whatsappNumber(contact.number)}
-                        className="flex items-center gap-2 rounded-xl border border-border px-4 py-3 transition-colors hover:border-primary/40 hover:bg-secondary/40"
-                      >
-                        <Phone className="size-4" />
-                        {copy('اتصال', 'Call')}
-                      </a>
-                      {contact.whatsappEnabled && wa && (
-                        <a
-                          onClick={previewLink}
-                          href={'https://wa.me/' + wa}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 rounded-xl bg-emerald-500/10 px-4 py-3 text-emerald-700 dark:text-emerald-400 transition-colors hover:bg-emerald-500/20"
-                        >
-                          <MessageCircle className="size-4" />
-                          {copy('واتساب', 'WhatsApp')}
-                        </a>
-                      )}
-                    </div>
-                  </article>
-                )
-              })}
-            </div>
-          </section>
-        )}
-      </main>
-      <footer className="border-t border-border bg-card">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-5 px-5 py-8 text-xs text-muted-foreground lg:px-8">
-          <ClinicLogo size="sm" />
-          <p>{headline('footerText')}</p>
-          <Link
-            href="/owner"
-            onClick={previewLink}
-            className="flex items-center gap-2 hover:text-primary transition-colors"
-          >
-            <ShieldCheck className="size-4" />
-            {copy('إدارة المنصة', 'Platform administration')}
-          </Link>
-        </div>
-      </footer>
-      {config.visibility.showFloatingWhatsapp && whatsapp && (
-        <a
-          href={whatsapp}
-          onClick={previewLink}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={copy('تواصل عبر واتساب', 'Contact us on WhatsApp')}
-          className="fixed bottom-5 end-5 z-40 grid size-14 place-items-center rounded-2xl bg-emerald-600 text-white shadow-lg shadow-emerald-600/25 transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-600"
-        >
-          <MessageCircle className="size-7" />
-        </a>
-      )}
-      <Dialog
-        open={trialOpen && showTrialBanner && config.visibility.showTrialBanner}
-        onOpenChange={setTrialOpen}
-      >
-        <DialogContent
-          className="max-h-[90dvh] overflow-y-auto sm:max-w-lg"
-          dir={dir}
-        >
-          <DialogHeader>
-            <DialogTitle className="text-xl font-black">
-              {copy(
-                `جرّب يلا كلينك ${config.trialDaysCount} أيام مجانًا`,
-                `Try Yalla Clinic free for ${config.trialDaysCount} days`,
-              )}
-            </DialogTitle>
-            <DialogDescription>
-              {copy(
-                'سجّل بيانات التواصل. يبدأ حساب التجربة بعد تجهيز العيادة وتفعيلها.',
-                'Leave your contact details. The trial starts once your clinic is set up and activated.',
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          {trialMessage ? (
-            <div className="space-y-5 py-5">
-              <CheckCircle2 className="size-12 text-emerald-600" />
-              <p role="status" className="text-sm leading-7">
-                {trialMessage}
-              </p>
-              {trialWhatsApp && (
-                <a
-                  href={trialWhatsApp}
-                  onClick={previewLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white"
-                >
-                  <MessageCircle className="size-4" />
-                  {copy('متابعة الطلب على واتساب', 'Continue on WhatsApp')}
-                </a>
-              )}
-            </div>
-          ) : (
-            <form onSubmit={sendTrial} className="space-y-4">
-              {(
-                [
-                  ['doctorName', copy('اسم الطبيب', 'Doctor name'), 'text'],
-                  ['clinicName', copy('اسم العيادة', 'Clinic name'), 'text'],
-                  ['specialty', copy('التخصص', 'Specialty'), 'text'],
-                  [
-                    'phone',
-                    copy('رقم الموبايل / واتساب', 'Mobile / WhatsApp'),
-                    'tel',
-                  ],
-                  ['email', copy('البريد الإلكتروني', 'Email'), 'email'],
-                ] as const
-              ).map(([name, label, type]) => (
-                <label key={name} className="landing-label">
-                  {label} *
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    المنطقة أو المركز
+                  </label>
                   <input
-                    name={name}
-                    type={type}
-                    required
-                    minLength={2}
-                    maxLength={250}
-                    dir={type === 'tel' || type === 'email' ? 'ltr' : undefined}
-                    autoComplete={
-                      type === 'tel'
-                        ? 'tel'
-                        : type === 'email'
-                          ? 'email'
-                          : undefined
-                    }
-                    className="landing-input"
+                    type="text"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    placeholder="التجمع / المعادي / الدقي..."
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
                   />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    العنوان التفصيلي
+                  </label>
+                  <input
+                    type="text"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    placeholder="اسم الشارع أو المبنى الطبي..."
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    الكشوفات المتوقعة يومياً
+                  </label>
+                  <input
+                    type="text"
+                    value={expectedPatientsPerDay}
+                    onChange={(e) => setExpectedPatientsPerDay(e.target.value)}
+                    placeholder="مثال: 15 - 30 مريض"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  ملاحظات أو متطلبات خاصة (اختياري)
                 </label>
-              ))}
-              <label className="landing-label">
-                {copy('ملاحظات (اختياري)', 'Notes (optional)')}
                 <textarea
-                  name="notes"
                   rows={2}
-                  maxLength={2000}
-                  className="landing-input h-auto py-3"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="عدد الفروع أو متطلبات خاصة..."
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white resize-none"
                 />
-              </label>
+              </div>
+
+              {/* Honeypot anti-spam protection (off-screen, never autofilled) */}
               <input
-                name="website"
+                type="text"
+                name="clinic_reg_notes_hp"
+                value={honeypot}
+                onChange={(e) => setHoneypot(e.target.value)}
                 tabIndex={-1}
-                autoComplete="off"
+                autoComplete="new-password"
                 aria-hidden="true"
-                className="hidden"
+                style={{
+                  position: 'absolute',
+                  opacity: 0,
+                  pointerEvents: 'none',
+                  left: '-9999px',
+                  width: '1px',
+                  height: '1px',
+                  overflow: 'hidden',
+                }}
               />
-              {whatsapp && (
-                <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <input name="openWhatsapp" type="checkbox" />
-                  {copy(
-                    'فتح واتساب بعد حفظ الطلب',
-                    'Open WhatsApp after saving the request',
+
+              <div className="pt-2 flex items-center gap-2">
+                <button
+                  type="submit"
+                  disabled={isSubmittingTrial}
+                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-[#0066dc] to-[#00a8e8] text-white font-black text-xs shadow-md hover:opacity-95 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  {isSubmittingTrial ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>جاري إرسال الطلب...</span>
+                    </>
+                  ) : (
+                    <span>تأكيد طلب التجربة المجانية</span>
                   )}
-                </label>
-              )}
-              {trialError && (
-                <p role="alert" className="text-sm text-destructive">
-                  {trialError}
-                </p>
-              )}
-              <Button
-                type="submit"
-                disabled={trialBusy || isPreview}
-                className="h-12 w-full"
-              >
-                {trialBusy && <LoaderCircle className="animate-spin" />}
-                {isPreview
-                  ? copy('النموذج معطل في البروفة', 'Form disabled in preview')
-                  : copy('إرسال طلب التجربة', 'Submit trial request')}
-              </Button>
-              <p className="text-[10px] leading-6 text-muted-foreground">
-                {copy(
-                  'نستخدم بياناتك للتواصل بخصوص الطلب فقط. لا تضف أي بيانات طبية.',
-                  'We use these details to contact you about your request. Do not include medical information.',
-                )}
-              </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTrialOpen(false)}
+                  className="py-3 px-4 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs"
+                >
+                  إلغاء
+                </button>
+              </div>
             </form>
           )}
         </DialogContent>

@@ -11,7 +11,7 @@ import {
   Phone, User as UserIcon, Star, Check, MessageCircle,
   FileText, ShieldCheck, ChevronDown, Sparkles, Download, Palette, Image as ImageIcon, Lock,
   Eye, ZoomIn, ZoomOut, ExternalLink, AlertTriangle, Zap, RotateCcw, BookmarkCheck,
-  HeartPulse, Activity, X, Layers, Pencil
+  HeartPulse, Activity, X, Layers, Pencil, Save
 } from 'lucide-react'
 import {
   PrescriptionTemplateModal,
@@ -32,10 +32,7 @@ import { A4Prescription } from '@/components/clinic/A4Prescription'
 import { WhatsAppShareButton } from '@/components/common/WhatsAppShareButton'
 import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import { printHtmlViaIframe, generateA4PrescriptionHtml } from '@/lib/printService'
-import { renderElementToPdfBlob, downloadElementAsPdf, renderElementToImageBlob, downloadElementAsImage } from '@/lib/pdfGenerator'
 import {
-  shareDocumentOrImage,
-  sharePdfDocument,
   generateCleanRxFileName,
   formatEgyptianPhoneForWhatsApp,
   openManualWhatsAppChat,
@@ -235,6 +232,49 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
 
   const { drugs: apiDrugs, loading: apiDrugsLoading, searchDrugs, syncDrugLive } = useEgyptianDrugs()
   const [isLiveSyncing, setIsLiveSyncing] = useState(false)
+    // Vital Signs State (العلامات الحيوية)
+  const [vitalsBpSys, setVitalsBpSys] = useState<string>('')
+  const [vitalsBpDia, setVitalsBpDia] = useState<string>('')
+  const [vitalsPulse, setVitalsPulse] = useState<string>('')
+  const [vitalsTemp, setVitalsTemp] = useState<string>('')
+  const [vitalsGlucose, setVitalsGlucose] = useState<string>('')
+  const [vitalsWeight, setVitalsWeight] = useState<string>('')
+  const [isSavingVitals, setIsSavingVitals] = useState(false)
+
+  // Save or update vital signs to active appointment
+  const handleSaveVitalsOnly = async () => {
+    if (!vitalsBpSys && !vitalsBpDia && !vitalsPulse && !vitalsTemp && !vitalsGlucose && !vitalsWeight) {
+      toast.error('يرجى إدخال قياس واحد على الأقل من العلامات الحيوية')
+      return
+    }
+    setIsSavingVitals(true)
+    try {
+      const vPayload = {
+        bloodPressureSystolic: vitalsBpSys ? Number(vitalsBpSys) : null,
+        bloodPressureDiastolic: vitalsBpDia ? Number(vitalsBpDia) : null,
+        heartRate: vitalsPulse ? Number(vitalsPulse) : null,
+        temperature: vitalsTemp ? Number(vitalsTemp) : null,
+        glucoseLevel: vitalsGlucose ? Number(vitalsGlucose) : null,
+        weightKg: vitalsWeight ? Number(vitalsWeight) : null,
+        recordedAt: new Date().toISOString()
+      }
+
+      if (appointmentId) {
+        await updateDoc(doc(db, 'appointments', appointmentId), {
+          vitalSigns: vPayload
+        })
+        toast.success('تم حفظ وتحديث العلامات الحيوية للكشف بنجاح ✅')
+      } else {
+        toast.success('تم تسجيل العلامات الحيوية في مسودة الروشتة الحالية ✅')
+      }
+    } catch (err: any) {
+      console.error(err)
+      toast.error('حدث خطأ أثناء حفظ القياسات: ' + err.message)
+    } finally {
+      setIsSavingVitals(false)
+    }
+  }
+
   const [drugs, setDrugs] = useState<any[]>([
     { id: 1, name: searchParams?.get('drug') || '', dosage: '', duration: '', notes: '' }
   ])
@@ -404,6 +444,12 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           if (draft.drugs && draft.drugs.length > 0) setDrugs(draft.drugs)
           if (draft.templateMode) setTemplateMode(draft.templateMode)
           if (draft.pageSize) setPageSize(draft.pageSize)
+          if (draft.vitalsBpSys) setVitalsBpSys(draft.vitalsBpSys)
+          if (draft.vitalsBpDia) setVitalsBpDia(draft.vitalsBpDia)
+          if (draft.vitalsPulse) setVitalsPulse(draft.vitalsPulse)
+          if (draft.vitalsTemp) setVitalsTemp(draft.vitalsTemp)
+          if (draft.vitalsGlucose) setVitalsGlucose(draft.vitalsGlucose)
+          if (draft.vitalsWeight) setVitalsWeight(draft.vitalsWeight)
           setIsDraftRestored(true)
           toast.info('تم استرجاع مسودة الروشتة غير المحفوظة تلقائياً بنجاح ⚡', { duration: 4500 })
         }
@@ -432,6 +478,12 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           drugs,
           templateMode,
           pageSize,
+          vitalsBpSys,
+          vitalsBpDia,
+          vitalsPulse,
+          vitalsTemp,
+          vitalsGlucose,
+          vitalsWeight,
           updatedAt: Date.now()
         }
         localStorage.setItem(draftStorageKey, JSON.stringify(draftData))
@@ -439,7 +491,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     }, 700)
 
     return () => clearTimeout(timer)
-  }, [patientName, patientPhone, age, diagnosis, instructions, patientAllergies, patientChronicDiseases, drugs, templateMode, pageSize, draftStorageKey])
+  }, [patientName, patientPhone, age, diagnosis, instructions, patientAllergies, patientChronicDiseases, drugs, templateMode, pageSize, vitalsBpSys, vitalsBpDia, vitalsPulse, vitalsTemp, vitalsGlucose, vitalsWeight, draftStorageKey])
 
   // 3. Clear draft and start fresh
   const handleClearDraft = () => {
@@ -455,6 +507,12 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     setPatientChronicDiseases('')
     setAppointmentId('')
     setDrugs([{ id: Date.now(), name: '', dosage: '', duration: '', notes: '' }])
+    setVitalsBpSys('')
+    setVitalsBpDia('')
+    setVitalsPulse('')
+    setVitalsTemp('')
+    setVitalsGlucose('')
+    setVitalsWeight('')
     setIsDraftRestored(false)
     toast.success('تم مسح المسودة والبدء بروشتة جديدة')
   }
@@ -651,6 +709,15 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           primaryColor,
           secondaryColor,
           drugs: drugs.filter(d => d.name && d.name.trim() !== ''),
+          vitalSigns: (vitalsBpSys || vitalsBpDia || vitalsPulse || vitalsTemp || vitalsGlucose || vitalsWeight) ? {
+            bloodPressureSystolic: vitalsBpSys ? Number(vitalsBpSys) : null,
+            bloodPressureDiastolic: vitalsBpDia ? Number(vitalsBpDia) : null,
+            heartRate: vitalsPulse ? Number(vitalsPulse) : null,
+            temperature: vitalsTemp ? Number(vitalsTemp) : null,
+            glucoseLevel: vitalsGlucose ? Number(vitalsGlucose) : null,
+            weightKg: vitalsWeight ? Number(vitalsWeight) : null,
+            recordedAt: new Date().toISOString()
+          } : null,
           createdAt: new Date().toISOString()
         })
 
@@ -675,7 +742,16 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
               chronicDiseases: patientChronicDiseases || '',
               prescription_id: docRef.id,
               prescriptionStatus: 'approved',
-              prescription_templateMode: templateMode
+              prescription_templateMode: templateMode,
+              vitalSigns: (vitalsBpSys || vitalsBpDia || vitalsPulse || vitalsTemp || vitalsGlucose || vitalsWeight) ? {
+                bloodPressureSystolic: vitalsBpSys ? Number(vitalsBpSys) : null,
+                bloodPressureDiastolic: vitalsBpDia ? Number(vitalsBpDia) : null,
+                heartRate: vitalsPulse ? Number(vitalsPulse) : null,
+                temperature: vitalsTemp ? Number(vitalsTemp) : null,
+                glucoseLevel: vitalsGlucose ? Number(vitalsGlucose) : null,
+                weightKg: vitalsWeight ? Number(vitalsWeight) : null,
+                recordedAt: new Date().toISOString()
+              } : null
             })
           } catch (e) {}
         }
@@ -796,7 +872,9 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     // 3. Optional clipboard image copy in background for Ctrl+V (strictly WITHOUT auto-downloading to computer)
     if (sheetRef.current && typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
       setIsSharingPdf(true)
-      renderElementToImageBlob(sheetRef.current, { scale: 2.2 }).then(async ({ blob: imgBlob }) => {
+      import('@/lib/pdfGenerator').then(async ({ renderElementToImageBlob }) => {
+        if (!sheetRef.current) return
+        const { blob: imgBlob } = await renderElementToImageBlob(sheetRef.current, { scale: 2.2 })
         try {
           await navigator.clipboard.write([
             new ClipboardItem({ 'image/png': imgBlob })
@@ -813,6 +891,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     if (!sheetRef.current) return
     setIsDownloadingImage(true)
     try {
+      const { downloadElementAsImage } = await import('@/lib/pdfGenerator')
       const fileName = generateCleanRxFileName(patientName, dateStr, 'png')
       await downloadElementAsImage(
         sheetRef.current,
@@ -833,6 +912,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     if (!sheetRef.current) return
     setIsDownloadingPdf(true)
     try {
+      const { downloadElementAsPdf } = await import('@/lib/pdfGenerator')
       const fileName = generateCleanRxFileName(patientName, dateStr, 'pdf')
       await downloadElementAsPdf(
         sheetRef.current,
@@ -996,164 +1076,6 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
         {/* RIGHT COLUMN: Form Editor (7 cols) */}
         <div className="lg:col-span-7 space-y-5">
 
-          {/* Quick Protocols & Draft Bar */}
-          <div className="p-4 yalla-card rounded-2xl border border-border shadow-xs space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
-                  <Zap className="w-4 h-4 fill-amber-400 text-amber-500" />
-                </div>
-                <div>
-                  <h4 className="font-black text-xs text-foreground flex items-center gap-1.5">
-                    <span>قوالب الروشتات الجاهزة بنقرة واحدة (Rx Protocols)</span>
-                    <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary border-primary/20">سريع ⚡</Badge>
-                  </h4>
-                  <p className="text-[11px] text-muted-foreground">
-                    تعبئة أدوية وجرعات وإرشادات الحالات الطبية المتكررة بنقرة واحدة
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 flex-wrap">
-                <Button
-                  size="sm"
-                  variant="default"
-                  onClick={handleOpenAddTemplate}
-                  className="h-8 text-xs font-bold yalla-gradient-btn text-white hover:opacity-95 rounded-xl gap-1.5 shadow-2xs cursor-pointer"
-                  title="إضافة قالب روشتة جديد للعيادة"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>إضافة قالب</span>
-                </Button>
-
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleOpenSaveDraftAsTemplate}
-                  className="h-8 text-xs font-bold border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 rounded-xl gap-1 cursor-pointer"
-                  title="حفظ الأدوية والتشخيص الحالي كقالب جاهز للعيادة"
-                >
-                  <BookmarkCheck className="w-3.5 h-3.5" />
-                  <span>حفظ كقالب</span>
-                </Button>
-
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleClearDraft}
-                  className="h-8 text-xs font-bold text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 rounded-xl gap-1 cursor-pointer"
-                  title="مسح المسودة والبدء بروشتة فارغة"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>مسح المسودة</span>
-                </Button>
-              </div>
-            </div>
-
-            {/* Protocols Chips */}
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              {visibleBuiltinProtocols.map((p) => (
-                <div
-                  key={p.id}
-                  className="inline-flex items-center rounded-xl bg-secondary/80 hover:bg-secondary border border-border hover:border-primary/40 transition-all shadow-2xs overflow-hidden group/tmpl max-w-full"
-                >
-                  <button
-                    type="button"
-                    onClick={() => handleApplyProtocol(p)}
-                    className="px-2.5 py-1.5 text-xs font-bold text-foreground hover:text-primary transition-colors cursor-pointer flex items-center gap-1.5 active:scale-95"
-                    title={`تطبيق بروتوكول: ${p.name}`}
-                  >
-                    <span>{p.icon}</span>
-                    <span className="truncate max-w-[120px] sm:max-w-[180px]">{p.name.split('(')[0].trim()}</span>
-                    <span className="text-[10px] text-muted-foreground font-normal shrink-0">({p.drugs.length})</span>
-                  </button>
-
-                  <div className="flex items-center pe-1 ps-0.5 border-s border-border/60 gap-0.5 shrink-0 bg-background/50">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        handleOpenEditTemplate(p)
-                      }}
-                      className="p-1 rounded-md text-muted-foreground hover:text-amber-600 hover:bg-amber-500/15 transition-colors cursor-pointer"
-                      title={`تعديل قالب ${p.name}`}
-                      aria-label={`تعديل قالب ${p.name}`}
-                    >
-                      <Pencil className="w-3 h-3" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        handleDeleteTemplate(p)
-                      }}
-                      className="p-1 rounded-md text-muted-foreground hover:text-rose-500 hover:bg-rose-500/15 transition-colors cursor-pointer"
-                      title={`حذف قالب ${p.name}`}
-                      aria-label={`حذف قالب ${p.name}`}
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-
-              {customProtocols.map((cp) => (
-                <div
-                  key={cp.id}
-                  className="inline-flex items-center rounded-xl bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs font-bold shadow-2xs overflow-hidden group/tmpl max-w-full"
-                >
-                  <button
-                    type="button"
-                    onClick={() => handleApplyProtocol(cp)}
-                    className="px-2.5 py-1.5 hover:bg-amber-500/20 transition-colors cursor-pointer flex items-center gap-1.5 active:scale-95"
-                    title={`تطبيق بروتوكول: ${cp.name}`}
-                  >
-                    <Star className="w-3 h-3 fill-amber-400 text-amber-500 shrink-0" />
-                    <span className="truncate max-w-[120px] sm:max-w-[180px]">{cp.name}</span>
-                    <span className="text-[10px] opacity-75 shrink-0">({cp.drugs?.length || 0})</span>
-                  </button>
-
-                  <div className="flex items-center pe-1 ps-0.5 border-s border-amber-500/20 gap-0.5 shrink-0 bg-background/50">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        handleOpenEditTemplate(cp)
-                      }}
-                      className="p-1 rounded-md text-muted-foreground hover:text-amber-600 hover:bg-amber-500/20 transition-colors cursor-pointer"
-                      title={`تعديل قالب ${cp.name}`}
-                      aria-label={`تعديل قالب ${cp.name}`}
-                    >
-                      <Pencil className="w-3 h-3" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        handleDeleteTemplate(cp)
-                      }}
-                      className="p-1 rounded-md text-muted-foreground hover:text-rose-500 hover:bg-rose-500/20 transition-colors cursor-pointer"
-                      title={`حذف قالب ${cp.name}`}
-                      aria-label={`حذف قالب ${cp.name}`}
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-
-              {visibleBuiltinProtocols.length === 0 && customProtocols.length === 0 && (
-                <div className="py-2 px-3 text-xs text-muted-foreground rounded-xl bg-muted/30 border border-dashed border-border w-full text-center">
-                  لا توجد قوالب روشتات حالياً. اضغط على «إضافة قالب» لإنشاء أول قالب خاص بالعيادة!
-                </div>
-              )}
-            </div>
-          </div>
-          
           {/* Patient Details Card */}
           <div className="yalla-card p-5 space-y-4 border border-border">
             <div className="flex items-center justify-between pb-3 border-b border-border">
@@ -1181,6 +1103,21 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                       }
                       if (selected.branch_id) setSelectedBranchId(selected.branch_id)
                       if (selected.branchName) setSelectedBranchName(selected.branchName)
+                      if (selected.vitalSigns) {
+                        setVitalsBpSys(selected.vitalSigns.bloodPressureSystolic ? String(selected.vitalSigns.bloodPressureSystolic) : '')
+                        setVitalsBpDia(selected.vitalSigns.bloodPressureDiastolic ? String(selected.vitalSigns.bloodPressureDiastolic) : '')
+                        setVitalsPulse(selected.vitalSigns.heartRate ? String(selected.vitalSigns.heartRate) : '')
+                        setVitalsTemp(selected.vitalSigns.temperature ? String(selected.vitalSigns.temperature) : '')
+                        setVitalsGlucose(selected.vitalSigns.glucoseLevel ? String(selected.vitalSigns.glucoseLevel) : (selected.vitalSigns.bloodGlucose ? String(selected.vitalSigns.bloodGlucose) : ''))
+                        setVitalsWeight(selected.vitalSigns.weightKg ? String(selected.vitalSigns.weightKg) : (selected.vitalSigns.weight ? String(selected.vitalSigns.weight) : ''))
+                      } else {
+                        setVitalsBpSys('')
+                        setVitalsBpDia('')
+                        setVitalsPulse('')
+                        setVitalsTemp('')
+                        setVitalsGlucose('')
+                        setVitalsWeight('')
+                      }
                     }
                   }}
                 >
@@ -1789,43 +1726,10 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             </div>
           </div>
 
-          {/* Accent Color Customizer */}
-          <div className="yalla-card p-4 space-y-3 border border-border">
-            <h4 className="font-bold text-xs text-foreground flex items-center gap-1.5">
-              <Palette className="w-4 h-4 text-primary" />
-              {t('rx_color_customizer', 'تخصيص ألوان وتصميم الروشتة (Live Color Accents)')}
-            </h4>
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div>
-                <Label className="text-[11px] font-bold text-muted-foreground block mb-1">{t('primary_header_color', 'اللون الرئيسي للترويسة')}</Label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={primaryColor}
-                    onChange={e => setPrimaryColor(e.target.value)}
-                    className="w-8 h-8 rounded-lg cursor-pointer border border-border"
-                  />
-                  <span className="font-mono text-muted-foreground text-xs">{primaryColor}</span>
-                </div>
-              </div>
-              <div>
-                <Label className="text-[11px] font-bold text-muted-foreground block mb-1">{t('secondary_color', 'اللون الثانوي والخطوط')}</Label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={secondaryColor}
-                    onChange={e => setSecondaryColor(e.target.value)}
-                    className="w-8 h-8 rounded-lg cursor-pointer border border-border"
-                  />
-                  <span className="font-mono text-muted-foreground text-xs">{secondaryColor}</span>
-                </div>
-              </div>
-            </div>
           </div>
-        </div>
 
         {/* LEFT COLUMN: Live A4 Prescription Preview (5 cols) */}
-        <div className="lg:col-span-5 space-y-3">
+        <div className="lg:col-span-5 space-y-4">
           
           {/* Template & Paper Size Designer Controls */}
           <div className="p-3.5 yalla-card rounded-2xl border border-border space-y-3 shadow-2xs">
@@ -2076,10 +1980,338 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                     pageSize={pageSize}
                     showHeaderFooter={showHeaderFooter}
                     printBackground={printBackground}
+                    vitalSigns={{
+                      bloodPressureSystolic: vitalsBpSys,
+                      bloodPressureDiastolic: vitalsBpDia,
+                      heartRate: vitalsPulse,
+                      temperature: vitalsTemp,
+                      glucoseLevel: vitalsGlucose,
+                      weightKg: vitalsWeight
+                    }}
                   />
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Quick Protocols & Draft Bar */}
+          <div className="p-4 yalla-card rounded-2xl border border-border shadow-xs space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
+                  <Zap className="w-4 h-4 fill-amber-400 text-amber-500" />
+                </div>
+                <div>
+                  <h4 className="font-black text-xs text-foreground flex items-center gap-1.5">
+                    <span>قوالب الروشتات الجاهزة بنقرة واحدة (Rx Protocols)</span>
+                    <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary border-primary/20">سريع ⚡</Badge>
+                  </h4>
+                  <p className="text-[11px] text-muted-foreground">
+                    تعبئة أدوية وجرعات وإرشادات الحالات الطبية المتكررة بنقرة واحدة
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={handleOpenAddTemplate}
+                  className="h-8 text-xs font-bold yalla-gradient-btn text-white hover:opacity-95 rounded-xl gap-1.5 shadow-2xs cursor-pointer"
+                  title="إضافة قالب روشتة جديد للعيادة"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>إضافة قالب</span>
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleOpenSaveDraftAsTemplate}
+                  className="h-8 text-xs font-bold border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 rounded-xl gap-1 cursor-pointer"
+                  title="حفظ الأدوية والتشخيص الحالي كقالب جاهز للعيادة"
+                >
+                  <BookmarkCheck className="w-3.5 h-3.5" />
+                  <span>حفظ كقالب</span>
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleClearDraft}
+                  className="h-8 text-xs font-bold text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 rounded-xl gap-1 cursor-pointer"
+                  title="مسح المسودة والبدء بروشتة فارغة"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>مسح المسودة</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Protocols Chips */}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              {visibleBuiltinProtocols.map((p) => (
+                <div
+                  key={p.id}
+                  className="inline-flex items-center rounded-xl bg-secondary/80 hover:bg-secondary border border-border hover:border-primary/40 transition-all shadow-2xs overflow-hidden group/tmpl max-w-full"
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleApplyProtocol(p)}
+                    className="px-2.5 py-1.5 text-xs font-bold text-foreground hover:text-primary transition-colors cursor-pointer flex items-center gap-1.5 active:scale-95"
+                    title={`تطبيق بروتوكول: ${p.name}`}
+                  >
+                    <span>{p.icon}</span>
+                    <span className="truncate max-w-[120px] sm:max-w-[180px]">{p.name.split('(')[0].trim()}</span>
+                    <span className="text-[10px] text-muted-foreground font-normal shrink-0">({p.drugs.length})</span>
+                  </button>
+
+                  <div className="flex items-center pe-1 ps-0.5 border-s border-border/60 gap-0.5 shrink-0 bg-background/50">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleOpenEditTemplate(p)
+                      }}
+                      className="p-1 rounded-md text-muted-foreground hover:text-amber-600 hover:bg-amber-500/15 transition-colors cursor-pointer"
+                      title={`تعديل قالب ${p.name}`}
+                      aria-label={`تعديل قالب ${p.name}`}
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleDeleteTemplate(p)
+                      }}
+                      className="p-1 rounded-md text-muted-foreground hover:text-rose-500 hover:bg-rose-500/15 transition-colors cursor-pointer"
+                      title={`حذف قالب ${p.name}`}
+                      aria-label={`حذف قالب ${p.name}`}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {customProtocols.map((cp) => (
+                <div
+                  key={cp.id}
+                  className="inline-flex items-center rounded-xl bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs font-bold shadow-2xs overflow-hidden group/tmpl max-w-full"
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleApplyProtocol(cp)}
+                    className="px-2.5 py-1.5 hover:bg-amber-500/20 transition-colors cursor-pointer flex items-center gap-1.5 active:scale-95"
+                    title={`تطبيق بروتوكول: ${cp.name}`}
+                  >
+                    <Star className="w-3 h-3 fill-amber-400 text-amber-500 shrink-0" />
+                    <span className="truncate max-w-[120px] sm:max-w-[180px]">{cp.name}</span>
+                    <span className="text-[10px] opacity-75 shrink-0">({cp.drugs?.length || 0})</span>
+                  </button>
+
+                  <div className="flex items-center pe-1 ps-0.5 border-s border-amber-500/20 gap-0.5 shrink-0 bg-background/50">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleOpenEditTemplate(cp)
+                      }}
+                      className="p-1 rounded-md text-muted-foreground hover:text-amber-600 hover:bg-amber-500/20 transition-colors cursor-pointer"
+                      title={`تعديل قالب ${cp.name}`}
+                      aria-label={`تعديل قالب ${cp.name}`}
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleDeleteTemplate(cp)
+                      }}
+                      className="p-1 rounded-md text-muted-foreground hover:text-rose-500 hover:bg-rose-500/20 transition-colors cursor-pointer"
+                      title={`حذف قالب ${cp.name}`}
+                      aria-label={`حذف قالب ${cp.name}`}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {visibleBuiltinProtocols.length === 0 && customProtocols.length === 0 && (
+                <div className="py-2 px-3 text-xs text-muted-foreground rounded-xl bg-muted/30 border border-dashed border-border w-full text-center">
+                  لا توجد قوالب روشتات حالياً. اضغط على «إضافة قالب» لإنشاء أول قالب خاص بالعيادة!
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Vital Signs Card (العلامات الحيوية) */}
+          <div className="p-4 yalla-card rounded-2xl border border-border shadow-xs space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-border">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center">
+                  <Activity className="w-4 h-4 text-rose-500" />
+                </div>
+                <div>
+                  <h4 className="font-black text-xs text-foreground flex items-center gap-1.5">
+                    <span>العلامات الحيوية (Vital Signs)</span>
+                    <Badge variant="secondary" className="text-[10px] bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20">فحص سريري</Badge>
+                  </h4>
+                  <p className="text-[11px] text-muted-foreground">
+                    ضغط الدم، النبض، الحرارة، السكر العشوائي، والوزن
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <Button
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                  onClick={handleSaveVitalsOnly}
+                  disabled={isSavingVitals}
+                  className="h-7 text-[11px] font-bold border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 rounded-xl gap-1 cursor-pointer"
+                  title="حفظ وتحديث العلامات الحيوية للكشف"
+                >
+                  <Save className="w-3 h-3" />
+                  <span>{isSavingVitals ? 'جاري الحفظ...' : 'حفظ القياسات'}</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Inputs Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
+              {/* BP Systolic */}
+              <div className="space-y-1">
+                <label className="text-[10.5px] font-bold text-muted-foreground flex items-center justify-between">
+                  <span>ضغط انقباضي (SYS)</span>
+                  <span className="text-[9.5px] text-slate-400">mmHg</span>
+                </label>
+                <Input
+                  type="number"
+                  value={vitalsBpSys}
+                  onChange={e => setVitalsBpSys(e.target.value)}
+                  placeholder="120"
+                  className="h-8 text-xs bg-background border-border text-foreground"
+                />
+              </div>
+
+              {/* BP Diastolic */}
+              <div className="space-y-1">
+                <label className="text-[10.5px] font-bold text-muted-foreground flex items-center justify-between">
+                  <span>ضغط انبساطي (DIA)</span>
+                  <span className="text-[9.5px] text-slate-400">mmHg</span>
+                </label>
+                <Input
+                  type="number"
+                  value={vitalsBpDia}
+                  onChange={e => setVitalsBpDia(e.target.value)}
+                  placeholder="80"
+                  className="h-8 text-xs bg-background border-border text-foreground"
+                />
+              </div>
+
+              {/* Heart Rate / Pulse */}
+              <div className="space-y-1">
+                <label className="text-[10.5px] font-bold text-muted-foreground flex items-center justify-between">
+                  <span>نبض القلب (HR)</span>
+                  <span className="text-[9.5px] text-slate-400">bpm</span>
+                </label>
+                <Input
+                  type="number"
+                  value={vitalsPulse}
+                  onChange={e => setVitalsPulse(e.target.value)}
+                  placeholder="75"
+                  className="h-8 text-xs bg-background border-border text-foreground"
+                />
+              </div>
+
+              {/* Temperature */}
+              <div className="space-y-1">
+                <label className="text-[10.5px] font-bold text-muted-foreground flex items-center justify-between">
+                  <span>حرارة الجسم (Temp)</span>
+                  <span className="text-[9.5px] text-slate-400">°C</span>
+                </label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  value={vitalsTemp}
+                  onChange={e => setVitalsTemp(e.target.value)}
+                  placeholder="37.0"
+                  className="h-8 text-xs bg-background border-border text-foreground"
+                />
+              </div>
+
+              {/* Glucose Level */}
+              <div className="space-y-1">
+                <label className="text-[10.5px] font-bold text-muted-foreground flex items-center justify-between">
+                  <span>السكر العشوائي</span>
+                  <span className="text-[9.5px] text-slate-400">mg/dL</span>
+                </label>
+                <Input
+                  type="number"
+                  value={vitalsGlucose}
+                  onChange={e => setVitalsGlucose(e.target.value)}
+                  placeholder="110"
+                  className="h-8 text-xs bg-background border-border text-foreground"
+                />
+              </div>
+
+              {/* Weight */}
+              <div className="space-y-1">
+                <label className="text-[10.5px] font-bold text-muted-foreground flex items-center justify-between">
+                  <span>الوزن (Weight)</span>
+                  <span className="text-[9.5px] text-slate-400">kg</span>
+                </label>
+                <Input
+                  type="number"
+                  step="0.5"
+                  value={vitalsWeight}
+                  onChange={e => setVitalsWeight(e.target.value)}
+                  placeholder="70"
+                  className="h-8 text-xs bg-background border-border text-foreground"
+                />
+              </div>
+            </div>
+
+            {/* Quick Summary Strip if any vital is entered */}
+            {(vitalsBpSys || vitalsBpDia || vitalsPulse || vitalsTemp || vitalsGlucose || vitalsWeight) && (
+              <div className="pt-2 border-t border-border/70 flex flex-wrap items-center gap-1.5 text-[11px]">
+                <span className="text-[10px] font-bold text-muted-foreground">القياسات المسجلة:</span>
+                {(vitalsBpSys || vitalsBpDia) && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20 font-bold font-mono">
+                    BP {vitalsBpSys || '--'}/{vitalsBpDia || '--'}
+                  </span>
+                )}
+                {vitalsPulse && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20 font-bold font-mono">
+                    HR {vitalsPulse} bpm
+                  </span>
+                )}
+                {vitalsTemp && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 font-bold font-mono">
+                    {vitalsTemp}°C
+                  </span>
+                )}
+                {vitalsGlucose && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-500/20 font-bold font-mono">
+                    GLU {vitalsGlucose} mg/dL
+                  </span>
+                )}
+                {vitalsWeight && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-teal-500/10 text-teal-700 dark:text-teal-400 border border-teal-500/20 font-bold font-mono">
+                    WT {vitalsWeight} kg
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

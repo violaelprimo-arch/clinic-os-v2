@@ -192,7 +192,8 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
           servicesMap[data.serviceName] = (servicesMap[data.serviceName] || 0) + 1
         }
 
-        const isPaid = (data.paymentStatus === 'paid' || data.status === 'completed') && !isCancelled
+        // A14 Fix: Strict cash accounting - only collected when paymentStatus === 'paid'
+        const isPaid = data.paymentStatus === 'paid' && !isCancelled
 
         if (isPaid) {
           coll += price
@@ -388,7 +389,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
     return branches.map(b => {
       const bAppts = report.filter(a => a.branch_id === b.id || (!a.branch_id && b.isMain))
       const bRev = bAppts.reduce((sum, a) => sum + (Number(a.originalPrice || a.servicePrice) || 0), 0)
-      const bColl = bAppts.reduce((sum, a) => (a.paymentStatus === 'paid' || a.status === 'completed') ? sum + (Number(a.servicePrice) || 0) : sum, 0)
+      const bColl = bAppts.reduce((sum, a) => (a.paymentStatus === 'paid' && a.status !== 'cancelled') ? sum + (Number(a.servicePrice) || 0) : sum, 0)
       const bDue = bRev - bColl
       return {
         name: b.name,
