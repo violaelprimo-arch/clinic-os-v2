@@ -14,6 +14,13 @@ interface LandingFooterProps {
 export function LandingFooter({ config }: LandingFooterProps) {
   const { isRtl } = useLanguage()
 
+  const patientPortalUrl = React.useMemo(() => {
+    const raw = (config.patientUrl || '').trim()
+    if (!raw) return '/clinic/zizo/patient'
+    if (raw.endsWith('/patient') || raw.includes('/patient')) return raw
+    return `${raw.replace(/\/$/, '')}/patient`
+  }, [config.patientUrl])
+
   return (
     <footer className="border-t border-sky-100 dark:border-slate-800 bg-white/70 dark:bg-[#060e1c] text-slate-600 dark:text-slate-400 py-12 px-4 sm:px-6 lg:px-8 transition-colors">
       <div className="max-w-7xl mx-auto space-y-8">
@@ -58,7 +65,7 @@ export function LandingFooter({ config }: LandingFooterProps) {
               </li>
               <li>
                 <Link
-                  href={config.patientUrl || '/clinic/zizo/patient'}
+                  href={patientPortalUrl}
                   className="hover:text-sky-600 dark:hover:text-sky-400 transition-colors font-medium flex items-center gap-1.5"
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 shrink-0"></span>

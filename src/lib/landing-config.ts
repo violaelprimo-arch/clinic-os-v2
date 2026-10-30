@@ -728,7 +728,7 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
   loginButtonText: 'دخول العيادة',
   loginUrl: '/clinic/zizo/login',
   demoUrl: '/clinic/zizo',
-  patientUrl: '/clinic/zizo',
+  patientUrl: '/clinic/zizo/patient',
   primaryWhatsapp: '201551007018',
   footerText: 'جميع الحقوق محفوظة لمنصة Yalla Clinic — تشغيل وتطوير YallaCodeX © 2026',
   demoSectionTitle: 'معرض واجهات يلا كلينيك الحقيقية',
