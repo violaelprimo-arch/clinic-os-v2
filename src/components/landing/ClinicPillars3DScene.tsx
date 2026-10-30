@@ -762,7 +762,7 @@ export function ClinicPillars3DScene({
       nodeGroups.forEach((ng) => {
         ng.mesh.geometry.dispose()
         if (Array.isArray(ng.mesh.material)) {
-          ng.mesh.material.forEach((m) => m.dispose())
+          ng.mesh.material.forEach((m: any) => m.dispose())
         } else {
           ng.mesh.material.dispose()
         }
