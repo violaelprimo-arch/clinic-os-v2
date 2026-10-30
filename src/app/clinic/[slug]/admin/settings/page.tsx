@@ -14,7 +14,7 @@ import {
   Wallet, Users, Clock, Printer, ShieldCheck, Settings, Lock,
   CheckCircle2, Bell, Sparkles, Building2, Copy, ExternalLink,
   Monitor, Tablet, Smartphone, User, RefreshCw,
-  ArrowUp, ArrowDown, Zap
+  ArrowUp, ArrowDown, Zap, Banknote, CreditCard, AlertCircle
 } from 'lucide-react'
 import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 import { db } from '@/lib/firebase'
@@ -118,6 +118,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const [newServicePrice, setNewServicePrice] = useState<number>(200)
 
   // Payment
+  const [isCashEnabled, setIsCashEnabled] = useState(true)
   const [onlinePaymentEnabled, setOnlinePaymentEnabled] = useState(false)
   const [walletNumber, setWalletNumber] = useState('')
   const [instapayHandle, setInstapayHandle] = useState('')
@@ -205,6 +206,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           setOnlinePaymentEnabled(data.onlinePaymentEnabled || false)
           setWalletNumber(data.walletNumber || '')
           setInstapayHandle(data.instapayHandle || '')
+          setIsCashEnabled(data.isCashEnabled !== false) // default true
           setIsClinicOpen(data.isClinicOpen !== false) // default true
           setShowPrices(data.showPrices !== false) // default true
           setIsWalletEnabled(data.isWalletEnabled || false)
@@ -294,6 +296,12 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       }
       hashedDoctorPassword = await hashPassword(newDoctorPassword)
     }
+
+    if (!isCashEnabled && (!onlinePaymentEnabled || (!isWalletEnabled && !isInstapayEnabled))) {
+      toast.error(t('no_payment_methods_warning', 'يجب تفعيل طريقة دفع واحدة على الأقل (كاش بالعيادة، أو إنستاباي، أو المحفظة الإلكترونية) لإتاحة الحجز للمرضى.'))
+      return
+    }
+
     setIsSaving(true)
     try {
       const rawPayload = {
@@ -339,6 +347,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         onlinePaymentEnabled: Boolean(onlinePaymentEnabled),
         walletNumber: walletNumber || '',
         instapayHandle: instapayHandle || '',
+        isCashEnabled: Boolean(isCashEnabled),
         isClinicOpen,
         showPrices,
         ...(newDoctorEmail ? { doctorEmail: newDoctorEmail } : {}),
@@ -1935,59 +1944,103 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
       {/* TAB 4: Payment Methods */}
       {activeTab === 'payment' && (
-        <div className="yalla-card p-6 max-w-2xl space-y-5">
-          <div className="flex items-center justify-between pb-3 border-b border-border">
-            <div>
-              <h3 className="font-bold text-sm text-foreground">{t('enable_online_payment', 'تفعيل الدفع الإلكتروني (Online Payment)')}</h3>
-              <p className="text-xs text-muted-foreground">{t('online_payment_desc', 'إتاحة الدفع عبر محفظة إلكترونية أو انستاباي أثناء حجز المريض')}</p>
-            </div>
-            <Switch
-              checked={onlinePaymentEnabled}
-              onCheckedChange={setOnlinePaymentEnabled}
-            />
+        <div className="yalla-card p-6 max-w-2xl space-y-6">
+          <div className="pb-3 border-b border-border">
+            <h3 className="font-bold text-base text-foreground">{t('payment_methods_title', 'طرق الدفع المتاحة للمرضى')}</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">{t('payment_methods_desc', 'تحكم في إظهار أو إخفاء طرق الدفع الثلاثة عند حجز المريض عبر الإنترنت')}</p>
           </div>
 
-          {onlinePaymentEnabled && (
-            <div className="space-y-4 pt-4 border-t border-border">
-              <div className="flex items-center justify-between p-3 bg-muted/40 rounded-xl border border-border">
-                <div className="flex items-center gap-3">
-                  <Switch checked={isWalletEnabled} onCheckedChange={setIsWalletEnabled} />
-                  <div>
-                    <p className="font-bold text-sm text-foreground">{t('enable_e_wallet', 'تفعيل الدفع بالمحفظة الإلكترونية (فودافون كاش وغيرها)')}</p>
-                  </div>
+          {/* 1. Cash at Clinic (الدفع في العيادة - نقداً عند الحضور) */}
+          <div className="p-4 bg-muted/30 rounded-2xl border border-border">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <Banknote className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-foreground">{t('enable_cash_payment', 'تفعيل الدفع في العيادة (نقداً عند الحضور)')}</h4>
+                  <p className="text-xs text-muted-foreground">{t('cash_payment_desc', 'إتاحة خيار السداد كاش في العيادة عند وصول المريض لموعد الكشف')}</p>
                 </div>
               </div>
-              {isWalletEnabled && (
-                <div className={`space-y-1.5 ${isRtl ? 'pr-14' : 'pl-14'}`}>
-                  <Label className="text-xs font-bold text-muted-foreground">{t('wallet_number', 'رقم المحفظة الإلكترونية')}</Label>
-                  <PhoneInputWithCountry
-                    value={walletNumber}
-                    onChange={(fullNumber) => setWalletNumber(fullNumber)}
-                    size="sm"
-                  />
-                </div>
-              )}
+              <Switch
+                checked={isCashEnabled}
+                onCheckedChange={setIsCashEnabled}
+              />
+            </div>
+          </div>
 
-              <div className="flex items-center justify-between p-3 bg-muted/40 rounded-xl border border-border">
-                <div className="flex items-center gap-3">
-                  <Switch checked={isInstapayEnabled} onCheckedChange={setIsInstapayEnabled} />
-                  <div>
-                    <p className="font-bold text-sm text-foreground">{t('enable_instapay', 'تفعيل الدفع عبر إنستاباي (InstaPay)')}</p>
-                  </div>
+          {/* 2 & 3. Online Payment Methods (المحفظة الإلكترونية + إنستاباي) */}
+          <div className="p-4 bg-muted/30 rounded-2xl border border-border space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-border/70">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-foreground">{t('enable_online_payment', 'تفعيل الدفع الإلكتروني (Online Payment)')}</h4>
+                  <p className="text-xs text-muted-foreground">{t('online_payment_desc', 'إتاحة الدفع عبر محفظة إلكترونية أو انستاباي أثناء حجز المريض')}</p>
                 </div>
               </div>
-              {isInstapayEnabled && (
-                <div className={`space-y-1.5 ${isRtl ? 'pr-14' : 'pl-14'}`}>
-                  <Label className="text-xs font-bold text-muted-foreground">{t('instapay_handle', 'معرف إنستاباي (InstaPay Handle)')}</Label>
-                  <Input
-                    value={instapayHandle}
-                    onChange={e => setInstapayHandle(e.target.value)}
-                    placeholder="name@instapay"
-                    className={`h-10 text-xs rounded-xl font-mono ${isRtl ? 'text-right' : 'text-left'}`}
-                    dir="ltr"
-                  />
+              <Switch
+                checked={onlinePaymentEnabled}
+                onCheckedChange={setOnlinePaymentEnabled}
+              />
+            </div>
+
+            {onlinePaymentEnabled && (
+              <div className="space-y-4 pt-1">
+                {/* E-Wallet (المحفظة الإلكترونية) */}
+                <div className="flex items-center justify-between p-3.5 bg-card rounded-xl border border-border">
+                  <div className="flex items-center gap-3">
+                    <Switch checked={isWalletEnabled} onCheckedChange={setIsWalletEnabled} />
+                    <div className="flex items-center gap-2">
+                      <Wallet className="w-4 h-4 text-rose-500" />
+                      <p className="font-bold text-sm text-foreground">{t('enable_e_wallet', 'تفعيل الدفع بالمحفظة الإلكترونية (فودافون كاش وغيرها)')}</p>
+                    </div>
+                  </div>
                 </div>
-              )}
+                {isWalletEnabled && (
+                  <div className={`space-y-1.5 ${isRtl ? 'pr-12' : 'pl-12'}`}>
+                    <Label className="text-xs font-bold text-muted-foreground">{t('wallet_number', 'رقم المحفظة الإلكترونية')}</Label>
+                    <PhoneInputWithCountry
+                      value={walletNumber}
+                      onChange={(fullNumber) => setWalletNumber(fullNumber)}
+                      size="sm"
+                    />
+                  </div>
+                )}
+
+                {/* InstaPay (إنستاباي) */}
+                <div className="flex items-center justify-between p-3.5 bg-card rounded-xl border border-border">
+                  <div className="flex items-center gap-3">
+                    <Switch checked={isInstapayEnabled} onCheckedChange={setIsInstapayEnabled} />
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="w-4 h-4 text-purple-500" />
+                      <p className="font-bold text-sm text-foreground">{t('enable_instapay', 'تفعيل الدفع عبر إنستاباي (InstaPay)')}</p>
+                    </div>
+                  </div>
+                </div>
+                {isInstapayEnabled && (
+                  <div className={`space-y-1.5 ${isRtl ? 'pr-12' : 'pl-12'}`}>
+                    <Label className="text-xs font-bold text-muted-foreground">{t('instapay_handle', 'معرف إنستاباي (InstaPay Handle)')}</Label>
+                    <Input
+                      value={instapayHandle}
+                      onChange={e => setInstapayHandle(e.target.value)}
+                      placeholder="name@instapay"
+                      className={`h-10 text-xs rounded-xl font-mono ${isRtl ? 'text-right' : 'text-left'}`}
+                      dir="ltr"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Warning banner if all 3 payment methods are turned off */}
+          {!isCashEnabled && (!onlinePaymentEnabled || (!isWalletEnabled && !isInstapayEnabled)) && (
+            <div className="p-4 rounded-2xl bg-amber-500/10 border-2 border-amber-500/30 text-amber-800 dark:text-amber-300 text-xs font-bold flex items-center gap-2.5">
+              <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+              <span>{t('no_payment_methods_warning', 'تنبيه: تم تعطيل جميع طرق الدفع. يجب تفعيل طريقة واحدة على الأقل ليتمكن المرضى من تأكيد الحجز.')}</span>
             </div>
           )}
         </div>

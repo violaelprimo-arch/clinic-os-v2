@@ -38,6 +38,8 @@ export interface Branch {
   isOpen: boolean
   isArchived?: boolean
   isMain?: boolean
+  walletNumber?: string
+  instapayHandle?: string
   createdAt: string
   updatedAt?: string
 }

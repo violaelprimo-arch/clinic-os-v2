@@ -328,6 +328,30 @@ export function BookingForm({
     branchName: string
   } | null>(null)
 
+  // Payment methods enabled flags
+  const allowCash = clinic?.isCashEnabled !== false
+  const allowOnline = clinic?.onlinePaymentEnabled === true
+  const targetInstapay = (selectedBranch?.instapayHandle || clinic?.instapayHandle || '').trim()
+  const targetWallet = (selectedBranch?.walletNumber || clinic?.walletNumber || '').trim()
+  const allowInstapay = Boolean(allowOnline && (clinic?.isInstapayEnabled === true || (clinic?.isInstapayEnabled === undefined && targetInstapay)))
+  const allowWallet = Boolean(allowOnline && (clinic?.isWalletEnabled === true || (clinic?.isWalletEnabled === undefined && targetWallet)))
+  const effectiveAllowCash = allowCash || (!allowInstapay && !allowWallet)
+  const activeMethodsCount = (effectiveAllowCash ? 1 : 0) + (allowInstapay ? 1 : 0) + (allowWallet ? 1 : 0)
+
+  // Align selected paymentMethod with available options
+  useEffect(() => {
+    if (paymentMethod === 'cash' && !effectiveAllowCash) {
+      if (allowInstapay) setPaymentMethod('instapay')
+      else if (allowWallet) setPaymentMethod('wallet')
+    } else if (paymentMethod === 'instapay' && !allowInstapay) {
+      if (effectiveAllowCash) setPaymentMethod('cash')
+      else if (allowWallet) setPaymentMethod('wallet')
+    } else if (paymentMethod === 'wallet' && !allowWallet) {
+      if (effectiveAllowCash) setPaymentMethod('cash')
+      else if (allowInstapay) setPaymentMethod('instapay')
+    }
+  }, [effectiveAllowCash, allowInstapay, allowWallet, paymentMethod])
+
   const selectedService = availableServices.find((s) => s.id === selectedServiceId) || availableServices[0]
 
   // Receipt image upload
@@ -959,45 +983,51 @@ export function BookingForm({
           {/* Payment Method Selector */}
           <div className="space-y-2">
             <Label className="text-xs font-bold text-foreground">{t('payment_method_label', 'طريقة السداد')}</Label>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('cash')}
-                className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
-                  paymentMethod === 'cash'
-                    ? 'border-primary bg-primary/10 text-primary font-black'
-                    : 'border-border bg-card text-foreground font-bold hover:bg-secondary'
-                }`}
-              >
-                <Banknote className="w-5 h-5 mx-auto mb-1" />
-                <span className="text-xs">{t('cash_at_clinic', 'كاش بالعيادة')}</span>
-              </button>
+            <div className={`grid ${activeMethodsCount === 3 ? 'grid-cols-3' : activeMethodsCount === 2 ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
+              {effectiveAllowCash && (
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('cash')}
+                  className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
+                    paymentMethod === 'cash'
+                      ? 'border-primary bg-primary/10 text-primary font-black'
+                      : 'border-border bg-card text-foreground font-bold hover:bg-secondary'
+                  }`}
+                >
+                  <Banknote className="w-5 h-5 mx-auto mb-1" />
+                  <span className="text-xs">{t('cash_at_clinic', 'كاش بالعيادة')}</span>
+                </button>
+              )}
 
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('instapay')}
-                className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
-                  paymentMethod === 'instapay'
-                    ? 'border-primary bg-primary/10 text-primary font-black'
-                    : 'border-border bg-card text-foreground font-bold hover:bg-secondary'
-                }`}
-              >
-                <CreditCard className="w-5 h-5 mx-auto mb-1" />
-                <span className="text-xs">InstaPay</span>
-              </button>
+              {allowInstapay && (
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('instapay')}
+                  className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
+                    paymentMethod === 'instapay'
+                      ? 'border-primary bg-primary/10 text-primary font-black'
+                      : 'border-border bg-card text-foreground font-bold hover:bg-secondary'
+                  }`}
+                >
+                  <CreditCard className="w-5 h-5 mx-auto mb-1" />
+                  <span className="text-xs">InstaPay</span>
+                </button>
+              )}
 
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('wallet')}
-                className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
-                  paymentMethod === 'wallet'
-                    ? 'border-primary bg-primary/10 text-primary font-black'
-                    : 'border-border bg-card text-foreground font-bold hover:bg-secondary'
-                }`}
-              >
-                <Wallet className="w-5 h-5 mx-auto mb-1" />
-                <span className="text-xs">{t('e_wallet', 'محفظة إلكترونية')}</span>
-              </button>
+              {allowWallet && (
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('wallet')}
+                  className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
+                    paymentMethod === 'wallet'
+                      ? 'border-primary bg-primary/10 text-primary font-black'
+                      : 'border-border bg-card text-foreground font-bold hover:bg-secondary'
+                  }`}
+                >
+                  <Wallet className="w-5 h-5 mx-auto mb-1" />
+                  <span className="text-xs">{t('e_wallet', 'محفظة إلكترونية')}</span>
+                </button>
+              )}
             </div>
           </div>
 

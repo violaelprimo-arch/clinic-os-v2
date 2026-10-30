@@ -690,6 +690,28 @@ export function BookingModal({
   const targetInstapayHandle = (selectedBranch?.instapayHandle || clinic?.instapayHandle || clinic?.instapayAccount || '').trim()
   const targetWalletNumber = (selectedBranch?.walletNumber || clinic?.walletNumber || clinic?.vodafoneCashNumber || '').trim()
 
+  // Payment methods enabled flags
+  const allowCash = clinic?.isCashEnabled !== false
+  const allowOnline = clinic?.onlinePaymentEnabled === true
+  const allowInstapay = Boolean(allowOnline && (clinic?.isInstapayEnabled === true || (clinic?.isInstapayEnabled === undefined && targetInstapayHandle)))
+  const allowWallet = Boolean(allowOnline && (clinic?.isWalletEnabled === true || (clinic?.isWalletEnabled === undefined && targetWalletNumber)))
+  const effectiveAllowCash = allowCash || (!allowInstapay && !allowWallet)
+  const activeMethodsCount = (effectiveAllowCash ? 1 : 0) + (allowInstapay ? 1 : 0) + (allowWallet ? 1 : 0)
+
+  // Align selected paymentMethod with available options
+  useEffect(() => {
+    if (paymentMethod === 'cash' && !effectiveAllowCash) {
+      if (allowInstapay) setPaymentMethod('instapay')
+      else if (allowWallet) setPaymentMethod('wallet')
+    } else if (paymentMethod === 'instapay' && !allowInstapay) {
+      if (effectiveAllowCash) setPaymentMethod('cash')
+      else if (allowWallet) setPaymentMethod('wallet')
+    } else if (paymentMethod === 'wallet' && !allowWallet) {
+      if (effectiveAllowCash) setPaymentMethod('cash')
+      else if (allowInstapay) setPaymentMethod('instapay')
+    }
+  }, [effectiveAllowCash, allowInstapay, allowWallet, paymentMethod])
+
   return (
     <div dir="rtl" className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
       <div className="w-full max-w-[440px] bg-gradient-to-b from-white via-sky-50/30 to-sky-50/70 dark:from-[#081526] dark:to-[#050d1a] rounded-[36px] p-6 shadow-2xl border border-sky-100 dark:border-slate-800 space-y-5 my-auto">
@@ -1077,52 +1099,64 @@ export function BookingModal({
               <div className="space-y-4">
                 <div className="text-center">
                   <h4 className="font-extrabold text-slate-800 dark:text-slate-100 text-sm">اختر طريقة الدفع</h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">يمكنك الدفع كاش في العيادة أو إلكترونياً</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    {effectiveAllowCash && (allowInstapay || allowWallet)
+                      ? 'يمكنك الدفع كاش في العيادة أو إلكترونياً'
+                      : effectiveAllowCash
+                      ? 'الدفع نقداً عند الحضور بالعيادة'
+                      : 'يرجى إتمام التحويل الإلكتروني لتأكيد الحجز'}
+                  </p>
                 </div>
 
-                {/* 3 Payment Methods Cards */}
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('cash')}
-                    className={`p-3 rounded-2xl border-2 text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
-                      paymentMethod === 'cash'
-                        ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/50 shadow-md ring-2 ring-emerald-400/20'
-                        : 'border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-emerald-300'
-                    }`}
-                  >
-                    <Banknote className="w-5 h-5 text-emerald-600 mb-1" />
-                    <span className="text-xs font-black text-slate-900 dark:text-white">كاش بالعيادة</span>
-                    <span className="text-[9px] text-slate-400 mt-0.5">عند الحضور</span>
-                  </button>
+                {/* Payment Methods Cards */}
+                <div className={`grid ${activeMethodsCount === 3 ? 'grid-cols-3' : activeMethodsCount === 2 ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
+                  {effectiveAllowCash && (
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('cash')}
+                      className={`p-3 rounded-2xl border-2 text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
+                        paymentMethod === 'cash'
+                          ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/50 shadow-md ring-2 ring-emerald-400/20'
+                          : 'border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-emerald-300'
+                      }`}
+                    >
+                      <Banknote className="w-5 h-5 text-emerald-600 mb-1" />
+                      <span className="text-xs font-black text-slate-900 dark:text-white">كاش بالعيادة</span>
+                      <span className="text-[9px] text-slate-400 mt-0.5">عند الحضور</span>
+                    </button>
+                  )}
 
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('instapay')}
-                    className={`p-3 rounded-2xl border-2 text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
-                      paymentMethod === 'instapay'
-                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-950/50 shadow-md ring-2 ring-purple-400/20'
-                        : 'border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-purple-300'
-                    }`}
-                  >
-                    <CreditCard className="w-5 h-5 text-purple-600 mb-1" />
-                    <span className="text-xs font-black text-slate-900 dark:text-white">InstaPay</span>
-                    <span className="text-[9px] text-slate-400 mt-0.5">تحويل فوري</span>
-                  </button>
+                  {allowInstapay && (
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('instapay')}
+                      className={`p-3 rounded-2xl border-2 text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
+                        paymentMethod === 'instapay'
+                          ? 'border-purple-500 bg-purple-50 dark:bg-purple-950/50 shadow-md ring-2 ring-purple-400/20'
+                          : 'border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-purple-300'
+                      }`}
+                    >
+                      <CreditCard className="w-5 h-5 text-purple-600 mb-1" />
+                      <span className="text-xs font-black text-slate-900 dark:text-white">InstaPay</span>
+                      <span className="text-[9px] text-slate-400 mt-0.5">تحويل فوري</span>
+                    </button>
+                  )}
 
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('wallet')}
-                    className={`p-3 rounded-2xl border-2 text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
-                      paymentMethod === 'wallet'
-                        ? 'border-rose-500 bg-rose-50 dark:bg-rose-950/50 shadow-md ring-2 ring-rose-400/20'
-                        : 'border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-rose-300'
-                    }`}
-                  >
-                    <Wallet className="w-5 h-5 text-rose-600 mb-1" />
-                    <span className="text-xs font-black text-slate-900 dark:text-white">محفظة ذكية</span>
-                    <span className="text-[9px] text-slate-400 mt-0.5">كاش / محافظ</span>
-                  </button>
+                  {allowWallet && (
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('wallet')}
+                      className={`p-3 rounded-2xl border-2 text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
+                        paymentMethod === 'wallet'
+                          ? 'border-rose-500 bg-rose-50 dark:bg-rose-950/50 shadow-md ring-2 ring-rose-400/20'
+                          : 'border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-rose-300'
+                      }`}
+                    >
+                      <Wallet className="w-5 h-5 text-rose-600 mb-1" />
+                      <span className="text-xs font-black text-slate-900 dark:text-white">محفظة ذكية</span>
+                      <span className="text-[9px] text-slate-400 mt-0.5">كاش / محافظ</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* InstaPay Details Box */}
