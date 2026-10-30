@@ -33,6 +33,7 @@ export interface WhatsAppSendResult {
 }
 
 import { cleanPhoneForWhatsApp } from '@/lib/countryPhoneHelper'
+import { getClinicUrl } from '@/lib/clinic-url'
 
 /**
  * Format phone numbers to international standard digits (e.g. 201012345678, 966501234567)
@@ -217,19 +218,27 @@ function buildMessageContent(payload: WhatsAppPayload): string {
   const { type, patientName, clinicName, data } = payload
 
   switch (type) {
-    case 'BOOKING_CONFIRMED':
+    case 'BOOKING_CONFIRMED': {
+      const trackUrl = data.trackUrl || ''
+      const clinicHomepageUrl =
+        data.clinicUrl ||
+        (data.slug ? getClinicUrl(data.slug, '', data.customDomain) : '')
       return `أهلاً بحضرتك ${patientName}، تم تأكيد حجزك في عيادة ${clinicName}.
 
 الاسم: ${patientName}
 تاريخ الحجز: ${data.date || 'اليوم'}
 نوع الكشف: ${data.serviceName || 'كشف'}
-رقم الدور: ${data.queueNumber}
+رقم الدور: #${data.queueNumber}
 المبلغ المطلوب: ${data.price || 0} ج.م
 
-يمكنك متابعة دورك لحظياً من خلال الرابط:
-${data.trackUrl || ''}
+لمتابعة دورك المباشر:
+${trackUrl}
+
+موقع العيادة والحجز:
+${clinicHomepageUrl}
 
 نتمنى لك دوام الصحة والعافية.`
+    }
 
     case 'FIVE_PATIENTS_AHEAD':
       return `تنبيه من عيادة ${clinicName}

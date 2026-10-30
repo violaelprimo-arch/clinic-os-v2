@@ -5,16 +5,21 @@
 export const BASE_PLATFORM_DOMAIN = 'yalla-clinic.com'
 
 /**
- * Returns the canonical public URL for a clinic subdomain on yalla-clinic.com.
+ * Returns the canonical public URL for a clinic subdomain on yalla-clinic.com (or approved custom domain).
  * E.g.:
- *   getClinicUrl('dr-ahmed') => 'https://dr-ahmed.yalla-clinic.com'
+ *   getClinicUrl('dr-ahmed') => 'https://dr-ahmed.yalla-clinic.com/'
  *   getClinicUrl('dr-ahmed', '/track/xyz') => 'https://dr-ahmed.yalla-clinic.com/track/xyz'
- *   getClinicUrl('dr-ahmed', '/prescription/xyz') => 'https://dr-ahmed.yalla-clinic.com/prescription/xyz'
+ *   getClinicUrl('dr-ahmed', '', 'myclinic.com') => 'https://myclinic.com/'
  */
-export function getClinicUrl(slug: string, path: string = ''): string {
-  if (!slug) return `https://${BASE_PLATFORM_DOMAIN}`
-  
-  const cleanPath = path ? (path.startsWith('/') ? path : `/${path}`) : ''
+export function getClinicUrl(slug: string, path: string = '', customDomain?: string): string {
+  const cleanPath = path ? (path.startsWith('/') ? path : `/${path}`) : '/'
+
+  if (customDomain && customDomain.trim()) {
+    const cleanDomain = customDomain.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '')
+    return `https://${cleanDomain}${cleanPath}`
+  }
+
+  if (!slug) return `https://${BASE_PLATFORM_DOMAIN}${cleanPath}`
 
   // If in browser, inspect current environment
   if (typeof window !== 'undefined') {
@@ -28,8 +33,6 @@ export function getClinicUrl(slug: string, path: string = ''): string {
 
     // If currently on Cloudflare workers.dev preview
     if (host.includes('workers.dev')) {
-      // In workers.dev subdomains aren't automatically wildcard-routed by default without custom zone,
-      // but the shared link to patients is ALWAYS the official doctor link:
       return `https://${slug}.${BASE_PLATFORM_DOMAIN}${cleanPath}`
     }
   }

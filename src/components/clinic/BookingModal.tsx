@@ -21,7 +21,9 @@ import {
   CreditCard,
   Banknote,
   Wallet,
-  Copy
+  Copy,
+  Globe,
+  MessageSquare
 } from 'lucide-react'
 import { db } from '@/lib/firebase'
 import { createAtomicAppointment, removeUndefinedFields } from '@/lib/queueService'
@@ -31,6 +33,8 @@ import { createClinicNotification } from '@/lib/notificationService'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
+import { getClinicUrl } from '@/lib/clinic-url'
+import { openManualWhatsAppChat, formatBookingWhatsAppMessage } from '@/lib/whatsappShare'
 import { PatientPushNotificationManager } from '@/components/clinic/PatientPushNotificationManager'
 import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import {
@@ -806,6 +810,7 @@ export function BookingModal({
             />
 
             <div className="space-y-2 pt-2">
+              {/* Link 1: Track live queue */}
               <Link
                 href={`/clinic/${slug}/track/${bookingSuccess.appointmentId}`}
                 onClick={onClose}
@@ -814,14 +819,46 @@ export function BookingModal({
                 <span>متابعة وتتبع الدور المباشر</span>
                 <ExternalLink className="w-4 h-4" />
               </Link>
-              <Link
-                href={`/clinic/${slug}/patient`}
+
+              {/* Link 2: Clinic Public Homepage & Booking (Title: موقع العيادة والحجز) */}
+              <a
+                href={getClinicUrl(slug, '', clinic?.customDomain)}
+                target="_blank"
+                rel="noopener noreferrer"
                 onClick={onClose}
                 className="w-full py-2.5 rounded-2xl bg-white dark:bg-slate-800 border border-sky-200 dark:border-slate-700 text-sky-700 dark:text-sky-300 font-bold text-xs hover:bg-sky-50 flex items-center justify-center gap-1.5 transition-colors"
               >
-                <UserCheck className="w-4 h-4" />
-                <span>الدخول إلى بوابتي الطبية</span>
-              </Link>
+                <Globe className="w-4 h-4" />
+                <span>موقع العيادة والحجز</span>
+              </a>
+
+              {/* WhatsApp Share Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  const trackUrl = getClinicUrl(slug, `/track/${bookingSuccess.appointmentId}`, clinic?.customDomain)
+                  const clinicHomepageUrl = getClinicUrl(slug, '', clinic?.customDomain)
+                  const message = formatBookingWhatsAppMessage({
+                    clinicName: clinic?.clinicName || 'العيادة',
+                    patientName: patientName.trim(),
+                    date: bookingSuccess.date,
+                    serviceName: selectedService?.name || 'كشف',
+                    queueNumber: bookingSuccess.queueNumber,
+                    price: selectedService?.price || 0,
+                    trackUrl,
+                    clinicHomepageUrl,
+                  })
+                  openManualWhatsAppChat({
+                    phone: patientPhone,
+                    message,
+                  })
+                }}
+                className="w-full py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span>إرسال تفاصيل الحجز للمريض عبر واتساب</span>
+              </button>
+
               <button
                 type="button"
                 onClick={onClose}

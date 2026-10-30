@@ -27,6 +27,7 @@ import {
 } from '@/lib/countryPhoneHelper'
 import { ResidentialAreaSelector, ResidentialAreaValue } from '@/components/common/ResidentialAreaSelector'
 import { openManualWhatsAppChat, formatInClinicBookingWhatsAppMessage } from '@/lib/whatsappShare'
+import { getClinicUrl } from '@/lib/clinic-url'
 import { Branch } from '@/types/clinic'
 import { getClinicBranches, ensureClinicHasMainBranch } from '@/lib/branchService'
 import Link from 'next/link'
@@ -320,6 +321,7 @@ export function InClinicBookingView({
   // 4. WhatsApp & Copy Helpers
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
   const trackUrl = `${baseUrl}/clinic/${encodeURIComponent(slug)}/track`
+  const clinicHomepageUrl = getClinicUrl(slug, '', clinic?.customDomain)
   const patientPortalUrl = `${baseUrl}/clinic/${encodeURIComponent(slug)}/patient`
 
   const confirmationMessage = useMemo(() => {
@@ -331,9 +333,9 @@ export function InClinicBookingView({
       bookingDate: bookingConfirmedResult.date,
       queueNumber: bookingConfirmedResult.queueNumber,
       trackUrl,
-      patientPortalUrl
+      clinicHomepageUrl
     })
-  }, [bookingConfirmedResult, clinic?.clinicName, trackUrl, patientPortalUrl, isRtl])
+  }, [bookingConfirmedResult, clinic?.clinicName, clinic?.customDomain, slug, trackUrl, clinicHomepageUrl, isRtl])
 
   const handleOpenWhatsApp = () => {
     if (!bookingConfirmedResult?.phone) return
@@ -535,6 +537,16 @@ export function InClinicBookingView({
                 className="text-primary hover:underline font-bold flex items-center gap-1"
               >
                 <span>{isRtl ? 'فتح رابط تتبع الدور' : 'Open Live Turn Link'}</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+
+              <a
+                href={clinicHomepageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline font-bold flex items-center gap-1"
+              >
+                <span>{isRtl ? 'موقع العيادة والحجز' : 'Clinic Homepage & Booking'}</span>
                 <ExternalLink className="w-3 h-3" />
               </a>
 

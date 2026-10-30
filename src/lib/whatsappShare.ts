@@ -444,6 +444,12 @@ export function formatPaymentConfirmationWhatsAppMessage({
   return `مرحباً ${patientName}،\nتم تأكيد استلام دفعتك بنجاح في عيادة ${clinicName}:\n- المبلغ: ${amount} ج.م\n- رقم الإيصال: #${receiptNumber || '--'}\nشكراً لتعاونكم ونتمنى لكم الشفاء العاجل.`
 }
 
+/**
+ * Formats WhatsApp message for in-clinic booking.
+ * Requirements:
+ * - Link 1: Remains direct live queue tracking.
+ * - Link 2: Clinic public homepage & booking (no /patient, no /admin). Title: «موقع العيادة والحجز».
+ */
 export function formatInClinicBookingWhatsAppMessage({
   clinicName,
   serviceName,
@@ -451,6 +457,7 @@ export function formatInClinicBookingWhatsAppMessage({
   bookingDate,
   queueNumber,
   trackUrl,
+  clinicHomepageUrl,
   patientPortalUrl,
 }: {
   clinicName: string
@@ -459,22 +466,63 @@ export function formatInClinicBookingWhatsAppMessage({
   bookingDate: string
   queueNumber: number | string
   trackUrl: string
-  patientPortalUrl: string
+  clinicHomepageUrl?: string
+  patientPortalUrl?: string
 }): string {
+  const resolvedHomepage = clinicHomepageUrl || (patientPortalUrl ? patientPortalUrl.replace(/\/patient\/?$/, '') : '')
   return `أهلًا بحضرتك، تم تسجيل حجزك في ${clinicName}.
 
 الخدمة: ${serviceName}
 الفرع: ${branchName}
 التاريخ: ${bookingDate}
-رقم تذكرة الدور: ${queueNumber}
+رقم تذكرة الدور: #${queueNumber}
 
-لمتابعة دورك المباشر، افتح الرابط واكتب رقم الموبايل المسجل بالحجز:
+لمتابعة دورك المباشر:
 ${trackUrl}
 
-للدخول إلى بوابة المريض:
-${patientPortalUrl}
+موقع العيادة والحجز:
+${resolvedHomepage}
 
 ترتيب الدخول ووقت الانتظار يتحدثان حسب حركة العيادة.`
+}
+
+/**
+ * Formats standard booking confirmation WhatsApp message.
+ */
+export function formatBookingWhatsAppMessage({
+  clinicName,
+  patientName,
+  date,
+  serviceName,
+  queueNumber,
+  price,
+  trackUrl,
+  clinicHomepageUrl,
+}: {
+  clinicName: string
+  patientName: string
+  date?: string
+  serviceName?: string
+  queueNumber: number | string
+  price?: number
+  trackUrl: string
+  clinicHomepageUrl: string
+}): string {
+  return `أهلاً بحضرتك ${patientName}، تم تأكيد حجزك في عيادة ${clinicName}.
+
+الاسم: ${patientName}
+تاريخ الحجز: ${date || 'اليوم'}
+نوع الكشف: ${serviceName || 'كشف'}
+رقم الدور: #${queueNumber}
+المبلغ المطلوب: ${price || 0} ج.م
+
+لمتابعة دورك المباشر:
+${trackUrl}
+
+موقع العيادة والحجز:
+${clinicHomepageUrl}
+
+نتمنى لك دوام الصحة والعافية.`
 }
 
 

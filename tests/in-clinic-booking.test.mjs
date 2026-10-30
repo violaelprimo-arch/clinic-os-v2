@@ -17,14 +17,14 @@ test('1. WhatsApp In-Clinic Message Formatting & Arabic Digits Normalization', (
   const internationalFormatted = cleanPhoneForWhatsApp(arabicPhone, '+20')
   assert.equal(internationalFormatted, '201012345678')
 
-  // Test WhatsApp message template
+  // Test Clinic 1: el-amal (subdomain: el-amal.yalla-clinic.com)
   const clinicName = 'عيادة الأمل التخصصية'
   const serviceName = 'كشف باطنة عامة'
   const branchName = 'فرع مدينة نصر'
   const bookingDate = '2026-10-31'
   const queueNumber = 5
   const trackUrl = 'https://yalla-clinic.com/clinic/el-amal/track?phone=01012345678'
-  const patientPortalUrl = 'https://yalla-clinic.com/clinic/el-amal/patient'
+  const clinicHomepageUrl = 'https://el-amal.yalla-clinic.com/'
 
   const message = formatInClinicBookingWhatsAppMessage({
     clinicName,
@@ -33,7 +33,7 @@ test('1. WhatsApp In-Clinic Message Formatting & Arabic Digits Normalization', (
     bookingDate,
     queueNumber,
     trackUrl,
-    patientPortalUrl,
+    clinicHomepageUrl,
   })
 
   // Mandatory template strings
@@ -41,15 +41,32 @@ test('1. WhatsApp In-Clinic Message Formatting & Arabic Digits Normalization', (
   assert.ok(message.includes(`الخدمة: ${serviceName}`), 'Must include service name')
   assert.ok(message.includes(`الفرع: ${branchName}`), 'Must include branch name')
   assert.ok(message.includes(`التاريخ: ${bookingDate}`), 'Must include booking date')
-  assert.ok(message.includes(`رقم تذكرة الدور: ${queueNumber}`), 'Must include queue ticket number')
-  assert.ok(message.includes(trackUrl), 'Must include track URL')
-  assert.ok(message.includes(patientPortalUrl), 'Must include patient portal URL')
+  assert.ok(message.includes(`رقم تذكرة الدور: #${queueNumber}`), 'Must include queue ticket number')
+  assert.ok(message.includes('لمتابعة دورك المباشر:'), 'Must include title for Link 1')
+  assert.ok(message.includes(trackUrl), 'Must include track URL for Link 1')
+  assert.ok(message.includes('موقع العيادة والحجز:'), 'Must include title "موقع العيادة والحجز:" for Link 2')
+  assert.ok(message.includes(clinicHomepageUrl), 'Must include clinic homepage URL for Link 2')
+  assert.ok(!message.includes('/patient'), 'Link 2 must NOT point to /patient')
+  assert.ok(!message.includes('/admin'), 'Link 2 must NOT point to /admin')
   assert.ok(message.includes('ترتيب الدخول ووقت الانتظار يتحدثان حسب حركة العيادة'), 'Must include disclaimer')
 
   // Anti-leak check: no mock slug 'zizo' if not intended, no diagnosis or prescription
   assert.ok(!message.includes('zizo'), 'Message must not leak hardcoded clinic names')
   assert.ok(!message.includes('تشخيص'), 'Message must not contain confidential medical data')
   assert.ok(!message.includes('دواء'), 'Message must not contain prescription data')
+
+  // Test Clinic 2: Custom domain clinic (e.g. zizo or custom domain)
+  const messageCustom = formatInClinicBookingWhatsAppMessage({
+    clinicName: 'عيادة د. عبد العزيز',
+    serviceName: 'كشف استشاري',
+    branchName: 'الفرع الرئيسي',
+    bookingDate: '2026-10-31',
+    queueNumber: 12,
+    trackUrl: 'https://zizo.yalla-clinic.com/track/appt_123',
+    clinicHomepageUrl: 'https://zizo.yalla-clinic.com/',
+  })
+  assert.ok(messageCustom.includes('موقع العيادة والحجز:\nhttps://zizo.yalla-clinic.com/'), 'Must include zizo homepage for Link 2')
+  assert.ok(!messageCustom.includes('/patient'), 'Must not contain /patient')
 })
 
 test('2. Multi-member Family Phone Search Isolation', () => {
