@@ -11,7 +11,7 @@ import {
   UserX, SkipForward, FileSignature, Phone, Filter,
   Sparkles, AlertCircle, ChevronDown, ChevronUp, RefreshCw, ArrowUpDown, X, RotateCcw,
   Printer, Download, Tag, Check, Eye, Building2, Percent, FileSpreadsheet,
-  ExternalLink, Copy, Search, Tv, Ticket
+  ExternalLink, Copy, Search, Tv, Ticket, UserPlus
 } from 'lucide-react'
 import Link from 'next/link'
 import { db } from '@/lib/firebase'
@@ -1412,6 +1412,16 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
 
           {/* Toolbar on end: Service Filter + Excel Export */}
           <div className="flex items-center gap-2 self-end lg:self-auto flex-wrap">
+            {/* In-Clinic Booking Button */}
+            <Link
+              href={`/clinic/${clinic.slug}/admin/booking`}
+              className="h-10 px-3.5 text-xs font-black bg-primary text-primary-foreground hover:bg-primary/90 rounded-2xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95 shrink-0"
+              title="تسجيل حجز لمريض حضر للعيادة وإدراجه فوراً في طابور اليوم"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>الحجز داخل العيادة 🎟️</span>
+            </Link>
+
             {/* Shift Closing Reconciliation Button */}
             {isFinanceEnabled && (
               <Button

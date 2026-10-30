@@ -171,14 +171,20 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
     )
   }
 
+  const nowCairo = new Date()
+  const todayCairoStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(nowCairo)
+  const apptDateStr = appointment.date || todayCairoStr
+  const isFuture = apptDateStr > todayCairoStr
+  const isPast = apptDateStr < todayCairoStr
+
   const isCompleted = liveQueue.status === 'completed' || appointment.status === 'completed'
   const isExaminingNow =
-    !isCompleted &&
+    !isFuture && !isPast && !isCompleted &&
     (appointment.status === 'in_progress' ||
       (liveQueue.currentPatientExamining?.queueNumber &&
         Number(liveQueue.currentPatientExamining.queueNumber) === Number(appointment.queue_number)))
-  const isCurrentTurn = !isExaminingNow && !isCompleted && liveQueue.isCurrentTurn
-  const isNextInLine = !isExaminingNow && !isCompleted && liveQueue.isNextInLine
+  const isCurrentTurn = !isFuture && !isPast && !isExaminingNow && !isCompleted && liveQueue.isCurrentTurn
+  const isNextInLine = !isFuture && !isPast && !isExaminingNow && !isCompleted && liveQueue.isNextInLine
   const isSkippedOrNoShow = liveQueue.status === 'skipped' || liveQueue.status === 'no_show'
   const isCancelled = liveQueue.status === 'cancelled'
 
@@ -258,6 +264,33 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
                 تذكرة رقم #{appointment.queue_number}
               </span>
             </div>
+          </div>
+        ) : isFuture ? (
+          <div className="p-6 rounded-3xl bg-blue-500/10 border-2 border-blue-500/30 text-center space-y-3">
+            <Calendar className="w-16 h-16 text-blue-600 dark:text-blue-400 mx-auto" />
+            <h3 className="text-xl font-black text-blue-700 dark:text-blue-400">
+              {isRtl ? `موعد قادم مؤكد يوم ${appointment.date}` : `Upcoming Confirmed Appointment: ${appointment.date}`}
+            </h3>
+            <p className="text-xs text-muted-foreground font-medium leading-relaxed">
+              {isRtl
+                ? 'حجزك مسجل ومعتمد في العيادة. يبدأ تتبع الدور المباشر وحساب المرضى المتواجدين في يوم موعد الكشف.'
+                : 'Your appointment is confirmed. Live queue tracking and wait time will activate on the day of your visit.'}
+            </p>
+            <div className="pt-1">
+              <span className="px-3.5 py-1.5 rounded-full bg-blue-600 text-white text-xs font-black font-mono">
+                تذكرة رقم #{appointment.queue_number}
+              </span>
+            </div>
+          </div>
+        ) : isPast ? (
+          <div className="p-6 rounded-3xl bg-muted/40 border border-border text-center space-y-3">
+            <Clock className="w-12 h-12 text-muted-foreground mx-auto" />
+            <h3 className="text-lg font-black text-foreground">
+              {isRtl ? `حجز سابق منتهي (${appointment.date})` : `Past Appointment (${appointment.date})`}
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              {isRtl ? 'هذا الحجز مسجل بتاريخ سابق في العيادة.' : 'This appointment was scheduled for a past date.'}
+            </p>
           </div>
         ) : isExaminingNow ? (
           <div className="p-6 rounded-3xl bg-sky-500/15 border-2 border-sky-500 text-center space-y-3 animate-pulse shadow-xl shadow-sky-500/20">

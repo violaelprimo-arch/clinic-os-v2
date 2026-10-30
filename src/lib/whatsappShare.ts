@@ -444,3 +444,37 @@ export function formatPaymentConfirmationWhatsAppMessage({
   return `مرحباً ${patientName}،\nتم تأكيد استلام دفعتك بنجاح في عيادة ${clinicName}:\n- المبلغ: ${amount} ج.م\n- رقم الإيصال: #${receiptNumber || '--'}\nشكراً لتعاونكم ونتمنى لكم الشفاء العاجل.`
 }
 
+export function formatInClinicBookingWhatsAppMessage({
+  clinicName,
+  serviceName,
+  branchName,
+  bookingDate,
+  queueNumber,
+  trackUrl,
+  patientPortalUrl,
+}: {
+  clinicName: string
+  serviceName: string
+  branchName: string
+  bookingDate: string
+  queueNumber: number | string
+  trackUrl: string
+  patientPortalUrl: string
+}): string {
+  return `أهلًا بحضرتك، تم تسجيل حجزك في ${clinicName}.
+
+الخدمة: ${serviceName}
+الفرع: ${branchName}
+التاريخ: ${bookingDate}
+رقم تذكرة الدور: ${queueNumber}
+
+لمتابعة دورك المباشر، افتح الرابط واكتب رقم الموبايل المسجل بالحجز:
+${trackUrl}
+
+للدخول إلى بوابة المريض:
+${patientPortalUrl}
+
+ترتيب الدخول ووقت الانتظار يتحدثان حسب حركة العيادة.`
+}
+
+

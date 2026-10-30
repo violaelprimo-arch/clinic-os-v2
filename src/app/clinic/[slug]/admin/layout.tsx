@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 import {
   FileText, Users, DollarSign, Calendar, Settings, Bot,
   LogOut, Receipt, Pill, Bell, Search, ExternalLink, Menu,
-  X, CheckCircle, ChevronLeft, User, Building2, Sparkles, Clock, Crown, Tv, BarChart3
+  X, CheckCircle, ChevronLeft, User, Building2, Sparkles, Clock, Crown, Tv, BarChart3, UserPlus
 } from 'lucide-react'
 import { db, auth } from '@/lib/firebase'
 import { collection, query, where, onSnapshot, doc } from 'firebase/firestore'
@@ -256,6 +256,13 @@ export default function AdminLayout({
       badge: t('live', 'مباشر')
     },
     {
+      id: 'in-clinic-booking',
+      name: t('nav_in_clinic_booking', 'الحجز داخل العيادة'),
+      href: `/clinic/${slug}/admin/booking`,
+      icon: UserPlus,
+      badge: t('badge_in_clinic', 'استقبال')
+    },
+    {
       id: 'waiting-tv',
       name: t('nav_tv_screen', 'شاشة الانتظار (TV)'),
       href: `/clinic/${slug}/tv`,
@@ -380,6 +387,9 @@ export default function AdminLayout({
     if (role === 'doctor') return true
     if (role === 'assistant') {
       if (item.id === 'packages' || item.id === 'branches') return false
+      if (item.id === 'in-clinic-booking') {
+        return assistantPermissions.includes('appointments') || assistantPermissions.includes('in-clinic-booking')
+      }
       if (item.id === 'analytics') {
         return assistantPermissions.includes('analytics') || assistantPermissions.includes('appointments') || assistantPermissions.includes('finance')
       }
@@ -391,6 +401,9 @@ export default function AdminLayout({
   // Quick bottom nav shortcuts for mobile
   const bottomNavItems = [
     { id: 'dashboard', name: t('nav_queue', 'الرئيسية'), href: `/clinic/${slug}/admin`, icon: Calendar },
+    ...(role === 'doctor' || assistantPermissions.includes('appointments') || assistantPermissions.includes('in-clinic-booking')
+      ? [{ id: 'in-clinic-booking', name: t('nav_in_clinic_booking', 'الحجز'), href: `/clinic/${slug}/admin/booking`, icon: UserPlus }]
+      : []),
     ...(role === 'doctor' || assistantPermissions.includes('patients')
       ? [{ id: 'patients', name: t('nav_patients', 'المرضى'), href: `/clinic/${slug}/admin/patients`, icon: Users }]
       : []),
