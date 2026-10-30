@@ -205,6 +205,22 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     )
   }, [bookings])
 
+  // Active daily bookings count (excluding cancelled)
+  const activeBookingsCount = useMemo(() => {
+    return branchFilteredAppointments.filter((d: any) => d.status !== 'cancelled').length
+  }, [branchFilteredAppointments])
+
+  // Resolve daily limit based on selected branch or clinic settings
+  const effectiveMaxDailyBookings = useMemo(() => {
+    if (selectedBranchId && selectedBranchId !== 'all') {
+      const bObj = branches.find(b => b.id === selectedBranchId)
+      if (bObj && bObj.maxDailyBookings) return Number(bObj.maxDailyBookings) || 0
+    }
+    return Number(clinic?.maxDailyBookings) || 0
+  }, [selectedBranchId, branches, clinic?.maxDailyBookings])
+
+  const isCapacityFull = effectiveMaxDailyBookings > 0 && activeBookingsCount >= effectiveMaxDailyBookings
+
   // Dynamic Average Visit Duration: strictly isolated per branch
   const dynamicAverageVisitTime = useMemo(() => {
     const completedWithDuration = branchFilteredAppointments.filter(
@@ -917,6 +933,28 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
             </span>
           )}
         </div>
+
+        {/* Dynamic Daily Booking Capacity Indicator */}
+        {effectiveMaxDailyBookings > 0 && (
+          <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border shadow-2xs self-start md:self-auto ${
+            isCapacityFull
+              ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300'
+              : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'
+          }`}>
+            <Users className="w-4 h-4 shrink-0" />
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold">الحجوزات اليوم:</span>
+              <span className="text-xs font-black font-mono px-2 py-0.5 rounded-md bg-white/70 dark:bg-black/40 border border-current/20">
+                {activeBookingsCount} / {effectiveMaxDailyBookings}
+              </span>
+              <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
+                isCapacityFull ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'
+              }`}>
+                الحالة: {isCapacityFull ? 'مكتمل' : 'متاح'}
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Dynamic Average Consultation Duration Banner */}
         <div className="flex items-center gap-2.5 px-3.5 py-1.5 bg-card border border-border rounded-xl shadow-2xs self-start md:self-auto">

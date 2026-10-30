@@ -448,8 +448,9 @@ export function BookingForm({
         createdAt: new Date().toISOString()
       }
 
+      const maxLimit = Number(selectedBranch?.maxDailyBookings || clinic?.maxDailyBookings) || 0
       // Atomically allocate next sequential queue number with zero concurrency collisions
-      const { id: newApptId, queueNumber: allocatedQueueNumber } = await createAtomicAppointment(newAppt)
+      const { id: newApptId, queueNumber: allocatedQueueNumber } = await createAtomicAppointment(newAppt, maxLimit)
       const docRef = { id: newApptId }
       const myQueueNumber = allocatedQueueNumber
 
@@ -489,9 +490,13 @@ export function BookingForm({
           ? `تم تسجيل حجزك بنجاح! دورك: #${myQueueNumber} (سيتم مراجعة وتأكيد الدفع من إدارة الفرع)`
           : `تم تسجيل حجزك بنجاح! دورك: #${myQueueNumber}`
       )
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating appointment:', error)
-      toast.error('حدث خطأ أثناء إتمام الحجز، يرجى المحاولة ثانيةً.')
+      if (error?.message?.includes('QUOTA_EXCEEDED')) {
+        toast.error('اكتمل عدد الحجوزات المتاحة لهذا اليوم. برجاء اختيار موعد آخر.')
+      } else {
+        toast.error('حدث خطأ أثناء إتمام الحجز، يرجى المحاولة ثانيةً.')
+      }
     } finally {
       setIsBooking(false)
     }

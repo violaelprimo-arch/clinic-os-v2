@@ -5,6 +5,12 @@ import {
   Save,
   Plus,
   Trash2,
+  Orbit,
+  Maximize2,
+  Minimize2,
+  Copy,
+  RotateCcw,
+  Palette,
   Monitor,
   Smartphone,
   Tablet,
@@ -55,7 +61,11 @@ import {
   type StatItem,
   type LandingInquiryItem,
   type TrialRequestItem,
+  type OrbitCardItem,
+  DEFAULT_ORBIT_CARDS,
 } from '@/lib/landing-config'
+import { db } from '@/lib/firebase'
+import { collection, getDocs } from 'firebase/firestore'
 import {
   getLandingPageConfig,
   saveLandingPageConfig,
@@ -102,15 +112,19 @@ function LivePreview({
   config,
   initialDevice = 'desktop',
   onSelectSection,
+  isDirty = false,
 }: {
   config: LandingPageConfig
   initialDevice?: 'desktop' | 'tablet' | 'mobile'
   onSelectSection?: (sectionId: string) => void
+  isDirty?: boolean
 }) {
   const frame = useRef<HTMLIFrameElement>(null)
+  const fullscreenFrame = useRef<HTMLIFrameElement>(null)
   const box = useRef<HTMLDivElement>(null)
   const [device, setDevice] = useState<'desktop' | 'tablet' | 'mobile'>(initialDevice)
   const [width, setWidth] = useState(700)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   const target = device === 'desktop' ? 1280 : device === 'tablet' ? 768 : 390
   const previewHeight = device === 'desktop' ? 850 : device === 'tablet' ? 850 : 720
@@ -118,6 +132,10 @@ function LivePreview({
 
   const send = () => {
     frame.current?.contentWindow?.postMessage(
+      { type: 'landing-draft', config },
+      location.origin
+    )
+    fullscreenFrame.current?.contentWindow?.postMessage(
       { type: 'landing-draft', config },
       location.origin
     )
@@ -201,14 +219,38 @@ function LivePreview({
             </button>
           </div>
 
+          {isDirty ? (
+            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-[11px] font-bold">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+              <span>مسودة غير محفوظة</span>
+            </span>
+          ) : (
+            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[11px] font-bold">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              <span>منشور ومحدث</span>
+            </span>
+          )}
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsFullscreen(true)}
+            title="معاينة في وضع ملء الشاشة"
+            className="flex items-center gap-1 text-xs"
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
+            <span>ملء الشاشة</span>
+          </Button>
+
           <Button
             variant="outline"
             size="sm"
             onClick={() => window.open('/landing-preview', '_blank')}
             title="فتح المعاينة في نافذة جديدة"
+            className="flex items-center gap-1 text-xs"
           >
-            <ExternalLink className="h-4 w-4" />
-            نافذة جديدة
+            <ExternalLink className="h-3.5 w-3.5" />
+            <span>نافذة جديدة</span>
           </Button>
         </div>
       </div>
@@ -238,6 +280,95 @@ function LivePreview({
           />
         </div>
       </div>
+
+      {/* Fullscreen Modal Preview Overlay */}
+      {isFullscreen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex flex-col p-4 sm:p-6 animate-in fade-in duration-200">
+          <div className="flex items-center justify-between pb-4 border-b border-white/10 text-white">
+            <div className="flex items-center gap-3">
+              <h3 className="text-sm font-black flex items-center gap-2">
+                <Monitor className="w-4 h-4 text-sky-400" />
+                <span>معاينة حية بملء الشاشة</span>
+              </h3>
+              {isDirty ? (
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-bold">
+                  مسودة لحظية
+                </span>
+              ) : (
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold">
+                  منشور
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="flex rounded-xl bg-slate-900 border border-white/10 p-1">
+                <button
+                  type="button"
+                  onClick={() => setDevice('desktop')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors ${
+                    device === 'desktop' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Monitor className="w-3.5 h-3.5" />
+                  <span>كمبيوتر</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDevice('tablet')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors ${
+                    device === 'tablet' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Tablet className="w-3.5 h-3.5" />
+                  <span>تابلت</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDevice('mobile')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors ${
+                    device === 'mobile' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Smartphone className="w-3.5 h-3.5" />
+                  <span>موبايل</span>
+                </button>
+              </div>
+
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setIsFullscreen(false)}
+                className="flex items-center gap-1 font-bold text-xs"
+              >
+                <Minimize2 className="h-3.5 w-3.5" />
+                <span>إغلاق ملء الشاشة</span>
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex-1 w-full flex items-center justify-center p-4 overflow-auto">
+            <div
+              dir="ltr"
+              className="relative overflow-hidden rounded-2xl border-2 border-slate-700 bg-background shadow-2xl transition-all duration-200"
+              style={{
+                width: device === 'desktop' ? '100%' : device === 'tablet' ? 768 : 390,
+                maxWidth: '100%',
+                height: '100%',
+                maxHeight: '90vh',
+              }}
+            >
+              <iframe
+                ref={fullscreenFrame}
+                src="/landing-preview"
+                title="معاينة ملء الشاشة"
+                onLoad={send}
+                className="w-full h-full border-0 bg-background"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   )
 }
@@ -246,6 +377,7 @@ const cmsTabs = [
   ['order', 'ترتيب الأقسام والظهور', Layout],
   ['theme', 'المظهر العام والحركة', Sparkles],
   ['hero', 'القسم الرئيسي Hero', Monitor],
+  ['orbit', 'المشهد التفاعلي 3D Orbit', Orbit],
   ['gallery', 'معرض صور النظام', ImageIcon],
   ['features', 'مميزات المنصة', Layers],
   ['steps', 'خطوات الاستخدام', Rocket],
@@ -274,6 +406,14 @@ export function LandingPageManager() {
   const [trials, setTrials] = useState<TrialRequestItem[]>([])
 
   const isDirty = loaded && savedJson !== JSON.stringify(config)
+
+  // Real-time draft persistence for WYSIWYG preview across tabs
+  useEffect(() => {
+    if (!loaded) return
+    try {
+      localStorage.setItem('yalla_landing_draft', JSON.stringify(config))
+    } catch {}
+  }, [config, loaded])
 
   const setConfigField = <K extends keyof LandingPageConfig>(key: K, value: LandingPageConfig[K]) => {
     setConfig((prev) => ({ ...prev, [key]: value }))
@@ -607,6 +747,118 @@ export function LandingPageManager() {
                 </select>
               </div>
 
+              {/* Custom Primary Color & Custom Glow Color */}
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-3">
+                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
+                  تخصيص الألوان بدقة (Custom Hex Color Tokens)
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <span className="block text-[11px] font-bold text-slate-500 mb-1">اللون الأساسي المخصص</span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={config.themeSettings?.customPrimaryColor || '#0066dc'}
+                        onChange={(e) => {
+                          setConfig((prev) => ({
+                            ...prev,
+                            themeSettings: { ...prev.themeSettings, customPrimaryColor: e.target.value },
+                          }))
+                        }}
+                        className="w-7 h-7 rounded-lg cursor-pointer border-0 p-0"
+                      />
+                      <input
+                        type="text"
+                        dir="ltr"
+                        placeholder="#0066dc"
+                        value={config.themeSettings?.customPrimaryColor || ''}
+                        onChange={(e) => {
+                          setConfig((prev) => ({
+                            ...prev,
+                            themeSettings: { ...prev.themeSettings, customPrimaryColor: e.target.value },
+                          }))
+                        }}
+                        className="flex-1 px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="block text-[11px] font-bold text-slate-500 mb-1">لون التوهج والإضاءة</span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={config.themeSettings?.customGlowColor || '#38bdf8'}
+                        onChange={(e) => {
+                          setConfig((prev) => ({
+                            ...prev,
+                            themeSettings: { ...prev.themeSettings, customGlowColor: e.target.value },
+                          }))
+                        }}
+                        className="w-7 h-7 rounded-lg cursor-pointer border-0 p-0"
+                      />
+                      <input
+                        type="text"
+                        dir="ltr"
+                        placeholder="#38bdf8"
+                        value={config.themeSettings?.customGlowColor || ''}
+                        onChange={(e) => {
+                          setConfig((prev) => ({
+                            ...prev,
+                            themeSettings: { ...prev.themeSettings, customGlowColor: e.target.value },
+                          }))
+                        }}
+                        className="flex-1 px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3D Orbit Rotation Speed */}
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2">
+                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
+                  سرعة دوران المشهد التفاعلي (Orbit Rotation Speed)
+                </label>
+                <select
+                  value={config.themeSettings?.orbitRotationSpeed || 'normal'}
+                  onChange={(e) => {
+                    const val = e.target.value as any
+                    setConfig((prev) => ({
+                      ...prev,
+                      themeSettings: { ...prev.themeSettings, orbitRotationSpeed: val },
+                    }))
+                  }}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border text-xs"
+                >
+                  <option value="slow">دوران بطيء وهادئ (10 ثوانٍ)</option>
+                  <option value="normal">دوران متوازن طبيعي (6 ثوانٍ) — الافتراضي</option>
+                  <option value="fast">دوران سريع وتفاعلي (4 ثوانٍ)</option>
+                </select>
+              </div>
+
+              {/* Card Glow Intensity */}
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2">
+                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
+                  شدة توهج البطاقات (Card Glow Intensity)
+                </label>
+                <select
+                  value={config.themeSettings?.cardGlowIntensity || 'medium'}
+                  onChange={(e) => {
+                    const val = e.target.value as any
+                    setConfig((prev) => ({
+                      ...prev,
+                      themeSettings: { ...prev.themeSettings, cardGlowIntensity: val },
+                    }))
+                  }}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border text-xs"
+                >
+                  <option value="subtle">توهج خافت وناعم (Subtle)</option>
+                  <option value="medium">توهج متوازن وأنيق (Medium)</option>
+                  <option value="intense">توهج نيون بارز وعميق (Intense)</option>
+                </select>
+              </div>
+
               {/* 3D Tilt Toggle */}
               <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
                 <div>
@@ -881,6 +1133,432 @@ export function LandingPageManager() {
                   dir="ltr"
                 />
               </div>
+            </div>
+          </section>
+        )}
+
+        {/* TAB: ORBIT 3D SCENE CMS */}
+        {activeTab === 'orbit' && (
+          <section className="p-6 rounded-3xl bg-white dark:bg-[#081526] border border-sky-100 dark:border-slate-800 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <Orbit className="w-5 h-5 text-sky-600" />
+                  <span>إدارة المشهد التفاعلي ثلاثي الأبعاد (Orbit 3D Scene Manager)</span>
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  تحكم كامل في بطاقات المشهد الدوار في قسم Hero: العناوين، الأوصاف، الأيقونات، الألوان الأساسية ولون التوهج، والبطاقة النشطة افتراضياً.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (confirm('هل أنت متأكد من استعادة بطاقات المشهد الافتراضية؟')) {
+                      setConfigField('orbitCards', structuredClone(DEFAULT_ORBIT_CARDS))
+                      toast.success('تمت استعادة بطاقات المشهد الافتراضية بنجاح')
+                    }
+                  }}
+                  className="text-xs font-bold"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 ml-1" />
+                  <span>استعادة الافتراضي</span>
+                </Button>
+
+                <Button
+                  type="button"
+                  onClick={() => {
+                    const newCard: OrbitCardItem = {
+                      id: 'orbit_' + Date.now(),
+                      title: 'بطاقة تفاعلية جديدة',
+                      titleEn: 'New Orbit Card',
+                      subtitle: 'الميزة السحابية',
+                      subtitleEn: 'Cloud Feature',
+                      description: 'وصف مختصر لأهمية الميزة في تسريع عمل العيادة وتنظيم العمل الطبي.',
+                      descriptionEn: 'Brief description of the feature workflow.',
+                      iconName: 'Sparkles',
+                      cardColor: '#0284c7',
+                      glowColor: '#38bdf8',
+                      textColor: '#ffffff',
+                      buttonText: 'استكشف الميزة',
+                      buttonTextEn: 'Explore',
+                      buttonLink: '#features',
+                      visible: true,
+                      isDefaultActive: false,
+                      order: (config.orbitCards || []).length + 1,
+                    }
+                    setConfigField('orbitCards', [...(config.orbitCards || DEFAULT_ORBIT_CARDS), newCard])
+                    toast.success('تمت إضافة بطاقة مدارية جديدة')
+                  }}
+                  className="rounded-xl bg-sky-600 text-white font-bold text-xs"
+                >
+                  <Plus className="w-4 h-4 ml-1" />
+                  <span>إضافة بطاقة جديدة</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Orbit Cards Grid */}
+            <div className="space-y-4">
+              {(config.orbitCards && config.orbitCards.length > 0 ? config.orbitCards : DEFAULT_ORBIT_CARDS).map((card, idx, allCards) => {
+                const isFirst = idx === 0
+                const isLast = idx === allCards.length - 1
+
+                return (
+                  <div
+                    key={card.id || idx}
+                    className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 space-y-4"
+                  >
+                    {/* Header bar */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200/80 dark:border-slate-700">
+                      <div className="flex items-center gap-3">
+                        <span className="w-7 h-7 rounded-lg bg-sky-100 dark:bg-sky-950 text-sky-600 dark:text-sky-400 font-mono font-bold text-xs flex items-center justify-center">
+                          #{idx + 1}
+                        </span>
+                        <div
+                          className="w-4 h-4 rounded-full border border-white shadow-xs"
+                          style={{ backgroundColor: card.cardColor || '#0284c7' }}
+                          title="لون البطاقة"
+                        />
+                        <strong className="text-sm font-black text-slate-900 dark:text-white">
+                          {card.title || 'بدون عنوان'}
+                        </strong>
+                        {card.isDefaultActive && (
+                          <span className="px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-[10px] font-black">
+                            ★ النشطة افتراضياً
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {/* Reorder */}
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            disabled={isFirst}
+                            onClick={() => {
+                              const cards = [...(config.orbitCards || DEFAULT_ORBIT_CARDS)]
+                              const temp = cards[idx]
+                              cards[idx] = cards[idx - 1]
+                              cards[idx - 1] = temp
+                              setConfigField('orbitCards', cards)
+                            }}
+                            className="p-1.5 rounded-lg border bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed text-slate-600 dark:text-slate-300"
+                            title="تقديم للأعلى"
+                          >
+                            <ArrowUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isLast}
+                            onClick={() => {
+                              const cards = [...(config.orbitCards || DEFAULT_ORBIT_CARDS)]
+                              const temp = cards[idx]
+                              cards[idx] = cards[idx + 1]
+                              cards[idx + 1] = temp
+                              setConfigField('orbitCards', cards)
+                            }}
+                            className="p-1.5 rounded-lg border bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed text-slate-600 dark:text-slate-300"
+                            title="تأخير للأسفل"
+                          >
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Duplicate */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const cards = [...(config.orbitCards || DEFAULT_ORBIT_CARDS)]
+                            const cloned: OrbitCardItem = {
+                              ...structuredClone(card),
+                              id: 'orbit_' + Date.now(),
+                              title: `${card.title} (نسخة)`,
+                              titleEn: `${card.titleEn || ''} (Copy)`,
+                              isDefaultActive: false,
+                            }
+                            cards.splice(idx + 1, 0, cloned)
+                            setConfigField('orbitCards', cards)
+                            toast.success('تم تكرار البطاقة')
+                          }}
+                          className="p-1.5 rounded-lg border bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300"
+                          title="تكرار البطاقة"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Delete */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const cards = [...(config.orbitCards || DEFAULT_ORBIT_CARDS)]
+                            if (cards.length <= 1) {
+                              toast.error('يجب الإبقاء على بطاقة واحدة على الأقل في المشهد')
+                              return
+                            }
+                            setConfigField('orbitCards', cards.filter((_, i) => i !== idx))
+                            toast.info('تم حذف البطاقة')
+                          }}
+                          className="p-1.5 rounded-lg border border-rose-200 dark:border-rose-900 bg-white dark:bg-slate-900 hover:bg-rose-50 dark:hover:bg-rose-950 text-rose-600"
+                          title="حذف البطاقة"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Visibility Switch */}
+                        <div className="flex items-center gap-1.5 pr-2 border-r border-slate-200 dark:border-slate-700">
+                          <Switch
+                            checked={card.visible !== false}
+                            onCheckedChange={(checked) => {
+                              const cards = [...(config.orbitCards || DEFAULT_ORBIT_CARDS)]
+                              cards[idx].visible = checked
+                              setConfigField('orbitCards', cards)
+                            }}
+                          />
+                          <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                            {card.visible !== false ? 'مفعلة' : 'معطلة'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Fields Form */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                          العنوان بالعربية
+                        </label>
+                        <input
+                          type="text"
+                          value={card.title || ''}
+                          onChange={(e) => {
+                            const cards = [...(config.orbitCards || DEFAULT_ORBIT_CARDS)]
+                            cards[idx].title = e.target.value
+                            setConfigField('orbitCards', cards)
+                          }}
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs font-bold"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                          العنوان بالإنجليزية (EN)
+                        </label>
+                        <input
+                          type="text"
+                          dir="ltr"
+                          value={card.titleEn || ''}
+                          onChange={(e) => {
+                            const cards = [...(config.orbitCards || DEFAULT_ORBIT_CARDS)]
+                            cards[idx].titleEn = e.target.value
+                            setConfigField('orbitCards', cards)
+                          }}
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                          العنوان الفرعي (AR)
+                        </label>
+                        <input
+                          type="text"
+                          value={card.subtitle || ''}
+                          onChange={(e) => {
+                            const cards = [...(config.orbitCards || DEFAULT_ORBIT_CARDS)]
+                            cards[idx].subtitle = e.target.value
+                            setConfigField('orbitCards', cards)
+                          }}
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                          العنوان الفرعي (EN)
+                        </label>
+                        <input
+                          type="text"
+                          dir="ltr"
+                          value={card.subtitleEn || ''}
+                          onChange={(e) => {
+                            const cards = [...(config.orbitCards || DEFAULT_ORBIT_CARDS)]
+                            cards[idx].subtitleEn = e.target.value
+                            setConfigField('orbitCards', cards)
+                          }}
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                          الوصف المختصر (AR)
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={card.description || ''}
+                          onChange={(e) => {
+                            const cards = [...(config.orbitCards || DEFAULT_ORBIT_CARDS)]
+                            cards[idx].description = e.target.value
+                            setConfigField('orbitCards', cards)
+                          }}
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs leading-relaxed"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                          الوصف المختصر (EN)
+                        </label>
+                        <textarea
+                          rows={2}
+                          dir="ltr"
+                          value={card.descriptionEn || ''}
+                          onChange={(e) => {
+                            const cards = [...(config.orbitCards || DEFAULT_ORBIT_CARDS)]
+                            cards[idx].descriptionEn = e.target.value
+                            setConfigField('orbitCards', cards)
+                          }}
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs leading-relaxed"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Icon, Colors, Action Link */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                          الأيقونة
+                        </label>
+                        <select
+                          value={card.iconName || 'Sparkles'}
+                          onChange={(e) => {
+                            const cards = [...(config.orbitCards || DEFAULT_ORBIT_CARDS)]
+                            cards[idx].iconName = e.target.value
+                            setConfigField('orbitCards', cards)
+                          }}
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs"
+                        >
+                          <option value="Calendar">تقويم الحجز (Calendar)</option>
+                          <option value="FileSignature">الروشتة والتشخيص (FileSignature)</option>
+                          <option value="Database">الملف الطبي EMR (Database)</option>
+                          <option value="Tv">شاشة الانتظار TV (Tv)</option>
+                          <option value="Activity">التقارير والمؤشرات (Activity)</option>
+                          <option value="Stethoscope">سماعة طبيب (Stethoscope)</option>
+                          <option value="ShieldCheck">أمان واعتماد (ShieldCheck)</option>
+                          <option value="TrendingUp">نمو وإيرادات (TrendingUp)</option>
+                          <option value="Sparkles">بريق وذكاء (Sparkles)</option>
+                          <option value="Clock">وقت ومواعيد (Clock)</option>
+                          <option value="CreditCard">فواتير ودفع (CreditCard)</option>
+                          <option value="Users">طاقم واستقبال (Users)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                          لون البطاقة الأساسي
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={card.cardColor || '#0284c7'}
+                            onChange={(e) => {
+                              const cards = [...(config.orbitCards || DEFAULT_ORBIT_CARDS)]
+                              cards[idx].cardColor = e.target.value
+                              setConfigField('orbitCards', cards)
+                            }}
+                            className="w-8 h-8 rounded-lg cursor-pointer border-0 p-0"
+                          />
+                          <input
+                            type="text"
+                            dir="ltr"
+                            value={card.cardColor || '#0284c7'}
+                            onChange={(e) => {
+                              const cards = [...(config.orbitCards || DEFAULT_ORBIT_CARDS)]
+                              cards[idx].cardColor = e.target.value
+                              setConfigField('orbitCards', cards)
+                            }}
+                            className="flex-1 px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border text-xs font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                          لون التوهج والنيون
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={card.glowColor || '#38bdf8'}
+                            onChange={(e) => {
+                              const cards = [...(config.orbitCards || DEFAULT_ORBIT_CARDS)]
+                              cards[idx].glowColor = e.target.value
+                              setConfigField('orbitCards', cards)
+                            }}
+                            className="w-8 h-8 rounded-lg cursor-pointer border-0 p-0"
+                          />
+                          <input
+                            type="text"
+                            dir="ltr"
+                            value={card.glowColor || '#38bdf8'}
+                            onChange={(e) => {
+                              const cards = [...(config.orbitCards || DEFAULT_ORBIT_CARDS)]
+                              cards[idx].glowColor = e.target.value
+                              setConfigField('orbitCards', cards)
+                            }}
+                            className="flex-1 px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border text-xs font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                          رابط زر الإجراء
+                        </label>
+                        <input
+                          type="text"
+                          dir="ltr"
+                          placeholder="#hero أو #features"
+                          value={card.buttonLink || '#hero'}
+                          onChange={(e) => {
+                            const cards = [...(config.orbitCards || DEFAULT_ORBIT_CARDS)]
+                            cards[idx].buttonLink = e.target.value
+                            setConfigField('orbitCards', cards)
+                          }}
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Bottom row: Default Active selector */}
+                    <div className="flex items-center justify-between pt-2">
+                      <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="default_active_orbit_card"
+                          checked={Boolean(card.isDefaultActive)}
+                          onChange={() => {
+                            const cards = (config.orbitCards || DEFAULT_ORBIT_CARDS).map((c, i) => ({
+                              ...c,
+                              isDefaultActive: i === idx,
+                            }))
+                            setConfigField('orbitCards', cards)
+                            toast.success(`تم تعيين "${card.title}" كبطاقة نشطة افتراضياً`)
+                          }}
+                          className="w-4 h-4 text-sky-600"
+                        />
+                        <span>تعيين كبطاقة نشطة أولية عند تحميل المشهد</span>
+                      </label>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </section>
         )}
@@ -1271,64 +1949,356 @@ export function LandingPageManager() {
           </section>
         )}
 
-        {/* TAB 5: HOW IT WORKS STEPS */}
+        {/* TAB 5: DYNAMIC STEPS BUILDER (HOW IT WORKS) */}
         {activeTab === 'steps' && (
           <section className="p-6 rounded-3xl bg-white dark:bg-[#081526] border border-sky-100 dark:border-slate-800 shadow-sm space-y-5">
-            <h3 className="text-base font-black text-slate-900 dark:text-white">
-              خطوات بدء الاستخدام (How It Works)
-            </h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <Rocket className="w-5 h-5 text-sky-600" />
+                  <span>خطوات بدء الاستخدام (How It Works Dynamic Builder)</span>
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  بناء خطوات مرن يقبل أي عدد من الخطوات (3 أو 4 أو 5 أو 6+) مع ترقيم تلقائي ذكي وتكيف تلقائي في العرض.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (confirm('هل أنت متأكد من استعادة خطوات الاستخدام الافتراضية؟')) {
+                      setConfigField('steps', structuredClone(DEFAULT_LANDING_CONFIG.steps))
+                      toast.success('تمت استعادة الخطوات الافتراضية')
+                    }
+                  }}
+                  className="text-xs font-bold"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 ml-1" />
+                  <span>استعادة الافتراضي</span>
+                </Button>
+
+                <Button
+                  type="button"
+                  onClick={() => {
+                    const newStep: StepItem = {
+                      id: 'step_' + Date.now(),
+                      number: (config.steps || []).length + 1,
+                      title: 'خطوة جديدة',
+                      titleEn: 'New Step',
+                      description: 'شرح مختصر لما يتم في هذه الخطوة لتهيئة وتشغيل العيادة.',
+                      descriptionEn: 'Brief explanation of this setup step.',
+                      iconName: 'Sparkles',
+                      color: '#0284c7',
+                      visible: true,
+                    }
+                    setConfigField('steps', [...(config.steps || []), newStep])
+                    toast.success('تمت إضافة خطوة جديدة')
+                  }}
+                  className="rounded-xl bg-sky-600 text-white font-bold text-xs"
+                >
+                  <Plus className="w-4 h-4 ml-1" />
+                  <span>إضافة خطوة</span>
+                </Button>
+              </div>
+            </div>
 
             <div className="space-y-4">
-              {config.steps.map((st, idx) => (
-                <div key={st.id || idx} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border space-y-3">
-                  <span className="text-xs font-bold text-sky-600 font-mono">
-                    الخطوة 0{st.number || idx + 1}
-                  </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-500 mb-1">العنوان</label>
-                      <input
-                        type="text"
-                        value={st.title}
-                        onChange={(e) => {
-                          const arr = [...config.steps]
-                          arr[idx].title = e.target.value
-                          setConfigField('steps', arr)
-                        }}
-                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs"
-                      />
+              {(config.steps || []).map((st, idx, allSteps) => {
+                const isFirst = idx === 0
+                const isLast = idx === allSteps.length - 1
+
+                return (
+                  <div key={st.id || idx} className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200/80 dark:border-slate-700">
+                      <div className="flex items-center gap-2">
+                        <span className="w-8 h-8 rounded-full bg-sky-100 dark:bg-sky-950 font-mono font-black text-xs text-sky-600 dark:text-sky-400 flex items-center justify-center">
+                          0{idx + 1}
+                        </span>
+                        <strong className="text-sm font-black text-slate-900 dark:text-white">
+                          {st.title || 'خطوة بدون عنوان'}
+                        </strong>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={isFirst}
+                          onClick={() => {
+                            const steps = [...config.steps]
+                            const temp = steps[idx]
+                            steps[idx] = steps[idx - 1]
+                            steps[idx - 1] = temp
+                            // Auto renumber
+                            steps.forEach((s, i) => { s.number = i + 1 })
+                            setConfigField('steps', steps)
+                          }}
+                          className="p-1.5 rounded-lg border bg-white dark:bg-slate-900 disabled:opacity-30 text-slate-600 dark:text-slate-300"
+                          title="تقديم للأعلى"
+                        >
+                          <ArrowUp className="w-3.5 h-3.5" />
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={isLast}
+                          onClick={() => {
+                            const steps = [...config.steps]
+                            const temp = steps[idx]
+                            steps[idx] = steps[idx + 1]
+                            steps[idx + 1] = temp
+                            // Auto renumber
+                            steps.forEach((s, i) => { s.number = i + 1 })
+                            setConfigField('steps', steps)
+                          }}
+                          className="p-1.5 rounded-lg border bg-white dark:bg-slate-900 disabled:opacity-30 text-slate-600 dark:text-slate-300"
+                          title="تأخير للأسفل"
+                        >
+                          <ArrowDown className="w-3.5 h-3.5" />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (config.steps.length <= 1) {
+                              toast.error('يجب الإبقاء على خطوة واحدة على الأقل')
+                              return
+                            }
+                            const steps = config.steps.filter((_, i) => i !== idx)
+                            steps.forEach((s, i) => { s.number = i + 1 })
+                            setConfigField('steps', steps)
+                            toast.info('تم حذف الخطوة')
+                          }}
+                          className="p-1.5 rounded-lg border border-rose-200 dark:border-rose-900 bg-white dark:bg-slate-900 text-rose-600"
+                          title="حذف"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+
+                        <div className="flex items-center gap-1.5 pr-2 border-r border-slate-200 dark:border-slate-700">
+                          <Switch
+                            checked={st.visible !== false}
+                            onCheckedChange={(checked) => {
+                              const steps = [...config.steps]
+                              steps[idx].visible = checked
+                              setConfigField('steps', steps)
+                            }}
+                          />
+                          <span className="text-[11px] font-bold text-slate-500">
+                            {st.visible !== false ? 'مفعلة' : 'معطلة'}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-500 mb-1">الوصف</label>
-                      <input
-                        type="text"
-                        value={st.description}
-                        onChange={(e) => {
-                          const arr = [...config.steps]
-                          arr[idx].description = e.target.value
-                          setConfigField('steps', arr)
-                        }}
-                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs"
-                      />
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 mb-1">العنوان بالعربية</label>
+                        <input
+                          type="text"
+                          value={st.title}
+                          onChange={(e) => {
+                            const arr = [...config.steps]
+                            arr[idx].title = e.target.value
+                            setConfigField('steps', arr)
+                          }}
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 mb-1">العنوان بالإنجليزية (EN)</label>
+                        <input
+                          type="text"
+                          dir="ltr"
+                          value={st.titleEn || ''}
+                          onChange={(e) => {
+                            const arr = [...config.steps]
+                            arr[idx].titleEn = e.target.value
+                            setConfigField('steps', arr)
+                          }}
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 mb-1">الوصف بالعربية</label>
+                        <textarea
+                          rows={2}
+                          value={st.description}
+                          onChange={(e) => {
+                            const arr = [...config.steps]
+                            arr[idx].description = e.target.value
+                            setConfigField('steps', arr)
+                          }}
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs leading-relaxed"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 mb-1">الوصف بالإنجليزية (EN)</label>
+                        <textarea
+                          rows={2}
+                          dir="ltr"
+                          value={st.descriptionEn || ''}
+                          onChange={(e) => {
+                            const arr = [...config.steps]
+                            arr[idx].descriptionEn = e.target.value
+                            setConfigField('steps', arr)
+                          }}
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs leading-relaxed"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 mb-1">الأيقونة</label>
+                        <select
+                          value={st.iconName || 'CheckCircle2'}
+                          onChange={(e) => {
+                            const arr = [...config.steps]
+                            arr[idx].iconName = e.target.value
+                            setConfigField('steps', arr)
+                          }}
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs"
+                        >
+                          <option value="Rocket">صاروخ البداية (Rocket)</option>
+                          <option value="Settings">إعدادات النظام (Settings)</option>
+                          <option value="CheckCircle2">اكتمال وجاهزية (CheckCircle2)</option>
+                          <option value="Sparkles">بريق وتفعيل (Sparkles)</option>
+                          <option value="Users">فريق الاستقبال (Users)</option>
+                          <option value="Stethoscope">طبيب وكشف (Stethoscope)</option>
+                          <option value="Laptop">لوحة تحكم (Laptop)</option>
+                          <option value="Calendar">مواعيد وحجوزات (Calendar)</option>
+                          <option value="CreditCard">فواتير واشتراك (CreditCard)</option>
+                          <option value="Layers">طبقات المنظومة (Layers)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 mb-1">لون الأيقونة</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={st.color || '#0284c7'}
+                            onChange={(e) => {
+                              const arr = [...config.steps]
+                              arr[idx].color = e.target.value
+                              setConfigField('steps', arr)
+                            }}
+                            className="w-8 h-8 rounded-lg cursor-pointer border-0 p-0"
+                          />
+                          <input
+                            type="text"
+                            dir="ltr"
+                            value={st.color || '#0284c7'}
+                            onChange={(e) => {
+                              const arr = [...config.steps]
+                              arr[idx].color = e.target.value
+                              setConfigField('steps', arr)
+                            }}
+                            className="flex-1 px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border text-xs font-mono"
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </section>
         )}
 
-        {/* TAB 6: PRICING PLANS */}
+        {/* TAB 6: PRICING PLANS (SINGLE SOURCE OF TRUTH) */}
         {activeTab === 'pricing' && (
           <section className="p-6 rounded-3xl bg-white dark:bg-[#081526] border border-sky-100 dark:border-slate-800 shadow-sm space-y-5">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h3 className="text-base font-black text-slate-900 dark:text-white">
-                  باقات الاشتراك والأسعار
+                <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <DollarSign className="w-5 h-5 text-sky-600" />
+                  <span>باقات الاشتراك والأسعار (Single Source of Truth)</span>
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  تعديل أسماء الباقات ومزاياها وقيم الاشتراك المعروضة
+                  مصدر البيانات الموحد للباقات: يمكنك تعديل الباقات أو مزامنتها مباشرة من قاعدة بيانات النظام دون التأثير على اشتراكات العيادات الحالية.
                 </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      toast.loading('جاري سحب الباقات من packages...', { id: 'sync-pkgs' })
+                      const snap = await getDocs(collection(db, 'packages'))
+                      if (snap.empty) {
+                        toast.info('لا توجد باقات مخزنة حالياً في مجموعات Firestore', { id: 'sync-pkgs' })
+                        return
+                      }
+                      const loadedPkgs: PricingPlanItem[] = snap.docs.map((d, idx) => {
+                        const p = d.data()
+                        return {
+                          id: d.id,
+                          name: p.name || `باقة ${idx + 1}`,
+                          nameEn: p.nameEn || p.name || '',
+                          price: String(p.priceMonthly || p.price || '0'),
+                          priceEn: String(p.priceMonthly || p.price || '0'),
+                          period: p.period || 'شهرياً',
+                          periodEn: p.periodEn || 'monthly',
+                          badge: p.badge || (p.isPopular ? 'الأكثر طلباً' : ''),
+                          features: Array.isArray(p.features)
+                            ? p.features
+                            : typeof p.featuresText === 'string'
+                            ? p.featuresText.split('\n').map((s: string) => s.trim()).filter(Boolean)
+                            : [],
+                          featuresEn: Array.isArray(p.featuresEn) ? p.featuresEn : [],
+                          popular: Boolean(p.isPopular || p.isRecommended || p.popular),
+                          isFree: Boolean(p.isFree || Number(p.priceMonthly || p.price) === 0),
+                          visible: p.visible !== false,
+                        }
+                      })
+                      setConfigField('pricingPlans', loadedPkgs)
+                      toast.success(`تمت مزامنة ${loadedPkgs.length} باقة بنجاح من باقات المنظومة! 🎯`, { id: 'sync-pkgs' })
+                    } catch (err: any) {
+                      toast.error('تعذر المزامنة: ' + (err?.message || 'خطأ غير معروف'), { id: 'sync-pkgs' })
+                    }
+                  }}
+                  className="text-xs font-bold"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 ml-1" />
+                  <span>مزامنة من باقات النظام</span>
+                </Button>
+
+                <Button
+                  type="button"
+                  onClick={() => {
+                    const newPlan: PricingPlanItem = {
+                      id: 'plan_' + Date.now(),
+                      name: 'باقة جديدة',
+                      nameEn: 'New Plan',
+                      price: '500',
+                      priceEn: '500',
+                      period: 'شهرياً',
+                      periodEn: 'monthly',
+                      badge: '',
+                      features: ['كافة المزايا الأساسية', 'دعم فني على مدار الساعة'],
+                      featuresEn: ['Core Features', '24/7 Support'],
+                      popular: false,
+                      isFree: false,
+                      visible: true,
+                    }
+                    setConfigField('pricingPlans', [...config.pricingPlans, newPlan])
+                    toast.success('تمت إضافة باقة جديدة')
+                  }}
+                  className="rounded-xl bg-sky-600 text-white font-bold text-xs"
+                >
+                  <Plus className="w-4 h-4 ml-1" />
+                  <span>إضافة باقة</span>
+                </Button>
               </div>
             </div>
 
@@ -1918,7 +2888,43 @@ export function LandingPageManager() {
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <span className="text-xs font-bold text-sky-600">بطاقة #{idx + 1}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-7 h-7 rounded-lg bg-sky-100 dark:bg-sky-950 text-sky-600 dark:text-sky-400 font-mono font-bold text-xs flex items-center justify-center">
+                          #{idx + 1}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            disabled={idx === 0}
+                            onClick={() => {
+                              const arr = [...config.stats]
+                              const temp = arr[idx]
+                              arr[idx] = arr[idx - 1]
+                              arr[idx - 1] = temp
+                              setConfigField('stats', arr)
+                            }}
+                            className="p-1 rounded border bg-white dark:bg-slate-900 disabled:opacity-30"
+                            title="تقديم"
+                          >
+                            <ArrowUp className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={idx === config.stats.length - 1}
+                            onClick={() => {
+                              const arr = [...config.stats]
+                              const temp = arr[idx]
+                              arr[idx] = arr[idx + 1]
+                              arr[idx + 1] = temp
+                              setConfigField('stats', arr)
+                            }}
+                            className="p-1 rounded border bg-white dark:bg-slate-900 disabled:opacity-30"
+                            title="تأخير"
+                          >
+                            <ArrowDown className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
                       <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer">
                         <input
                           type="checkbox"
@@ -2129,7 +3135,7 @@ export function LandingPageManager() {
         )}
 
         {/* PERSISTENT LIVE PREVIEW COMPONENT */}
-        <LivePreview config={config} />
+        <LivePreview config={config} isDirty={isDirty} />
       </div>
     </div>
   )

@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { useLanguage } from '@/context/LanguageContext'
 import { ClinicPillars3DScene } from './ClinicPillars3DScene'
+import { OrbitCardItem } from '@/lib/landing-config'
 
 interface LandingHeroSectionProps {
   badge?: string

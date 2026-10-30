@@ -101,6 +101,7 @@ export async function POST(
 
     // Resolve branch details from database
     let branchName = 'الفرع الرئيسي'
+    let branchMaxLimit = 0
     if (effectiveBranchId) {
       try {
         const bDoc = await getDoc(doc(db, 'branches', effectiveBranchId))
@@ -110,9 +111,13 @@ export async function POST(
             return NextResponse.json({ error: 'هذا الفرع مؤرشف حاليًا وغير متاح للحجز' }, { status: 400 })
           }
           branchName = bData.name || branchName
+          branchMaxLimit = Number(bData.maxDailyBookings) || 0
         } else if (clinic.branches && Array.isArray(clinic.branches)) {
           const found = clinic.branches.find((b: any) => b.id === effectiveBranchId)
-          if (found) branchName = found.name || branchName
+          if (found) {
+            branchName = found.name || branchName
+            branchMaxLimit = Number(found.maxDailyBookings) || 0
+          }
         }
       } catch (err) {
         console.warn('Branch fetch warning:', err)
@@ -146,8 +151,8 @@ export async function POST(
     const todayCairo = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(nowCairo)
     const bookingDate = date || todayCairo
 
-    // Check clinic daily limit
-    const maxLimit = Number(clinic.maxDailyBookings) || 0
+    // Check clinic/branch daily limit
+    const effectiveLimit = branchMaxLimit > 0 ? branchMaxLimit : (Number(clinic.maxDailyBookings) || 0)
     const qAppts = query(
       collection(db, 'appointments'),
       where('clinic_id', '==', clinicId),
@@ -156,9 +161,13 @@ export async function POST(
     const apptSnap = await getDocs(qAppts)
     const activeAppts = apptSnap.docs.filter((d) => d.data().status !== 'cancelled')
 
-    if (maxLimit > 0 && activeAppts.length >= maxLimit) {
+    const activeScoped = effectiveBranchId && branchMaxLimit > 0
+      ? activeAppts.filter((d) => (d.data().branch_id || d.data().branchId || null) === effectiveBranchId)
+      : activeAppts
+
+    if (effectiveLimit > 0 && activeScoped.length >= effectiveLimit) {
       return NextResponse.json(
-        { error: `عذراً، اكتمل الحد الأقصى للحجوزات لهذا اليوم (${maxLimit} كشف)` },
+        { error: 'اكتمل عدد الحجوزات المتاحة لهذا اليوم. برجاء اختيار موعد آخر.' },
         { status: 400 }
       )
     }
@@ -230,8 +239,22 @@ export async function POST(
       createdAt: new Date().toISOString()
     }
 
-    // 9. Atomically allocate queue ticket number
-    const { id: newApptId, queueNumber } = await createAtomicAppointment(newAppointmentData)
+    // 9. Atomically allocate queue ticket number with quota protection
+    let newApptId: string
+    let queueNumber: number
+    try {
+      const atomicRes = await createAtomicAppointment(newAppointmentData, effectiveLimit)
+      newApptId = atomicRes.id
+      queueNumber = atomicRes.queueNumber
+    } catch (atomicErr: any) {
+      if (atomicErr?.message?.includes('QUOTA_EXCEEDED')) {
+        return NextResponse.json(
+          { error: 'اكتمل عدد الحجوزات المتاحة لهذا اليوم. برجاء اختيار موعد آخر.' },
+          { status: 400 }
+        )
+      }
+      throw atomicErr
+    }
 
     // 10. Auto-create or update patient account
     try {

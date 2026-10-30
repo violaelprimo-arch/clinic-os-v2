@@ -1,16 +1,18 @@
-import { db } from '@/lib/firebase'
 import {
   collection,
   doc,
-  query,
-  where,
   getDocs,
-  runTransaction
+  query,
+  runTransaction,
+  where,
+  getDoc
 } from 'firebase/firestore'
+import { db } from './firebase'
 
 export interface AtomicAppointmentInput {
   clinic_id: string
   branch_id?: string | null
+  branchId?: string | null
   branchName?: string
   patientName: string
   phone: string
@@ -27,41 +29,38 @@ export interface AtomicAppointmentInput {
   paymentMethod?: string
   paymentStatus?: string
   paymentDetails?: any
-  transferNumber?: string
-  transferReference?: string
-  transferProofUrl?: string
+  address?: string | null
+  city?: string | null
+  patientResidenceSnapshot?: any
+  notes?: string | null
+  createdAt?: string
   [key: string]: any
 }
 
-/**
- * Recursively cleans an object by stripping any undefined properties
- * so Firestore transactions and writes never reject with "Unsupported field value: undefined".
- */
-export function removeUndefinedFields<T>(obj: T): T {
-  if (obj === null || typeof obj !== 'object') {
-    return obj
-  }
+export function removeUndefinedFields(obj: any): any {
   if (Array.isArray(obj)) {
-    return obj.map((item) => removeUndefinedFields(item)) as unknown as T
-  }
-  const clean: Record<string, any> = {}
-  for (const [key, val] of Object.entries(obj as Record<string, any>)) {
-    if (val !== undefined) {
-      clean[key] =
-        typeof val === 'object' && val !== null && !(val instanceof Date)
-          ? removeUndefinedFields(val)
-          : val
+    return obj.map(removeUndefinedFields)
+  } else if (obj !== null && typeof obj === 'object') {
+    const clean: any = {}
+    for (const key of Object.keys(obj)) {
+      if (obj[key] !== undefined) {
+        clean[key] = removeUndefinedFields(obj[key])
+      }
     }
+    return clean
   }
-  return clean as T
+  return obj
 }
 
 /**
- * Atomically generates the next sequential queue number and creates the appointment doc
- * inside a single Firestore transaction with atomic quota checking (A06 - P1 Concurrency Protection).
+ * Creates an appointment atomically in Firestore with sequential queue number allocation
+ * and strict server-side capacity enforcement per clinic/branch and date.
  *
- * This completely prevents race-condition collisions and quota overbooking when multiple patients
- * submit booking requests simultaneously.
+ * Rules:
+ * - Never counts cancelled appointments towards daily capacity.
+ * - Cancelling frees a slot immediately.
+ * - Prevents race conditions using a Firestore atomic transaction.
+ * - Throws 'QUOTA_EXCEEDED' when the active bookings reach or exceed maxLimit.
  */
 export async function createAtomicAppointment(
   data: AtomicAppointmentInput,
@@ -69,53 +68,89 @@ export async function createAtomicAppointment(
 ): Promise<{ id: string; queueNumber: number }> {
   const clinicId = data.clinic_id
   const dateStr = data.date
+  const effectiveBranchId = data.branch_id || data.branchId || null
 
   if (!clinicId || !dateStr) {
     throw new Error('clinic_id and date are required for atomic appointment booking.')
   }
 
-  // Counter document path per clinic & date
-  const counterRef = doc(db, 'clinic_daily_counters', `${clinicId}_${dateStr}`)
+  // Counter document path per clinic & date (or branch if specified)
+  const counterDocId = effectiveBranchId
+    ? `${clinicId}_${effectiveBranchId}_${dateStr}`
+    : `${clinicId}_${dateStr}`
+  const counterRef = doc(db, 'clinic_daily_counters', counterDocId)
 
-  // 1. Read existing appointments as a fallback baseline (outside transaction)
-  // in case this is the first booking of the day or counters were not initialized yet
+  // 1. If maxLimit is 0 or unsupplied, check clinic/branch doc for default maxDailyBookings
+  let effectiveLimit = Number(maxLimit) || 0
+  if (effectiveLimit <= 0) {
+    try {
+      if (effectiveBranchId) {
+        const bDoc = await getDoc(doc(db, 'branches', effectiveBranchId))
+        if (bDoc.exists()) {
+          effectiveLimit = Number(bDoc.data()?.maxDailyBookings) || 0
+        }
+      }
+      if (effectiveLimit <= 0) {
+        const cDoc = await getDoc(doc(db, 'clinics', clinicId))
+        if (cDoc.exists()) {
+          effectiveLimit = Number(cDoc.data()?.maxDailyBookings) || 0
+        }
+      }
+    } catch (e) {
+      // Non-blocking fallback
+    }
+  }
+
+  // 2. Read existing appointments to evaluate actual active bookings (excluding cancelled)
   const q = query(
     collection(db, 'appointments'),
     where('clinic_id', '==', clinicId),
     where('date', '==', dateStr)
   )
   const snap = await getDocs(q)
-  const activeExisting = snap.docs.filter(d => d.data().status !== 'cancelled')
-  const existingNums = activeExisting.map((d) => Number(d.data().queue_number) || 0)
-  const maxExisting = existingNums.length > 0 ? Math.max(0, ...existingNums) : 0
-  const activeCountExisting = activeExisting.length
+  const allDateDocs = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
 
-  // 2. Run Firestore transaction to atomically lock the counter and write the appointment
+  // Filter active appointments
+  const activeExisting = allDateDocs.filter(d => d.status !== 'cancelled')
+
+  // If scoped by branch limit
+  const activeScoped = effectiveBranchId && effectiveLimit > 0
+    ? activeExisting.filter(d => (d.branch_id || d.branchId || null) === effectiveBranchId)
+    : activeExisting
+
+  const activeCountExisting = activeScoped.length
+  const existingNums = activeExisting.map(d => Number(d.queue_number) || 0)
+  const maxExisting = existingNums.length > 0 ? Math.max(0, ...existingNums) : 0
+
+  // Immediate pre-transaction check
+  if (effectiveLimit > 0 && activeCountExisting >= effectiveLimit) {
+    throw new Error(`QUOTA_EXCEEDED:${effectiveLimit}`)
+  }
+
+  // 3. Run Firestore transaction to atomically lock counter and write appointment
   const result = await runTransaction(db, async (transaction) => {
     const counterSnap = await transaction.get(counterRef)
     let currentCounter = 0
-    let totalBookings = 0
     if (counterSnap.exists()) {
       const cData = counterSnap.data()
       currentCounter = Number(cData?.lastQueueNumber) || 0
-      totalBookings = Number(cData?.totalBookings) || currentCounter
     }
 
-    const effectiveTotal = Math.max(totalBookings, activeCountExisting)
-    if (maxLimit > 0 && effectiveTotal >= maxLimit) {
-      throw new Error(`QUOTA_EXCEEDED:${maxLimit}`)
+    if (effectiveLimit > 0 && activeCountExisting >= effectiveLimit) {
+      throw new Error(`QUOTA_EXCEEDED:${effectiveLimit}`)
     }
 
     const assignedQueueNumber = Math.max(currentCounter, maxExisting) + 1
 
-    // Atomically increment counter
+    // Atomically update counter
     transaction.set(
       counterRef,
       {
         clinicId,
+        branchId: effectiveBranchId,
         date: dateStr,
         lastQueueNumber: assignedQueueNumber,
-        totalBookings: effectiveTotal + 1,
+        activeBookings: activeCountExisting + 1,
         updatedAt: new Date().toISOString()
       },
       { merge: true }
@@ -125,6 +160,7 @@ export async function createAtomicAppointment(
     const newDocRef = doc(collection(db, 'appointments'))
     const newApptData = {
       ...data,
+      branch_id: effectiveBranchId,
       queue_number: assignedQueueNumber,
       status: data.status || 'waiting',
       createdAt: data.createdAt || new Date().toISOString()

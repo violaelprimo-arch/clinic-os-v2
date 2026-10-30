@@ -595,7 +595,7 @@ export function BookingModal({
 
       // Atomically allocate next sequential queue number with zero concurrency collisions
       const cleanApptPayload = removeUndefinedFields(newAppt)
-      const { id: newApptId, queueNumber: allocatedQueueNumber } = await createAtomicAppointment(cleanApptPayload)
+      const { id: newApptId, queueNumber: allocatedQueueNumber } = await createAtomicAppointment(cleanApptPayload, maxLimit)
       const docRef = { id: newApptId }
       const myQueueNumber = allocatedQueueNumber
 
@@ -674,7 +674,11 @@ export function BookingModal({
       })
     } catch (err: any) {
       console.error('Booking submission error:', err)
-      toast.error('حدث خطأ أثناء إتمام الحجز، يرجى المحاولة ثانيةً')
+      if (err?.message?.includes('QUOTA_EXCEEDED')) {
+        toast.error('اكتمل عدد الحجوزات المتاحة لهذا اليوم. برجاء اختيار موعد آخر.')
+      } else {
+        toast.error('حدث خطأ أثناء إتمام الحجز، يرجى المحاولة ثانيةً')
+      }
     } finally {
       setSubmitting(false)
     }

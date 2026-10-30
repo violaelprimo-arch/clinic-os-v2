@@ -16,8 +16,8 @@ const externalOrLocalLink = z
   .string()
   .max(500)
   .refine(
-    (value) => !value || /^https?:\/\//.test(value) || /^\/(?!\/)/.test(value),
-    'استخدم رابط HTTPS أو مسارًا داخل الموقع',
+    (value) => !value || /^https?:\/\//.test(value) || /^\/(?!\/)/.test(value) || /^#[\w-]+$/.test(value),
+    'استخدم رابط HTTPS أو مسارًا داخل الموقع أو قسمًا (#)',
   )
   .default('')
 
@@ -26,6 +26,27 @@ const link = z
   .max(500)
   .refine((v) => !v || /^\/(?!\/)/.test(v) || /^https?:\/\//.test(v), 'الرابط غير صالح')
   .default('/clinic/zizo/login')
+
+// 0. 3D Orbit Interactive Pillars Schema
+const orbitCard = z.object({
+  id: id.default(() => Math.random().toString(36).substring(2, 9)),
+  title: short,
+  titleEn: short.default(''),
+  subtitle: short.default(''),
+  subtitleEn: short.default(''),
+  description: text.default(''),
+  descriptionEn: text.default(''),
+  iconName: short.default('CalendarCheck'),
+  cardColor: short.default('#00a8e8'),
+  glowColor: short.default('rgba(0, 168, 232, 0.45)'),
+  textColor: short.default('#ffffff'),
+  buttonText: short.default(''),
+  buttonTextEn: short.default(''),
+  buttonLink: externalOrLocalLink.default(''),
+  order: z.number().int().default(0),
+  visible: z.boolean().default(true),
+  isDefaultActive: z.boolean().default(false),
+})
 
 // 1. Features Schema (Real clinical pillars for Doctor, Reception, Patient)
 const feature = z.object({
@@ -71,6 +92,7 @@ const stepItem = z.object({
   visible: z.boolean().default(true),
   titleEn: short.default(''),
   descriptionEn: text.default(''),
+  color: z.string().optional(),
 })
 
 // 4. Partner / Client Clinics Schema
@@ -217,6 +239,13 @@ export const themeSettingsSchema = z.object({
   enableMobileMotion: z.boolean().default(true),
   enableSectionMotion: z.boolean().default(true),
   spacingPreset: z.enum(['compact', 'comfortable', 'spacious']).default('comfortable'),
+  customPrimaryColor: z.string().optional(),
+  customSecondaryColor: z.string().optional(),
+  customAccentColor: z.string().optional(),
+  customGlowColor: z.string().optional(),
+  orbitRotationSpeed: z.enum(['slow', 'normal', 'fast']).default('normal'),
+  cardGlowIntensity: z.enum(['subtle', 'medium', 'intense']).default('medium'),
+  headingSizePreset: z.enum(['normal', 'large', 'display']).default('normal'),
 })
 
 export const sectionLayoutSchema = z.object({
@@ -238,6 +267,11 @@ export const DEFAULT_THEME_SETTINGS = {
   enableMobileMotion: true,
   enableSectionMotion: true,
   spacingPreset: 'comfortable' as const,
+  customPrimaryColor: '#0066dc',
+  customGlowColor: '#38bdf8',
+  orbitRotationSpeed: 'normal' as const,
+  cardGlowIntensity: 'medium' as const,
+  headingSizePreset: 'normal' as const,
 }
 
 export const DEFAULT_LAYOUT_SETTINGS = {
@@ -289,6 +323,7 @@ export const landingConfigSchema = z.object({
   }),
   themeSettings: themeSettingsSchema.default(DEFAULT_THEME_SETTINGS),
   layoutSettings: sectionLayoutSchema.default(DEFAULT_LAYOUT_SETTINGS),
+  orbitCards: z.array(orbitCard).default([]),
   gallerySettings: z.object({
     autoplay: z.boolean().default(true),
     intervalSeconds: z.number().min(2).max(20).default(6),
@@ -305,6 +340,7 @@ export const landingConfigSchema = z.object({
 })
 
 export type LandingPageConfig = z.infer<typeof landingConfigSchema>
+export type OrbitCardItem = z.infer<typeof orbitCard>
 export type FeatureItem = z.infer<typeof feature>
 export type ScreenshotItem = z.infer<typeof screenshot>
 export type StepItem = z.infer<typeof stepItem>
@@ -345,6 +381,104 @@ export type LandingInquiryItem = {
   status: 'new' | 'in_progress' | 'resolved' | 'closed'
   internalNotes?: string
 }
+
+export const DEFAULT_ORBIT_CARDS: OrbitCardItem[] = [
+  {
+    id: 'orbit-booking',
+    title: 'حجز فوري ومتابعة الدور',
+    titleEn: 'Instant Booking & Live Turn',
+    subtitle: 'حجز بالهاتف بدون كلمات مرور',
+    subtitleEn: 'Seamless Phone Booking',
+    description: 'حجز فوري برقم الموبايل دون الحاجة لأكواد OTP أو حسابات معقدة، مع تتبع دقيق للدور والوقت التقديري للدخول من المنزل.',
+    descriptionEn: 'Frictionless patient self-booking with real-time home queue tracking.',
+    iconName: 'CalendarCheck',
+    cardColor: '#00a8e8',
+    glowColor: 'rgba(0, 168, 232, 0.45)',
+    textColor: '#ffffff',
+    buttonText: 'جرب الحجز الآن',
+    buttonTextEn: 'Book Now',
+    buttonLink: '#contact',
+    order: 0,
+    visible: true,
+    isDefaultActive: true,
+  },
+  {
+    id: 'orbit-tv',
+    title: 'تلفزيون الانتظار والنداء الصوتي',
+    titleEn: 'Waiting Room TV & Voice Call',
+    subtitle: 'عرض ذكي على شاشات Smart TV',
+    subtitleEn: 'Smart TV Queue Display',
+    description: 'شاشة مخصصة لغرف الانتظار تعمل على أي تلفزيون سمارت، تعرض رقم الدور الحالي واسم المريض وغرفة الكشف مع تنبيه صوتي فوري.',
+    descriptionEn: 'Real-time patient call screen designed for waiting room TVs with audio alerts.',
+    iconName: 'Tv',
+    cardColor: '#0284c7',
+    glowColor: 'rgba(2, 132, 199, 0.45)',
+    textColor: '#ffffff',
+    buttonText: 'عرض الشاشة',
+    buttonTextEn: 'View TV Screen',
+    buttonLink: '/clinic/zizo/tv',
+    order: 1,
+    visible: true,
+    isDefaultActive: false,
+  },
+  {
+    id: 'orbit-emr',
+    title: 'الملف الطبي الإلكتروني EMR',
+    titleEn: 'Integrated Medical EMR',
+    subtitle: 'سجل تراكمي للزيارات والتحاليل',
+    subtitleEn: 'Complete Clinical History',
+    description: 'ملف موحد لكل مريض يوثق التشخيصات السابقة، الفحوصات والتحاليل، والأدوية المزمنة، لسهولة المتابعة الطبية بضغطة واحدة.',
+    descriptionEn: 'Unified patient records tracking previous diagnoses, labs, and chronic conditions.',
+    iconName: 'FileText',
+    cardColor: '#6366f1',
+    glowColor: 'rgba(99, 102, 241, 0.45)',
+    textColor: '#ffffff',
+    buttonText: 'استعراض الملف',
+    buttonTextEn: 'Explore EMR',
+    buttonLink: '#features',
+    order: 2,
+    visible: true,
+    isDefaultActive: false,
+  },
+  {
+    id: 'orbit-rx',
+    title: 'الروشتة الذكية وقوالب Rx',
+    titleEn: 'Smart A4 Rx & Protocols',
+    subtitle: 'دليل الأدوية وطباعة رسمية A4',
+    subtitleEn: 'Drug Guide & Branded A4 Print',
+    description: 'محرر روشتات متقدم مرتبط بدليل الأدوية المصري، مع بروتوكولات علاجية جاهزة بضغطة زر، وطباعة رسمية معتمدة بباركود وهوية العيادة.',
+    descriptionEn: 'Advanced prescription generator with Egyptian drug directory and branded A4 print.',
+    iconName: 'FileSignature',
+    cardColor: '#10b981',
+    glowColor: 'rgba(16, 185, 129, 0.45)',
+    textColor: '#ffffff',
+    buttonText: 'نموذج الروشتة',
+    buttonTextEn: 'View Sample Rx',
+    buttonLink: '#features',
+    order: 3,
+    visible: true,
+    isDefaultActive: false,
+  },
+  {
+    id: 'orbit-billing',
+    title: 'الحسابات وتقفيل الوردية',
+    titleEn: 'Daily Billing & Financials',
+    subtitle: 'سندات قبض وكاش ومحافظ وانستاباي',
+    subtitleEn: 'Multi-Payment Shift Closeout',
+    description: 'تسجيل مدفوعات الكشوفات والخدمات، تتبع طرق الدفع، واستخراج تقارير تقفيل الوردية اليومية بدقة 100% بدون أي فروقات حسابية.',
+    descriptionEn: 'Track service fees, payment methods (Cash/Wallet/InstaPay), and daily shift closure reports.',
+    iconName: 'Receipt',
+    cardColor: '#f59e0b',
+    glowColor: 'rgba(245, 158, 11, 0.45)',
+    textColor: '#ffffff',
+    buttonText: 'الحسابات والتقارير',
+    buttonTextEn: 'Financial Reports',
+    buttonLink: '#features',
+    order: 4,
+    visible: true,
+    isDefaultActive: false,
+  },
+]
 
 // 7 Verified Clinical Features categorized for Doctor, Reception, and Patient
 export const DEFAULT_CLINICAL_FEATURES: FeatureItem[] = [
@@ -769,6 +903,7 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
     showTrialBanner: false,
     showFooter: true,
   },
+  orbitCards: DEFAULT_ORBIT_CARDS,
   gallerySettings: {
     autoplay: true,
     intervalSeconds: 6,

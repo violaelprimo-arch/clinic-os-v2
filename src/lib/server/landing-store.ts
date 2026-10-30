@@ -102,5 +102,33 @@ export async function publicLandingConfig() {
     return st
   })
 
+  // 3. Hydrate unified pricing plans from Firestore packages collection if present
+  try {
+    const pkgs = await queryDocuments('packages').catch(() => [])
+    if (Array.isArray(pkgs) && pkgs.length > 0) {
+      config.pricingPlans = pkgs.map((pkg: any, idx: number) => ({
+        id: pkg.id || `plan_${idx}`,
+        name: pkg.name || `باقة ${idx + 1}`,
+        nameEn: pkg.nameEn || pkg.name || '',
+        price: String(pkg.priceMonthly || pkg.price || '0'),
+        priceEn: String(pkg.priceMonthly || pkg.price || '0'),
+        period: pkg.period || 'شهرياً',
+        periodEn: pkg.periodEn || 'monthly',
+        badge: pkg.badge || (pkg.isPopular ? 'الأكثر طلباً' : ''),
+        features: Array.isArray(pkg.features)
+          ? pkg.features
+          : typeof pkg.featuresText === 'string'
+            ? pkg.featuresText.split('\n').map((s: string) => s.trim()).filter(Boolean)
+            : [],
+        featuresEn: Array.isArray(pkg.featuresEn) ? pkg.featuresEn : [],
+        popular: Boolean(pkg.isPopular || pkg.isRecommended || pkg.popular),
+        isFree: Boolean(pkg.isFree || Number(pkg.priceMonthly || pkg.price) === 0),
+        visible: pkg.visible !== false,
+      }))
+    }
+  } catch (err) {
+    console.warn('[landing-store] packages query skipped:', err)
+  }
+
   return config
 }
