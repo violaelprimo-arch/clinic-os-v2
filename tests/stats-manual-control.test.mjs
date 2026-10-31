@@ -165,6 +165,11 @@ test('Stats manual control verification', async (t) => {
     assert.equal(merged.stats[0].sourceType, 'manual')
     assert.equal(merged.stats[0].label, 'عياداتنا الحصرية')
     assert.equal(merged.stats[0].description, 'العيادات المعتمدة في النظام')
+
+    // If owner explicitly configured an empty stats array, it is preserved
+    const emptyConfig = { stats: [] }
+    const mergedEmpty = mergeLandingConfig(emptyConfig)
+    assert.equal(mergedEmpty.stats.length, 0)
   })
 
   await t.test('Section visibility showStats is preserved independently of values', () => {

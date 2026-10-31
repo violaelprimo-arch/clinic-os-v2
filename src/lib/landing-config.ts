@@ -1015,7 +1015,7 @@ export function mergeLandingConfig(value: unknown): LandingPageConfig {
       ...DEFAULT_LANDING_CONFIG.gallerySettings,
       ...(data.gallerySettings || {}),
     },
-    stats: Array.isArray(data.stats) && data.stats.length > 0
+    stats: Array.isArray(data.stats)
       ? data.stats
       : DEFAULT_LANDING_CONFIG.stats,
     features: Array.isArray(data.features) && data.features.length > 0
