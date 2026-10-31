@@ -2,7 +2,9 @@
 
 import { use, useEffect, useState, useMemo, useRef } from 'react'
 import { db } from '@/lib/firebase'
-import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore'
+import { collection, query, where, onSnapshot, doc, getDoc, updateDoc } from 'firebase/firestore'
+import { useSearchParams } from 'next/navigation'
+import { getCairoDateString } from '@/lib/bookingCapacity'
 import {
   Tv, Volume2, VolumeX, Maximize2, Minimize2, Clock,
   Calendar, Building2, User, Sparkles, CheckCircle2,
@@ -56,10 +58,11 @@ function setCachedAudio(key: string, buffer: AudioBuffer): void {
 }
 
 // Convert digits to spelled-out Arabic words with vocalized diacritics (تشكيل فصيح)
-function numberToArabicWords(num: number | string): string {
+function numberToArabicWords(num: number | string | undefined | null): string {
+  if (num === undefined || num === null) return 'واحد'
   const clean = String(num).replace(/[^0-9]/g, '')
   const n = parseInt(clean, 10)
-  if (isNaN(n) || n <= 0) return String(num)
+  if (isNaN(n) || n <= 0) return 'واحد'
 
   const ones = [
     '', 'وَاحِد', 'اثْنَان', 'ثَلَاثَة', 'أَرْبَعَة', 'خَمْسَة', 'سِتَّة', 'سَبْعَة', 'ثَمَانِيَة', 'تِسْعَة', 'عَشَرَة',
@@ -85,9 +88,13 @@ function numberToArabicWords(num: number | string): string {
 
 export default function WaitingRoomTvClient({ slug }: { slug: string }) {
 
+  const searchParams = useSearchParams()
+  const branchFromUrl = searchParams.get('branch')
+
   const [clinic, setClinic] = useState<any>(null)
+  const [branches, setBranches] = useState<any[]>([])
   const [appointments, setAppointments] = useState<any[]>([])
-  const [selectedBranchId, setSelectedBranchId] = useState<string>('all')
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(branchFromUrl || 'all')
   const [currentTime, setCurrentTime] = useState<string>('')
   const [currentDateStr, setCurrentDateStr] = useState<string>('')
   const [isAudioEnabled, setIsAudioEnabled] = useState(false)
@@ -267,6 +274,11 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
 
       setCurrentTime(timeStr)
       setCurrentDateStr(dateText)
+
+      try {
+        const todayCairo = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(now)
+        setCairoTodayDate(prev => prev !== todayCairo ? todayCairo : prev)
+      } catch (e) {}
     }
 
     updateClock()
@@ -535,61 +547,131 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
     }, delayMs)
   }
 
-  // Real-time Clinic Listener
+  // 1. Real-time Clinic Document Listener
   useEffect(() => {
-    const q = query(collection(db, 'clinics'), where('slug', '==', slug))
-    const unsub = onSnapshot(q, (snapshot) => {
-      const list: any[] = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
-      setAppointments(list)
-      // A10 Fix: Mark initial snapshot complete; only suppress if patient was already in_progress on page mount
-      if (isFirstDataLoadRef.current) {
-        isFirstDataLoadRef.current = false
-        const initialActive = list.find(a => a.status === 'in_progress')
-        if (initialActive) {
-          lastAnnouncedCallKeyRef.current = `${initialActive.id}_${initialActive.startedAt || initialActive.queue_number}`
+    if (!slug) return
+    const qClinic = query(collection(db, 'clinics'), where('slug', '==', slug))
+    const unsubClinic = onSnapshot(
+      qClinic,
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const clinicDoc = snapshot.docs[0]
+          setClinic({ id: clinicDoc.id, ...(clinicDoc.data() as any) })
+        } else {
+          // Fallback check directly by doc ID if slug is doc ID
+          getDoc(doc(db, 'clinics', slug)).then((dSnap) => {
+            if (dSnap.exists()) {
+              setClinic({ id: dSnap.id, ...(dSnap.data() as any) })
+            }
+          }).catch((err) => console.warn('Direct doc fallback error:', err))
+        }
+      },
+      (err) => {
+        console.error('TV Screen clinic listener error:', err)
+      }
+    )
+    return () => unsubClinic()
+  }, [slug])
+
+  // 2. Real-time Clinic Branches Listener
+  useEffect(() => {
+    if (!clinic?.id) return
+    const qB = query(collection(db, 'branches'), where('clinicId', '==', clinic.id))
+    const unsubB = onSnapshot(qB, (snap) => {
+      setBranches(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
+    }, (err) => {
+      console.warn('TV branches listener error:', err)
+    })
+    return () => unsubB()
+  }, [clinic?.id])
+
+  // 3. Real-time Appointments Listener for Today's Queue
+  useEffect(() => {
+    if (!clinic?.id && !slug) return
+    const clinicId = clinic?.id || slug
+    const targetClinicIds = Array.from(new Set([clinicId, clinic?.id, slug].filter(Boolean)))
+    const todayDate = cairoTodayDate || getCairoDateString()
+
+    const qAppts = query(
+      collection(db, 'appointments'),
+      where('clinic_id', 'in', targetClinicIds),
+      where('date', '==', todayDate)
+    )
+
+    const unsubAppts = onSnapshot(
+      qAppts,
+      (snapshot) => {
+        const list: any[] = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
+        setAppointments(list)
+
+        // Mark initial snapshot complete; only suppress if patient was already in_progress on page mount
+        if (isFirstDataLoadRef.current) {
+          isFirstDataLoadRef.current = false
+          const initialActive = list.find(a => a.status === 'in_progress' || a.status === 'examining')
+          if (initialActive) {
+            const qNum = initialActive.queue_number ?? initialActive.queueNumber ?? ''
+            lastAnnouncedCallKeyRef.current = `${initialActive.id}_${initialActive.calledAt || initialActive.startedAt || qNum}`
+          }
+        }
+      },
+      (err) => {
+        console.warn('TV Screen in-query error, trying single clinic_id query:', err)
+        try {
+          const fallbackQ = query(
+            collection(db, 'appointments'),
+            where('clinic_id', '==', clinicId),
+            where('date', '==', todayDate)
+          )
+          onSnapshot(fallbackQ, (s) => {
+            setAppointments(s.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
+          })
+        } catch (e) {
+          console.error('TV appointments fallback error:', e)
         }
       }
-    })
-    return () => unsub()
-  }, [clinic?.id, cairoTodayDate])
+    )
+
+    return () => unsubAppts()
+  }, [clinic?.id, slug, cairoTodayDate])
 
   // Filter for Active Branch
   const branchAppointments = useMemo(() => {
     return appointments.filter(a => {
       if (selectedBranchId && selectedBranchId !== 'all') {
         const apptBranch = a.branch_id || a.branchId
-        const isMain = selectedBranchId === 'main' || clinic?.branches?.find((b: any) => b.isMain)?.id === selectedBranchId
+        const isMain = selectedBranchId === 'main' || branches?.find((b: any) => b.isMain)?.id === selectedBranchId || clinic?.branches?.find((b: any) => b.isMain)?.id === selectedBranchId
         return apptBranch ? apptBranch === selectedBranchId : isMain
       }
       return true
     })
-  }, [appointments, selectedBranchId, clinic])
+  }, [appointments, selectedBranchId, clinic, branches])
 
-  // Current Patient (Status: in_progress)
+  // Current Patient (Status: in_progress or examining)
   const currentPatient = useMemo(() => {
-    return branchAppointments.find(a => a.status === 'in_progress') || null
+    return branchAppointments.find(a => a.status === 'in_progress' || a.status === 'examining') || null
   }, [branchAppointments])
 
-  // Next Waiting Patients (A11 Fix: use unified sortQueue clinical engine to match doctor's order)
+  // Next Waiting Patients (use unified sortQueue clinical engine to match doctor's order)
   const nextWaitingPatients = useMemo(() => {
     return sortQueue(branchAppointments, clinic).slice(0, 5)
   }, [branchAppointments, clinic])
 
-  // Trigger Voice Call when serving patient changes, enters, or is recalled (A10 Fix)
+    // Trigger Voice Call when serving patient changes, enters, or is recalled (A10 Fix)
   useEffect(() => {
     if (!currentPatient) {
       lastAnnouncedCallKeyRef.current = null
       return
     }
 
-    const currentCallKey = `${currentPatient.id}_${currentPatient.startedAt || currentPatient.queue_number}`
+    const qNum = currentPatient.queue_number ?? currentPatient.queueNumber ?? '1'
+    const currentCallKey = `${currentPatient.id}_${currentPatient.calledAt || currentPatient.startedAt || qNum}`
 
-    // A10 Fix: When first patient enters or doctor changes turn, trigger announcement
+    // When first patient enters, turn changes, or patient is called/recalled, trigger announcement
     if (lastAnnouncedCallKeyRef.current !== currentCallKey) {
       lastAnnouncedCallKeyRef.current = currentCallKey
       if (isAudioEnabled) {
         triggerPatientVoiceCall(
-          currentPatient.queue_number,
+          qNum,
           currentPatient.patientName
         )
       }
@@ -647,9 +729,13 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
   }, [clinic])
 
   // Active branch label
-  const activeBranchName = selectedBranchId !== 'all'
-    ? clinic?.branches?.find((b: any) => b.id === selectedBranchId)?.name || 'الفرع المحدد'
-    : clinic?.branchName || 'الفرع الرئيسي'
+  const activeBranchName = useMemo(() => {
+    if (selectedBranchId !== 'all') {
+      const bObj = branches?.find((b: any) => b.id === selectedBranchId) || clinic?.branches?.find((b: any) => b.id === selectedBranchId)
+      return bObj?.name || 'الفرع المحدد'
+    }
+    return clinic?.branchName || 'الفرع الرئيسي'
+  }, [selectedBranchId, branches, clinic])
 
   // Computed display texts
   const activeTickerText = tvConfig.tickerText && tvConfig.tickerText.trim() ? tvConfig.tickerText.trim() : defaultTickerText
@@ -772,7 +858,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
                 setAudioState(nextState)
                 if (nextState) {
                   triggerPatientVoiceCall(
-                    currentPatient?.queue_number || '1',
+                    currentPatient?.queue_number || currentPatient?.queueNumber || '1',
                     currentPatient?.patientName || 'المريض'
                   )
                 }
@@ -905,7 +991,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
                     رقم الدور
                   </span>
                   <motion.div
-                    key={currentPatient.id + currentPatient.queue_number}
+                    key={currentPatient.id + '_' + (currentPatient.queue_number ?? currentPatient.queueNumber ?? 'curr')}
                     initial={{ scale: 0.85, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ type: 'spring', stiffness: 200, damping: 15 }}
@@ -915,7 +1001,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
                         : 'text-blue-600 drop-shadow-md'
                     }`}
                   >
-                    #{currentPatient.queue_number}
+                    #{currentPatient.queue_number ?? currentPatient.queueNumber ?? '-'}
                   </motion.div>
                 </div>
 
@@ -1033,11 +1119,11 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
                               ? 'bg-white/10 text-slate-300'
                               : 'bg-slate-200 text-slate-700'
                         }`}>
-                          #{p.queue_number}
+                          #{p.queue_number ?? p.queueNumber ?? '-'}
                         </div>
                         <div>
                           <h4 className={`text-base font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                            {tvConfig.showPatientName && p.patientName ? p.patientName : `تذكرة دور #${p.queue_number}`}
+                            {tvConfig.showPatientName && p.patientName ? p.patientName : ('تذكرة دور #' + (p.queue_number ?? p.queueNumber ?? '-'))}
                           </h4>
                           <p className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                             {p.serviceName || 'كشف طبي'}
