@@ -31,8 +31,11 @@ import {
   resolveEffectiveDailyLimit,
   isAppointmentActive,
   getCairoDateString,
+  parseDateSafe,
   filterAvailableDays,
+  buildBookingCalendar,
   findNearestAvailableDate,
+  validateBookingAvailability,
   CAPACITY_FULL_MESSAGE
 } from '@/lib/bookingCapacity'
 import { collection, addDoc, getDocs, query, where } from 'firebase/firestore'
@@ -193,44 +196,43 @@ export function BookingModal({
   // Smart Date State (Today only or forward multi-day scheduling)
   const isTodayOnly = clinic?.bookingAvailability === 'today_only' || clinic?.allowFutureBookings === false
 
-  // Compute available days: filter out scheduled holidays and COMPLETELY EXCLUDE full days
-  const availableDays = useMemo(() => {
-    const branchSchedule = selectedBranch?.weeklySchedule || clinic?.weeklySchedule || []
+  // Compute full calendar days with explicit status (available, full, holiday, reception_ended, paused)
+  const calendarDays = useMemo(() => {
     const todayCairo = getCairoDateString()
-
-    // Scan up to 21 days ahead to find available slots
-    const maxDaysToScan = isTodayOnly ? 14 : 21
+    const maxDaysToScan = isTodayOnly ? 7 : 14
     const targetCount = isTodayOnly ? 1 : 6
 
-    const days = filterAvailableDays({
+    return buildBookingCalendar({
       startDateStr: todayCairo,
       maxDaysToScan,
       targetCount,
       limit: maxLimit,
       dailyCounts: dailyBookingCounts,
-      schedule: branchSchedule,
+      clinic,
+      branch: selectedBranch,
       isRtl: true
     })
+  }, [dailyBookingCounts, maxLimit, isTodayOnly, selectedBranch, clinic])
 
-    return days
-  }, [dailyBookingCounts, maxLimit, isTodayOnly, selectedBranch?.weeklySchedule, clinic?.weeklySchedule])
+  const availableDays = useMemo(() => {
+    return calendarDays.filter((d) => d.isSelectable)
+  }, [calendarDays])
 
   // Real-time synchronization of daily booking counts
   useEffect(() => {
     if (!clinicId) return
     let isCancelled = false
 
-    const branchSchedule = selectedBranch?.weeklySchedule || clinic?.weeklySchedule || []
     const todayCairo = getCairoDateString()
     const maxDaysToScan = isTodayOnly ? 14 : 21
     const candidateDays: string[] = []
 
-    const baseDate = new Date()
+    const baseDate = parseDateSafe(todayCairo)
     for (let i = 0; i < maxDaysToScan; i++) {
       const d = new Date(baseDate.getTime() + i * 86400000)
-      const year = d.getFullYear()
-      const month = String(d.getMonth() + 1).padStart(2, '0')
-      const day = String(d.getDate()).padStart(2, '0')
+      const year = d.getUTCFullYear()
+      const month = String(d.getUTCMonth() + 1).padStart(2, '0')
+      const day = String(d.getUTCDate()).padStart(2, '0')
       candidateDays.push(`${year}-${month}-${day}`)
     }
 
@@ -264,15 +266,24 @@ export function BookingModal({
     }
   }, [clinicId, maxLimit, isTodayOnly, selectedBranch?.id, selectedBranch?.weeklySchedule, clinic?.weeklySchedule])
 
-  // Auto-select nearest available date and display auto-forward notice if today is full
+  // Auto-select nearest available date and display auto-forward notice if today is unavailable
   useEffect(() => {
     if (availableDays.length > 0) {
       const todayCairo = getCairoDateString()
-      const todayCount = dailyBookingCounts[todayCairo] || 0
-      const isTodayFull = maxLimit > 0 && todayCount >= maxLimit
+      const todayInfo = calendarDays.find((d) => d.iso === todayCairo)
 
-      if (isTodayFull && availableDays[0].iso !== todayCairo) {
-        setAutoForwardedNotice(`اكتملت حجوزات هذا اليوم، تم اختيار أقرب يوم متاح: ${availableDays[0].label} (${availableDays[0].formattedDate})`)
+      if (todayInfo && !todayInfo.isSelectable && availableDays[0].iso !== todayCairo) {
+        if (todayInfo.status === 'full') {
+          setAutoForwardedNotice(`اكتملت حجوزات هذا اليوم، تم اختيار أقرب يوم متاح: ${availableDays[0].label} (${availableDays[0].subLabel})`)
+        } else if (todayInfo.status === 'reception_ended') {
+          setAutoForwardedNotice(`انتهت مواعيد استقبال الحجوزات لهذا اليوم، تم اختيار أقرب يوم متاح: ${availableDays[0].label} (${availableDays[0].subLabel})`)
+        } else if (todayInfo.status === 'holiday') {
+          setAutoForwardedNotice(`اليوم المحدد عطلة رسمية، تم اختيار أقرب يوم متاح: ${availableDays[0].label} (${availableDays[0].subLabel})`)
+        } else if (todayInfo.status === 'paused') {
+          setAutoForwardedNotice(`الحجز متوقف لهذا اليوم، تم اختيار أقرب يوم متاح: ${availableDays[0].label} (${availableDays[0].subLabel})`)
+        } else {
+          setAutoForwardedNotice('')
+        }
       } else {
         setAutoForwardedNotice('')
       }
@@ -285,7 +296,7 @@ export function BookingModal({
       setSelectedDate('')
       setAutoForwardedNotice('')
     }
-  }, [availableDays, selectedDate, dailyBookingCounts, maxLimit])
+  }, [availableDays, calendarDays, selectedDate])
 
   // Live estimated queue & wait time calculation
   const [estimatedQueueNumber, setEstimatedQueueNumber] = useState<number>(1)
@@ -951,7 +962,7 @@ export function BookingModal({
                     </div>
                   )}
 
-                  {availableDays.length === 0 ? (
+                  {calendarDays.length === 0 ? (
                     <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-center space-y-1.5 my-2">
                       <p className="text-xs sm:text-sm font-black text-rose-700 dark:text-rose-300">
                         لا توجد مواعيد متاحة حاليًا
@@ -961,24 +972,48 @@ export function BookingModal({
                       </p>
                     </div>
                   ) : (
-                    <div className={`grid ${availableDays.length === 1 ? 'grid-cols-1 max-w-[220px] mx-auto' : 'grid-cols-3'} gap-2`}>
-                      {availableDays.map((d) => {
+                    <div className={`grid ${calendarDays.length === 1 ? 'grid-cols-1 max-w-[220px] mx-auto' : 'grid-cols-2 sm:grid-cols-3'} gap-2.5`}>
+                      {calendarDays.map((d) => {
                         const isSelected = selectedDate === d.iso
+                        const isSelectable = d.isSelectable
                         return (
                           <button
                             key={d.iso}
                             type="button"
-                            onClick={() => setSelectedDate(d.iso)}
-                            className={`p-2.5 rounded-2xl border-2 text-center transition-all flex flex-col items-center justify-center cursor-pointer ${
-                              isSelected
-                                ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/60 shadow-md ring-2 ring-sky-400/20'
-                                : 'border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-sky-300'
+                            disabled={!isSelectable}
+                            onClick={() => {
+                              if (isSelectable) {
+                                setSelectedDate(d.iso)
+                                setAutoForwardedNotice('')
+                              }
+                            }}
+                            className={`p-2.5 rounded-2xl border-2 text-center transition-all flex flex-col items-center justify-center relative ${
+                              !isSelectable
+                                ? 'opacity-65 border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800/40 cursor-not-allowed'
+                                : isSelected
+                                ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/60 shadow-md ring-2 ring-sky-400/20 cursor-pointer'
+                                : 'border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-sky-300 cursor-pointer'
                             }`}
                           >
-                            <span className={`text-xs font-black ${isSelected ? 'text-sky-600 dark:text-sky-400' : 'text-slate-900 dark:text-white'}`}>
-                              {d.label}
-                            </span>
-                            <span className="text-[10px] font-bold text-slate-400 mt-0.5">
+                            <div className="flex items-center justify-between w-full px-0.5">
+                              <span className={`text-xs font-black ${isSelected ? 'text-sky-600 dark:text-sky-400' : 'text-slate-900 dark:text-white'}`}>
+                                {d.label}
+                              </span>
+                              <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full border ${
+                                d.status === 'available'
+                                  ? isSelected
+                                    ? 'bg-sky-500/20 text-sky-700 dark:text-sky-300 border-sky-500/30'
+                                    : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                  : d.status === 'full'
+                                  ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                                  : d.status === 'reception_ended'
+                                  ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
+                                  : 'bg-muted text-muted-foreground border-border'
+                              }`}>
+                                {d.statusLabel}
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-bold text-slate-400 mt-1 font-mono">
                               {d.subLabel}
                             </span>
                           </button>
@@ -1001,16 +1036,24 @@ export function BookingModal({
                         <Clock className="w-4 h-4" />
                       </div>
                       <div>
-                        <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400">دورك المتوقع لهذا اليوم</div>
+                        <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                          {selectedDate > getCairoDateString() ? `دورك المتوقع لتاريخ ${selectedDate}` : 'دورك المتوقع لهذا اليوم'}
+                        </div>
                         <div className="text-sm font-black text-slate-900 dark:text-white font-mono">
                           {isEstimating ? 'جاري الحساب...' : `دور رقم #${estimatedQueueNumber}`}
                         </div>
                       </div>
                     </div>
                     <div className="text-left">
-                      <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400">الوقت التقريبي للدخول</div>
+                      <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                        {selectedDate > getCairoDateString() ? 'حالة الحجز' : 'الوقت التقريبي للدخول'}
+                      </div>
                       <div className="text-xs font-black text-sky-600 dark:text-sky-400">
-                        {estimatedWaitMins > 0 ? `~ ${estimatedWaitMins} دقيقة` : 'كشف فوري'}
+                        {selectedDate > getCairoDateString()
+                          ? 'حجز مسبق مؤكد'
+                          : estimatedWaitMins > 0
+                          ? `~ ${estimatedWaitMins} دقيقة`
+                          : 'أنت التالي بالدور'}
                       </div>
                     </div>
                   </div>

@@ -30,7 +30,14 @@ import { openManualWhatsAppChat, formatInClinicBookingWhatsAppMessage } from '@/
 import { getClinicUrl } from '@/lib/clinic-url'
 import { Branch } from '@/types/clinic'
 import { getClinicBranches, ensureClinicHasMainBranch } from '@/lib/branchService'
-import { resolveEffectiveDailyLimit, isAppointmentActive, CAPACITY_FULL_MESSAGE } from '@/lib/bookingCapacity'
+import {
+  resolveEffectiveDailyLimit,
+  isAppointmentActive,
+  evaluateDayAvailability,
+  findNearestAvailableDate,
+  getCairoDateString,
+  CAPACITY_FULL_MESSAGE
+} from '@/lib/bookingCapacity'
 import Link from 'next/link'
 
 interface PatientMatch {
@@ -155,6 +162,17 @@ export function InClinicBookingView({
 
   const [dateBookingCount, setDateBookingCount] = useState<number>(0)
   const isDateFull = maxLimit > 0 && dateBookingCount >= maxLimit
+
+  const dateEvaluation = useMemo(() => {
+    return evaluateDayAvailability({
+      dateStr: bookingDate,
+      clinic,
+      branch: selectedBranch,
+      limit: maxLimit,
+      dailyCounts: { [bookingDate]: dateBookingCount },
+      isRtl
+    })
+  }, [bookingDate, clinic, selectedBranch, maxLimit, dateBookingCount, isRtl])
 
   useEffect(() => {
     if (!clinic?.id && !clinic?.slug) return
@@ -306,11 +324,20 @@ export function InClinicBookingView({
       return toast.error(isRtl ? 'يرجى اختيار الفرع' : 'Please select branch')
     }
 
-    if (isDateFull) {
-      return toast.error(
+    if (!dateEvaluation.isSelectable) {
+      const nearest = findNearestAvailableDate({
+        requestedDateStr: bookingDate,
+        clinic,
+        branch: selectedBranch,
+        limit: maxLimit,
+        dailyCounts: { [bookingDate]: dateBookingCount },
         isRtl
-          ? `اكتمل الحد الأقصى للحجوزات لهذا اليوم (${maxLimit} كشف)`
-          : `Daily capacity reached (${maxLimit} appointments)`
+      })
+      if (nearest) {
+        setBookingDate(nearest.iso)
+      }
+      return toast.error(
+        dateEvaluation.reason || (isRtl ? 'الموعد المحدد غير متاح للحجز' : 'Selected date unavailable')
       )
     }
 
@@ -858,30 +885,62 @@ export function InClinicBookingView({
                     <Label className="text-xs font-bold text-foreground">
                       {isRtl ? 'تاريخ الحجز' : 'Booking Date'} *
                     </Label>
-                    {maxLimit > 0 && (
+                    <div className="flex items-center gap-1.5">
                       <Badge
                         className={`text-[10px] font-bold ${
-                          isDateFull
-                            ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
-                            : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-mono'
+                          dateEvaluation.status === 'available'
+                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                            : dateEvaluation.status === 'full'
+                            ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                            : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
                         }`}
                       >
-                        {isDateFull
-                          ? (isRtl ? `مكتمل العدد (${dateBookingCount} / ${maxLimit})` : `Full (${dateBookingCount}/${maxLimit})`)
-                          : (isRtl ? `متبقي ${maxLimit - dateBookingCount} من ${maxLimit}` : `${maxLimit - dateBookingCount}/${maxLimit} left`)}
+                        {dateEvaluation.statusLabel}
                       </Badge>
-                    )}
+                      {maxLimit > 0 && (
+                        <Badge variant="outline" className="text-[10px] font-mono">
+                          {dateBookingCount}/{maxLimit}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <Input
                     type="date"
+                    min={getCairoDateString()}
                     value={bookingDate}
                     onChange={(e) => setBookingDate(e.target.value)}
                     className="h-11 rounded-2xl text-xs font-mono"
                     required
                   />
-                  <p className="text-[11px] text-muted-foreground">
-                    {isRtl ? 'الافتراضي هو اليوم للدخول المباشر في الطابور.' : 'Default is today for live queue.'}
-                  </p>
+                  {!dateEvaluation.isSelectable ? (
+                    <div className="flex items-center justify-between text-[11px] p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300">
+                      <span>{dateEvaluation.reason || 'الموعد غير متاح'}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nearest = findNearestAvailableDate({
+                            requestedDateStr: bookingDate,
+                            clinic,
+                            branch: selectedBranch,
+                            limit: maxLimit,
+                            dailyCounts: { [bookingDate]: dateBookingCount },
+                            isRtl
+                          })
+                          if (nearest) {
+                            setBookingDate(nearest.iso)
+                          }
+                        }}
+                        className="text-primary font-bold hover:underline cursor-pointer"
+                      >
+                        {isRtl ? 'اختر أقرب يوم متاح' : 'Select nearest date'}
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground">
+                      {isRtl ? 'مواعيد الاستقبال لهذا اليوم: ' : 'Working hours today: '}
+                      <span className="font-bold text-foreground font-mono">{dateEvaluation.workingHoursLabel}</span>
+                    </p>
+                  )}
                 </div>
 
                 {/* Service Highlights Card */}

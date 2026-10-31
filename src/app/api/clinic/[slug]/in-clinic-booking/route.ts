@@ -8,6 +8,7 @@ import {
   isAppointmentActive,
   getCairoDateString,
   findNearestAvailableDate,
+  validateBookingAvailability,
   CAPACITY_FULL_MESSAGE
 } from '@/lib/bookingCapacity'
 import { createClinicNotification } from '@/lib/notificationService'
@@ -109,11 +110,12 @@ export async function POST(
     // Resolve branch details from database
     let branchName = 'الفرع الرئيسي'
     let branchMaxLimit = 0
+    let bData: any = null
     if (effectiveBranchId) {
       try {
         const bDoc = await getDoc(doc(db, 'branches', effectiveBranchId))
         if (bDoc.exists()) {
-          const bData = bDoc.data()
+          bData = bDoc.data()
           if (bData.isArchived) {
             return NextResponse.json({ error: 'هذا الفرع مؤرشف حاليًا وغير متاح للحجز' }, { status: 400 })
           }
@@ -122,6 +124,7 @@ export async function POST(
         } else if (clinic.branches && Array.isArray(clinic.branches)) {
           const found = clinic.branches.find((b: any) => b.id === effectiveBranchId)
           if (found) {
+            bData = found
             branchName = found.name || branchName
             branchMaxLimit = Number(found.maxDailyBookings) || 0
           }
@@ -157,8 +160,7 @@ export async function POST(
     const todayCairo = getCairoDateString()
     const bookingDate = date || todayCairo
 
-    // Check clinic/branch daily limit using unified resolution
-    const effectiveLimit = resolveEffectiveDailyLimit(clinic, { maxDailyBookings: branchMaxLimit }, Boolean(clinic.branchesEnabled))
+    const effectiveLimit = resolveEffectiveDailyLimit(clinic, bData, Boolean(clinic.branchesEnabled))
     const qAppts = query(
       collection(db, 'appointments'),
       where('clinic_id', '==', clinicId),
@@ -171,20 +173,25 @@ export async function POST(
       ? activeAppts.filter((d) => (d.data().branch_id || d.data().branchId || null) === effectiveBranchId)
       : activeAppts
 
-    if (effectiveLimit > 0 && activeScoped.length >= effectiveLimit) {
-      const nearest = findNearestAvailableDate({
-        requestedDateStr: bookingDate,
-        limit: effectiveLimit,
-        dailyCounts: { [bookingDate]: activeScoped.length },
-        schedule: clinic.weeklySchedule || []
-      })
+    // Check clinic/branch daily limit and full availability
+    const validation = validateBookingAvailability({
+      bookingDate,
+      clinic,
+      branch: bData,
+      hasMultipleBranches: Boolean(clinic.branchesEnabled),
+      currentActiveBookings: activeScoped.length,
+      isRtl: true
+    })
+
+    if (!validation.isValid) {
       return NextResponse.json(
         {
-          error: CAPACITY_FULL_MESSAGE,
-          isFull: true,
-          limit: effectiveLimit,
-          nextAvailableDate: nearest?.nearestDateStr || null,
-          nextAvailableFormatted: nearest?.formattedDate || null
+          error: validation.error,
+          isFull: validation.status === 'full',
+          status: validation.status,
+          limit: validation.effectiveLimit,
+          nextAvailableDate: validation.nextAvailableDate || null,
+          nextAvailableFormatted: validation.nextAvailableFormatted || null
         },
         { status: 400 }
       )

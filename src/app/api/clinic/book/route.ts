@@ -9,6 +9,7 @@ import {
   isAppointmentActive,
   getCairoDateString,
   findNearestAvailableDate,
+  validateBookingAvailability,
   CAPACITY_FULL_MESSAGE
 } from '@/lib/bookingCapacity'
 
@@ -121,21 +122,25 @@ export async function POST(req: NextRequest) {
       ? activeAppts.filter((d) => (d.data().branch_id || d.data().branchId || null) === branchId)
       : activeAppts
 
-    // Enforce daily capacity limit immediately with next available day suggestion
-    if (effectiveLimit > 0 && activeScoped.length >= effectiveLimit) {
-      const nearest = findNearestAvailableDate({
-        requestedDateStr: bookingDate,
-        limit: effectiveLimit,
-        dailyCounts: { [bookingDate]: activeScoped.length },
-        schedule: bData?.weeklySchedule || cData?.weeklySchedule || []
-      })
+    // 5. Enforce full booking schedule, hours, and capacity availability
+    const validation = validateBookingAvailability({
+      bookingDate,
+      clinic: cData,
+      branch: bData,
+      hasMultipleBranches: Boolean(cData.branchesEnabled),
+      currentActiveBookings: activeScoped.length,
+      isRtl: true
+    })
+
+    if (!validation.isValid) {
       return NextResponse.json(
         {
-          error: CAPACITY_FULL_MESSAGE,
-          isFull: true,
-          limit: effectiveLimit,
-          nextAvailableDate: nearest?.nearestDateStr || null,
-          nextAvailableFormatted: nearest?.formattedDate || null
+          error: validation.error,
+          isFull: validation.status === 'full',
+          status: validation.status,
+          limit: validation.effectiveLimit,
+          nextAvailableDate: validation.nextAvailableDate || null,
+          nextAvailableFormatted: validation.nextAvailableFormatted || null
         },
         { status: 400 }
       )

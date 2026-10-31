@@ -21,7 +21,9 @@ import {
   isAppointmentActive,
   getCairoDateString,
   filterAvailableDays,
+  buildBookingCalendar,
   findNearestAvailableDate,
+  validateBookingAvailability,
   CAPACITY_FULL_MESSAGE
 } from '@/lib/bookingCapacity'
 import { collection, addDoc, getDocs, query, where } from 'firebase/firestore'
@@ -250,30 +252,27 @@ export function BookingForm({
   // Smart Date State (Today only or forward multi-day scheduling)
   const isTodayOnly = clinic?.bookingAvailability === 'today_only' || clinic?.allowFutureBookings === false
 
-  // Compute available days: check selected branch weekly schedule & max daily bookings (completely exclude full days)
-  const availableDays = useMemo(() => {
-    const branchSchedule = selectedBranch?.weeklySchedule || clinic?.weeklySchedule || []
+  // Compute full calendar days with explicit status (available, full, holiday, reception_ended, paused)
+  const calendarDays = useMemo(() => {
     const todayCairo = getCairoDateString()
-
-    const maxDaysToScan = isTodayOnly ? 14 : 21
+    const maxDaysToScan = isTodayOnly ? 7 : 14
     const targetCount = isTodayOnly ? 1 : 6
 
-    const days = filterAvailableDays({
+    return buildBookingCalendar({
       startDateStr: todayCairo,
       maxDaysToScan,
       targetCount,
       limit: maxLimit,
       dailyCounts: dailyBookingCounts,
-      schedule: branchSchedule,
+      clinic,
+      branch: selectedBranch,
       isRtl
     })
+  }, [clinic, selectedBranch, maxLimit, dailyBookingCounts, isRtl, isTodayOnly])
 
-    return days.map(d => ({
-      iso: d.iso,
-      label: d.label,
-      formattedDate: d.subLabel
-    }))
-  }, [selectedBranch?.weeklySchedule, clinic?.weeklySchedule, maxLimit, dailyBookingCounts, isRtl, isTodayOnly])
+  const availableDays = useMemo(() => {
+    return calendarDays.filter((d) => d.isSelectable)
+  }, [calendarDays])
 
   // Auto-advance to nearest available date when current selection is full or unavailable
   useEffect(() => {
@@ -282,22 +281,47 @@ export function BookingForm({
       if (!isSelectedAvailable) {
         const nextDay = availableDays[0]
         const todayCairo = getCairoDateString()
-        if (nextDay.iso !== todayCairo && maxLimit > 0 && (dailyBookingCounts[todayCairo] || 0) >= maxLimit) {
-          setAutoForwardedNotice(
-            isRtl
-              ? `اكتملت حجوزات هذا اليوم، تم اختيار أقرب يوم متاح: ${nextDay.label} (${nextDay.formattedDate})`
-              : `Today's bookings are full. Nearest available date selected: ${nextDay.label} (${nextDay.formattedDate})`
-          )
+        const todayInfo = calendarDays.find((d) => d.iso === todayCairo)
+
+        if (todayInfo && !todayInfo.isSelectable && nextDay.iso !== todayCairo) {
+          if (todayInfo.status === 'full') {
+            setAutoForwardedNotice(
+              isRtl
+                ? `اكتملت حجوزات هذا اليوم، تم اختيار أقرب يوم متاح: ${nextDay.label} (${nextDay.subLabel})`
+                : `Today's bookings are full. Nearest available date selected: ${nextDay.label} (${nextDay.subLabel})`
+            )
+          } else if (todayInfo.status === 'reception_ended') {
+            setAutoForwardedNotice(
+              isRtl
+                ? `انتهت مواعيد استقبال الحجوزات لهذا اليوم، تم اختيار أقرب يوم متاح: ${nextDay.label} (${nextDay.subLabel})`
+                : `Reception hours ended for today. Nearest available date selected: ${nextDay.label} (${nextDay.subLabel})`
+            )
+          } else if (todayInfo.status === 'holiday') {
+            setAutoForwardedNotice(
+              isRtl
+                ? `اليوم المحدد عطلة رسمية، تم اختيار أقرب يوم متاح: ${nextDay.label} (${nextDay.subLabel})`
+                : `Today is a scheduled holiday. Nearest available date selected: ${nextDay.label} (${nextDay.subLabel})`
+            )
+          } else if (todayInfo.status === 'paused') {
+            setAutoForwardedNotice(
+              isRtl
+                ? `الحجز متوقف مؤقتاً لهذا اليوم، تم اختيار أقرب يوم متاح: ${nextDay.label} (${nextDay.subLabel})`
+                : `Bookings paused for today. Nearest available date selected: ${nextDay.label} (${nextDay.subLabel})`
+            )
+          } else {
+            setAutoForwardedNotice('')
+          }
         } else {
           setAutoForwardedNotice('')
         }
+
         setSelectedDate(nextDay.iso)
       }
     } else {
       setSelectedDate('')
       setAutoForwardedNotice('')
     }
-  }, [availableDays, selectedDate, maxLimit, dailyBookingCounts, isRtl])
+  }, [availableDays, calendarDays, selectedDate, isRtl])
 
     const [paymentMethod, setPaymentMethod] = useState<'cash' | 'instapay' | 'wallet'>('cash')
   const [transferNumber, setTransferNumber] = useState('')
@@ -813,8 +837,8 @@ export function BookingForm({
                   {t('booking_day', 'يوم الحجز (مواعيد')} {selectedBranch?.name || t('branch', 'الفرع')})
                 </Label>
                 {selectedDate && (
-                  <span className="text-[11px] font-bold text-primary">
-                    {availableDays.find((d) => d.iso === selectedDate)?.label} ({availableDays.find((d) => d.iso === selectedDate)?.formattedDate})
+                  <span className="text-[11px] font-bold text-primary font-mono">
+                    {calendarDays.find((d) => d.iso === selectedDate)?.formattedDate || selectedDate}
                   </span>
                 )}
               </div>
@@ -827,27 +851,51 @@ export function BookingForm({
                 </div>
               )}
 
-              {availableDays.length > 0 ? (
+              {calendarDays.length > 0 ? (
                 <>
-                  <div className={`grid ${availableDays.length === 1 ? 'grid-cols-1 max-w-[220px] mx-auto' : 'grid-cols-3'} gap-2`}>
-                    {availableDays.map((d) => {
+                  <div className={`grid ${calendarDays.length === 1 ? 'grid-cols-1 max-w-[220px] mx-auto' : 'grid-cols-2 sm:grid-cols-3'} gap-2.5`}>
+                    {calendarDays.map((d) => {
                       const isSelected = selectedDate === d.iso
+                      const isSelectable = d.isSelectable
                       return (
                         <button
                           key={d.iso}
                           type="button"
-                          onClick={() => setSelectedDate(d.iso)}
-                          className={`p-3 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
-                            isSelected
-                              ? 'bg-primary text-white border-primary shadow-md shadow-primary/20 ring-2 ring-primary/30'
-                              : 'bg-card text-foreground border-border hover:border-primary hover:bg-primary/5'
+                          disabled={!isSelectable}
+                          onClick={() => {
+                            if (isSelectable) {
+                              setSelectedDate(d.iso)
+                              setAutoForwardedNotice('')
+                            }
+                          }}
+                          className={`p-3 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1.5 relative ${
+                            !isSelectable
+                              ? 'opacity-65 bg-muted/40 border-border cursor-not-allowed'
+                              : isSelected
+                              ? 'bg-primary text-white border-primary shadow-md shadow-primary/20 ring-2 ring-primary/30 cursor-pointer'
+                              : 'bg-card text-foreground border-border hover:border-primary hover:bg-primary/5 cursor-pointer'
                           }`}
                         >
-                          <span className={`text-xs font-black ${isSelected ? 'text-white' : 'text-foreground'}`}>
-                            {d.label}
-                          </span>
+                          <div className="flex items-center justify-between w-full px-1">
+                            <span className={`text-xs font-black ${isSelected ? 'text-white' : 'text-foreground'}`}>
+                              {d.label}
+                            </span>
+                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full border ${
+                              d.status === 'available'
+                                ? isSelected
+                                  ? 'bg-white/20 text-white border-white/30'
+                                  : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                : d.status === 'full'
+                                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                                : d.status === 'reception_ended'
+                                ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
+                                : 'bg-muted text-muted-foreground border-border'
+                            }`}>
+                              {d.statusLabel}
+                            </span>
+                          </div>
                           <span className={`text-[10px] font-bold ${isSelected ? 'text-white/90' : 'text-muted-foreground font-mono'}`}>
-                            {d.formattedDate}
+                            {d.subLabel}
                           </span>
                         </button>
                       )
