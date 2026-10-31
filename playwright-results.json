@@ -1,0 +1,751 @@
+{
+  "config": {
+    "argv": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "E:\\progict\\clinic-os-v2\\node_modules\\@playwright\\test\\cli.js",
+      "test",
+      "--list"
+    ],
+    "configFile": "E:\\progict\\clinic-os-v2\\playwright.config.ts",
+    "rootDir": "E:/progict/clinic-os-v2/tests/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {},
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "E:/progict/clinic-os-v2/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "Chromium E2E (Desktop)",
+        "name": "Chromium E2E (Desktop)",
+        "testDir": "E:/progict/clinic-os-v2/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.spec.ts"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "E:/progict/clinic-os-v2/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "Mobile Patient E2E",
+        "name": "Mobile Patient E2E",
+        "testDir": "E:/progict/clinic-os-v2/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "04-patient.spec.ts"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "playwright-report",
+          "open": "never"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "playwright-results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.63.0",
+    "workers": 1,
+    "webServer": {
+      "command": "npm run start -- --hostname 127.0.0.1 --port 3100",
+      "url": "http://127.0.0.1:3100",
+      "reuseExistingServer": true,
+      "timeout": 90000,
+      "env": {
+        "NEXT_PUBLIC_FIREBASE_API_KEY": "e2e-synthetic-test-key",
+        "NEXT_PUBLIC_FIREBASE_PROJECT_ID": "e2e-synthetic-test",
+        "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN": "e2e-synthetic-test.firebaseapp.com",
+        "NEXT_PUBLIC_FIREBASE_APP_ID": "e2e-synthetic-test"
+      }
+    }
+  },
+  "suites": [
+    {
+      "title": "01-owner.spec.ts",
+      "file": "01-owner.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "E2E Suite 01: Platform Owner Governance (Requirement R3 & C4)",
+          "file": "01-owner.spec.ts",
+          "line": 10,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Tier 1: Owner Dashboard layout loads in Arabic RTL with navigation tabs",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Chromium E2E (Desktop)",
+                  "projectName": "Chromium E2E (Desktop)",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f9d76daae0c72d5c8f69-356febac6250e8fc53b4",
+              "file": "01-owner.spec.ts",
+              "line": 18,
+              "column": 7
+            },
+            {
+              "title": "Tier 1: Provision a new synthetic clinic with doctor credentials and custom slug",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Chromium E2E (Desktop)",
+                  "projectName": "Chromium E2E (Desktop)",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f9d76daae0c72d5c8f69-0b495a16c197cb5ff567",
+              "file": "01-owner.spec.ts",
+              "line": 34,
+              "column": 7
+            },
+            {
+              "title": "Tier 1: Subscription Management - Package list and feature controls render",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Chromium E2E (Desktop)",
+                  "projectName": "Chromium E2E (Desktop)",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f9d76daae0c72d5c8f69-9651a735a37b83a1300d",
+              "file": "01-owner.spec.ts",
+              "line": 66,
+              "column": 7
+            },
+            {
+              "title": "Tier 2: Corner Cases - Input sanitization for clinic slug and price validation",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Chromium E2E (Desktop)",
+                  "projectName": "Chromium E2E (Desktop)",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f9d76daae0c72d5c8f69-687f5b677dcddd05b457",
+              "file": "01-owner.spec.ts",
+              "line": 75,
+              "column": 7
+            },
+            {
+              "title": "Tier 3 & 4: Suspension Guards - Suspended clinic blocks public access and direct bookings",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Chromium E2E (Desktop)",
+                  "projectName": "Chromium E2E (Desktop)",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f9d76daae0c72d5c8f69-d3a8e044888212f6dd42",
+              "file": "01-owner.spec.ts",
+              "line": 91,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "02-doctor.spec.ts",
+      "file": "02-doctor.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "E2E Suite 02: Doctor Clinical & Queue Workflow (Requirement R3 & C4)",
+          "file": "02-doctor.spec.ts",
+          "line": 9,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Tier 1: Doctor Queue Management - Queue displays patients with priority sorting",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Chromium E2E (Desktop)",
+                  "projectName": "Chromium E2E (Desktop)",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "8192131b9d0b7d24b250-8c530ef2037aa78e033f",
+              "file": "02-doctor.spec.ts",
+              "line": 17,
+              "column": 7
+            },
+            {
+              "title": "Tier 1 & 3: Patient Calling - Start examination updates patient state to in-progress",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Chromium E2E (Desktop)",
+                  "projectName": "Chromium E2E (Desktop)",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "8192131b9d0b7d24b250-b1d20a5e78c2161ac4d7",
+              "file": "02-doctor.spec.ts",
+              "line": 32,
+              "column": 7
+            },
+            {
+              "title": "Tier 1: Medical File Review & Vital Signs Recording",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Chromium E2E (Desktop)",
+                  "projectName": "Chromium E2E (Desktop)",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "8192131b9d0b7d24b250-ffcca70046fb1e65c5ef",
+              "file": "02-doctor.spec.ts",
+              "line": 50,
+              "column": 7
+            },
+            {
+              "title": "Tier 1 & 4: Rx Clinical Protocol & A4 Prescription Generation",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Chromium E2E (Desktop)",
+                  "projectName": "Chromium E2E (Desktop)",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "8192131b9d0b7d24b250-78e4edd9995633486d9d",
+              "file": "02-doctor.spec.ts",
+              "line": 90,
+              "column": 7
+            },
+            {
+              "title": "Tier 2: Boundary Cases - Empty diagnosis handling and prescription print integrity",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Chromium E2E (Desktop)",
+                  "projectName": "Chromium E2E (Desktop)",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "8192131b9d0b7d24b250-fbbc8c9d0442428ae0a8",
+              "file": "02-doctor.spec.ts",
+              "line": 115,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "03-receptionist.spec.ts",
+      "file": "03-receptionist.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "E2E Suite 03: Receptionist Registration & Billing (Requirement R3 & C4)",
+          "file": "03-receptionist.spec.ts",
+          "line": 9,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Tier 1: Walk-in Registration - Add new patient with Egyptian phone and sequential ticket",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Chromium E2E (Desktop)",
+                  "projectName": "Chromium E2E (Desktop)",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "252aed1f1366db3bb3b6-22bbaec7a95585f0c083",
+              "file": "03-receptionist.spec.ts",
+              "line": 23,
+              "column": 7
+            },
+            {
+              "title": "Tier 1 & 3: Queue Status Transitions - Skip patient and restore to priorityNext",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Chromium E2E (Desktop)",
+                  "projectName": "Chromium E2E (Desktop)",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "252aed1f1366db3bb3b6-0d29f270b8c76012178d",
+              "file": "03-receptionist.spec.ts",
+              "line": 61,
+              "column": 7
+            },
+            {
+              "title": "Tier 1: Invoice Creation & Discount Application",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Chromium E2E (Desktop)",
+                  "projectName": "Chromium E2E (Desktop)",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "252aed1f1366db3bb3b6-ea276a69515fc2e6c89d",
+              "file": "03-receptionist.spec.ts",
+              "line": 87,
+              "column": 7
+            },
+            {
+              "title": "Tier 1 & 4: 80mm Thermal Receipt Generation & Ticket Printing",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Chromium E2E (Desktop)",
+                  "projectName": "Chromium E2E (Desktop)",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "252aed1f1366db3bb3b6-e54e0b6df62ff321d246",
+              "file": "03-receptionist.spec.ts",
+              "line": 110,
+              "column": 7
+            },
+            {
+              "title": "Tier 2: Assistant Role Isolation - Locked branch cannot access other branch settings",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Chromium E2E (Desktop)",
+                  "projectName": "Chromium E2E (Desktop)",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "252aed1f1366db3bb3b6-a6bd8ec130d68fa79b75",
+              "file": "03-receptionist.spec.ts",
+              "line": 124,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "04-patient.spec.ts",
+      "file": "04-patient.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "E2E Suite 04: Patient Public Booking & Live Tracking (Requirement R3 & C4)",
+          "file": "04-patient.spec.ts",
+          "line": 9,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Tier 1: Public Clinic Landing Page loads with Arabic RTL and clinic branding",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Chromium E2E (Desktop)",
+                  "projectName": "Chromium E2E (Desktop)",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "ff84e52e2ad941bc953a-618d69d9c92eeac5d4d0",
+              "file": "04-patient.spec.ts",
+              "line": 17,
+              "column": 7
+            },
+            {
+              "title": "Tier 1 & 2: Multi-step Booking Modal with Egyptian Mobile Validation",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Chromium E2E (Desktop)",
+                  "projectName": "Chromium E2E (Desktop)",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "ff84e52e2ad941bc953a-de791943e0397d49d997",
+              "file": "04-patient.spec.ts",
+              "line": 32,
+              "column": 7
+            },
+            {
+              "title": "Tier 1: Live Queue Tracking Route displays assigned ticket and wait estimate",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Chromium E2E (Desktop)",
+                  "projectName": "Chromium E2E (Desktop)",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "ff84e52e2ad941bc953a-71986e94c42425ca3253",
+              "file": "04-patient.spec.ts",
+              "line": 107,
+              "column": 7
+            },
+            {
+              "title": "Tier 1 & 4: Patient Portal - Location tab displays Google Maps coordinates & GPS directions",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Chromium E2E (Desktop)",
+                  "projectName": "Chromium E2E (Desktop)",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "ff84e52e2ad941bc953a-cd735aab5791933389af",
+              "file": "04-patient.spec.ts",
+              "line": 122,
+              "column": 7
+            },
+            {
+              "title": "Tier 1: Public Clinic Landing Page loads with Arabic RTL and clinic branding",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Patient E2E",
+                  "projectName": "Mobile Patient E2E",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "ff84e52e2ad941bc953a-0d0869183079b3f5b656",
+              "file": "04-patient.spec.ts",
+              "line": 17,
+              "column": 7
+            },
+            {
+              "title": "Tier 1 & 2: Multi-step Booking Modal with Egyptian Mobile Validation",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Patient E2E",
+                  "projectName": "Mobile Patient E2E",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "ff84e52e2ad941bc953a-6b3ec3ec9062ac29354f",
+              "file": "04-patient.spec.ts",
+              "line": 32,
+              "column": 7
+            },
+            {
+              "title": "Tier 1: Live Queue Tracking Route displays assigned ticket and wait estimate",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Patient E2E",
+                  "projectName": "Mobile Patient E2E",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "ff84e52e2ad941bc953a-39563b834ce324167305",
+              "file": "04-patient.spec.ts",
+              "line": 107,
+              "column": 7
+            },
+            {
+              "title": "Tier 1 & 4: Patient Portal - Location tab displays Google Maps coordinates & GPS directions",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Mobile Patient E2E",
+                  "projectName": "Mobile Patient E2E",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "ff84e52e2ad941bc953a-e7133cdb11c2ac97230f",
+              "file": "04-patient.spec.ts",
+              "line": 122,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "05-multi-tenant-sec.spec.ts",
+      "file": "05-multi-tenant-sec.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "E2E Suite 05: Multi-Tenant Security & Isolation (Requirement R5 & C2)",
+          "file": "05-multi-tenant-sec.spec.ts",
+          "line": 10,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Tier 1 & 3: Cross-Tenant Medical Record Leakage Blocked",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Chromium E2E (Desktop)",
+                  "projectName": "Chromium E2E (Desktop)",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e02413917e2f0037553e-d7f43c5f4e2f4003da01",
+              "file": "05-multi-tenant-sec.spec.ts",
+              "line": 25,
+              "column": 7
+            },
+            {
+              "title": "Tier 1 & 2: Percent-Encoded Patient ID (%2B) Resolves without 500 or CPU Timeout",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Chromium E2E (Desktop)",
+                  "projectName": "Chromium E2E (Desktop)",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e02413917e2f0037553e-9561007aab245c0c9e84",
+              "file": "05-multi-tenant-sec.spec.ts",
+              "line": 43,
+              "column": 7
+            },
+            {
+              "title": "Tier 3: Insecure Direct Object Reference (IDOR) on Invoices Blocked Across Tenants",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Chromium E2E (Desktop)",
+                  "projectName": "Chromium E2E (Desktop)",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e02413917e2f0037553e-63c1c9b056d7c880ecbd",
+              "file": "05-multi-tenant-sec.spec.ts",
+              "line": 63,
+              "column": 7
+            },
+            {
+              "title": "Tier 3: Insecure Direct Object Reference (IDOR) on Prescriptions Blocked Across Tenants",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Chromium E2E (Desktop)",
+                  "projectName": "Chromium E2E (Desktop)",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e02413917e2f0037553e-f2054cd3e2a787a4e29c",
+              "file": "05-multi-tenant-sec.spec.ts",
+              "line": 80,
+              "column": 7
+            },
+            {
+              "title": "Tier 4: Real-World Multi-Tenant Boundary Stress Test",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "Chromium E2E (Desktop)",
+                  "projectName": "Chromium E2E (Desktop)",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e02413917e2f0037553e-b02c9dd087f4c6ac570c",
+              "file": "05-multi-tenant-sec.spec.ts",
+              "line": 92,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-10-27T19:40:54.758Z",
+    "duration": 577.0069999999996,
+    "expected": 0,
+    "skipped": 28,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

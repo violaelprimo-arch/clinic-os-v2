@@ -1,0 +1,1 @@
+This folder contains the built output assets for the worker "clinic-os-v2" generated at 2026-10-27T20:10:31.876Z.
