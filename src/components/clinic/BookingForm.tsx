@@ -16,6 +16,14 @@ import {
 import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
 import { createAtomicAppointment } from '@/lib/queueService'
+import {
+  resolveEffectiveDailyLimit,
+  isAppointmentActive,
+  getCairoDateString,
+  filterAvailableDays,
+  findNearestAvailableDate,
+  CAPACITY_FULL_MESSAGE
+} from '@/lib/bookingCapacity'
 import { collection, addDoc, getDocs, query, where } from 'firebase/firestore'
 import Link from 'next/link'
 import { Branch } from '@/types/clinic'
@@ -195,9 +203,16 @@ export function BookingForm({
     }
   }, [preselectedServiceId, availableServices])
 
-  const [dailyBookingCounts, setDailyBookingCounts] = useState<{ [date: string]: number }>({})
+  // Max daily bookings quota - unified resolution (clinic limit takes precedence over legacy branch values)
+  const maxLimit = useMemo(() => {
+    return resolveEffectiveDailyLimit(clinic, selectedBranch, (branches?.length || 0) > 1)
+  }, [clinic, selectedBranch, branches])
 
-  // Fetch existing appointments count for this branch
+  const [dailyBookingCounts, setDailyBookingCounts] = useState<{ [date: string]: number }>({})
+  const [autoForwardedNotice, setAutoForwardedNotice] = useState<string>('')
+  const [selectedDate, setSelectedDate] = useState<string>('')
+
+  // Fetch existing appointments count for this branch / clinic
   useEffect(() => {
     if (!clinic?.id && !clinic?.slug) return
     const clinicId = clinic.id || clinic.slug
@@ -210,13 +225,17 @@ export function BookingForm({
         )
         const snap = await getDocs(q)
         const counts: { [date: string]: number } = {}
+        const isMultiBranch = (branches?.length || 0) > 1
+
         snap.docs.forEach((docSnap) => {
           const d = docSnap.data()
-          // Count only for this branch if branch_id is present
-          if (selectedBranch?.id && d.branch_id && d.branch_id !== selectedBranch.id) {
-            return
+          if (isMultiBranch && selectedBranch?.id && selectedBranch.id !== 'main') {
+            const apptBranch = d.branch_id || d.branchId || null
+            if (apptBranch && apptBranch !== selectedBranch.id) {
+              return
+            }
           }
-          if (d.date && d.status !== 'cancelled') {
+          if (d.date && isAppointmentActive(d.status)) {
             counts[d.date] = (counts[d.date] || 0) + 1
           }
         })
@@ -226,97 +245,61 @@ export function BookingForm({
       }
     }
     fetchCounts()
-  }, [clinic?.id, clinic?.slug, selectedBranch?.id])
+  }, [clinic?.id, clinic?.slug, selectedBranch?.id, branches])
 
-  // Compute available days: check selected branch weekly schedule & max daily bookings
+  // Smart Date State (Today only or forward multi-day scheduling)
+  const isTodayOnly = clinic?.bookingAvailability === 'today_only' || clinic?.allowFutureBookings === false
+
+  // Compute available days: check selected branch weekly schedule & max daily bookings (completely exclude full days)
   const availableDays = useMemo(() => {
-    const list: { iso: string; label: string; formattedDate: string }[] = []
-    const dayNamesAr = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
-    const dayNamesEn = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-    const dayKeys = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-    const monthNamesAr = [
-      'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
-      'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
-    ]
-    const monthNamesEn = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ]
-
     const branchSchedule = selectedBranch?.weeklySchedule || clinic?.weeklySchedule || []
-    const maxLimit = Number(selectedBranch?.maxDailyBookings || clinic?.maxDailyBookings) || 0
-    const isTodayOnly = clinic?.bookingAvailability === 'today_only' || clinic?.allowFutureBookings === false
+    const todayCairo = getCairoDateString()
 
-    // Scan up to 14 days ahead (or 7 days if today_only is configured to find nearest working day if today is closed)
-    const maxDaysToScan = isTodayOnly ? 7 : 14
+    const maxDaysToScan = isTodayOnly ? 14 : 21
     const targetCount = isTodayOnly ? 1 : 6
-    for (let i = 0; i < maxDaysToScan; i++) {
-      const d = new Date()
-      d.setDate(d.getDate() + i)
 
-      const year = d.getFullYear()
-      const month = String(d.getMonth() + 1).padStart(2, '0')
-      const dayNum = String(d.getDate()).padStart(2, '0')
-      const iso = `${year}-${month}-${dayNum}`
+    const days = filterAvailableDays({
+      startDateStr: todayCairo,
+      maxDaysToScan,
+      targetCount,
+      limit: maxLimit,
+      dailyCounts: dailyBookingCounts,
+      schedule: branchSchedule,
+      isRtl
+    })
 
-      const dayIndex = d.getDay()
-      const dayKey = dayKeys[dayIndex]
-      const dayName = isRtl ? dayNamesAr[dayIndex] : dayNamesEn[dayIndex]
+    return days.map(d => ({
+      iso: d.iso,
+      label: d.label,
+      formattedDate: d.subLabel
+    }))
+  }, [selectedBranch?.weeklySchedule, clinic?.weeklySchedule, maxLimit, dailyBookingCounts, isRtl, isTodayOnly])
 
-      // Check weeklySchedule: if branch is closed on this day, SKIP
-      if (branchSchedule && branchSchedule.length > 0) {
-        const sched = branchSchedule.find((s: any) => (s.id || s.dayKey) === dayKey)
-        if (sched && sched.isOpen === false) {
-          continue
-        }
-      }
-
-      // Check max daily bookings: if day is full, SKIP
-      const bookedCount = dailyBookingCounts[iso] || 0
-      if (maxLimit > 0 && bookedCount >= maxLimit) {
-        continue
-      }
-
-      let label = dayName
-      if (i === 0) label = isRtl ? 'اليوم' : 'Today'
-      else if (i === 1) label = isRtl ? 'غداً' : 'Tomorrow'
-
-      const monthName = isRtl ? monthNamesAr[d.getMonth()] : monthNamesEn[d.getMonth()]
-      const formattedDate = isRtl ? `${d.getDate()} ${monthName}` : `${monthName} ${d.getDate()}`
-
-      list.push({ iso, label, formattedDate })
-
-      // Show up to targetCount active available days
-      if (list.length >= targetCount) break
-    }
-
-    // Safety fallback: if list is empty, provide today
-    if (list.length === 0) {
-      const d = new Date()
-      const year = d.getFullYear()
-      const month = String(d.getMonth() + 1).padStart(2, '0')
-      const dayNum = String(d.getDate()).padStart(2, '0')
-      const iso = `${year}-${month}-${dayNum}`
-      const monthName = isRtl ? monthNamesAr[d.getMonth()] : monthNamesEn[d.getMonth()]
-      const formattedDate = isRtl ? `${d.getDate()} ${monthName}` : `${monthName} ${d.getDate()}`
-      list.push({ iso, label: isRtl ? 'اليوم' : 'Today', formattedDate })
-    }
-
-    return list
-  }, [selectedBranch, clinic?.weeklySchedule, clinic?.maxDailyBookings, dailyBookingCounts, isRtl, clinic?.bookingAvailability, clinic?.allowFutureBookings])
-
-  const [selectedDate, setSelectedDate] = useState<string>('')
-
+  // Auto-advance to nearest available date when current selection is full or unavailable
   useEffect(() => {
     if (availableDays.length > 0) {
       const isSelectedAvailable = availableDays.some((d) => d.iso === selectedDate)
       if (!isSelectedAvailable) {
-        setSelectedDate(availableDays[0].iso)
+        const nextDay = availableDays[0]
+        const todayCairo = getCairoDateString()
+        if (nextDay.iso !== todayCairo && maxLimit > 0 && (dailyBookingCounts[todayCairo] || 0) >= maxLimit) {
+          setAutoForwardedNotice(
+            isRtl
+              ? `اكتملت حجوزات هذا اليوم، تم اختيار أقرب يوم متاح: ${nextDay.label} (${nextDay.formattedDate})`
+              : `Today's bookings are full. Nearest available date selected: ${nextDay.label} (${nextDay.formattedDate})`
+          )
+        } else {
+          setAutoForwardedNotice('')
+        }
+        setSelectedDate(nextDay.iso)
       }
+    } else {
+      setSelectedDate('')
+      setAutoForwardedNotice('')
     }
-  }, [availableDays, selectedDate])
+  }, [availableDays, selectedDate, maxLimit, dailyBookingCounts, isRtl])
 
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'instapay' | 'wallet'>('cash')
+    const [paymentMethod, setPaymentMethod] = useState<'cash' | 'instapay' | 'wallet'>('cash')
   const [transferNumber, setTransferNumber] = useState('')
   const [transferReference, setTransferReference] = useState('')
   const [transferProofUrl, setTransferProofUrl] = useState('')
@@ -380,7 +363,7 @@ export function BookingForm({
       return toast.error(isRtl ? `يرجى إدخال رقم هاتف صحيح لـ ${selectedCountry.nameAr}` : 'Please enter a valid phone number')
     }
     if (!age.trim()) return toast.error(isRtl ? 'يرجى إدخال السن' : 'Please enter patient age')
-    if (!selectedDate) return toast.error(isRtl ? 'يرجى اختيار يوم الحجز' : 'Please select a booking date')
+    if (!selectedDate || availableDays.length === 0) return toast.error(isRtl ? 'لا توجد مواعيد متاحة للحجز حالياً' : 'No available booking slots currently')
 
     setStep(2)
   }
@@ -448,7 +431,6 @@ export function BookingForm({
         createdAt: new Date().toISOString()
       }
 
-      const maxLimit = Number(selectedBranch?.maxDailyBookings || clinic?.maxDailyBookings) || 0
       // Atomically allocate next sequential queue number with zero concurrency collisions
       const { id: newApptId, queueNumber: allocatedQueueNumber } = await createAtomicAppointment(newAppt, maxLimit)
       const docRef = { id: newApptId }
@@ -493,9 +475,26 @@ export function BookingForm({
     } catch (error: any) {
       console.error('Error creating appointment:', error)
       if (error?.message?.includes('QUOTA_EXCEEDED')) {
-        toast.error('اكتمل عدد الحجوزات المتاحة لهذا اليوم. برجاء اختيار موعد آخر.')
+        const branchSchedule = selectedBranch?.weeklySchedule || clinic?.weeklySchedule || []
+        const nearest = findNearestAvailableDate({
+          startDateStr: selectedDate,
+          schedule: branchSchedule,
+          dailyCounts: { ...dailyBookingCounts, [selectedDate]: (dailyBookingCounts[selectedDate] || 0) + 1 },
+          limit: maxLimit,
+          isRtl
+        })
+        if (nearest) {
+          setSelectedDate(nearest.iso)
+          toast.error(
+            isRtl
+              ? `اكتملت حجوزات هذا اليوم، تم اختيار أقرب يوم متاح: ${nearest.label} (${nearest.subLabel})`
+              : `This day is fully booked. Nearest date selected: ${nearest.label} (${nearest.subLabel})`
+          )
+        } else {
+          toast.error(CAPACITY_FULL_MESSAGE)
+        }
       } else {
-        toast.error('حدث خطأ أثناء إتمام الحجز، يرجى المحاولة ثانيةً.')
+        toast.error(t('booking_submit_error', 'حدث خطأ أثناء إتمام الحجز، يرجى المحاولة ثانيةً.'))
       }
     } finally {
       setIsBooking(false)
@@ -820,6 +819,14 @@ export function BookingForm({
                 )}
               </div>
 
+              {/* Auto forward notice banner */}
+              {autoForwardedNotice && (
+                <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-2.5 text-xs font-bold text-amber-800 dark:text-amber-300">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+                  <div>{autoForwardedNotice}</div>
+                </div>
+              )}
+
               {availableDays.length > 0 ? (
                 <>
                   <div className={`grid ${availableDays.length === 1 ? 'grid-cols-1 max-w-[220px] mx-auto' : 'grid-cols-3'} gap-2`}>
@@ -846,15 +853,22 @@ export function BookingForm({
                       )
                     })}
                   </div>
-                  {(clinic?.bookingAvailability === 'today_only' || clinic?.allowFutureBookings === false) && (
+                  {isTodayOnly && (
                     <p className="text-[10px] text-amber-600 dark:text-amber-400 font-bold text-center pt-1">
                       ⚡ {isRtl ? 'الحجز متاح لليوم الحالي فقط بتعليمات العيادة' : 'Booking is restricted to today only'}
                     </p>
                   )}
                 </>
               ) : (
-                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-center text-xs text-amber-700 dark:text-amber-400 font-bold">
-                  {t('no_available_times', 'لا توجد مواعيد متاحة للحجز بهذا الفرع حالياً. يرجى اختيار فرع آخر أو التواصل مع العيادة.')}
+                <div className="p-4 rounded-2xl bg-destructive/10 border border-destructive/20 text-center space-y-1">
+                  <p className="text-xs sm:text-sm font-black text-destructive">
+                    {t('no_available_times', 'لا توجد مواعيد متاحة حاليًا')}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {isRtl
+                      ? 'اكتمل عدد الحجوزات المتاحة لجميع الأيام في فترة الحجز المسموحة. يرجى التواصل مع العيادة.'
+                      : 'All booking slots in the available horizon are fully booked. Please contact the clinic.'}
+                  </p>
                 </div>
               )}
             </div>
@@ -862,7 +876,8 @@ export function BookingForm({
 
           <Button
             onClick={handleNextStep1}
-            className="w-full h-12 text-sm font-black bg-primary hover:bg-primary-hover text-white rounded-xl shadow-md mt-2"
+            disabled={availableDays.length === 0 || !selectedDate}
+            className="w-full h-12 text-sm font-black bg-primary hover:bg-primary-hover text-white rounded-xl shadow-md mt-2 disabled:opacity-50"
           >
             {t('next_choose_service', 'التالي: اختيار الخدمة')}
             {isRtl ? <ArrowLeft className="w-4 h-4 mr-2" /> : <ArrowRight className="w-4 h-4 ml-2" />}

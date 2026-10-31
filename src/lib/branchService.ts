@@ -364,6 +364,7 @@ export async function syncClinicScheduleToMainBranch(
     latitude?: number
     longitude?: number
     phone?: string
+    maxDailyBookings?: number
   }
 ): Promise<void> {
   try {
@@ -400,6 +401,9 @@ export async function syncClinicScheduleToMainBranch(
         }
         if (extraBranchData?.phone) {
           updateData.phone = extraBranchData.phone
+        }
+        if (extraBranchData?.maxDailyBookings !== undefined) {
+          updateData.maxDailyBookings = Math.max(0, Number(extraBranchData.maxDailyBookings) || 0)
         }
         // Always clean up placeholder 'عندها' or placeholder words from area if present
         if (data.area && (data.area.includes('عندها') || isPlaceholderAddress(data.area))) {

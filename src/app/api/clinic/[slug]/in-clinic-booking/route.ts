@@ -3,6 +3,13 @@ import { collection, query, where, getDocs, doc, getDoc, addDoc } from 'firebase
 import { db } from '@/lib/firebase'
 import { verifySessionToken } from '@/lib/auth-crypto'
 import { createAtomicAppointment } from '@/lib/queueService'
+import {
+  resolveEffectiveDailyLimit,
+  isAppointmentActive,
+  getCairoDateString,
+  findNearestAvailableDate,
+  CAPACITY_FULL_MESSAGE
+} from '@/lib/bookingCapacity'
 import { createClinicNotification } from '@/lib/notificationService'
 import { cleanPhoneForWhatsApp } from '@/lib/countryPhoneHelper'
 
@@ -147,27 +154,38 @@ export async function POST(
       verifiedServiceId === '3'
 
     // 6. Booking Date & Capacity Limits
-    const nowCairo = new Date()
-    const todayCairo = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(nowCairo)
+    const todayCairo = getCairoDateString()
     const bookingDate = date || todayCairo
 
-    // Check clinic/branch daily limit
-    const effectiveLimit = branchMaxLimit > 0 ? branchMaxLimit : (Number(clinic.maxDailyBookings) || 0)
+    // Check clinic/branch daily limit using unified resolution
+    const effectiveLimit = resolveEffectiveDailyLimit(clinic, { maxDailyBookings: branchMaxLimit }, Boolean(clinic.branchesEnabled))
     const qAppts = query(
       collection(db, 'appointments'),
       where('clinic_id', '==', clinicId),
       where('date', '==', bookingDate)
     )
     const apptSnap = await getDocs(qAppts)
-    const activeAppts = apptSnap.docs.filter((d) => d.data().status !== 'cancelled')
+    const activeAppts = apptSnap.docs.filter((d) => isAppointmentActive(d.data().status))
 
-    const activeScoped = effectiveBranchId && branchMaxLimit > 0
+    const activeScoped = effectiveBranchId && effectiveLimit > 0
       ? activeAppts.filter((d) => (d.data().branch_id || d.data().branchId || null) === effectiveBranchId)
       : activeAppts
 
     if (effectiveLimit > 0 && activeScoped.length >= effectiveLimit) {
+      const nearest = findNearestAvailableDate({
+        requestedDateStr: bookingDate,
+        limit: effectiveLimit,
+        dailyCounts: { [bookingDate]: activeScoped.length },
+        schedule: clinic.weeklySchedule || []
+      })
       return NextResponse.json(
-        { error: 'اكتمل عدد الحجوزات المتاحة لهذا اليوم. برجاء اختيار موعد آخر.' },
+        {
+          error: CAPACITY_FULL_MESSAGE,
+          isFull: true,
+          limit: effectiveLimit,
+          nextAvailableDate: nearest?.nearestDateStr || null,
+          nextAvailableFormatted: nearest?.formattedDate || null
+        },
         { status: 400 }
       )
     }
@@ -248,8 +266,20 @@ export async function POST(
       queueNumber = atomicRes.queueNumber
     } catch (atomicErr: any) {
       if (atomicErr?.message?.includes('QUOTA_EXCEEDED')) {
+        const nearest = findNearestAvailableDate({
+          requestedDateStr: bookingDate,
+          limit: effectiveLimit,
+          dailyCounts: { [bookingDate]: effectiveLimit },
+          schedule: clinic.weeklySchedule || []
+        })
         return NextResponse.json(
-          { error: 'اكتمل عدد الحجوزات المتاحة لهذا اليوم. برجاء اختيار موعد آخر.' },
+          {
+            error: CAPACITY_FULL_MESSAGE,
+            isFull: true,
+            limit: effectiveLimit,
+            nextAvailableDate: nearest?.nearestDateStr || null,
+            nextAvailableFormatted: nearest?.formattedDate || null
+          },
           { status: 400 }
         )
       }

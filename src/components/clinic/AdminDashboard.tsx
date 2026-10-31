@@ -27,6 +27,7 @@ import { exportAppointmentsToExcel } from '@/lib/excelExport'
 import { createClinicNotification } from '@/lib/notificationService'
 import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 import { useLanguage } from '@/context/LanguageContext'
+import { resolveEffectiveDailyLimit, isAppointmentActive } from '@/lib/bookingCapacity'
 
 export function AdminDashboard({ clinic }: { clinic: any }) {
   const { t, tDynamic, language, dir, isRtl } = useLanguage()
@@ -207,17 +208,16 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
 
   // Active daily bookings count (excluding cancelled)
   const activeBookingsCount = useMemo(() => {
-    return branchFilteredAppointments.filter((d: any) => d.status !== 'cancelled').length
+    return branchFilteredAppointments.filter((d: any) => isAppointmentActive(d.status)).length
   }, [branchFilteredAppointments])
 
-  // Resolve daily limit based on selected branch or clinic settings
+  // Resolve daily limit based on selected branch or clinic settings (unified resolution)
   const effectiveMaxDailyBookings = useMemo(() => {
-    if (selectedBranchId && selectedBranchId !== 'all') {
-      const bObj = branches.find(b => b.id === selectedBranchId)
-      if (bObj && bObj.maxDailyBookings) return Number(bObj.maxDailyBookings) || 0
-    }
-    return Number(clinic?.maxDailyBookings) || 0
-  }, [selectedBranchId, branches, clinic?.maxDailyBookings])
+    const selectedBranch = selectedBranchId && selectedBranchId !== 'all'
+      ? branches.find(b => b.id === selectedBranchId)
+      : undefined
+    return resolveEffectiveDailyLimit(clinic, selectedBranch, branches.length > 1)
+  }, [selectedBranchId, branches, clinic])
 
   const isCapacityFull = effectiveMaxDailyBookings > 0 && activeBookingsCount >= effectiveMaxDailyBookings
 

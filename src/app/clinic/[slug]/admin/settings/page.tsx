@@ -388,7 +388,8 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           mapsLink: mapsLink || '',
           latitude: latitude ? parseFloat(latitude) : undefined,
           longitude: longitude ? parseFloat(longitude) : undefined,
-          phone: phones[0] || ''
+          phone: phones[0] || '',
+          maxDailyBookings: Number(maxDailyBookings) || 0
         }
       )
       toast.success('تم حفظ كافة إعدادات العيادة بنجاح وتطبيقها فورياً');

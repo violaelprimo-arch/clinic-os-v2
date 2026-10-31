@@ -30,6 +30,7 @@ import { openManualWhatsAppChat, formatInClinicBookingWhatsAppMessage } from '@/
 import { getClinicUrl } from '@/lib/clinic-url'
 import { Branch } from '@/types/clinic'
 import { getClinicBranches, ensureClinicHasMainBranch } from '@/lib/branchService'
+import { resolveEffectiveDailyLimit, isAppointmentActive, CAPACITY_FULL_MESSAGE } from '@/lib/bookingCapacity'
 import Link from 'next/link'
 
 interface PatientMatch {
@@ -146,6 +147,34 @@ export function InClinicBookingView({
   const selectedBranch = useMemo(() => {
     return branches.find((b) => b.id === selectedBranchId) || branches[0]
   }, [branches, selectedBranchId])
+
+  // Capacity and Daily Limits
+  const maxLimit = useMemo(() => {
+    return resolveEffectiveDailyLimit(clinic, selectedBranch, branches.length > 1)
+  }, [clinic, selectedBranch, branches.length])
+
+  const [dateBookingCount, setDateBookingCount] = useState<number>(0)
+  const isDateFull = maxLimit > 0 && dateBookingCount >= maxLimit
+
+  useEffect(() => {
+    if (!clinic?.id && !clinic?.slug) return
+    const clinicId = clinic.id || clinic.slug
+    const q = query(
+      collection(db, 'appointments'),
+      where('clinic_id', '==', clinicId),
+      where('date', '==', bookingDate)
+    )
+    const unsub = onSnapshot(q, (snap) => {
+      let active = snap.docs.filter((d) => isAppointmentActive(d.data().status))
+      if (branches.length > 1 && selectedBranchId && selectedBranchId !== 'main') {
+        active = active.filter((d) => (d.data().branch_id || d.data().branchId || null) === selectedBranchId)
+      }
+      setDateBookingCount(active.length)
+    }, (err) => {
+      console.error('Error listening to date capacity:', err)
+    })
+    return () => unsub()
+  }, [clinic?.id, clinic?.slug, bookingDate, selectedBranchId, branches.length])
 
   // Submission State
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -275,6 +304,14 @@ export function InClinicBookingView({
 
     if (!selectedBranchId) {
       return toast.error(isRtl ? 'يرجى اختيار الفرع' : 'Please select branch')
+    }
+
+    if (isDateFull) {
+      return toast.error(
+        isRtl
+          ? `اكتمل الحد الأقصى للحجوزات لهذا اليوم (${maxLimit} كشف)`
+          : `Daily capacity reached (${maxLimit} appointments)`
+      )
     }
 
     setIsSubmitting(true)
@@ -817,9 +854,24 @@ export function InClinicBookingView({
 
                 {/* Date Selection */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-foreground">
-                    {isRtl ? 'تاريخ الحجز' : 'Booking Date'} *
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold text-foreground">
+                      {isRtl ? 'تاريخ الحجز' : 'Booking Date'} *
+                    </Label>
+                    {maxLimit > 0 && (
+                      <Badge
+                        className={`text-[10px] font-bold ${
+                          isDateFull
+                            ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
+                            : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-mono'
+                        }`}
+                      >
+                        {isDateFull
+                          ? (isRtl ? `مكتمل العدد (${dateBookingCount} / ${maxLimit})` : `Full (${dateBookingCount}/${maxLimit})`)
+                          : (isRtl ? `متبقي ${maxLimit - dateBookingCount} من ${maxLimit}` : `${maxLimit - dateBookingCount}/${maxLimit} left`)}
+                      </Badge>
+                    )}
+                  </div>
                   <Input
                     type="date"
                     value={bookingDate}

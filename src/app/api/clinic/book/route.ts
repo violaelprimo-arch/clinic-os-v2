@@ -4,6 +4,13 @@ import { db } from '@/lib/firebase'
 import { createClinicNotification } from '@/lib/notificationService'
 import { dispatchPatientPushNotification } from '@/lib/pushDispatcher'
 import { createAtomicAppointment } from '@/lib/queueService'
+import {
+  resolveEffectiveDailyLimit,
+  isAppointmentActive,
+  getCairoDateString,
+  findNearestAvailableDate,
+  CAPACITY_FULL_MESSAGE
+} from '@/lib/bookingCapacity'
 
 export async function POST(req: NextRequest) {
   try {
@@ -64,22 +71,24 @@ export async function POST(req: NextRequest) {
     }
 
     // Resolve booking date in Cairo timezone
-    const nowCairo = new Date()
-    const todayCairo = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(nowCairo)
+    const todayCairo = getCairoDateString()
     const bookingDate = date || todayCairo
 
-    // Resolve maxDailyBookings from branch (if set) or clinic
-    let effectiveLimit = Number(cData.maxDailyBookings) || 0
+    // Resolve branch details if branchId provided
+    let bData: any = null
     if (branchId) {
       try {
         const bDoc = await getDoc(doc(db, 'branches', String(branchId)))
-        if (bDoc.exists() && bDoc.data()?.maxDailyBookings) {
-          effectiveLimit = Number(bDoc.data()?.maxDailyBookings) || effectiveLimit
+        if (bDoc.exists()) {
+          bData = bDoc.data()
         }
       } catch (e) {
-        // Fallback to clinic limit
+        // Fallback
       }
     }
+
+    // Unified resolution: clinic limit takes precedence for single clinic, sub-branch limit respected in multi-branch
+    const effectiveLimit = resolveEffectiveDailyLimit(cData, bData, Boolean(cData.branchesEnabled))
 
     // 3. Enforce server-side service price and reject client tampering (A05 - P1 Protection)
     let verifiedServicePrice = 0
@@ -106,18 +115,61 @@ export async function POST(req: NextRequest) {
       where('date', '==', bookingDate)
     )
     const apptSnap = await getDocs(qAppts)
-    const activeAppts = apptSnap.docs.filter((d) => d.data().status !== 'cancelled')
+    const activeAppts = apptSnap.docs.filter((d) => isAppointmentActive(d.data().status))
 
     const activeScoped = branchId && effectiveLimit > 0
       ? activeAppts.filter((d) => (d.data().branch_id || d.data().branchId || null) === branchId)
       : activeAppts
 
-    // Enforce daily capacity limit immediately
+    // Enforce daily capacity limit immediately with next available day suggestion
     if (effectiveLimit > 0 && activeScoped.length >= effectiveLimit) {
+      const nearest = findNearestAvailableDate({
+        requestedDateStr: bookingDate,
+        limit: effectiveLimit,
+        dailyCounts: { [bookingDate]: activeScoped.length },
+        schedule: bData?.weeklySchedule || cData?.weeklySchedule || []
+      })
       return NextResponse.json(
-        { error: 'اكتمل عدد الحجوزات المتاحة لهذا اليوم. برجاء اختيار موعد آخر.' },
+        {
+          error: CAPACITY_FULL_MESSAGE,
+          isFull: true,
+          limit: effectiveLimit,
+          nextAvailableDate: nearest?.nearestDateStr || null,
+          nextAvailableFormatted: nearest?.formattedDate || null
+        },
         { status: 400 }
       )
+    }
+
+    // Duplicate booking protection (accidental double submit within active session)
+    const cleanDigits = cleanPhone.replace(/[^0-9]/g, '')
+    const existingDuplicate = activeAppts.find((d) => {
+      const data = d.data()
+      const dPhone = String(data.phone || '').replace(/[^0-9]/g, '')
+      const dName = String(data.patientName || '').trim().toLowerCase()
+      const dService = String(data.serviceId || '')
+      return (
+        dPhone === cleanDigits &&
+        dName === cleanName.toLowerCase() &&
+        dService === String(serviceId) &&
+        (data.status === 'waiting' || data.status === 'in_progress')
+      )
+    })
+
+    if (existingDuplicate) {
+      const dup = existingDuplicate.data()
+      return NextResponse.json({
+        success: true,
+        isExisting: true,
+        appointmentId: existingDuplicate.id,
+        queueNumber: dup.queue_number,
+        aheadCount: 0,
+        date: dup.date,
+        time: dup.time,
+        branchName: dup.branchName || branchName || 'الفرع الرئيسي',
+        serviceName: dup.serviceName || verifiedServiceName,
+        servicePrice: dup.servicePrice || verifiedServicePrice
+      })
     }
 
     const aheadCount = activeScoped.filter(
@@ -169,8 +221,20 @@ export async function POST(req: NextRequest) {
       queueNumber = atomicRes.queueNumber
     } catch (atomicErr: any) {
       if (atomicErr?.message?.includes('QUOTA_EXCEEDED')) {
+        const nearest = findNearestAvailableDate({
+          requestedDateStr: bookingDate,
+          limit: effectiveLimit,
+          dailyCounts: { [bookingDate]: effectiveLimit },
+          schedule: bData?.weeklySchedule || cData?.weeklySchedule || []
+        })
         return NextResponse.json(
-          { error: 'اكتمل عدد الحجوزات المتاحة لهذا اليوم. برجاء اختيار موعد آخر.' },
+          {
+            error: CAPACITY_FULL_MESSAGE,
+            isFull: true,
+            limit: effectiveLimit,
+            nextAvailableDate: nearest?.nearestDateStr || null,
+            nextAvailableFormatted: nearest?.formattedDate || null
+          },
           { status: 400 }
         )
       }

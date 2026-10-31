@@ -8,6 +8,12 @@ import {
   getDoc
 } from 'firebase/firestore'
 import { db } from './firebase'
+import {
+  resolveEffectiveDailyLimit,
+  isAppointmentActive,
+  getCairoDateString,
+  CAPACITY_FULL_MESSAGE
+} from './bookingCapacity'
 
 export interface AtomicAppointmentInput {
   clinic_id: string
@@ -57,9 +63,9 @@ export function removeUndefinedFields(obj: any): any {
  * and strict server-side capacity enforcement per clinic/branch and date.
  *
  * Rules:
- * - Never counts cancelled appointments towards daily capacity.
- * - Cancelling frees a slot immediately.
- * - Prevents race conditions using a Firestore atomic transaction.
+ * - Unifies effective limit resolution across clinic and branch.
+ * - Counts all active appointments (waiting, in_progress, completed) and excludes cancelled.
+ * - Prevents race conditions using a Firestore atomic transaction on the daily counter.
  * - Throws 'QUOTA_EXCEEDED' when the active bookings reach or exceed maxLimit.
  */
 export async function createAtomicAppointment(
@@ -67,7 +73,7 @@ export async function createAtomicAppointment(
   maxLimit: number = 0
 ): Promise<{ id: string; queueNumber: number }> {
   const clinicId = data.clinic_id
-  const dateStr = data.date
+  const dateStr = data.date || getCairoDateString()
   const effectiveBranchId = data.branch_id || data.branchId || null
 
   if (!clinicId || !dateStr) {
@@ -80,22 +86,26 @@ export async function createAtomicAppointment(
     : `${clinicId}_${dateStr}`
   const counterRef = doc(db, 'clinic_daily_counters', counterDocId)
 
-  // 1. If maxLimit is 0 or unsupplied, check clinic/branch doc for default maxDailyBookings
+  // 1. Resolve effective limit if maxLimit not directly supplied or needs validation
   let effectiveLimit = Number(maxLimit) || 0
   if (effectiveLimit <= 0) {
     try {
+      let clinicData: any = null
+      let branchData: any = null
+
       if (effectiveBranchId) {
         const bDoc = await getDoc(doc(db, 'branches', effectiveBranchId))
         if (bDoc.exists()) {
-          effectiveLimit = Number(bDoc.data()?.maxDailyBookings) || 0
+          branchData = bDoc.data()
         }
       }
-      if (effectiveLimit <= 0) {
-        const cDoc = await getDoc(doc(db, 'clinics', clinicId))
-        if (cDoc.exists()) {
-          effectiveLimit = Number(cDoc.data()?.maxDailyBookings) || 0
-        }
+
+      const cDoc = await getDoc(doc(db, 'clinics', clinicId))
+      if (cDoc.exists()) {
+        clinicData = cDoc.data()
       }
+
+      effectiveLimit = resolveEffectiveDailyLimit(clinicData, branchData, Boolean(clinicData?.branchesEnabled))
     } catch (e) {
       // Non-blocking fallback
     }
@@ -111,7 +121,7 @@ export async function createAtomicAppointment(
   const allDateDocs = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
 
   // Filter active appointments
-  const activeExisting = allDateDocs.filter(d => d.status !== 'cancelled')
+  const activeExisting = allDateDocs.filter(d => isAppointmentActive(d.status))
 
   // If scoped by branch limit
   const activeScoped = effectiveBranchId && effectiveLimit > 0
@@ -131,12 +141,17 @@ export async function createAtomicAppointment(
   const result = await runTransaction(db, async (transaction) => {
     const counterSnap = await transaction.get(counterRef)
     let currentCounter = 0
+    let currentActiveBookings = activeCountExisting
+
     if (counterSnap.exists()) {
       const cData = counterSnap.data()
       currentCounter = Number(cData?.lastQueueNumber) || 0
+      if (typeof cData?.activeBookings === 'number') {
+        currentActiveBookings = Math.max(activeCountExisting, Number(cData.activeBookings) || 0)
+      }
     }
 
-    if (effectiveLimit > 0 && activeCountExisting >= effectiveLimit) {
+    if (effectiveLimit > 0 && currentActiveBookings >= effectiveLimit) {
       throw new Error(`QUOTA_EXCEEDED:${effectiveLimit}`)
     }
 
@@ -150,7 +165,7 @@ export async function createAtomicAppointment(
         branchId: effectiveBranchId,
         date: dateStr,
         lastQueueNumber: assignedQueueNumber,
-        activeBookings: activeCountExisting + 1,
+        activeBookings: currentActiveBookings + 1,
         updatedAt: new Date().toISOString()
       },
       { merge: true }
@@ -160,6 +175,7 @@ export async function createAtomicAppointment(
     const newDocRef = doc(collection(db, 'appointments'))
     const newApptData = {
       ...data,
+      date: dateStr,
       branch_id: effectiveBranchId,
       queue_number: assignedQueueNumber,
       status: data.status || 'waiting',
