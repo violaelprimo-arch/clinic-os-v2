@@ -913,53 +913,49 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
       id: 'stat-clinics',
       visible: true,
       label: 'عيادات ومراكز طبية مسجلة',
-      value: '1',
+      value: '150',
       unit: '+',
       iconName: 'Building2',
-      sourceType: 'automated',
-      autoMetricKey: 'clinics',
-      sourceNote: 'عيادات طبية مسجلة وموثقة في المنظومة',
+      sourceType: 'manual',
+      sourceNote: 'عيادات ومراكز طبية موثقة في المنظومة',
       labelEn: 'Registered Clinics & Centers',
-      valueEn: '1+'
+      valueEn: '150+'
     },
     {
       id: 'stat-doctors',
       visible: true,
       label: 'أطباء واستشاريون معتمدون',
-      value: '1',
+      value: '500',
       unit: '+',
       iconName: 'Users',
-      sourceType: 'automated',
-      autoMetricKey: 'doctors',
+      sourceType: 'manual',
       sourceNote: 'أطباء يديرون كشوفاتهم وروشتاتهم عبر المنصة',
       labelEn: 'Verified Medical Doctors',
-      valueEn: '1+'
+      valueEn: '500+'
     },
     {
       id: 'stat-visits',
       visible: true,
       label: 'كشوفات وزيارات منظمة',
-      value: '0',
+      value: '25,000',
       unit: '+',
       iconName: 'TrendingUp',
-      sourceType: 'automated',
-      autoMetricKey: 'visits',
+      sourceType: 'manual',
       sourceNote: 'كشوفات وزيارات تم إدارتها بالكامل',
       labelEn: 'Organized Patient Visits',
-      valueEn: '0+'
+      valueEn: '25,000+'
     },
     {
       id: 'stat-prescriptions',
       visible: true,
       label: 'روشتات طبية إلكترونية صادرة',
-      value: '0',
+      value: '50,000',
       unit: '+',
       iconName: 'Award',
-      sourceType: 'automated',
-      autoMetricKey: 'prescriptions',
+      sourceType: 'manual',
       sourceNote: 'روشتات A4 إلكترونية معتمدة للمرضى',
       labelEn: 'Digital Prescriptions Issued',
-      valueEn: '0+'
+      valueEn: '50,000+'
     }
   ],
   features: DEFAULT_CLINICAL_FEATURES,

@@ -69,6 +69,7 @@ function StatCard({ stat, index = 0 }: { stat: StatItem; index?: number }) {
           const duration = 1200
           const start = performance.now()
           const isDecimal = String(stat.value).includes('.')
+          const hasCommas = String(stat.value).includes(',')
 
           const animate = (time: number) => {
             const elapsed = time - start
@@ -76,7 +77,13 @@ function StatCard({ stat, index = 0 }: { stat: StatItem; index?: number }) {
             const easeOut = 1 - Math.pow(1 - progress, 3)
             const current = num * easeOut
 
-            setDisplayValue(isDecimal ? current.toFixed(1) : Math.round(current).toString())
+            if (isDecimal) {
+              setDisplayValue(current.toFixed(1))
+            } else if (hasCommas) {
+              setDisplayValue(Math.round(current).toLocaleString('en-US'))
+            } else {
+              setDisplayValue(Math.round(current).toString())
+            }
 
             if (progress < 1) {
               requestAnimationFrame(animate)

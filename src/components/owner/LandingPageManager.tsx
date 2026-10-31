@@ -40,7 +40,16 @@ import {
   FileText,
   Clock,
   Phone,
-  Tag
+  Tag,
+  Building2,
+  Users,
+  TrendingUp,
+  Award,
+  Activity,
+  Calendar,
+  ShieldCheck,
+  Database,
+  Edit3
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -75,6 +84,19 @@ import {
 } from '@/lib/landing-service'
 import { toast } from 'sonner'
 import '@/components/landing/landing.css'
+
+const STAT_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  Building2,
+  Users,
+  TrendingUp,
+  Award,
+  Activity,
+  Calendar,
+  ShieldCheck,
+  Clock,
+  Sparkles,
+  Database,
+}
 
 const sectionLabels: Record<string, string> = {
   navbar: 'القائمة الرئيسية والتنقل (Navbar)',
@@ -2846,215 +2868,455 @@ export function LandingPageManager() {
 
         {/* TAB 10: STATS (Dual-Source: Automated Firestore or Documented Manual) */}
         {activeTab === 'stats' && (
-          <section className="p-6 rounded-3xl bg-white dark:bg-[#081526] border border-sky-100 dark:border-slate-800 shadow-sm space-y-5">
-            <div className="flex items-center justify-between">
+          <section className="p-6 rounded-3xl bg-white dark:bg-[#081526] border border-sky-100 dark:border-slate-800 shadow-sm space-y-6">
+            {/* Header & Action Toolbar */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
               <div>
-                <h3 className="text-base font-black text-slate-900 dark:text-white">
-                  الإحصائيات والأرقام (Stats)
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  إحصائيات موثقة: ربط مباشر بقاعدة البيانات، أو أرقام يدوية موثقة بسند المصدر مع عد تصاعدي
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                    الإحصائيات والأرقام (Stats)
+                  </h3>
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-sky-100 dark:bg-sky-950/80 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
+                    تحكم يدوي مخصص
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  تحكم كامل ومباشر في الأرقام، الرموز، العناوين، والأيقونات التي تظهر لزوار الموقع في قسم الإحصائيات.
                 </p>
               </div>
-              <Button
-                type="button"
-                onClick={() => {
-                  const newStat: StatItem = {
-                    id: 'stat_' + Date.now(),
-                    label: 'إحصائية جديدة',
-                    value: '1',
-                    unit: '+',
-                    iconName: 'TrendingUp',
-                    sourceType: 'manual',
-                    sourceNote: 'إحصائية موثقة من إدارة النظام',
-                    visible: true,
-                    labelEn: '',
-                    valueEn: '',
-                  }
-                  setConfigField('stats', [...config.stats, newStat])
-                }}
-                className="rounded-xl bg-sky-600 text-white font-bold text-xs"
-              >
-                <Plus className="w-4 h-4 ml-1" />
-                <span>إضافة إحصائية</span>
-              </Button>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const arr = config.stats.map((s) => ({
+                      ...s,
+                      sourceType: 'manual' as const,
+                      sourceNote: s.sourceNote || 'إحصائية موثقة من إدارة المنظومة',
+                    }))
+                    setConfigField('stats', arr)
+                  }}
+                  className="px-3 py-1.5 rounded-xl border border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 hover:bg-sky-100 text-xs font-bold transition-all flex items-center gap-1.5"
+                  title="تحويل كافة البطاقات إلى الوضع اليدوي المباشر"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>تحويل الكل للوضع اليدوي</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const presetStats: StatItem[] = [
+                      {
+                        id: 'stat-clinics',
+                        visible: true,
+                        label: 'عيادات ومراكز طبية مسجلة',
+                        value: '150',
+                        unit: '+',
+                        iconName: 'Building2',
+                        sourceType: 'manual',
+                        sourceNote: 'عيادات ومراكز طبية موثقة في المنظومة',
+                        labelEn: 'Registered Clinics & Centers',
+                        valueEn: '150+',
+                      },
+                      {
+                        id: 'stat-doctors',
+                        visible: true,
+                        label: 'أطباء واستشاريون معتمدون',
+                        value: '500',
+                        unit: '+',
+                        iconName: 'Users',
+                        sourceType: 'manual',
+                        sourceNote: 'أطباء يديرون كشوفاتهم وروشتاتهم عبر المنصة',
+                        labelEn: 'Verified Medical Doctors',
+                        valueEn: '500+',
+                      },
+                      {
+                        id: 'stat-visits',
+                        visible: true,
+                        label: 'كشوفات وزيارات منظمة',
+                        value: '25,000',
+                        unit: '+',
+                        iconName: 'TrendingUp',
+                        sourceType: 'manual',
+                        sourceNote: 'كشوفات وزيارات تم إدارتها بالكامل',
+                        labelEn: 'Organized Patient Visits',
+                        valueEn: '25,000+',
+                      },
+                      {
+                        id: 'stat-prescriptions',
+                        visible: true,
+                        label: 'روشتات طبية إلكترونية صادرة',
+                        value: '50,000',
+                        unit: '+',
+                        iconName: 'Award',
+                        sourceType: 'manual',
+                        sourceNote: 'روشتات A4 إلكترونية معتمدة للمرضى',
+                        labelEn: 'Digital Prescriptions Issued',
+                        valueEn: '50,000+',
+                      },
+                    ]
+                    setConfigField('stats', presetStats)
+                  }}
+                  className="px-3 py-1.5 rounded-xl border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 text-xs font-bold transition-all flex items-center gap-1.5"
+                  title="تطبيق أرقام تسويقية مميزة (150+ عيادة، 500+ طبيب، 25,000+ كشف، 50,000+ روشتة)"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>تطبيق أرقام تسويقية</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setConfigField('stats', structuredClone(DEFAULT_LANDING_CONFIG.stats))}
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold transition-all flex items-center gap-1.5"
+                  title="استعادة الإحصائيات الافتراضية"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>استعادة الافتراضي</span>
+                </button>
+
+                <Button
+                  type="button"
+                  onClick={() => {
+                    const newStat: StatItem = {
+                      id: 'stat_' + Date.now(),
+                      label: 'إحصائية جديدة',
+                      value: '100',
+                      unit: '+',
+                      iconName: 'TrendingUp',
+                      sourceType: 'manual',
+                      sourceNote: 'إحصائية موثقة من إدارة المنظومة',
+                      visible: true,
+                      labelEn: '',
+                      valueEn: '',
+                    }
+                    setConfigField('stats', [...config.stats, newStat])
+                  }}
+                  className="rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-xs"
+                >
+                  <Plus className="w-4 h-4 ml-1" />
+                  <span>إضافة إحصائية</span>
+                </Button>
+              </div>
             </div>
 
+            {/* List of Stats Cards */}
             <div className="space-y-4">
-              {config.stats.map((st, idx) => (
-                <div
-                  key={st.id || idx}
-                  className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 space-y-3"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-7 h-7 rounded-lg bg-sky-100 dark:bg-sky-950 text-sky-600 dark:text-sky-400 font-mono font-bold text-xs flex items-center justify-center">
-                          #{idx + 1}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            disabled={idx === 0}
-                            onClick={() => {
+              {config.stats.map((st, idx) => {
+                const isAuto = st.sourceType === 'automated'
+                const PreviewIcon = STAT_ICONS[st.iconName || 'TrendingUp'] || TrendingUp
+
+                return (
+                  <div
+                    key={st.id || idx}
+                    className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 space-y-4 shadow-2xs"
+                  >
+                    {/* Top Bar: Index, Order, Visibility, Duplicate, Delete */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-7 h-7 rounded-lg bg-sky-100 dark:bg-sky-950 text-sky-600 dark:text-sky-400 font-mono font-bold text-xs flex items-center justify-center">
+                            #{idx + 1}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              disabled={idx === 0}
+                              onClick={() => {
+                                const arr = [...config.stats]
+                                const temp = arr[idx]
+                                arr[idx] = arr[idx - 1]
+                                arr[idx - 1] = temp
+                                setConfigField('stats', arr)
+                              }}
+                              className="p-1 rounded border bg-white dark:bg-slate-900 disabled:opacity-30"
+                              title="تقديم"
+                            >
+                              <ArrowUp className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={idx === config.stats.length - 1}
+                              onClick={() => {
+                                const arr = [...config.stats]
+                                const temp = arr[idx]
+                                arr[idx] = arr[idx + 1]
+                                arr[idx + 1] = temp
+                                setConfigField('stats', arr)
+                              }}
+                              className="p-1 rounded border bg-white dark:bg-slate-900 disabled:opacity-30"
+                              title="تأخير"
+                            >
+                              <ArrowDown className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                        <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={st.visible !== false}
+                            onChange={(e) => {
                               const arr = [...config.stats]
-                              const temp = arr[idx]
-                              arr[idx] = arr[idx - 1]
-                              arr[idx - 1] = temp
+                              arr[idx].visible = e.target.checked
                               setConfigField('stats', arr)
                             }}
-                            className="p-1 rounded border bg-white dark:bg-slate-900 disabled:opacity-30"
-                            title="تقديم"
-                          >
-                            <ArrowUp className="w-3 h-3" />
-                          </button>
-                          <button
-                            type="button"
-                            disabled={idx === config.stats.length - 1}
-                            onClick={() => {
+                          />
+                          <span>إظهار في الصفحة</span>
+                        </label>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const copyItem: StatItem = {
+                              ...structuredClone(st),
+                              id: 'stat_' + Date.now(),
+                              label: st.label + ' (نسخة)',
+                            }
+                            const arr = [...config.stats]
+                            arr.splice(idx + 1, 0, copyItem)
+                            setConfigField('stats', arr)
+                          }}
+                          className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-sky-600 text-[11px] font-bold flex items-center gap-1"
+                        >
+                          <Copy className="w-3 h-3" />
+                          <span>نسخ</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfigField('stats', config.stats.filter((_, i) => i !== idx))}
+                          className="px-2 py-1 rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/30 text-rose-600 hover:bg-rose-100 text-[11px] font-bold flex items-center gap-1"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>حذف</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Mode Selector (Segmented buttons) */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <div className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                        طريقة تحديد الإحصائية:
+                      </div>
+                      <div className="inline-flex rounded-xl p-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const arr = [...config.stats]
+                            arr[idx].sourceType = 'manual'
+                            setConfigField('stats', arr)
+                          }}
+                          className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
+                            !isAuto
+                              ? 'bg-sky-600 text-white shadow-xs'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                          }`}
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>✍️ تحكم يدوي بالأرقام (مباشر)</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const arr = [...config.stats]
+                            arr[idx].sourceType = 'automated'
+                            if (!arr[idx].autoMetricKey) arr[idx].autoMetricKey = 'clinics'
+                            setConfigField('stats', arr)
+                          }}
+                          className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
+                            isAuto
+                              ? 'bg-indigo-600 text-white shadow-xs'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                          }`}
+                        >
+                          <Database className="w-3.5 h-3.5" />
+                          <span>⚡ حساب تلقائي من قاعدة البيانات</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Automated Mode Settings */}
+                    {isAuto ? (
+                      <div className="p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 space-y-2">
+                        <div className="flex items-center gap-2 text-xs font-bold text-indigo-700 dark:text-indigo-300">
+                          <Sparkles className="w-4 h-4 text-indigo-500" />
+                          <span>وضع الحساب التلقائي: يتم جلب القيمة تلقائياً من المنظومة في الوقت الحقيقي.</span>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-indigo-900 dark:text-indigo-200 mb-1">
+                            اختر المقياس البرمجي من قاعدة البيانات
+                          </label>
+                          <select
+                            value={st.autoMetricKey || 'clinics'}
+                            onChange={(e) => {
                               const arr = [...config.stats]
-                              const temp = arr[idx]
-                              arr[idx] = arr[idx + 1]
-                              arr[idx + 1] = temp
+                              arr[idx].autoMetricKey = e.target.value as any
                               setConfigField('stats', arr)
                             }}
-                            className="p-1 rounded border bg-white dark:bg-slate-900 disabled:opacity-30"
-                            title="تأخير"
+                            className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs font-bold text-indigo-900 dark:text-indigo-200"
                           >
-                            <ArrowDown className="w-3 h-3" />
-                          </button>
+                            <option value="clinics">عدد العيادات والمراكز المسجلة الحقيقية</option>
+                            <option value="doctors">عدد الأطباء المعتمدين الحقيقيين</option>
+                            <option value="visits">عدد الكشوفات والزيارات المكتملة</option>
+                            <option value="prescriptions">عدد الروشتات الإلكترونية الصادرة</option>
+                          </select>
                         </div>
                       </div>
-                      <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer">
+                    ) : (
+                      <div className="p-2.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 flex items-center gap-2 text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                        <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        <span>وضع التحكم اليدوي مفعل: القيمة التي تكتبها أدناه تظهر للزوار فوراً كما هي.</span>
+                      </div>
+                    )}
+
+                    {/* Inputs Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          {isAuto ? 'قيمة احتياطية' : 'القيمة الرقمية (الرقم الظاهر)'}
+                        </label>
                         <input
-                          type="checkbox"
-                          checked={st.visible !== false}
+                          type="text"
+                          value={st.value}
+                          placeholder="مثال: 150 أو 25,000"
                           onChange={(e) => {
                             const arr = [...config.stats]
-                            arr[idx].visible = e.target.checked
+                            arr[idx].value = e.target.value
+                            // Automatically ensure manual mode when owner edits value
+                            arr[idx].sourceType = 'manual'
                             setConfigField('stats', arr)
                           }}
+                          className="w-full px-3 py-2.5 rounded-xl bg-white dark:bg-slate-900 border text-sm font-mono font-black text-sky-600 dark:text-sky-400 shadow-xs focus:ring-2 focus:ring-sky-500"
                         />
-                        <span>إظهار في الصفحة</span>
-                      </label>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setConfigField('stats', config.stats.filter((_, i) => i !== idx))}
-                      className="text-xs text-rose-500 hover:underline"
-                    >
-                      حذف
-                    </button>
-                  </div>
+                      </div>
 
-                  {/* Source Type Selector */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                        مصدر الإحصائية
-                      </label>
-                      <select
-                        value={st.sourceType || 'manual'}
-                        onChange={(e) => {
-                          const arr = [...config.stats]
-                          arr[idx].sourceType = e.target.value as 'manual' | 'automated'
-                          if (arr[idx].sourceType === 'automated' && !arr[idx].autoMetricKey) {
-                            arr[idx].autoMetricKey = 'clinics'
-                          }
-                          setConfigField('stats', arr)
-                        }}
-                        className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border text-xs"
-                      >
-                        <option value="automated">تلقائي من قاعدة البيانات (محدث وحي)</option>
-                        <option value="manual">إحصائية يدوية موثقة</option>
-                      </select>
-                    </div>
-
-                    {st.sourceType === 'automated' ? (
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                          المقياس البرمجي
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          الوحدة أو الرمز (مثال: + أو % أو عيادة)
+                        </label>
+                        <input
+                          type="text"
+                          value={st.unit || ''}
+                          placeholder="مثال: +"
+                          onChange={(e) => {
+                            const arr = [...config.stats]
+                            arr[idx].unit = e.target.value
+                            setConfigField('stats', arr)
+                          }}
+                          className="w-full px-3 py-2.5 rounded-xl bg-white dark:bg-slate-900 border text-sm font-bold shadow-xs focus:ring-2 focus:ring-sky-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          العنوان بالعربية
+                        </label>
+                        <input
+                          type="text"
+                          value={st.label}
+                          placeholder="مثال: عيادات ومراكز طبية مسجلة"
+                          onChange={(e) => {
+                            const arr = [...config.stats]
+                            arr[idx].label = e.target.value
+                            setConfigField('stats', arr)
+                          }}
+                          className="w-full px-3 py-2.5 rounded-xl bg-white dark:bg-slate-900 border text-xs font-bold shadow-xs focus:ring-2 focus:ring-sky-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          الأيقونة المعروضة
                         </label>
                         <select
-                          value={st.autoMetricKey || 'clinics'}
+                          value={st.iconName || 'TrendingUp'}
                           onChange={(e) => {
                             const arr = [...config.stats]
-                            arr[idx].autoMetricKey = e.target.value as any
+                            arr[idx].iconName = e.target.value
                             setConfigField('stats', arr)
                           }}
-                          className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border text-xs"
+                          className="w-full px-3 py-2.5 rounded-xl bg-white dark:bg-slate-900 border text-xs font-bold shadow-xs"
                         >
-                          <option value="clinics">عدد العيادات والمراكز المسجلة</option>
-                          <option value="doctors">عدد الأطباء المعتمدين</option>
-                          <option value="visits">عدد الكشوفات والزيارات المكتملة</option>
-                          <option value="prescriptions">عدد الروشتات الإلكترونية الصادرة</option>
+                          <option value="Building2">🏢 مبنى وعيادات (Building2)</option>
+                          <option value="Users">👥 أطباء ومستخدمين (Users)</option>
+                          <option value="TrendingUp">📈 معدل نمو وزيارات (TrendingUp)</option>
+                          <option value="Award">🏆 روشتات وجوائز (Award)</option>
+                          <option value="Activity">💓 فحوصات ونشاط طبي (Activity)</option>
+                          <option value="Calendar">📅 مواعيد وجدول (Calendar)</option>
+                          <option value="ShieldCheck">🛡️ أمان وتشفير (ShieldCheck)</option>
+                          <option value="Clock">⏱️ وقت وسرعة (Clock)</option>
+                          <option value="Sparkles">✨ مميزات ذكية (Sparkles)</option>
+                          <option value="Database">🗄️ قاعدة بيانات EMR (Database)</option>
                         </select>
                       </div>
-                    ) : (
+                    </div>
+
+                    {/* Secondary Row: Source Note & English Label */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                          ملاحظة المصدر (سند الإحصائية)
+                        <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                          نص التوثيق والملاحظة أسفل الكارت
                         </label>
                         <input
                           type="text"
                           value={st.sourceNote || ''}
-                          placeholder="مثال: إحصائية موثقة من إدارة النظام"
+                          placeholder="مثال: عيادات ومراكز موثقة في المنظومة"
                           onChange={(e) => {
                             const arr = [...config.stats]
                             arr[idx].sourceNote = e.target.value
                             setConfigField('stats', arr)
                           }}
-                          className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border text-xs"
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs text-slate-600 dark:text-slate-300"
                         />
                       </div>
-                    )}
-                  </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                          العنوان بالإنجليزية (اختياري)
+                        </label>
+                        <input
+                          type="text"
+                          value={st.labelEn || ''}
+                          placeholder="e.g. Registered Clinics & Centers"
+                          onChange={(e) => {
+                            const arr = [...config.stats]
+                            arr[idx].labelEn = e.target.value
+                            setConfigField('stats', arr)
+                          }}
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs text-slate-600 dark:text-slate-300"
+                        />
+                      </div>
+                    </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                    <div className="sm:col-span-2">
-                      <label className="block text-[11px] font-bold text-slate-500 mb-1">العنوان بالعربية</label>
-                      <input
-                        type="text"
-                        value={st.label}
-                        onChange={(e) => {
-                          const arr = [...config.stats]
-                          arr[idx].label = e.target.value
-                          setConfigField('stats', arr)
-                        }}
-                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-500 mb-1">
-                        {st.sourceType === 'automated' ? 'قيمة احتياطية' : 'القيمة الرقمية'}
-                      </label>
-                      <input
-                        type="text"
-                        value={st.value}
-                        onChange={(e) => {
-                          const arr = [...config.stats]
-                          arr[idx].value = e.target.value
-                          setConfigField('stats', arr)
-                        }}
-                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs font-mono"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-500 mb-1">الوحدة (مثال: + أو %)</label>
-                      <input
-                        type="text"
-                        value={st.unit || ''}
-                        onChange={(e) => {
-                          const arr = [...config.stats]
-                          arr[idx].unit = e.target.value
-                          setConfigField('stats', arr)
-                        }}
-                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs"
-                      />
+                    {/* Live Mini Card Preview */}
+                    <div className="p-3.5 rounded-xl bg-white dark:bg-[#071322] border border-sky-100 dark:border-slate-800 flex items-center justify-between shadow-2xs">
+                      <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-xl bg-sky-50 dark:bg-sky-950/80 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
+                          <PreviewIcon className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-xl font-black text-slate-900 dark:text-white font-mono tracking-tight">
+                              {st.value || '0'}
+                            </span>
+                            {st.unit && (
+                              <span className="text-sm font-bold text-sky-600 dark:text-sky-400">
+                                {st.unit}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                            {st.label || 'عنوان الإحصائية'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-[11px] font-bold px-2.5 py-1 rounded-md bg-slate-50 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-800">
+                        {isAuto ? '⚡ حساب تلقائي حي' : (st.sourceNote || 'إحصائية موثقة')}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </section>
         )}
