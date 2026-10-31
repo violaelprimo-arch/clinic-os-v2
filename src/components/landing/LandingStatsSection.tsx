@@ -37,21 +37,35 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
 
 function StatCard({ stat, index = 0 }: { stat: StatItem; index?: number }) {
   const { isRtl } = useLanguage()
-  const [displayValue, setDisplayValue] = useState<string>(stat.value || '0')
+
+  // Exact manual value from owner settings: handles 0, decimals, commas, large numbers
+  const rawValue =
+    stat.value !== undefined && stat.value !== null && String(stat.value).trim() !== ''
+      ? String(stat.value).trim()
+      : '0'
+
+  const [displayValue, setDisplayValue] = useState<string>(rawValue)
   const cardRef = useRef<HTMLDivElement | null>(null)
   const animatedRef = useRef(false)
 
   const IconComponent = iconMap[stat.iconName || 'TrendingUp'] || TrendingUp
-  const delayClass = index === 0 ? 'delay-75' : index === 1 ? 'delay-150' : index === 2 ? 'delay-225' : 'delay-300'
+  const delayClass =
+    index === 0 ? 'delay-75' : index === 1 ? 'delay-150' : index === 2 ? 'delay-225' : 'delay-300'
 
   useEffect(() => {
+    // If value changes in parent/preview, synchronize immediately
+    setDisplayValue(rawValue)
+    animatedRef.current = false
+
     const el = cardRef.current
     if (!el) return
 
-    const rawStr = String(stat.value || '0').replace(/,/g, '')
-    const num = parseFloat(rawStr)
-    if (isNaN(num)) {
-      setDisplayValue(stat.value)
+    const cleanNumStr = rawValue.replace(/,/g, '').trim()
+    const num = parseFloat(cleanNumStr)
+
+    // Non-numeric or exactly 0: display immediately without delay
+    if (isNaN(num) || num === 0) {
+      setDisplayValue(rawValue)
       return
     }
 
@@ -62,14 +76,15 @@ function StatCard({ stat, index = 0 }: { stat: StatItem; index?: number }) {
 
           const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
           if (prefersReduced) {
-            setDisplayValue(stat.value)
+            setDisplayValue(rawValue)
             return
           }
 
-          const duration = 1200
+          const duration = 1000 // fast & non-blocking
           const start = performance.now()
-          const isDecimal = String(stat.value).includes('.')
-          const hasCommas = String(stat.value).includes(',')
+          const isDecimal = rawValue.includes('.')
+          const hasCommas = rawValue.includes(',')
+          const decimalPlaces = isDecimal ? rawValue.split('.')[1]?.length || 1 : 0
 
           const animate = (time: number) => {
             const elapsed = time - start
@@ -77,18 +92,18 @@ function StatCard({ stat, index = 0 }: { stat: StatItem; index?: number }) {
             const easeOut = 1 - Math.pow(1 - progress, 3)
             const current = num * easeOut
 
-            if (isDecimal) {
-              setDisplayValue(current.toFixed(1))
-            } else if (hasCommas) {
-              setDisplayValue(Math.round(current).toLocaleString('en-US'))
-            } else {
-              setDisplayValue(Math.round(current).toString())
-            }
-
             if (progress < 1) {
+              if (isDecimal) {
+                setDisplayValue(current.toFixed(decimalPlaces))
+              } else if (hasCommas) {
+                setDisplayValue(Math.round(current).toLocaleString('en-US'))
+              } else {
+                setDisplayValue(Math.round(current).toString())
+              }
               requestAnimationFrame(animate)
             } else {
-              setDisplayValue(stat.value)
+              // MUST end with the EXACT saved value!
+              setDisplayValue(rawValue)
             }
           }
 
@@ -100,20 +115,24 @@ function StatCard({ stat, index = 0 }: { stat: StatItem; index?: number }) {
 
     observer.observe(el)
     return () => observer.disconnect()
-  }, [stat.value])
+  }, [rawValue])
 
   const isAutomated = stat.sourceType === 'automated'
+  const title = isRtl ? stat.label : stat.labelEn || stat.label
+  const description = isRtl
+    ? stat.description || stat.sourceNote
+    : stat.descriptionEn || stat.description || stat.sourceNote
 
   return (
     <div
       ref={cardRef}
       className={`landing-reveal ${delayClass} landing-card-glow p-6 rounded-3xl bg-white dark:bg-[#081526] border border-sky-100 dark:border-slate-800 shadow-sm flex flex-col justify-between hover:border-sky-300 dark:hover:border-slate-700 transition-all group active:scale-[0.99]`}
     >
-      <div className="flex items-center gap-4">
-        <div className="w-14 h-14 rounded-2xl bg-sky-50 dark:bg-sky-950/70 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+      <div className="flex items-start gap-4">
+        <div className="w-14 h-14 rounded-2xl bg-sky-50 dark:bg-sky-950/70 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform mt-0.5">
           <IconComponent className="w-7 h-7" />
         </div>
-        <div className="space-y-0.5 min-w-0">
+        <div className="space-y-1 min-w-0 flex-1">
           <div className="flex items-baseline gap-1">
             <span className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white font-mono tracking-tight">
               {displayValue}
@@ -124,9 +143,14 @@ function StatCard({ stat, index = 0 }: { stat: StatItem; index?: number }) {
               </span>
             )}
           </div>
-          <p className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 truncate">
-            {isRtl ? stat.label : stat.labelEn || stat.label}
+          <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 line-clamp-1">
+            {title}
           </p>
+          {description ? (
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
+              {description}
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -135,11 +159,14 @@ function StatCard({ stat, index = 0 }: { stat: StatItem; index?: number }) {
         {isAutomated ? (
           <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span>بيانات حية مباشرة</span>
+            <span>{isRtl ? 'بيانات حية مباشرة' : 'Live Automated Data'}</span>
           </span>
         ) : (
-          <span className="truncate" title={stat.sourceNote || 'إحصائية موثقة'}>
-            {stat.sourceNote || 'إحصائية موثقة'}
+          <span
+            className="truncate"
+            title={stat.sourceNote || description || (isRtl ? 'إحصائية موثقة' : 'Verified Statistic')}
+          >
+            {stat.sourceNote || description || (isRtl ? 'إحصائية موثقة' : 'Verified Statistic')}
           </span>
         )}
       </div>

@@ -167,15 +167,17 @@ const contact = z.object({
 const statItem = z.object({
   id: id.default(() => Math.random().toString(36).substring(2, 9)),
   label: short,
-  value: short,
-  unit: short.default(''),
+  value: z.union([z.string(), z.number()]).transform((v) => String(v).trim()),
+  unit: text.default(''),
   iconName: short.default('TrendingUp'),
   sourceType: z.enum(['manual', 'automated']).default('manual'),
   autoMetricKey: z.enum(['clinics', 'doctors', 'visits', 'prescriptions']).optional().nullable(),
   sourceNote: text.default(''),
+  description: text.default(''),
+  descriptionEn: text.default(''),
   visible: z.boolean().default(true),
-  labelEn: short.default(''),
-  valueEn: short.default(''),
+  labelEn: text.default(''),
+  valueEn: text.default(''),
 })
 
 export const DEFAULT_ENGLISH_TEXTS = {
@@ -918,8 +920,10 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
       iconName: 'Building2',
       sourceType: 'manual',
       sourceNote: 'عيادات ومراكز طبية موثقة في المنظومة',
+      description: 'عيادات ومراكز طبية موثقة في المنظومة',
       labelEn: 'Registered Clinics & Centers',
-      valueEn: '150+'
+      valueEn: '150+',
+      descriptionEn: 'Verified clinics and medical centers on the platform'
     },
     {
       id: 'stat-doctors',
@@ -930,8 +934,10 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
       iconName: 'Users',
       sourceType: 'manual',
       sourceNote: 'أطباء يديرون كشوفاتهم وروشتاتهم عبر المنصة',
+      description: 'أطباء يديرون كشوفاتهم وروشتاتهم عبر المنصة',
       labelEn: 'Verified Medical Doctors',
-      valueEn: '500+'
+      valueEn: '500+',
+      descriptionEn: 'Doctors managing visits and prescriptions daily'
     },
     {
       id: 'stat-visits',
@@ -942,8 +948,10 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
       iconName: 'TrendingUp',
       sourceType: 'manual',
       sourceNote: 'كشوفات وزيارات تم إدارتها بالكامل',
+      description: 'كشوفات وزيارات تم إدارتها بالكامل',
       labelEn: 'Organized Patient Visits',
-      valueEn: '25,000+'
+      valueEn: '25,000+',
+      descriptionEn: 'Patient visits organized and completed smoothly'
     },
     {
       id: 'stat-prescriptions',
@@ -954,8 +962,10 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
       iconName: 'Award',
       sourceType: 'manual',
       sourceNote: 'روشتات A4 إلكترونية معتمدة للمرضى',
+      description: 'روشتات A4 إلكترونية معتمدة للمرضى',
       labelEn: 'Digital Prescriptions Issued',
-      valueEn: '50,000+'
+      valueEn: '50,000+',
+      descriptionEn: 'Official A4 digital prescriptions issued to patients'
     }
   ],
   features: DEFAULT_CLINICAL_FEATURES,

@@ -407,7 +407,7 @@ const cmsTabs = [
   ['faq', 'الأسئلة الشائعة', HelpCircle],
   ['inbox', 'صندوق الشكاوى والاقتراحات', MessageSquare],
   ['testimonials', 'الآراء والعملاء', Star],
-  ['stats', 'الإحصائيات', CheckCircle2],
+  ['stats', 'الإحصائيات والأرقام', TrendingUp],
   ['contacts', 'التواصل والفوتر', Phone],
   ['trials', 'طلبات التجربة', FileText],
 ] as const
@@ -2866,7 +2866,7 @@ export function LandingPageManager() {
           </section>
         )}
 
-        {/* TAB 10: STATS (Dual-Source: Automated Firestore or Documented Manual) */}
+        {/* TAB 10: STATS & NUMBERS (Full Manual Control with Optional Automated Mode) */}
         {activeTab === 'stats' && (
           <section className="p-6 rounded-3xl bg-white dark:bg-[#081526] border border-sky-100 dark:border-slate-800 shadow-sm space-y-6">
             {/* Header & Action Toolbar */}
@@ -2893,6 +2893,7 @@ export function LandingPageManager() {
                       ...s,
                       sourceType: 'manual' as const,
                       sourceNote: s.sourceNote || 'إحصائية موثقة من إدارة المنظومة',
+                      description: s.description || s.sourceNote || 'إحصائية موثقة من إدارة المنظومة',
                     }))
                     setConfigField('stats', arr)
                   }}
@@ -2916,8 +2917,10 @@ export function LandingPageManager() {
                         iconName: 'Building2',
                         sourceType: 'manual',
                         sourceNote: 'عيادات ومراكز طبية موثقة في المنظومة',
+                        description: 'عيادات ومراكز طبية موثقة في المنظومة',
                         labelEn: 'Registered Clinics & Centers',
                         valueEn: '150+',
+                        descriptionEn: 'Verified clinics and medical centers on the platform',
                       },
                       {
                         id: 'stat-doctors',
@@ -2928,8 +2931,10 @@ export function LandingPageManager() {
                         iconName: 'Users',
                         sourceType: 'manual',
                         sourceNote: 'أطباء يديرون كشوفاتهم وروشتاتهم عبر المنصة',
+                        description: 'أطباء يديرون كشوفاتهم وروشتاتهم عبر المنصة',
                         labelEn: 'Verified Medical Doctors',
                         valueEn: '500+',
+                        descriptionEn: 'Doctors managing visits and prescriptions daily',
                       },
                       {
                         id: 'stat-visits',
@@ -2940,8 +2945,10 @@ export function LandingPageManager() {
                         iconName: 'TrendingUp',
                         sourceType: 'manual',
                         sourceNote: 'كشوفات وزيارات تم إدارتها بالكامل',
+                        description: 'كشوفات وزيارات تم إدارتها بالكامل',
                         labelEn: 'Organized Patient Visits',
                         valueEn: '25,000+',
+                        descriptionEn: 'Patient visits organized and completed smoothly',
                       },
                       {
                         id: 'stat-prescriptions',
@@ -2952,8 +2959,10 @@ export function LandingPageManager() {
                         iconName: 'Award',
                         sourceType: 'manual',
                         sourceNote: 'روشتات A4 إلكترونية معتمدة للمرضى',
+                        description: 'روشتات A4 إلكترونية معتمدة للمرضى',
                         labelEn: 'Digital Prescriptions Issued',
                         valueEn: '50,000+',
+                        descriptionEn: 'Official A4 digital prescriptions issued to patients',
                       },
                     ]
                     setConfigField('stats', presetStats)
@@ -2986,9 +2995,11 @@ export function LandingPageManager() {
                       iconName: 'TrendingUp',
                       sourceType: 'manual',
                       sourceNote: 'إحصائية موثقة من إدارة المنظومة',
+                      description: 'وصف مختصر يوضح الإحصائية للزوار',
+                      descriptionEn: 'Brief description of the statistic',
                       visible: true,
-                      labelEn: '',
-                      valueEn: '',
+                      labelEn: 'New Statistic',
+                      valueEn: '100+',
                     }
                     setConfigField('stats', [...config.stats, newStat])
                   }}
@@ -2998,6 +3009,35 @@ export function LandingPageManager() {
                   <span>إضافة إحصائية</span>
                 </Button>
               </div>
+            </div>
+
+            {/* Section Visibility Switch */}
+            <div className="p-4 rounded-2xl bg-sky-50/60 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-900/40 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-sky-100 dark:bg-sky-900/60 text-sky-600 dark:text-sky-300 flex items-center justify-center shrink-0">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                    ظهور قسم «الإحصائيات والأرقام» في الصفحة الرئيسية
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    عند التعطيل، يتم إخفاء قسم الإحصائيات بالكامل من الصفحة الرئيسية دون حذف بياناتك المحفوظة.
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={config.visibility?.showStats !== false}
+                onCheckedChange={(val) => {
+                  setConfig((prev) => ({
+                    ...prev,
+                    visibility: {
+                      ...prev.visibility,
+                      showStats: val,
+                    },
+                  }))
+                }}
+              />
             </div>
 
             {/* List of Stats Cards */}
@@ -3170,20 +3210,19 @@ export function LandingPageManager() {
                       </div>
                     )}
 
-                    {/* Inputs Grid */}
+                    {/* Inputs Grid: Value, Unit, Arabic Title, Icon */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                       <div>
                         <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                          {isAuto ? 'قيمة احتياطية' : 'القيمة الرقمية (الرقم الظاهر)'}
+                          {isAuto ? 'قيمة احتياطية' : 'القيمة الرقمية (الرقم الظاهر يدويًا)'}
                         </label>
                         <input
                           type="text"
                           value={st.value}
-                          placeholder="مثال: 150 أو 25,000"
+                          placeholder="مثال: 150 أو 25,000 أو 0"
                           onChange={(e) => {
                             const arr = [...config.stats]
                             arr[idx].value = e.target.value
-                            // Automatically ensure manual mode when owner edits value
                             arr[idx].sourceType = 'manual'
                             setConfigField('stats', arr)
                           }}
@@ -3252,27 +3291,48 @@ export function LandingPageManager() {
                       </div>
                     </div>
 
-                    {/* Secondary Row: Source Note & English Label */}
+                    {/* Secondary Row: Descriptions (Arabic & English) */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-500 mb-1">
-                          نص التوثيق والملاحظة أسفل الكارت
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          الوصف المختصر للبطاقة بالعربية (اختياري)
                         </label>
                         <input
                           type="text"
-                          value={st.sourceNote || ''}
+                          value={st.description ?? st.sourceNote ?? ''}
                           placeholder="مثال: عيادات ومراكز موثقة في المنظومة"
                           onChange={(e) => {
                             const arr = [...config.stats]
+                            arr[idx].description = e.target.value
                             arr[idx].sourceNote = e.target.value
                             setConfigField('stats', arr)
                           }}
-                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs text-slate-600 dark:text-slate-300"
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs text-slate-700 dark:text-slate-200 shadow-xs focus:ring-2 focus:ring-sky-500"
                         />
                       </div>
                       <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          الوصف المختصر بالإنجليزية (English Description)
+                        </label>
+                        <input
+                          type="text"
+                          value={st.descriptionEn || ''}
+                          placeholder="e.g. Verified clinics and centers on the platform"
+                          onChange={(e) => {
+                            const arr = [...config.stats]
+                            arr[idx].descriptionEn = e.target.value
+                            setConfigField('stats', arr)
+                          }}
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs text-slate-700 dark:text-slate-200 shadow-xs focus:ring-2 focus:ring-sky-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Third Row: English Title & English Value */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      <div>
                         <label className="block text-[11px] font-bold text-slate-500 mb-1">
-                          العنوان بالإنجليزية (اختياري)
+                          العنوان بالإنجليزية (English Title)
                         </label>
                         <input
                           type="text"
@@ -3283,35 +3343,63 @@ export function LandingPageManager() {
                             arr[idx].labelEn = e.target.value
                             setConfigField('stats', arr)
                           }}
-                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs text-slate-600 dark:text-slate-300"
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs text-slate-600 dark:text-slate-300 shadow-xs focus:ring-2 focus:ring-sky-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                          الرقم المعروض بالإنجليزية إن اختلف (اختياري)
+                        </label>
+                        <input
+                          type="text"
+                          value={st.valueEn || ''}
+                          placeholder="e.g. 150+ (يُترك فارغاً لاستخدام الرقم الأصلي)"
+                          onChange={(e) => {
+                            const arr = [...config.stats]
+                            arr[idx].valueEn = e.target.value
+                            setConfigField('stats', arr)
+                          }}
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs text-slate-600 dark:text-slate-300 shadow-xs focus:ring-2 focus:ring-sky-500"
                         />
                       </div>
                     </div>
 
                     {/* Live Mini Card Preview */}
-                    <div className="p-3.5 rounded-xl bg-white dark:bg-[#071322] border border-sky-100 dark:border-slate-800 flex items-center justify-between shadow-2xs">
-                      <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-xl bg-sky-50 dark:bg-sky-950/80 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
-                          <PreviewIcon className="w-5 h-5" />
+                    <div className="p-4 rounded-2xl bg-white dark:bg-[#071322] border border-sky-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs">
+                      <div className="flex items-start sm:items-center gap-3">
+                        <div className="w-12 h-12 rounded-xl bg-sky-50 dark:bg-sky-950/80 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
+                          <PreviewIcon className="w-6 h-6" />
                         </div>
-                        <div>
-                          <div className="flex items-baseline gap-1">
-                            <span className="text-xl font-black text-slate-900 dark:text-white font-mono tracking-tight">
+                        <div className="space-y-0.5">
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-2xl font-black text-slate-900 dark:text-white font-mono tracking-tight">
                               {st.value || '0'}
                             </span>
                             {st.unit && (
-                              <span className="text-sm font-bold text-sky-600 dark:text-sky-400">
+                              <span className="text-base font-bold text-sky-600 dark:text-sky-400">
                                 {st.unit}
                               </span>
                             )}
                           </div>
-                          <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                          <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
                             {st.label || 'عنوان الإحصائية'}
+                            {st.labelEn ? <span className="text-slate-400 text-[10px] ml-1.5 font-normal">({st.labelEn})</span> : null}
                           </p>
+                          {(st.description || st.sourceNote) ? (
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                              {st.description || st.sourceNote}
+                            </p>
+                          ) : null}
                         </div>
                       </div>
-                      <div className="text-[11px] font-bold px-2.5 py-1 rounded-md bg-slate-50 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-800">
-                        {isAuto ? '⚡ حساب تلقائي حي' : (st.sourceNote || 'إحصائية موثقة')}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border ${
+                          isAuto
+                            ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'
+                            : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                        }`}>
+                          {isAuto ? '⚡ حساب تلقائي حي' : '✍️ إحصائية يدوية ثابتة'}
+                        </span>
                       </div>
                     </div>
                   </div>
