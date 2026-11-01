@@ -102,15 +102,17 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
     }
   }, [slug, appointmentId])
 
-  // Compute live queue position using comprehensive multi-case logic
+  // Compute live queue position using unified clinical schedule & queue engine
   const liveQueue: PatientQueueStatusResult = useMemo(() => {
     return calculatePatientLivePosition({
       targetAppointmentId: appointmentId,
       targetAppointment: appointment,
       allTodayAppointments: allQueueAppts,
-      clinic
+      clinic,
+      branch: branchData,
+      isRtl
     })
-  }, [appointmentId, appointment, allQueueAppts, clinic])
+  }, [appointmentId, appointment, allQueueAppts, clinic, branchData, isRtl])
 
   const prevExaminingRef = useRef<any>(null)
 
@@ -188,21 +190,9 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
   const isSkippedOrNoShow = liveQueue.status === 'skipped' || liveQueue.status === 'no_show'
   const isCancelled = liveQueue.status === 'cancelled'
 
-  const avgVisitMins = branchData?.slotDuration || branchData?.averageVisitTime || liveQueue.averageVisitMins || Number(clinic?.averageVisitTime) || 15
-  const totalWaitMins = Math.max(0, liveQueue.aheadCount * avgVisitMins)
-
-  const formatWaitText = (mins: number) => {
-    if (mins <= 0) return isRtl ? 'خلال دقائق معدودة' : 'In a few minutes'
-    if (mins < 60) return isRtl ? `حوالي ${mins} دقيقة` : `Around ${mins} mins`
-    const h = Math.floor(mins / 60)
-    const m = mins % 60
-    return isRtl
-      ? (m > 0 ? `حوالي ${h} ساعة و ${m} دقيقة` : `حوالي ${h} ساعة`)
-      : (m > 0 ? `Around ${h} hr ${m} mins` : `Around ${h} hr`)
-  }
-
-  const estimatedDurationText = formatWaitText(totalWaitMins)
-  const expectedClockTime = formatEstimatedTime(totalWaitMins)
+  const avgVisitMins = liveQueue.averageVisitMins || branchData?.slotDuration || branchData?.averageVisitTime || Number(clinic?.averageVisitTime) || 15
+  const estimatedDurationText = liveQueue.formattedWaitTime
+  const expectedClockTime = liveQueue.estimatedEntranceTime12H
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 font-sans text-foreground transition-colors" dir={dir}>
@@ -266,21 +256,67 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
             </div>
           </div>
         ) : isFuture ? (
-          <div className="p-6 rounded-3xl bg-blue-500/10 border-2 border-blue-500/30 text-center space-y-3">
-            <Calendar className="w-16 h-16 text-blue-600 dark:text-blue-400 mx-auto" />
-            <h3 className="text-xl font-black text-blue-700 dark:text-blue-400">
-              {isRtl ? `موعد قادم مؤكد يوم ${appointment.date}` : `Upcoming Confirmed Appointment: ${appointment.date}`}
-            </h3>
-            <p className="text-xs text-muted-foreground font-medium leading-relaxed">
-              {isRtl
-                ? 'حجزك مسجل ومعتمد في العيادة. يبدأ تتبع الدور المباشر وحساب المرضى المتواجدين في يوم موعد الكشف.'
-                : 'Your appointment is confirmed. Live queue tracking and wait time will activate on the day of your visit.'}
-            </p>
-            <div className="pt-1">
-              <span className="px-3.5 py-1.5 rounded-full bg-blue-600 text-white text-xs font-black font-mono">
-                تذكرة رقم #{appointment.queue_number}
+          <div className="p-6 rounded-3xl bg-blue-500/10 border-2 border-blue-500/30 text-center space-y-4">
+            <Calendar className="w-14 h-14 text-blue-600 dark:text-blue-400 mx-auto" />
+            <div className="space-y-1">
+              <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
+                {isRtl ? 'حجز مستقبلي مؤكد' : 'Upcoming Confirmed Booking'}
+              </span>
+              <h3 className="text-xl font-black text-foreground">
+                {appointment.date}
+              </h3>
+              <p className="text-xs text-muted-foreground font-medium">
+                {appointment.branchName || 'الفرع الرئيسي'} • {appointment.serviceName || 'كشف'}
+              </p>
+            </div>
+
+            {/* Static Ticket Number */}
+            <div className="p-4 rounded-2xl bg-card border border-border shadow-xs space-y-1">
+              <span className="text-[11px] font-bold text-muted-foreground block">
+                {t('ticket_number', 'رقم تذكرة الحجز')}
+              </span>
+              <div className="text-4xl font-black text-primary font-mono">
+                #{appointment.queue_number}
+              </div>
+            </div>
+
+            {/* Schedule-anchored estimate */}
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="p-3 rounded-xl bg-card border border-border">
+                <span className="text-[11px] text-muted-foreground block font-bold">
+                  {t('effective_position', 'ترتيب الدخول لذلك اليوم')}
+                </span>
+                <span className="text-base font-black text-foreground font-mono">
+                  #{liveQueue.effectivePosition}
+                </span>
+              </div>
+              <div className="p-3 rounded-xl bg-card border border-border">
+                <span className="text-[11px] text-muted-foreground block font-bold">
+                  {t('patients_ahead_count', 'المرضى أمامك')}
+                </span>
+                <span className="text-base font-black text-primary font-mono">
+                  {liveQueue.aheadCount}
+                </span>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-primary/10 border border-primary/20 space-y-1 text-center">
+              <span className="text-[11px] text-muted-foreground font-bold block">
+                {t('expected_clock_time', 'الساعة المتوقعة للدخول (تقديري):')}
+              </span>
+              <span className="text-lg font-black text-primary font-mono block">
+                {liveQueue.estimatedEntranceTime12H}
+              </span>
+              <span className="text-[11px] text-muted-foreground block">
+                {liveQueue.formattedWaitTime}
               </span>
             </div>
+
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              {isRtl
+                ? 'حجزك مسجل ومعتمد بالعيادة. يبدأ استقبال المرضى وفق جدول عمل العيادة في تاريخ الموعد.'
+                : 'Your appointment is confirmed. Reception starts according to clinic schedule on the appointment date.'}
+            </p>
           </div>
         ) : isPast ? (
           <div className="p-6 rounded-3xl bg-muted/40 border border-border text-center space-y-3">
@@ -436,8 +472,14 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
                 </div>
 
                 <div className="text-[10.5px] text-muted-foreground pt-1.5 border-t border-border text-center font-mono">
-                  ({t('calculation_label', 'حساب تقديري:')} {liveQueue.aheadCount} {t('patients', 'مرضى')} × {avgVisitMins} {t('minutes', 'دقيقة')} = {liveQueue.aheadCount * avgVisitMins} {t('minutes', 'دقيقة')})
+                  ({t('schedule_anchored_label', 'تقدير دقيق محسوب وفق جدول مواعيد العيادة والأدوار السابقة')})
                 </div>
+
+                {!liveQueue.isEstimateConfirmed && (
+                  <div className="text-[11px] font-bold text-amber-700 dark:text-amber-400 bg-amber-500/10 p-2 rounded-xl text-center">
+                    ⚠️ {t('estimate_unconfirmed', 'موعد غير مؤكد — العيادة متوقفة مؤقتاً أو جلسة الكشف لم تبدأ بعد')}
+                  </div>
+                )}
               </div>
 
             </div>

@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import { db } from '@/lib/firebase'
 import { createAtomicAppointment, removeUndefinedFields } from '@/lib/queueService'
+import { calculatePatientLivePosition } from '@/lib/queueCalculations'
 import {
   resolveEffectiveDailyLimit,
   isAppointmentActive,
@@ -359,6 +360,9 @@ export function BookingModal({
     appointmentId: string
     queueNumber: number
     aheadCount: number
+    effectivePosition?: number
+    estimatedEntranceTime12H?: string
+    isEstimateConfirmed?: boolean
     branchName: string
     date: string
     paymentMethod: string
@@ -630,10 +634,41 @@ export function BookingModal({
       }).catch(() => {})
 
       toast.success(`تم تأكيد الحجز بنجاح! رقم دورك: #${myQueueNumber}`)
+
+      const posResult = calculatePatientLivePosition({
+        targetAppointment: {
+          id: docRef.id,
+          queue_number: myQueueNumber,
+          date: selectedDate,
+          branch_id: branchId,
+          serviceId: selectedService?.id,
+          serviceName: serviceName,
+          status: 'waiting'
+        },
+        allTodayAppointments: [
+          ...qSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+          {
+            id: docRef.id,
+            queue_number: myQueueNumber,
+            date: selectedDate,
+            branch_id: branchId,
+            serviceId: selectedService?.id,
+            serviceName: serviceName,
+            status: 'waiting'
+          }
+        ],
+        clinic,
+        branch: selectedBranch,
+        bookingDateStr: selectedDate
+      })
+
       setBookingSuccess({
         appointmentId: docRef.id,
         queueNumber: myQueueNumber,
-        aheadCount: waitingCount,
+        aheadCount: posResult.aheadCount,
+        effectivePosition: posResult.effectivePosition,
+        estimatedEntranceTime12H: posResult.estimatedEntranceTime12H,
+        isEstimateConfirmed: posResult.isEstimateConfirmed,
         branchName: branchName,
         date: selectedDate,
         paymentMethod: paymentMethod === 'cash' ? 'كاش بالعيادة' : paymentMethod === 'instapay' ? 'InstaPay' : 'محفظة إلكترونية'
@@ -779,6 +814,12 @@ export function BookingModal({
                   ? 'أنت الأول في قائمة الانتظار لهذا اليوم'
                   : `يوجد ${bookingSuccess.aheadCount} في قائمة الانتظار أمامك`}
               </div>
+              {bookingSuccess.estimatedEntranceTime12H && (
+                <div className="text-xs font-black text-emerald-600 dark:text-emerald-400 pt-1 border-t border-slate-100 dark:border-slate-800 flex items-center justify-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>موعد الدخول المتوقع (تقديري): {bookingSuccess.estimatedEntranceTime12H}</span>
+                </div>
+              )}
               <div className="text-[11px] font-bold text-sky-600 dark:text-sky-400 pt-1 border-t border-slate-100 dark:border-slate-800">
                 طريقة الدفع: {bookingSuccess.paymentMethod}
               </div>

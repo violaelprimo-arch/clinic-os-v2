@@ -4,6 +4,7 @@ import { db } from '@/lib/firebase'
 import { createClinicNotification } from '@/lib/notificationService'
 import { dispatchPatientPushNotification } from '@/lib/pushDispatcher'
 import { createAtomicAppointment } from '@/lib/queueService'
+import { calculatePatientLivePosition } from '@/lib/queueCalculations'
 import {
   resolveEffectiveDailyLimit,
   isAppointmentActive,
@@ -292,12 +293,45 @@ export async function POST(req: NextRequest) {
       tag: `booking-${docRef.id}`
     }).catch((err) => console.error('Push notification failed non-blockingly:', err))
 
+    // Compute schedule-anchored queue position and entrance estimate
+    const livePos = calculatePatientLivePosition({
+      targetAppointment: {
+        id: docRef.id,
+        queue_number: queueNumber,
+        date: bookingDate,
+        branch_id: branchId || null,
+        serviceId: serviceId ? String(serviceId) : undefined,
+        serviceName: verifiedServiceName,
+        status: 'waiting'
+      },
+      allTodayAppointments: [
+        ...activeScoped.map(d => ({ id: d.id, ...d.data() })),
+        {
+          id: docRef.id,
+          queue_number: queueNumber,
+          date: bookingDate,
+          branch_id: branchId || null,
+          serviceId: serviceId ? String(serviceId) : undefined,
+          serviceName: verifiedServiceName,
+          status: 'waiting'
+        }
+      ],
+      clinic: cData,
+      branch: bData,
+      bookingDateStr: bookingDate
+    })
+
     return NextResponse.json({
       success: true,
       appointmentId: docRef.id,
       queueNumber,
-      aheadCount,
-      estimatedWaitMinutes: aheadCount * 15,
+      aheadCount: livePos.aheadCount,
+      effectivePosition: livePos.effectivePosition,
+      estimatedWaitMinutes: livePos.estimatedWaitMins,
+      estimatedEntranceTime12H: livePos.estimatedEntranceTime12H,
+      estimatedEntranceDateTime: livePos.estimatedEntranceDateTime,
+      formattedWaitTime: livePos.formattedWaitTime,
+      isEstimateConfirmed: livePos.isEstimateConfirmed,
       date: bookingDate,
       time: String(time),
       branchName: branchName || 'الفرع الرئيسي',

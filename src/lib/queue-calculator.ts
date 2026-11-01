@@ -1,22 +1,19 @@
 /**
- * Queue Calculation Engine & Wait Time Estimation
- * Strictly deterministic calculation using Cairo Timezone (Africa/Cairo).
+ * Queue Calculator Wrapper & Bridge
+ * Forwards and delegates all queue calculations, priority sorting,
+ * and wait time estimation to the unified engine in queueCalculations.ts.
+ *
+ * Guarantees zero conflicting calculations across the platform.
  */
 
-export interface QueuePatient {
-  id: string
-  queue_number: number
-  patientName?: string
-  phone?: string
-  servicePrice?: number
-  serviceName?: string
-  durationMinutes?: number
-  isUrgent?: boolean
-  fivePatientsAlertSent?: boolean
-  status: 'waiting' | 'in_progress' | 'completed' | 'skipped' | 'no_show' | 'cancelled'
-  startedAt?: string
-  createdAt?: string
-}
+export * from './queueCalculations'
+
+import {
+  sortQueue,
+  simulateQueueTimeline,
+  formatCairo12Hour,
+  QueuePatient,
+} from './queueCalculations'
 
 export interface WaitTimeEstimate {
   peopleAhead: number
@@ -26,61 +23,22 @@ export interface WaitTimeEstimate {
 }
 
 /**
- * Format a timestamp into 12-hour Arabic time string (e.g. "٠٨:٣٠ م") in Cairo timezone.
- */
-export function formatCairo12Hour(date: Date): string {
-  try {
-    return new Intl.DateTimeFormat('ar-EG', {
-      timeZone: 'Africa/Cairo',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    }).format(date)
-  } catch {
-    return date.toLocaleTimeString()
-  }
-}
-
-/**
- * Order waiting patients based on doctor's priority & interleaving ratio.
- * Urgent patients are prioritized according to regularPerUrgent ratio (or immediate next if ratio is 0).
+ * Legacy wrapper: Order waiting patients based on doctor's priority.
  */
 export function sortWaitingQueue(
   waiting: QueuePatient[],
   regularPerUrgent: number = 2,
   urgentPerRegular: number = 1
 ): QueuePatient[] {
-  const regularQueue = waiting
-    .filter(p => !p.isUrgent)
-    .sort((a, b) => (a.queue_number || 0) - (b.queue_number || 0))
-
-  const urgentQueue = waiting
-    .filter(p => p.isUrgent)
-    .sort((a, b) => (a.queue_number || 0) - (b.queue_number || 0))
-
-  // If urgent ratio is 0 or doctor specified urgent priority 0: urgent comes immediately next
-  if (regularPerUrgent <= 0) {
-    return [...urgentQueue, ...regularQueue]
-  }
-
-  const ordered: QueuePatient[] = []
-  let rIndex = 0
-  let uIndex = 0
-
-  while (rIndex < regularQueue.length || uIndex < urgentQueue.length) {
-    for (let i = 0; i < regularPerUrgent && rIndex < regularQueue.length; i++) {
-      ordered.push(regularQueue[rIndex++])
-    }
-    for (let i = 0; i < urgentPerRegular && uIndex < urgentQueue.length; i++) {
-      ordered.push(urgentQueue[uIndex++])
-    }
-  }
-
-  return ordered
+  // Use unified clinical queue sorting engine
+  return sortQueue(waiting, {
+    queueNormal: regularPerUrgent,
+    queueUrgent: urgentPerRegular,
+  })
 }
 
 /**
- * Calculate deterministic wait time and entrance estimation for a patient.
+ * Legacy wrapper: Calculate wait time and entrance estimation for a patient.
  */
 export function calculateWaitTime(
   patientId: string,
@@ -88,58 +46,24 @@ export function calculateWaitTime(
   currentPatient: QueuePatient | null,
   defaultServiceMinutes: number = 15
 ): WaitTimeEstimate {
-  // If patient is currently in progress
-  if (currentPatient && currentPatient.id === patientId) {
-    return {
-      peopleAhead: 0,
-      estimatedWaitMinutes: 0,
-      estimatedEntranceTime: 'بالداخل الآن',
-      isNext: false
-    }
+  const allAppts: any[] = [...orderedWaitingList]
+  if (currentPatient && !allAppts.some((p) => p.id === currentPatient.id)) {
+    allAppts.unshift(currentPatient)
   }
 
-  // Find position in ordered waiting list
-  const patientIndex = orderedWaitingList.findIndex(p => p.id === patientId)
-  if (patientIndex === -1) {
-    return {
-      peopleAhead: 0,
-      estimatedWaitMinutes: 0,
-      estimatedEntranceTime: '—',
-      isNext: false
-    }
-  }
+  const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date())
 
-  const peopleAhead = patientIndex
-
-  // Remaining time of current patient in exam room
-  let remainingCurrentMinutes = 0
-  if (currentPatient) {
-    const currentDuration = currentPatient.durationMinutes || defaultServiceMinutes
-    if (currentPatient.startedAt) {
-      const elapsedMs = Date.now() - new Date(currentPatient.startedAt).getTime()
-      const elapsedMins = Math.floor(elapsedMs / 60000)
-      remainingCurrentMinutes = Math.max(2, currentDuration - elapsedMins)
-    } else {
-      remainingCurrentMinutes = Math.floor(currentDuration / 2)
-    }
-  }
-
-  // Sum duration of all patients ahead in waiting sequence
-  let waitingAheadMinutes = 0
-  for (let i = 0; i < patientIndex; i++) {
-    const aheadPatient = orderedWaitingList[i]
-    waitingAheadMinutes += aheadPatient.durationMinutes || defaultServiceMinutes
-  }
-
-  const totalWaitMinutes = remainingCurrentMinutes + waitingAheadMinutes
-
-  const entranceDate = new Date(Date.now() + totalWaitMinutes * 60000)
-  const estimatedEntranceTime = formatCairo12Hour(entranceDate)
+  const sim = simulateQueueTimeline({
+    bookingDateStr: todayStr,
+    targetAppointmentId: patientId,
+    allDateAppointments: allAppts,
+    clinic: { slotDuration: defaultServiceMinutes },
+  })
 
   return {
-    peopleAhead,
-    estimatedWaitMinutes: totalWaitMinutes,
-    estimatedEntranceTime,
-    isNext: peopleAhead === 0
+    peopleAhead: sim.aheadCount,
+    estimatedWaitMinutes: sim.remainingTotalMinutes,
+    estimatedEntranceTime: sim.estimatedEntranceTime12H,
+    isNext: sim.isNextInLine,
   }
 }

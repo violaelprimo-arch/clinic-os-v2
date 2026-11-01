@@ -16,6 +16,7 @@ import {
 import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
 import { createAtomicAppointment } from '@/lib/queueService'
+import { calculatePatientLivePosition } from '@/lib/queueCalculations'
 import {
   resolveEffectiveDailyLimit,
   isAppointmentActive,
@@ -332,6 +333,9 @@ export function BookingForm({
     queueNumber: number
     trackingId: string
     aheadCount: number
+    effectivePosition?: number
+    estimatedEntranceTime12H?: string
+    isEstimateConfirmed?: boolean
     branchName: string
   } | null>(null)
 
@@ -484,10 +488,40 @@ export function BookingForm({
         appointmentId: docRef.id
       })
 
+      const posResult = calculatePatientLivePosition({
+        targetAppointment: {
+          id: docRef.id,
+          queue_number: myQueueNumber,
+          date: selectedDate,
+          branch_id: selectedBranch?.id,
+          serviceId: selectedService.id,
+          serviceName: selectedService.name,
+          status: 'waiting'
+        },
+        allTodayAppointments: [
+          ...branchDateAppts.map(d => ({ id: d.id, ...d.data() })),
+          {
+            id: docRef.id,
+            queue_number: myQueueNumber,
+            date: selectedDate,
+            branch_id: selectedBranch?.id,
+            serviceId: selectedService.id,
+            serviceName: selectedService.name,
+            status: 'waiting'
+          }
+        ],
+        clinic,
+        branch: selectedBranch,
+        bookingDateStr: selectedDate
+      })
+
       setSuccessInfo({
         queueNumber: myQueueNumber,
         trackingId: docRef.id,
-        aheadCount: waitingCount,
+        aheadCount: posResult.aheadCount,
+        effectivePosition: posResult.effectivePosition,
+        estimatedEntranceTime12H: posResult.estimatedEntranceTime12H,
+        isEstimateConfirmed: posResult.isEstimateConfirmed,
         branchName: selectedBranch?.name || 'الفرع الرئيسي'
       })
 
@@ -566,6 +600,18 @@ export function BookingForm({
               {successInfo.aheadCount} {isRtl ? 'مرضى' : 'patients'}
             </p>
           </div>
+
+          {successInfo.estimatedEntranceTime12H && (
+            <div className="col-span-2 p-3.5 rounded-2xl bg-primary/10 border border-primary/20 space-y-1">
+              <span className="text-[11px] font-bold text-primary flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5" />
+                {t('estimated_entrance', 'الموعد المتوقع للدخول (تقديري)')}
+              </span>
+              <p className="text-sm font-black text-primary">
+                {successInfo.estimatedEntranceTime12H}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="p-3 rounded-xl bg-primary/10 border border-primary/20 text-primary text-xs font-bold flex items-center justify-center gap-2">

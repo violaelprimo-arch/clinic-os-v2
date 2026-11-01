@@ -1091,8 +1091,12 @@ export default function PatientDashboardPage() {
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {appointments.map((appt) => {
+                        const todayCairo = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date())
+                        const isToday = appt.date === todayCairo
+                        const isFuture = appt.date > todayCairo
+                        const isPast = appt.date < todayCairo
                         const isWaiting = appt.status === 'waiting' || !appt.status
-                        const isInProgress = appt.status === 'in_progress'
+                        const isInProgress = appt.status === 'in_progress' && isToday
                         const isCompleted = appt.status === 'completed'
                         const isCancelled = appt.status === 'cancelled'
 
@@ -1142,6 +1146,8 @@ export default function PatientDashboardPage() {
                                     ? 'دورك الآن!'
                                     : isCancelled
                                     ? 'ملغي'
+                                    : isFuture
+                                    ? `موعد قادم (${appt.date})`
                                     : 'في قائمة الانتظار'}
                                 </span>
                                 <span className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">

@@ -20,6 +20,7 @@ import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import Link from 'next/link'
 import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import { getPhoneSearchVariants } from '@/lib/countryPhoneHelper'
+import { getCairoDateString } from '@/lib/bookingCapacity'
 
 export function PatientLiveTurn({
   clinic,
@@ -113,8 +114,7 @@ export function PatientLiveTurn({
       return
     }
 
-    const now = new Date()
-    const today = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split('T')[0]
+    const today = getCairoDateString()
 
     const q = query(
       collection(db, 'appointments'),
@@ -193,7 +193,8 @@ export function PatientLiveTurn({
       targetAppointmentId: myAppt.id,
       targetAppointment: myAppt,
       allTodayAppointments: allTodayAppts,
-      clinic: clinicData
+      clinic: clinicData,
+      bookingDateStr: myAppt.date
     })
   }, [myAppt, allTodayAppts, clinicData])
 

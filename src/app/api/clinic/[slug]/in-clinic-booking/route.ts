@@ -3,6 +3,7 @@ import { collection, query, where, getDocs, doc, getDoc, addDoc } from 'firebase
 import { db } from '@/lib/firebase'
 import { verifySessionToken } from '@/lib/auth-crypto'
 import { createAtomicAppointment } from '@/lib/queueService'
+import { calculatePatientLivePosition } from '@/lib/queueCalculations'
 import {
   resolveEffectiveDailyLimit,
   isAppointmentActive,
@@ -331,11 +332,45 @@ export async function POST(
       console.warn('Notification warning:', e)
     }
 
+    const livePos = calculatePatientLivePosition({
+      targetAppointment: {
+        id: newApptId,
+        queue_number: queueNumber,
+        date: bookingDate,
+        branch_id: effectiveBranchId,
+        serviceId: verifiedServiceId,
+        serviceName: verifiedServiceName,
+        status: 'waiting'
+      },
+      allTodayAppointments: [
+        ...activeScoped.map(d => ({ id: d.id, ...d.data() })),
+        {
+          id: newApptId,
+          queue_number: queueNumber,
+          date: bookingDate,
+          branch_id: effectiveBranchId,
+          serviceId: verifiedServiceId,
+          serviceName: verifiedServiceName,
+          status: 'waiting'
+        }
+      ],
+      clinic,
+      branch: bData,
+      bookingDateStr: bookingDate
+    })
+
     return NextResponse.json({
       success: true,
       appointment: {
         id: newApptId,
         queueNumber,
+        aheadCount: livePos.aheadCount,
+        effectivePosition: livePos.effectivePosition,
+        estimatedWaitMinutes: livePos.estimatedWaitMins,
+        estimatedEntranceTime12H: livePos.estimatedEntranceTime12H,
+        estimatedEntranceDateTime: livePos.estimatedEntranceDateTime,
+        formattedWaitTime: livePos.formattedWaitTime,
+        isEstimateConfirmed: livePos.isEstimateConfirmed,
         patientName: cleanName,
         phone: cleanPhone,
         serviceId: verifiedServiceId,

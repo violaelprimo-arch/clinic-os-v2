@@ -87,23 +87,13 @@ export async function GET(
             clinic: clinicData
           })
         } else if (isFuture) {
-          // Calculate remaining time until appointment date
-          const futureDate = new Date(`${apptDate}T09:00:00`)
-          const diffMs = Math.max(0, futureDate.getTime() - nowCairo.getTime())
-          const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
-
-          queueInfo = {
-            status: 'upcoming',
-            statusLabel: `موعد قادم في ${apptDate}`,
-            isCurrentTurn: false, // strictly false for future dates!
-            isNextInLine: false,
-            aheadCount: 0,
-            effectivePosition: 0,
-            estimatedWaitMins: diffDays * 24 * 60,
-            formattedWaitTime: diffDays === 1 ? 'غداً' : `خلال ${diffDays} يوم`,
-            isFuture: true,
-            daysRemaining: diffDays
-          }
+          queueInfo = calculatePatientLivePosition({
+            targetAppointmentId: appt.id,
+            targetAppointment: appt,
+            allTodayAppointments: [],
+            clinic: clinicData,
+            bookingDateStr: apptDate
+          })
         } else {
           // Past appointment
           queueInfo = {

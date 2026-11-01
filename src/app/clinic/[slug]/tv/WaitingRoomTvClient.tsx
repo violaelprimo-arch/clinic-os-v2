@@ -86,11 +86,11 @@ function numberToArabicWords(num: number | string | undefined | null): string {
   return String(num)
 }
 
-function getPatientQueueDisplay(p: any): string {
-  if (!p) return '-'
+function getPatientQueueDisplay(p: any, fallbackIndex?: number): string {
+  if (!p) return fallbackIndex !== undefined ? String(fallbackIndex) : '1'
   const raw = p.queue_number ?? p.queueNumber ?? p.queue ?? p.turn ?? p.turn_number ?? p.ticketNumber ?? p.ticket_number
-  if (raw === undefined || raw === null || raw === '' || raw === 'undefined' || raw === 'null') {
-    return '-'
+  if (raw === undefined || raw === null || raw === '' || raw === 'undefined' || raw === 'null' || raw === '-') {
+    return fallbackIndex !== undefined ? String(fallbackIndex) : '1'
   }
   return String(raw)
 }
@@ -942,7 +942,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
             onClick={() => {
               setAudioState(true)
               triggerPatientVoiceCall(
-                currentPatient?.queue_number || '1',
+                getPatientQueueDisplay(currentPatient, 1),
                 currentPatient?.patientName || 'المريض'
               )
             }}
@@ -1001,7 +1001,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
                     رقم الدور
                   </span>
                   <motion.div
-                    key={currentPatient.id + '_' + getPatientQueueDisplay(currentPatient)}
+                    key={currentPatient.id + '_' + getPatientQueueDisplay(currentPatient, 1)}
                     initial={{ scale: 0.85, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ type: 'spring', stiffness: 200, damping: 15 }}
@@ -1011,7 +1011,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
                         : 'text-blue-600 drop-shadow-md'
                     }`}
                   >
-                    #{getPatientQueueDisplay(currentPatient)}
+                    #{getPatientQueueDisplay(currentPatient, 1)}
                   </motion.div>
                 </div>
 
@@ -1064,7 +1064,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
             }`}>
               <div className="flex items-center gap-2 font-bold">
                 <Stethoscope className={`w-4 h-4 ${isDark ? 'text-cyan-400' : 'text-blue-600'}`} />
-                <span>د. {clinic?.doctorName || 'العيادة'}</span>
+                <span>{clinic?.doctorName ? `${clinic?.doctorTitle || 'د.'} ${clinic.doctorName}` : (clinic?.clinicName || 'طبيب العيادة')}</span>
               </div>
               <div className="font-mono text-xs font-semibold">
                 {currentPatient ? 'جارٍ الكشف الآن • يرجى الانتظار' : 'العيادة جاهزة لاستقبال المرضى'}
@@ -1129,11 +1129,11 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
                               ? 'bg-white/10 text-slate-300'
                               : 'bg-slate-200 text-slate-700'
                         }`}>
-                          #{getPatientQueueDisplay(p)}
+                          #{getPatientQueueDisplay(p, idx + 1)}
                         </div>
                         <div>
                           <h4 className={`text-base font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                            {tvConfig.showPatientName && p.patientName ? p.patientName : ('تذكرة دور #' + getPatientQueueDisplay(p))}
+                            {tvConfig.showPatientName && p.patientName ? p.patientName : ('تذكرة دور #' + getPatientQueueDisplay(p, idx + 1))}
                           </h4>
                           <p className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                             {p.serviceName || 'كشف طبي'}
@@ -1590,7 +1590,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
                   onClick={() => {
                     setAudioState(true)
                     triggerPatientVoiceCall(
-                      currentPatient?.queue_number || '5',
+                      getPatientQueueDisplay(currentPatient, 5),
                       currentPatient?.patientName || 'أحمد علي',
                       'female'
                     )
@@ -1606,7 +1606,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
                   onClick={() => {
                     setAudioState(true)
                     triggerPatientVoiceCall(
-                      currentPatient?.queue_number || '5',
+                      getPatientQueueDisplay(currentPatient, 5),
                       currentPatient?.patientName || 'أحمد علي',
                       'male'
                     )
