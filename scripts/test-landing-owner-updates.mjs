@@ -141,7 +141,34 @@ console.log('\n--- 3. Testing Contacts Migration & Deduplication ---')
   assert.equal(merged3.contacts[1].isPrimary, true)
   assert.equal(merged3.primaryWhatsapp, '201012345678', 'primaryWhatsapp should sync with chosen primary contact')
 
-  console.log('✅ Contacts migration, deduplication, and primary synchronization passed!')
+  // 3d. Multiple contacts with NO primary selected (user chooses no primary)
+  const noPrimaryConfig = {
+    contacts: [
+      {
+        id: 'sales',
+        roleTitle: 'المبيعات',
+        number: '01551007018',
+        whatsappEnabled: true,
+        visible: true,
+        isPrimary: false
+      },
+      {
+        id: 'support',
+        roleTitle: 'الدعم الفني',
+        number: '01012345678',
+        whatsappEnabled: true,
+        visible: true,
+        isPrimary: false
+      }
+    ]
+  }
+  const merged4 = mergeLandingConfig(noPrimaryConfig)
+  assert.equal(merged4.contacts[0].isPrimary, false, 'Card 1 must remain non-primary')
+  assert.equal(merged4.contacts[1].isPrimary, false, 'Card 2 must remain non-primary')
+  assert.equal(merged4.contacts.some(c => c.isPrimary), false, 'No contact should have isPrimary=true when owner chose none')
+  assert.equal(merged4.primaryWhatsapp, '201551007018', 'Global fallback should use first active whatsapp without marking card as primary')
+
+  console.log('✅ Contacts migration, deduplication, and optional-primary selection passed!')
 }
 
 // TEST 4: Inquiries Archive and Trash Filtering

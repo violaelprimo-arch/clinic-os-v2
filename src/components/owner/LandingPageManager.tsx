@@ -4029,7 +4029,7 @@ export function LandingPageManager() {
                     whatsappNumber: '201000000000',
                     whatsappEnabled: true,
                     visible: true,
-                    isPrimary: config.contacts.length === 0,
+                    isPrimary: false,
                   }
                   setConfigField('contacts', [...config.contacts, newContact])
                   toast.success('تمت إضافة رقم تواصل جديد')
@@ -4041,25 +4041,68 @@ export function LandingPageManager() {
               </Button>
             </div>
 
-            {/* Current Primary WhatsApp Info Banner */}
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-sm">
-                  <MessageCircle className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="font-bold text-slate-800 dark:text-slate-200 block text-xs">
-                    رقم واتساب الرئيسي المعتمد للأزرار العامة:
+            {/* Primary WhatsApp Status Banner */}
+            {(() => {
+              const primaryContact = config.contacts.find((c) => c.isPrimary)
+              if (primaryContact) {
+                return (
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                        <MessageCircle className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">
+                            رقم واتساب الرئيسي المعتمد للأزرار العامة:
+                          </span>
+                          <span className="font-bold text-emerald-700 dark:text-emerald-300">
+                            ({primaryContact.roleTitle})
+                          </span>
+                        </div>
+                        <span className="font-mono font-black text-emerald-600 dark:text-emerald-400 text-sm block mt-0.5" dir="ltr">
+                          +{primaryContact.whatsappNumber || normalizePhoneNumber(primaryContact.number) || config.primaryWhatsapp}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const arr = config.contacts.map((item) => ({ ...item, isPrimary: false }))
+                          setConfigField('contacts', arr)
+                          toast.success('تم إلغاء تحديد الرقم الرئيسي (ستظهر كافة الأرقام بالتساوي بدون تمييز رقم كرئيسي)')
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border text-slate-700 dark:text-slate-300 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        <span>إلغاء التحديد كرئيسي</span>
+                      </button>
+                    </div>
+                  </div>
+                )
+              }
+              return (
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0">
+                      <Phone className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <span className="font-bold text-slate-800 dark:text-slate-200 text-xs block">
+                        حالة الرقم الرئيسي: غير محدد (اختياري)
+                      </span>
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                        ستظهر جميع أرقام التواصل بشكل متساوٍ في الفوتر وقسم التواصل دون تمييز أي رقم كرئيسي.
+                      </span>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 text-[11px] font-bold">
+                    عرض متكافئ بدون شارة رئيسي
                   </span>
-                  <span className="font-mono font-black text-emerald-600 dark:text-emerald-400 text-sm" dir="ltr">
-                    +{config.primaryWhatsapp || '201551007018'}
-                  </span>
                 </div>
-              </div>
-              <p className="text-[11px] text-slate-500 max-w-sm">
-                هذا الرقم يُستخدم تلقائيًا في الزر العائم لواتساب بأسفل الشاشة وفي أزرار طلب التجربة وحجز المعاينة العامة.
-              </p>
-            </div>
+              )
+            })()}
 
             {/* Contact Cards List */}
             <div className="space-y-4">
@@ -4079,18 +4122,28 @@ export function LandingPageManager() {
                     setConfigField('contacts', arr)
                   }
 
-                  const setAsPrimary = () => {
-                    const clean = c.whatsappNumber || normalizePhoneNumber(c.number)
-                    const arr = config.contacts.map((item, i) => ({
-                      ...item,
-                      isPrimary: i === idx,
-                    }))
-                    setConfig((prev) => ({
-                      ...prev,
-                      contacts: arr,
-                      primaryWhatsapp: clean || prev.primaryWhatsapp,
-                    }))
-                    toast.success(`تم تعيين «${c.roleTitle}» كرقم واتساب رئيسي`)
+                  const togglePrimary = () => {
+                    const isCurrentlyPrimary = Boolean(c.isPrimary)
+                    if (isCurrentlyPrimary) {
+                      const arr = config.contacts.map((item) => ({
+                        ...item,
+                        isPrimary: false,
+                      }))
+                      setConfigField('contacts', arr)
+                      toast.success(`تم إلغاء تعيين «${c.roleTitle || 'الرقم'}» كرقم رئيسي`)
+                    } else {
+                      const clean = c.whatsappNumber || normalizePhoneNumber(c.number)
+                      const arr = config.contacts.map((item, i) => ({
+                        ...item,
+                        isPrimary: i === idx,
+                      }))
+                      setConfig((prev) => ({
+                        ...prev,
+                        contacts: arr,
+                        primaryWhatsapp: clean || prev.primaryWhatsapp,
+                      }))
+                      toast.success(`تم تعيين «${c.roleTitle}» كرقم واتساب رئيسي`)
+                    }
                   }
 
                   const handleDeleteContact = () => {
@@ -4100,17 +4153,7 @@ export function LandingPageManager() {
                     }
                     if (!window.confirm('هل أنت متأكد من حذف هذا الرقم؟')) return
                     const next = config.contacts.filter((_, i) => i !== idx)
-                    if (c.isPrimary && next.length > 0) {
-                      next[0].isPrimary = true
-                      const clean = next[0].whatsappNumber || normalizePhoneNumber(next[0].number)
-                      setConfig((prev) => ({
-                        ...prev,
-                        contacts: next,
-                        primaryWhatsapp: clean || prev.primaryWhatsapp,
-                      }))
-                    } else {
-                      setConfigField('contacts', next)
-                    }
+                    setConfigField('contacts', next)
                     toast.success('تم حذف الرقم')
                   }
 
@@ -4154,19 +4197,21 @@ export function LandingPageManager() {
                           )}
                         </div>
 
-                        {/* Top Controls: Reorder, Set Primary & Delete */}
+                        {/* Top Controls: Reorder, Toggle Primary & Delete */}
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          {!c.isPrimary && (
-                            <button
-                              type="button"
-                              onClick={setAsPrimary}
-                              className="px-2.5 py-1 rounded-lg bg-emerald-100/70 hover:bg-emerald-200 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
-                              title="تعيين كرقم واتساب رئيسي"
-                            >
-                              <Star className="w-3 h-3" />
-                              <span>تعيين كرئيسي</span>
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={togglePrimary}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                              c.isPrimary
+                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
+                                : 'bg-slate-100 hover:bg-emerald-50 dark:bg-slate-700 dark:hover:bg-emerald-950/40 text-slate-700 hover:text-emerald-700 dark:text-slate-300 dark:hover:text-emerald-300 border border-slate-200 dark:border-slate-600'
+                            }`}
+                            title={c.isPrimary ? 'انقر لإلغاء التعيين كرقم رئيسي' : 'تعيين كرقم واتساب رئيسي'}
+                          >
+                            <Star className={`w-3.5 h-3.5 ${c.isPrimary ? 'fill-white' : ''}`} />
+                            <span>{c.isPrimary ? 'الرقم الرئيسي (انقر للإلغاء)' : 'تعيين كرئيسي'}</span>
+                          </button>
 
                           <button
                             type="button"

@@ -1079,24 +1079,28 @@ export function mergeLandingConfig(value: unknown): LandingPageConfig {
           visible: item.visible !== false,
         })
       }
-      if (list.length > 0 && !list.some((c) => c.isPrimary)) {
-        list[0].isPrimary = true
-      }
       return list.length > 0 ? list : DEFAULT_LANDING_CONFIG.contacts
     })(),
   })
 
   if (parsed.success) {
     const res = parsed.data
-    const primaryContact =
+    const explicitPrimary =
       res.contacts.find((c) => c.isPrimary && c.visible !== false) ||
-      res.contacts.find((c) => c.isPrimary) ||
-      res.contacts[0]
-    if (primaryContact) {
+      res.contacts.find((c) => c.isPrimary)
+    if (explicitPrimary) {
       res.primaryWhatsapp =
-        primaryContact.whatsappNumber ||
-        normalizePhoneNumber(primaryContact.number) ||
+        explicitPrimary.whatsappNumber ||
+        normalizePhoneNumber(explicitPrimary.number) ||
         res.primaryWhatsapp
+    } else {
+      // Fallback for general buttons when owner chooses not to set an explicit primary
+      const firstWa =
+        res.contacts.find((c) => c.whatsappEnabled && c.visible !== false) ||
+        res.contacts.find((c) => c.whatsappEnabled)
+      res.primaryWhatsapp = firstWa
+        ? firstWa.whatsappNumber || normalizePhoneNumber(firstWa.number)
+        : (res.primaryWhatsapp || '')
     }
     return res
   }
