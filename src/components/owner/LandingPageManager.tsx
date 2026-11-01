@@ -83,6 +83,7 @@ import {
   updateLandingInquiry,
 } from '@/lib/landing-service'
 import { toast } from 'sonner'
+import { LandingPageTabsBar } from './LandingPageTabsBar'
 import '@/components/landing/landing.css'
 
 const STAT_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -534,7 +535,7 @@ export function LandingPageManager() {
   }
 
   return (
-    <div dir="rtl" className="space-y-6">
+    <div dir={isRtl ? 'rtl' : 'ltr'} className="space-y-6 w-full min-w-0 max-w-full overflow-hidden">
       {/* Top Header & Save/Publish Toolbar */}
       <div className="p-5 rounded-3xl bg-white dark:bg-[#081526] border border-sky-100 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -588,36 +589,17 @@ export function LandingPageManager() {
       </div>
 
       {/* Tabs Bar */}
-      <div className="bg-white dark:bg-[#081526] p-2 rounded-2xl border border-sky-100 dark:border-slate-800 shadow-sm overflow-x-auto no-scrollbar flex items-center gap-1.5">
-        {cmsTabs.map(([id, label, Icon]) => {
-          const active = activeTab === id
-          const badgeCount = id === 'inbox' ? newInquiriesCount : id === 'trials' ? newTrialsCount : 0
-
-          return (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setActiveTab(id)}
-              className={`shrink-0 py-2.5 px-3.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
-                active
-                  ? 'bg-sky-50 dark:bg-sky-950/70 text-sky-600 dark:text-sky-400 font-black shadow-xs border border-sky-200 dark:border-sky-800'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              <span>{label}</span>
-              {badgeCount > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px] font-mono">
-                  {badgeCount}
-                </span>
-              )}
-            </button>
-          )
-        })}
-      </div>
+      <LandingPageTabsBar
+        tabs={cmsTabs}
+        activeTab={activeTab}
+        onTabChange={(id) => setActiveTab(id as CmsTab)}
+        newInquiriesCount={newInquiriesCount}
+        newTrialsCount={newTrialsCount}
+        isRtl={isRtl}
+      />
 
       {/* Main CMS Layout (Form on right/left + Live Preview below/side) */}
-      <div className="space-y-6">
+      <div className="space-y-6 w-full min-w-0 max-w-full">
 
         {/* TAB 1: SECTIONS ORDER AND VISIBILITY */}
         {activeTab === 'order' && (

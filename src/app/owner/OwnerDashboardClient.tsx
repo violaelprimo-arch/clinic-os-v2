@@ -1704,7 +1704,7 @@ function OwnerDashboard() {
   const customTemplateCount = clinics.filter(c => !!c.prescriptionTemplateUrl).length
 
   return (
-    <div className="space-y-7 pb-16 font-sans text-[#182230] transition-colors dark:text-slate-100" dir={dir}>
+    <div className="space-y-7 pb-16 font-sans text-[#182230] transition-colors dark:text-slate-100 w-full min-w-0 max-w-full overflow-hidden" dir={dir}>
       
       {/* 1. Header Overview & Title */}
       <motion.div

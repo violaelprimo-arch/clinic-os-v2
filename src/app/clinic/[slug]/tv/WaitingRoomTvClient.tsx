@@ -59,7 +59,7 @@ function setCachedAudio(key: string, buffer: AudioBuffer): void {
 
 // Convert digits to spelled-out Arabic words with vocalized diacritics (تشكيل فصيح)
 function numberToArabicWords(num: number | string | undefined | null): string {
-  if (num === undefined || num === null) return 'واحد'
+  if (num === undefined || num === null || num === 'undefined' || num === 'null') return 'واحد'
   const clean = String(num).replace(/[^0-9]/g, '')
   const n = parseInt(clean, 10)
   if (isNaN(n) || n <= 0) return 'واحد'
@@ -84,6 +84,15 @@ function numberToArabicWords(num: number | string | undefined | null): string {
     return `${hundreds[hundred]} وَ${numberToArabicWords(remainder)}`
   }
   return String(num)
+}
+
+function getPatientQueueDisplay(p: any): string {
+  if (!p) return '-'
+  const raw = p.queue_number ?? p.queueNumber ?? p.queue ?? p.turn ?? p.turn_number ?? p.ticketNumber ?? p.ticket_number
+  if (raw === undefined || raw === null || raw === '' || raw === 'undefined' || raw === 'null') {
+    return '-'
+  }
+  return String(raw)
 }
 
 export default function WaitingRoomTvClient({ slug }: { slug: string }) {
@@ -663,7 +672,8 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
       return
     }
 
-    const qNum = currentPatient.queue_number ?? currentPatient.queueNumber ?? '1'
+    const displayQ = getPatientQueueDisplay(currentPatient)
+    const qNum = displayQ !== '-' ? displayQ : '1'
     const currentCallKey = `${currentPatient.id}_${currentPatient.calledAt || currentPatient.startedAt || qNum}`
 
     // When first patient enters, turn changes, or patient is called/recalled, trigger announcement
@@ -991,7 +1001,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
                     رقم الدور
                   </span>
                   <motion.div
-                    key={currentPatient.id + '_' + (currentPatient.queue_number ?? currentPatient.queueNumber ?? 'curr')}
+                    key={currentPatient.id + '_' + getPatientQueueDisplay(currentPatient)}
                     initial={{ scale: 0.85, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ type: 'spring', stiffness: 200, damping: 15 }}
@@ -1001,7 +1011,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
                         : 'text-blue-600 drop-shadow-md'
                     }`}
                   >
-                    #{currentPatient.queue_number ?? currentPatient.queueNumber ?? '-'}
+                    #{getPatientQueueDisplay(currentPatient)}
                   </motion.div>
                 </div>
 
@@ -1119,11 +1129,11 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
                               ? 'bg-white/10 text-slate-300'
                               : 'bg-slate-200 text-slate-700'
                         }`}>
-                          #{p.queue_number ?? p.queueNumber ?? '-'}
+                          #{getPatientQueueDisplay(p)}
                         </div>
                         <div>
                           <h4 className={`text-base font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                            {tvConfig.showPatientName && p.patientName ? p.patientName : ('تذكرة دور #' + (p.queue_number ?? p.queueNumber ?? '-'))}
+                            {tvConfig.showPatientName && p.patientName ? p.patientName : ('تذكرة دور #' + getPatientQueueDisplay(p))}
                           </h4>
                           <p className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                             {p.serviceName || 'كشف طبي'}
