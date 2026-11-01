@@ -324,7 +324,7 @@ export function BookingForm({
     }
   }, [availableDays, calendarDays, selectedDate, isRtl])
 
-    const [paymentMethod, setPaymentMethod] = useState<'cash' | 'instapay' | 'wallet'>('cash')
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'instapay' | 'wallet'>('cash')
   const [transferNumber, setTransferNumber] = useState('')
   const [transferReference, setTransferReference] = useState('')
   const [transferProofUrl, setTransferProofUrl] = useState('')
@@ -364,6 +364,28 @@ export function BookingForm({
   }, [effectiveAllowCash, allowInstapay, allowWallet, paymentMethod])
 
   const selectedService = availableServices.find((s) => s.id === selectedServiceId) || availableServices[0]
+
+  const provisionalEntranceEstimate = useMemo(() => {
+    if (!selectedDate) return null
+    try {
+      const res = calculatePatientLivePosition({
+        clinic,
+        branch: selectedBranch,
+        bookingDateStr: selectedDate,
+        targetAppointment: {
+          date: selectedDate,
+          serviceId: selectedService?.id,
+          serviceName: selectedService?.name,
+          status: 'waiting'
+        },
+        allTodayAppointments: [],
+        isRtl
+      })
+      return res.estimatedEntranceTime12H
+    } catch (e) {
+      return null
+    }
+  }, [selectedDate, selectedBranch, selectedService, clinic, isRtl])
 
   // Receipt image upload
   const handleReceiptProofUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1084,6 +1106,15 @@ export function BookingForm({
               <span className="text-muted-foreground font-bold">{t('exam_date', 'تاريخ الكشف:')}</span>
               <span className="font-bold font-mono text-foreground">{selectedDate}</span>
             </div>
+            {provisionalEntranceEstimate && (
+              <div className="flex justify-between py-1 border-b border-border">
+                <span className="text-muted-foreground font-bold flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-primary" />
+                  {t('expected_entry_provisional', 'موعد الدخول المتوقع (تقديري):')}
+                </span>
+                <span className="font-bold font-mono text-primary">{provisionalEntranceEstimate}</span>
+              </div>
+            )}
             <div className="flex justify-between pt-1">
               <span className="text-foreground font-bold">{t('total_due', 'الإجمالي المستحق:')}</span>
               <span className="font-black text-lg text-primary">

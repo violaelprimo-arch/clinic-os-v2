@@ -368,6 +368,28 @@ export function BookingModal({
     paymentMethod: string
   } | null>(null)
 
+  const provisionalEntranceEstimate = useMemo(() => {
+    if (!selectedDate) return null
+    try {
+      const res = calculatePatientLivePosition({
+        clinic,
+        branch: selectedBranch,
+        bookingDateStr: selectedDate,
+        targetAppointment: {
+          date: selectedDate,
+          serviceId: selectedService?.id,
+          serviceName: selectedService?.name,
+          status: 'waiting'
+        },
+        allTodayAppointments: [],
+        isRtl: true
+      })
+      return res.estimatedEntranceTime12H
+    } catch (e) {
+      return null
+    }
+  }, [selectedDate, selectedBranch, selectedService, clinic])
+
   // Auto-fill from authenticated patient session if available
   useEffect(() => {
     try {
@@ -1442,10 +1464,19 @@ export function BookingModal({
                       {paymentMethod === 'cash' ? 'كاش في العيادة' : paymentMethod === 'instapay' ? 'InstaPay' : 'محفظة إلكترونية'}
                     </strong>
                   </div>
-                  <div className="flex justify-between py-1">
+                  <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-700">
                     <span className="text-slate-400">الدور المتوقع:</span>
                     <strong className="text-sky-600 font-mono">#{estimatedQueueNumber}</strong>
                   </div>
+                  {provisionalEntranceEstimate && (
+                    <div className="flex justify-between py-1">
+                      <span className="text-slate-400 flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-emerald-500" />
+                        موعد الدخول المتوقع (تقديري):
+                      </span>
+                      <strong className="text-emerald-600 dark:text-emerald-400 font-mono">{provisionalEntranceEstimate}</strong>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

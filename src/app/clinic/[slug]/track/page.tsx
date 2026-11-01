@@ -171,26 +171,16 @@ export default function TrackQueuePage({
     const todayCairo = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(nowCairo)
     const apptDate = selectedAppointment.date || todayCairo
 
-    // Future appointment
+    // Future appointment - calculate using schedule-anchored timeline engine
     if (apptDate > todayCairo) {
-      const futureDate = new Date(`${apptDate}T09:00:00`)
-      const diffMs = Math.max(0, futureDate.getTime() - nowCairo.getTime())
-      const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
-
-      return {
-        status: 'upcoming',
-        statusLabel: isRtl ? `موعد قادم يوم ${apptDate}` : `Upcoming appointment on ${apptDate}`,
-        isCurrentTurn: false,
-        isNextInLine: false,
-        aheadCount: 0,
-        effectivePosition: 0,
-        formattedWaitTime: diffDays === 1 ? (isRtl ? 'غداً' : 'Tomorrow') : (isRtl ? `خلال ${diffDays} يوم` : `In ${diffDays} days`),
-        isFuture: true,
-        daysRemaining: diffDays,
-        message: isRtl
-          ? `حجزك مؤكد ليوم ${apptDate}. يبدأ تتبع الدور المباشر وحساب مدة الانتظار في يوم الكشف.`
-          : `Your booking is confirmed for ${apptDate}. Live queue tracking begins on the day of your appointment.`
-      }
+      return calculatePatientLivePosition({
+        targetAppointmentId: selectedAppointment.id,
+        targetAppointment: selectedAppointment,
+        allTodayAppointments: [],
+        clinic,
+        bookingDateStr: apptDate,
+        isRtl
+      })
     }
 
     // Past appointment
@@ -219,7 +209,8 @@ export default function TrackQueuePage({
         targetAppointmentId: liveAppt.id,
         targetAppointment: liveAppt,
         allTodayAppointments: allTodayBranchAppts,
-        clinic
+        clinic,
+        isRtl
       })
     }
 

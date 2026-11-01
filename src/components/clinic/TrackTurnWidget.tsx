@@ -8,6 +8,9 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Activity, Search, Info } from 'lucide-react'
 import { useLanguage } from '@/context/LanguageContext'
+import { calculatePatientLivePosition } from '@/lib/queueCalculations'
+import { getCairoDateString } from '@/lib/bookingCapacity'
+import { getPhoneSearchVariants, normalizePhoneDigits } from '@/lib/countryPhoneHelper'
 
 export function TrackTurnWidget({ clinicId }: { clinicId: string }) {
   const { t, isRtl, dir } = useLanguage()
@@ -30,7 +33,7 @@ export function TrackTurnWidget({ clinicId }: { clinicId: string }) {
     setResult(null)
     
     try {
-      const today = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0]
+      const today = getCairoDateString()
       const q = query(
         collection(db, 'appointments'),
         where('clinic_id', '==', clinicId),
@@ -38,23 +41,24 @@ export function TrackTurnWidget({ clinicId }: { clinicId: string }) {
       )
       
       const snap = await getDocs(q)
-      let allAppts = snap.docs.map(d => ({ id: d.id, ...d.data() } as any))
-      
-      // Filter out urgent so they are invisible to the normal sequence tracker
-      allAppts = allAppts.filter(a => a.serviceType !== 'urgent')
+      const allAppts = snap.docs.map(d => ({ id: d.id, ...d.data() } as any))
 
-      // Sort by queue number
-      allAppts.sort((a, b) => a.queue_number - b.queue_number)
-      
-      // Find current turn (first waiting normal/consult)
-      const waitingAppts = allAppts.filter(a => a.status === 'waiting')
-      const currentTurn = waitingAppts.length > 0 ? waitingAppts[0].queue_number : 0
-      
-      // Find my turn
-      const myAppt = allAppts.find(a => 
-        a.phone === searchTerm || 
-        a.patientName.includes(searchTerm)
-      )
+      // Clean search query
+      const cleanSearch = searchTerm.trim()
+      const normalizedDigits = normalizePhoneDigits(cleanSearch).replace(/[^0-9]/g, '')
+      const variants = getPhoneSearchVariants(cleanSearch)
+
+      // Find target appointment
+      const myAppt = allAppts.find(a => {
+        if (!a.phone && !a.patientName) return false
+        const aPhoneDigits = normalizePhoneDigits(String(a.phone || '')).replace(/[^0-9]/g, '')
+        const matchesPhone = Boolean(
+          (normalizedDigits.length >= 7 && aPhoneDigits.endsWith(normalizedDigits.slice(-7))) ||
+          variants.includes(String(a.phone || '').trim())
+        )
+        const matchesName = String(a.patientName || '').toLowerCase().includes(cleanSearch.toLowerCase())
+        return matchesPhone || matchesName
+      })
 
       if (!myAppt) {
         setResult({
@@ -62,24 +66,32 @@ export function TrackTurnWidget({ clinicId }: { clinicId: string }) {
           message: isRtl ? 'لم يتم العثور على حجز بهذا الرقم أو الاسم اليوم.' : 'No appointment found with this phone or name today.'
         })
       } else {
-        if (myAppt.status === 'completed') {
+        const livePos = calculatePatientLivePosition({
+          targetAppointmentId: myAppt.id,
+          targetAppointment: myAppt,
+          allTodayAppointments: allAppts,
+          isRtl
+        })
+
+        if (livePos.status === 'completed') {
           setResult({ 
             found: true, 
             status: 'completed', 
-            myTurn: myAppt.queue_number,
+            myTurn: Number(myAppt.queue_number) || 1,
             message: isRtl ? 'تم الكشف بالفعل، شكراً لزيارتك!' : 'Exam completed already. Thank you for visiting!' 
           })
-        } else if (myAppt.status === 'waiting') {
-          const remaining = myAppt.queue_number - currentTurn
+        } else {
           setResult({ 
             found: true, 
-            status: 'waiting',
-            myTurn: myAppt.queue_number,
-            currentTurn,
-            remaining: remaining > 0 ? remaining : 0,
-            message: remaining === 0
-              ? (isRtl ? 'دورك الآن! تفضل بالدخول' : 'It is your turn now! Please enter.')
-              : (isRtl ? `باقي ${remaining} أدوار` : `${remaining} turn(s) ahead`)
+            status: livePos.isCurrentTurn ? 'in_progress' : 'waiting',
+            myTurn: Number(myAppt.queue_number) || 1,
+            currentTurn: Number(livePos.currentPatientExamining?.queueNumber) || 0,
+            remaining: livePos.aheadCount,
+            message: livePos.isCurrentTurn
+              ? (isRtl ? 'دورك الآن! تفضل بالدخول لغرفة الكشف' : 'It is your turn now! Please enter.')
+              : (isRtl
+                ? `متبقي ${livePos.aheadCount} في قائمة الانتظار • موعد الدخول المتوقع: ${livePos.estimatedEntranceTime12H}`
+                : `${livePos.aheadCount} patients ahead • Expected entry: ${livePos.estimatedEntranceTime12H}`)
           })
         }
       }
