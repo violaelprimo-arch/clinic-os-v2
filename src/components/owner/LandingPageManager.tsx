@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import {
   Save,
   Plus,
@@ -49,7 +49,11 @@ import {
   Calendar,
   ShieldCheck,
   Database,
-  Edit3
+  Edit3,
+  Archive,
+  MessageCircle,
+  ThumbsUp,
+  XCircle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -72,6 +76,8 @@ import {
   type TrialRequestItem,
   type OrbitCardItem,
   DEFAULT_ORBIT_CARDS,
+  getSenderWhatsAppUrl,
+  normalizePhoneNumber,
 } from '@/lib/landing-config'
 import { db } from '@/lib/firebase'
 import { collection, getDocs } from 'firebase/firestore'
@@ -81,6 +87,11 @@ import {
   getFreeTrialRequests,
   getLandingInquiries,
   updateLandingInquiry,
+  deleteLandingInquiry,
+  getClientFeedback,
+  approveClientFeedback,
+  deleteClientFeedback,
+  updateClientFeedback,
 } from '@/lib/landing-service'
 import { toast } from 'sonner'
 import { LandingPageTabsBar } from './LandingPageTabsBar'
@@ -425,8 +436,14 @@ export function LandingPageManager() {
 
   // Inquiries Inbox
   const [inquiries, setInquiries] = useState<LandingInquiryItem[]>([])
-  const [inquiriesFilter, setInquiriesFilter] = useState<'all' | 'suggestion' | 'complaint' | 'inquiry'>('all')
+  const [inquiriesFilter, setInquiriesFilter] = useState<'all' | 'complaint' | 'suggestion' | 'inquiry' | 'archived' | 'trash'>('all')
   const [trials, setTrials] = useState<TrialRequestItem[]>([])
+
+  // Doctor Reviews & Feedback Management
+  const [clientFeedbacks, setClientFeedbacks] = useState<FeedbackItem[]>([])
+  const [feedbackSubTab, setFeedbackSubTab] = useState<'pending' | 'published' | 'clients'>('pending')
+  const [editingFeedbackId, setEditingFeedbackId] = useState<string | null>(null)
+  const [editFbForm, setEditFbForm] = useState<Partial<FeedbackItem>>({})
 
   const isDirty = loaded && savedJson !== JSON.stringify(config)
 
@@ -464,6 +481,13 @@ export function LandingPageManager() {
         const trs = await getFreeTrialRequests()
         setTrials(trs || [])
       } catch (e) {}
+
+      try {
+        const fbs = await getClientFeedback()
+        setClientFeedbacks(fbs || [])
+      } catch (e) {
+        console.warn('Error fetching client feedback:', e)
+      }
     }
     load()
   }, [])
@@ -505,13 +529,28 @@ export function LandingPageManager() {
     }))
   }
 
-  // Unread inquiries count
-  const newInquiriesCount = inquiries.filter((i) => i.status === 'new').length
+  // Pending Reviews
+  const pendingFeedbacks = useMemo(() => {
+    return clientFeedbacks.filter((f) => !f.approved)
+  }, [clientFeedbacks])
+  const pendingFeedbackCount = pendingFeedbacks.length
+
+  // Unread inquiries count (active, non-archived, non-deleted)
+  const newInquiriesCount = inquiries.filter((i) => i.status === 'new' && !i.isArchived && !i.isDeleted).length
   const newTrialsCount = trials.filter((t) => t.status === 'new').length
 
-  const filteredInquiries = inquiries.filter((i) =>
-    inquiriesFilter === 'all' ? true : i.type === inquiriesFilter
-  )
+  const filteredInquiries = useMemo(() => {
+    return inquiries.filter((i) => {
+      if (inquiriesFilter === 'trash') return Boolean(i.isDeleted)
+      if (i.isDeleted) return false
+
+      if (inquiriesFilter === 'archived') return Boolean(i.isArchived)
+      if (i.isArchived) return false
+
+      if (inquiriesFilter === 'all') return true
+      return i.type === inquiriesFilter
+    })
+  }, [inquiries, inquiriesFilter])
 
   const handleInquiryStatusChange = async (id: string, newStatus: string) => {
     try {
@@ -532,6 +571,146 @@ export function LandingPageManager() {
         prev.map((i) => (i.id === id ? { ...i, internalNotes: notes } : i))
       )
     } catch (e) {}
+  }
+
+  const handleArchiveInquiry = async (id: string, isArchived: boolean) => {
+    try {
+      await updateLandingInquiry(id, {
+        isArchived,
+        archivedAt: isArchived ? new Date().toISOString() : null,
+      })
+      setInquiries((prev) =>
+        prev.map((i) =>
+          i.id === id
+            ? {
+                ...i,
+                isArchived,
+                archivedAt: isArchived ? new Date().toISOString() : null,
+              }
+            : i
+        )
+      )
+      toast.success(isArchived ? 'تمت أرشفة الرسالة بنجاح' : 'تم إلغاء الأرشفة واستعادة الرسالة')
+    } catch (e) {
+      toast.error('تعذر تحديث حالة الأرشفة')
+    }
+  }
+
+  const handleDeleteInquiry = async (id: string) => {
+    if (!window.confirm('هل تريد نقل هذه الرسالة إلى سلة المهملات؟')) return
+    try {
+      await updateLandingInquiry(id, {
+        isDeleted: true,
+        deletedAt: new Date().toISOString(),
+      })
+      setInquiries((prev) =>
+        prev.map((i) =>
+          i.id === id
+            ? {
+                ...i,
+                isDeleted: true,
+                deletedAt: new Date().toISOString(),
+              }
+            : i
+        )
+      )
+      toast.success('تم نقل الرسالة إلى سلة المهملات')
+    } catch (e) {
+      toast.error('تعذر نقل الرسالة إلى سلة المهملات')
+    }
+  }
+
+  const handleRestoreInquiry = async (id: string) => {
+    try {
+      await updateLandingInquiry(id, {
+        isDeleted: false,
+        deletedAt: null,
+      })
+      setInquiries((prev) =>
+        prev.map((i) =>
+          i.id === id
+            ? {
+                ...i,
+                isDeleted: false,
+                deletedAt: null,
+              }
+            : i
+        )
+      )
+      toast.success('تمت استعادة الرسالة بنجاح')
+    } catch (e) {
+      toast.error('تعذر استعادة الرسالة')
+    }
+  }
+
+  const handlePermanentDeleteInquiry = async (id: string) => {
+    if (!window.confirm('تحذير: هل أنت متأكد من حذف هذه الرسالة نهائيًا؟ لن يمكنك استعادتها.')) return
+    try {
+      await deleteLandingInquiry(id)
+      setInquiries((prev) => prev.filter((i) => i.id !== id))
+      toast.success('تم حذف الرسالة نهائيًا')
+    } catch (e) {
+      toast.error('تعذر حذف الرسالة')
+    }
+  }
+
+  // Doctor Feedback Handlers
+  const handleApproveFeedback = async (id: string) => {
+    try {
+      await approveClientFeedback(id, true)
+      setClientFeedbacks((prev) =>
+        prev.map((f) => (f.id === id ? { ...f, approved: true, visible: true } : f))
+      )
+      const target = clientFeedbacks.find((f) => f.id === id)
+      if (target) {
+        const approvedItem: FeedbackItem = {
+          ...target,
+          approved: true,
+          visible: true,
+        }
+        const exists = config.feedbacks.some((f) => f.id === id)
+        const updatedList = exists
+          ? config.feedbacks.map((f) => (f.id === id ? approvedItem : f))
+          : [...config.feedbacks, approvedItem]
+        setConfigField('feedbacks', updatedList)
+      }
+      toast.success('تمت الموافقة على رأي الطبيب ونشره بنجاح! 🎉')
+    } catch (e) {
+      toast.error('تعذر اعتماد الرأي')
+    }
+  }
+
+  const handleRejectFeedback = async (id: string) => {
+    if (!window.confirm('هل تريد بالتأكيد رفض وحذف هذا الرأي؟')) return
+    try {
+      await deleteClientFeedback(id)
+      setClientFeedbacks((prev) => prev.filter((f) => f.id !== id))
+      setConfigField(
+        'feedbacks',
+        config.feedbacks.filter((f) => f.id !== id)
+      )
+      toast.success('تم حذف الرأي بنجاح')
+    } catch (e) {
+      toast.error('تعذر حذف الرأي')
+    }
+  }
+
+  const handleSaveFeedbackEdits = async (id: string) => {
+    try {
+      await updateClientFeedback(id, editFbForm)
+      setClientFeedbacks((prev) =>
+        prev.map((f) => (f.id === id ? { ...f, ...editFbForm } : f))
+      )
+      setConfigField(
+        'feedbacks',
+        config.feedbacks.map((f) => (f.id === id ? { ...f, ...editFbForm } : f))
+      )
+      setEditingFeedbackId(null)
+      setEditFbForm({})
+      toast.success('تم حفظ التعديلات بنجاح')
+    } catch (e) {
+      toast.error('تعذر حفظ التعديلات')
+    }
   }
 
   return (
@@ -595,6 +774,7 @@ export function LandingPageManager() {
         onTabChange={(id) => setActiveTab(id as CmsTab)}
         newInquiriesCount={newInquiriesCount}
         newTrialsCount={newTrialsCount}
+        pendingFeedbackCount={pendingFeedbackCount}
         isRtl={isRtl}
       />
 
@@ -2493,25 +2673,56 @@ export function LandingPageManager() {
                 </p>
               </div>
 
-              {/* Filters */}
-              <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs">
+              {/* Filters / Tabs */}
+              <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs">
                 {[
-                  { id: 'all', label: 'الكل' },
-                  { id: 'inquiry', label: 'استفسارات' },
-                  { id: 'suggestion', label: 'اقتراحات' },
-                  { id: 'complaint', label: 'شكاوى' },
-                ].map(({ id, label }) => (
+                  {
+                    id: 'all',
+                    label: 'الكل',
+                    count: inquiries.filter((i) => !i.isArchived && !i.isDeleted).length,
+                  },
+                  {
+                    id: 'complaint',
+                    label: 'الشكاوى',
+                    count: inquiries.filter((i) => !i.isArchived && !i.isDeleted && i.type === 'complaint').length,
+                  },
+                  {
+                    id: 'suggestion',
+                    label: 'الاقتراحات',
+                    count: inquiries.filter((i) => !i.isArchived && !i.isDeleted && i.type === 'suggestion').length,
+                  },
+                  {
+                    id: 'inquiry',
+                    label: 'الاستفسارات',
+                    count: inquiries.filter((i) => !i.isArchived && !i.isDeleted && i.type === 'inquiry').length,
+                  },
+                  {
+                    id: 'archived',
+                    label: 'المؤرشفة',
+                    count: inquiries.filter((i) => i.isArchived && !i.isDeleted).length,
+                  },
+                  {
+                    id: 'trash',
+                    label: 'المحذوفات',
+                    count: inquiries.filter((i) => i.isDeleted).length,
+                  },
+                ].map(({ id, label, count }) => (
                   <button
                     key={id}
                     type="button"
                     onClick={() => setInquiriesFilter(id as any)}
-                    className={`px-3 py-1 rounded-lg font-bold transition-colors cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
                       inquiriesFilter === id
                         ? 'bg-white dark:bg-slate-700 text-sky-600 shadow-xs'
-                        : 'text-slate-500'
+                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
                     }`}
                   >
-                    {label}
+                    <span>{label}</span>
+                    {count > 0 && (
+                      <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-200 dark:bg-slate-600 font-mono">
+                        {count}
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -2520,23 +2731,35 @@ export function LandingPageManager() {
             {filteredInquiries.length === 0 ? (
               <div className="p-10 text-center text-slate-400 text-xs space-y-2">
                 <MessageSquare className="w-8 h-8 mx-auto opacity-40" />
-                <p>لا توجد رسائل واردة في هذا التصنيف حالياً</p>
+                <p>
+                  {inquiriesFilter === 'archived'
+                    ? 'لا توجد رسائل مؤرشفة حالياً'
+                    : inquiriesFilter === 'trash'
+                    ? 'سلة المهملات فارغة'
+                    : 'لا توجد رسائل واردة في هذا التصنيف حالياً'}
+                </p>
               </div>
             ) : (
               <div className="space-y-4">
-                {filteredInquiries.map((inq) => {
+                {filteredInquiries.map((inq: LandingInquiryItem) => {
                   const isNew = inq.status === 'new'
+                  const senderWaUrl = getSenderWhatsAppUrl(inq.contact)
+
                   return (
                     <div
                       key={inq.id}
-                      className={`p-5 rounded-2xl border space-y-3 transition-colors ${
-                        isNew
+                      className={`p-5 rounded-2xl border space-y-3.5 transition-colors ${
+                        inq.isDeleted
+                          ? 'bg-rose-50/20 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/60 opacity-90'
+                          : inq.isArchived
+                          ? 'bg-slate-50/80 dark:bg-slate-800/20 border-slate-200 dark:border-slate-800 opacity-90'
+                          : isNew
                           ? 'bg-sky-50/40 dark:bg-sky-950/30 border-sky-300 dark:border-sky-800'
                           : 'bg-white dark:bg-slate-800/40 border-slate-200 dark:border-slate-700'
                       }`}
                     >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span
                             className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${
                               inq.type === 'complaint'
@@ -2552,29 +2775,126 @@ export function LandingPageManager() {
                               ? 'اقتراح'
                               : 'استفسار'}
                           </span>
+
+                          {inq.isArchived && (
+                            <span className="px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold">
+                              مؤرشفة
+                            </span>
+                          )}
+
+                          {inq.isDeleted && (
+                            <span className="px-2 py-0.5 rounded-full bg-rose-200 dark:bg-rose-950 text-rose-700 dark:text-rose-300 text-[10px] font-bold">
+                              في سلة المهملات
+                            </span>
+                          )}
+
                           <h4 className="font-black text-sm text-slate-900 dark:text-white">
                             {inq.subject}
                           </h4>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                          <select
-                            value={inq.status || 'new'}
-                            onChange={(e) => handleInquiryStatusChange(inq.id, e.target.value)}
-                            className="text-xs font-bold rounded-lg px-2 py-1 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600"
-                          >
-                            <option value="new">جديد</option>
-                            <option value="in_progress">قيد المتابعة</option>
-                            <option value="resolved">تم الحل</option>
-                            <option value="closed">مغلق</option>
-                          </select>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {/* Direct WhatsApp Contact Button */}
+                          {senderWaUrl && (
+                            <a
+                              href={senderWaUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                              title="فتح محادثة واتساب مع صاحب الرسالة"
+                            >
+                              <MessageCircle className="w-3.5 h-3.5 text-emerald-500" />
+                              <span>تواصل عبر واتساب</span>
+                            </a>
+                          )}
+
+                          {/* Status Dropdown */}
+                          {!inq.isDeleted && (
+                            <select
+                              value={inq.status || 'new'}
+                              onChange={(e) => handleInquiryStatusChange(inq.id, e.target.value)}
+                              className="text-xs font-bold rounded-lg px-2 py-1 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600"
+                            >
+                              <option value="new">جديد</option>
+                              <option value="in_progress">قيد المتابعة</option>
+                              <option value="resolved">تم الحل</option>
+                              <option value="closed">مغلق</option>
+                            </select>
+                          )}
+
+                          {/* Archive/Delete Action Buttons */}
+                          {inq.isDeleted ? (
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleRestoreInquiry(inq.id)}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                                title="استعادة الرسالة"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                <span>استعادة</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handlePermanentDeleteInquiry(inq.id)}
+                                className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                                title="حذف نهائي"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>حذف نهائي</span>
+                              </button>
+                            </div>
+                          ) : inq.isArchived ? (
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleArchiveInquiry(inq.id, false)}
+                                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                                title="إلغاء الأرشفة"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                <span>إلغاء الأرشفة</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteInquiry(inq.id)}
+                                className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                                title="نقل لسلة المهملات"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>حذف</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleArchiveInquiry(inq.id, true)}
+                                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                                title="أرشفة الرسالة"
+                              >
+                                <Archive className="w-3.5 h-3.5" />
+                                <span>أرشفة</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteInquiry(inq.id)}
+                                className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                                title="نقل لسلة المهملات"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>حذف</span>
+                              </button>
+                            </div>
+                          )}
+
                           <span className="text-[11px] text-slate-400 font-mono">
                             {new Date(inq.createdAt || Date.now()).toLocaleDateString('ar-EG')}
                           </span>
                         </div>
                       </div>
 
-                      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 text-xs text-slate-800 dark:text-slate-200 leading-relaxed">
+                      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 text-xs text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
                         {inq.message}
                       </div>
 
@@ -2584,7 +2904,9 @@ export function LandingPageManager() {
                           <strong className="text-slate-800 dark:text-slate-200">{inq.name}</strong>
                           <span className="mx-2">•</span>
                           <span>التواصل: </span>
-                          <strong className="font-mono" dir="ltr">{inq.contact}</strong>
+                          <strong className="font-mono text-slate-800 dark:text-slate-200" dir="ltr">
+                            {inq.contact}
+                          </strong>
                         </div>
 
                         {/* Internal Notes input */}
@@ -2609,155 +2931,443 @@ export function LandingPageManager() {
         {/* TAB 9: TESTIMONIALS & CLIENT LOGOS */}
         {activeTab === 'testimonials' && (
           <section className="p-6 rounded-3xl bg-white dark:bg-[#081526] border border-sky-100 dark:border-slate-800 shadow-sm space-y-6">
-            <h3 className="text-base font-black text-slate-900 dark:text-white">
-              آراء الأطباء وشعارات العيادات المتعاونة
-            </h3>
-
-            {/* Testimonials */}
-            <div className="space-y-4">
-              {config.feedbacks.filter((f) => f.approved && f.visible !== false).length === 0 && (
-                <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-xs flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <strong className="block font-bold">تنبيه: لا توجد آراء أطباء معتمدة معروضة حاليًا للزوار</strong>
-                    <span>
-                      القسم معروض في الصفحة الرئيسية مع بطاقة دعوة للأطباء لمشاركة تقييماتهم. يمكنك إضافة رأي معتمد من الزر أدناه، أو اعتماد الآراء الواردة من نموذج الموقع.
+            {/* Header & Sub-tabs */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <span>آراء الأطباء وشعارات العيادات المتعاونة</span>
+                  {pendingFeedbackCount > 0 && (
+                    <span className="px-2 py-0.5 rounded-full bg-rose-500 text-white text-xs font-mono font-bold animate-pulse">
+                      {pendingFeedbackCount} بانتظار المراجعة
                     </span>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex items-center justify-between">
-                <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200">
-                  شهادات وآراء الأطباء (تظهر فقط بعد موافقة الإدارة)
-                </h4>
-                <Button
-                  type="button"
-                  onClick={() => {
-                    const newFb: FeedbackItem = {
-                      id: 'fb_' + Date.now(),
-                      authorName: 'د. اسم الطبيب',
-                      clinicName: 'اسم العيادة',
-                      specialty: 'التخصص',
-                      rating: 5,
-                      comment: 'رأي الطبيب وتجربته مع المنصة...',
-                      avatarUrl: '',
-                      createdAt: new Date().toISOString(),
-                      approved: true,
-                      visible: true
-                    }
-                    setConfigField('feedbacks', [...config.feedbacks, newFb])
-                  }}
-                  className="rounded-xl bg-sky-600 text-white font-bold text-xs"
-                >
-                  <Plus className="w-4 h-4 ml-1" />
-                  <span>إضافة رأي</span>
-                </Button>
+                  )}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  مراجعة آراء الأطباء الواردة عبر الموقع، الموافقة عليها ونشرها، وإدارة قائمة الشهادات المعروضة بالواجهة.
+                </p>
               </div>
 
-              {config.feedbacks.map((fb, idx) => (
-                <div key={fb.id || idx} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-sky-600">رأي #{idx + 1}</span>
-                      <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={fb.approved}
-                          onChange={(e) => {
-                            const arr = [...config.feedbacks]
-                            arr[idx].approved = e.target.checked
-                            setConfigField('feedbacks', arr)
-                          }}
-                        />
-                        <span>موافق عليه للنشر (Approved)</span>
-                      </label>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setConfigField('feedbacks', config.feedbacks.filter((_, i) => i !== idx))}
-                      className="text-xs text-rose-500 hover:underline"
-                    >
-                      حذف
-                    </button>
-                  </div>
+              {/* Sub-tabs Selector */}
+              <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs">
+                <button
+                  type="button"
+                  onClick={() => setFeedbackSubTab('pending')}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                    feedbackSubTab === 'pending'
+                      ? 'bg-white dark:bg-slate-700 text-sky-600 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+                  }`}
+                >
+                  <span>آراء بانتظار المراجعة</span>
+                  {pendingFeedbackCount > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px] font-mono font-bold">
+                      {pendingFeedbackCount}
+                    </span>
+                  )}
+                </button>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-500 mb-1">اسم الطبيب</label>
-                      <input
-                        type="text"
-                        value={fb.authorName}
-                        onChange={(e) => {
-                          const arr = [...config.feedbacks]
-                          arr[idx].authorName = e.target.value
-                          setConfigField('feedbacks', arr)
-                        }}
-                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-500 mb-1">اسم العيادة</label>
-                      <input
-                        type="text"
-                        value={fb.clinicName}
-                        onChange={(e) => {
-                          const arr = [...config.feedbacks]
-                          arr[idx].clinicName = e.target.value
-                          setConfigField('feedbacks', arr)
-                        }}
-                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-500 mb-1">التقييم (1-5)</label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={5}
-                        value={fb.rating}
-                        onChange={(e) => {
-                          const arr = [...config.feedbacks]
-                          arr[idx].rating = Number(e.target.value)
-                          setConfigField('feedbacks', arr)
-                        }}
-                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs font-mono"
-                      />
-                    </div>
-                  </div>
+                <button
+                  type="button"
+                  onClick={() => setFeedbackSubTab('published')}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                    feedbackSubTab === 'published'
+                      ? 'bg-white dark:bg-slate-700 text-sky-600 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+                  }`}
+                >
+                  <span>الآراء المنشورة</span>
+                  <span className="px-1.5 py-0.2 rounded-full bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-300 text-[10px] font-mono">
+                    {config.feedbacks.filter((f) => f.approved).length}
+                  </span>
+                </button>
 
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-500 mb-1">نص الرأي</label>
-                    <textarea
-                      rows={2}
-                      value={fb.comment}
-                      onChange={(e) => {
-                        const arr = [...config.feedbacks]
-                        arr[idx].comment = e.target.value
-                        setConfigField('feedbacks', arr)
-                      }}
-                      className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs"
-                    />
-                  </div>
-
-                  {/* Photo Uploader for Doctor Review */}
-                  <MediaUploader
-                    label="صورة الطبيب (اختياري - رفع من الجهاز)"
-                    value={fb.avatarUrl || ''}
-                    folder="testimonials"
-                    maxSizeMB={2}
-                    onChange={(url) => {
-                      const arr = [...config.feedbacks]
-                      arr[idx].avatarUrl = url
-                      setConfigField('feedbacks', arr)
-                    }}
-                  />
-                </div>
-              ))}
+                <button
+                  type="button"
+                  onClick={() => setFeedbackSubTab('clients')}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                    feedbackSubTab === 'clients'
+                      ? 'bg-white dark:bg-slate-700 text-sky-600 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+                  }`}
+                >
+                  <span>شعارات العيادات</span>
+                  <span className="px-1.5 py-0.2 rounded-full bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-300 text-[10px] font-mono">
+                    {config.clients.length}
+                  </span>
+                </button>
+              </div>
             </div>
 
-            {/* Partner Clinic Logos */}
-            <div className="pt-6 border-t space-y-4">
+            {/* SUB-TAB 1: PENDING REVIEWS */}
+            {feedbackSubTab === 'pending' && (
+              <div className="space-y-4">
+                {pendingFeedbacks.length === 0 ? (
+                  <div className="p-10 text-center text-slate-400 text-xs space-y-3 bg-slate-50/50 dark:bg-slate-900/30 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                    <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
+                    <div>
+                      <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200">
+                        رائع! لا توجد آراء بانتظار المراجعة
+                      </h4>
+                      <p className="text-slate-500 mt-1">
+                        جميع تقييمات الأطباء الواردة عبر نموذج الموقع تمت مراجعتها والبت فيها.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {pendingFeedbacks.map((fb: FeedbackItem) => {
+                      const isEditing = editingFeedbackId === fb.id
+                      const curAuthor = editFbForm.authorName ?? fb.authorName
+                      const curClinic = editFbForm.clinicName ?? fb.clinicName
+                      const curSpecialty = editFbForm.specialty ?? fb.specialty ?? 'طب عام'
+                      const curRating = editFbForm.rating ?? fb.rating ?? 5
+                      const curComment = editFbForm.comment ?? fb.comment
+
+                      return (
+                        <div
+                          key={fb.id}
+                          className="p-5 rounded-2xl bg-amber-50/30 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/80 space-y-4 shadow-xs"
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 text-xs font-bold">
+                                  رأي جديد بانتظار المراجعة
+                                </span>
+                                <h4 className="font-black text-sm text-slate-900 dark:text-white">
+                                  {fb.authorName}
+                                </h4>
+                                <span className="text-xs text-slate-500">
+                                  • {fb.clinicName} ({fb.specialty || 'طب عام'})
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-center text-amber-500">
+                                  {Array.from({ length: 5 }).map((_, i) => (
+                                    <Star
+                                      key={i}
+                                      className={`w-3.5 h-3.5 ${
+                                        i < (fb.rating || 5)
+                                          ? 'fill-amber-400 text-amber-400'
+                                          : 'text-slate-300 dark:text-slate-600'
+                                      }`}
+                                    />
+                                  ))}
+                                </div>
+                                <span className="text-[11px] text-slate-400 font-mono">
+                                  {fb.createdAt ? new Date(fb.createdAt).toLocaleDateString('ar-EG') : 'الآن'}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {/* Approve Button */}
+                              <button
+                                type="button"
+                                onClick={() => handleApproveFeedback(fb.id)}
+                                className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>موافقة ونشر بالواجهة</span>
+                              </button>
+
+                              {/* Toggle Edit */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (isEditing) {
+                                    setEditingFeedbackId(null)
+                                    setEditFbForm({})
+                                  } else {
+                                    setEditingFeedbackId(fb.id)
+                                    setEditFbForm({
+                                      authorName: fb.authorName,
+                                      clinicName: fb.clinicName,
+                                      specialty: fb.specialty || 'طب عام',
+                                      rating: fb.rating || 5,
+                                      comment: fb.comment,
+                                    })
+                                  }
+                                }}
+                                className="px-3 py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 hover:bg-sky-100 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                                <span>{isEditing ? 'إلغاء التعديل' : 'تعديل قبل النشر'}</span>
+                              </button>
+
+                              {/* Reject / Delete */}
+                              <button
+                                type="button"
+                                onClick={() => handleRejectFeedback(fb.id)}
+                                className="px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 hover:bg-rose-100 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>رفض / حذف</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Edit Form or Read-only Display */}
+                          {isEditing ? (
+                            <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border space-y-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                                <div>
+                                  <label className="block text-[11px] font-bold text-slate-500 mb-1">اسم الطبيب</label>
+                                  <input
+                                    type="text"
+                                    value={curAuthor}
+                                    onChange={(e) => setEditFbForm((p) => ({ ...p, authorName: e.target.value }))}
+                                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border text-xs font-bold"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[11px] font-bold text-slate-500 mb-1">اسم العيادة</label>
+                                  <input
+                                    type="text"
+                                    value={curClinic}
+                                    onChange={(e) => setEditFbForm((p) => ({ ...p, clinicName: e.target.value }))}
+                                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border text-xs"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[11px] font-bold text-slate-500 mb-1">التخصص</label>
+                                  <input
+                                    type="text"
+                                    value={curSpecialty}
+                                    onChange={(e) => setEditFbForm((p) => ({ ...p, specialty: e.target.value }))}
+                                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border text-xs"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[11px] font-bold text-slate-500 mb-1">التقييم (1-5)</label>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={5}
+                                    value={curRating}
+                                    onChange={(e) => setEditFbForm((p) => ({ ...p, rating: Number(e.target.value) }))}
+                                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border text-xs font-mono"
+                                  />
+                                </div>
+                              </div>
+                              <div>
+                                <label className="block text-[11px] font-bold text-slate-500 mb-1">نص الرأي</label>
+                                <textarea
+                                  rows={3}
+                                  value={curComment}
+                                  onChange={(e) => setEditFbForm((p) => ({ ...p, comment: e.target.value }))}
+                                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border text-xs leading-relaxed"
+                                />
+                              </div>
+                              <div className="flex items-center justify-end gap-2 pt-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveFeedbackEdits(fb.id)}
+                                  className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold"
+                                >
+                                  حفظ التعديلات
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    await handleSaveFeedbackEdits(fb.id)
+                                    await handleApproveFeedback(fb.id)
+                                  }}
+                                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold"
+                                >
+                                  حفظ واعتماد فوري
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="p-4 rounded-xl bg-white/80 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 text-xs text-slate-800 dark:text-slate-200 leading-relaxed font-medium">
+                              «{fb.comment}»
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* SUB-TAB 2: PUBLISHED REVIEWS */}
+            {feedbackSubTab === 'published' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200">
+                    الشهادات المعروضة في الصفحة الرئيسية
+                  </h4>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      const newFb: FeedbackItem = {
+                        id: 'fb_' + Date.now(),
+                        authorName: 'د. اسم الطبيب',
+                        clinicName: 'اسم العيادة',
+                        specialty: 'استشاري طب عام',
+                        rating: 5,
+                        comment: 'نص رأي الطبيب وتجربته مع منظومة Yalla Clinic...',
+                        avatarUrl: '',
+                        createdAt: new Date().toISOString(),
+                        approved: true,
+                        visible: true,
+                      }
+                      setConfigField('feedbacks', [...config.feedbacks, newFb])
+                    }}
+                    className="rounded-xl bg-sky-600 text-white font-bold text-xs"
+                  >
+                    <Plus className="w-4 h-4 ml-1" />
+                    <span>إضافة رأي يدوي</span>
+                  </Button>
+                </div>
+
+                {config.feedbacks.length === 0 ? (
+                  <div className="p-10 text-center text-slate-400 text-xs space-y-2 bg-slate-50 dark:bg-slate-900/30 rounded-2xl border border-dashed">
+                    <p>لا توجد آراء منشورة حالياً في الواجهة</p>
+                  </div>
+                ) : (
+                  config.feedbacks.map((fb, idx) => (
+                    <div
+                      key={fb.id || idx}
+                      className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border space-y-3 transition-colors"
+                    >
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs font-bold text-sky-600">رأي #{idx + 1}</span>
+
+                          {/* Approved status */}
+                          <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-400 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={fb.approved}
+                              onChange={(e) => {
+                                const arr = [...config.feedbacks]
+                                arr[idx].approved = e.target.checked
+                                setConfigField('feedbacks', arr)
+                              }}
+                            />
+                            <span>معتمد للنشر (Approved)</span>
+                          </label>
+
+                          {/* Visibility status */}
+                          <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-400 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={fb.visible !== false}
+                              onChange={(e) => {
+                                const arr = [...config.feedbacks]
+                                arr[idx].visible = e.target.checked
+                                setConfigField('feedbacks', arr)
+                              }}
+                            />
+                            <span>معروض بالواجهة (Visible)</span>
+                          </label>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setConfigField('feedbacks', config.feedbacks.filter((_, i) => i !== idx))}
+                          className="text-xs text-rose-500 hover:underline cursor-pointer"
+                        >
+                          حذف من المنشورات
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 mb-1">اسم الطبيب</label>
+                          <input
+                            type="text"
+                            value={fb.authorName}
+                            onChange={(e) => {
+                              const arr = [...config.feedbacks]
+                              arr[idx].authorName = e.target.value
+                              setConfigField('feedbacks', arr)
+                            }}
+                            className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 mb-1">اسم العيادة</label>
+                          <input
+                            type="text"
+                            value={fb.clinicName}
+                            onChange={(e) => {
+                              const arr = [...config.feedbacks]
+                              arr[idx].clinicName = e.target.value
+                              setConfigField('feedbacks', arr)
+                            }}
+                            className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 mb-1">التخصص</label>
+                          <input
+                            type="text"
+                            value={fb.specialty || ''}
+                            placeholder="مثال: استشاري باطنة"
+                            onChange={(e) => {
+                              const arr = [...config.feedbacks]
+                              arr[idx].specialty = e.target.value
+                              setConfigField('feedbacks', arr)
+                            }}
+                            className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 mb-1">التقييم (1-5)</label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={5}
+                            value={fb.rating}
+                            onChange={(e) => {
+                              const arr = [...config.feedbacks]
+                              arr[idx].rating = Number(e.target.value)
+                              setConfigField('feedbacks', arr)
+                            }}
+                            className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 mb-1">نص الرأي</label>
+                        <textarea
+                          rows={2}
+                          value={fb.comment}
+                          onChange={(e) => {
+                            const arr = [...config.feedbacks]
+                            arr[idx].comment = e.target.value
+                            setConfigField('feedbacks', arr)
+                          }}
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs"
+                        />
+                      </div>
+
+                      {/* Photo Uploader for Doctor Review */}
+                      <MediaUploader
+                        label="صورة الطبيب (اختياري - رفع من الجهاز)"
+                        value={fb.avatarUrl || ''}
+                        folder="testimonials"
+                        maxSizeMB={2}
+                        onChange={(url) => {
+                          const arr = [...config.feedbacks]
+                          arr[idx].avatarUrl = url
+                          setConfigField('feedbacks', arr)
+                        }}
+                      />
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* SUB-TAB 3: PARTNER CLINIC LOGOS */}
+            {feedbackSubTab === 'clients' && (
+              <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200">
                   شعارات العيادات المتعاونة (Partner Logos)
@@ -2845,8 +3455,9 @@ export function LandingPageManager() {
                 ))}
               </div>
             </div>
-          </section>
-        )}
+          )}
+        </section>
+      )}
 
         {/* TAB 10: STATS & NUMBERS (Full Manual Control with Optional Automated Mode) */}
         {activeTab === 'stats' && (
@@ -3393,35 +4004,399 @@ export function LandingPageManager() {
 
         {/* TAB 11: CONTACTS & FOOTER */}
         {activeTab === 'contacts' && (
-          <section className="p-6 rounded-3xl bg-white dark:bg-[#081526] border border-sky-100 dark:border-slate-800 shadow-sm space-y-5">
-            <h3 className="text-base font-black text-slate-900 dark:text-white">
-              أرقام التواصل والفوتر
-            </h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <section className="p-6 rounded-3xl bg-white dark:bg-[#081526] border border-sky-100 dark:border-slate-800 shadow-sm space-y-6">
+            {/* Header & Add Button */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  رقم واتساب الرئيسي (مع كود الدولة 20)
-                </label>
-                <input
-                  type="text"
-                  value={config.primaryWhatsapp}
-                  onChange={(e) => setConfigField('primaryWhatsapp', e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border text-xs font-mono"
-                  dir="ltr"
-                />
+                <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <Phone className="w-5 h-5 text-sky-600" />
+                  <span>أرقام التواصل وقنوات الدعم والفوتر</span>
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  إدارة شاملة لكافة أرقام الهواتف وقنوات الواتساب لخدمة العملاء، المبيعات، والدعم الفني المعروضة في الفوتر وقسم التواصل.
+                </p>
               </div>
 
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  نص حقوق الملكية في الفوتر
-                </label>
-                <input
-                  type="text"
-                  value={config.footerText}
-                  onChange={(e) => setConfigField('footerText', e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border text-xs"
-                />
+              <Button
+                type="button"
+                onClick={() => {
+                  const newContact: ContactItem = {
+                    id: 'contact_' + Date.now(),
+                    roleTitle: 'خدمة العملاء والدعم الفني',
+                    roleTitleEn: 'Customer Support',
+                    number: '01000000000',
+                    countryCode: '+20',
+                    whatsappNumber: '201000000000',
+                    whatsappEnabled: true,
+                    visible: true,
+                    isPrimary: config.contacts.length === 0,
+                  }
+                  setConfigField('contacts', [...config.contacts, newContact])
+                  toast.success('تمت إضافة رقم تواصل جديد')
+                }}
+                className="rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-md"
+              >
+                <Plus className="w-4 h-4 ml-1" />
+                <span>إضافة رقم تواصل</span>
+              </Button>
+            </div>
+
+            {/* Current Primary WhatsApp Info Banner */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                  <MessageCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="font-bold text-slate-800 dark:text-slate-200 block text-xs">
+                    رقم واتساب الرئيسي المعتمد للأزرار العامة:
+                  </span>
+                  <span className="font-mono font-black text-emerald-600 dark:text-emerald-400 text-sm" dir="ltr">
+                    +{config.primaryWhatsapp || '201551007018'}
+                  </span>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-500 max-w-sm">
+                هذا الرقم يُستخدم تلقائيًا في الزر العائم لواتساب بأسفل الشاشة وفي أزرار طلب التجربة وحجز المعاينة العامة.
+              </p>
+            </div>
+
+            {/* Contact Cards List */}
+            <div className="space-y-4">
+              {config.contacts.length === 0 ? (
+                <div className="p-10 text-center text-slate-400 text-xs space-y-2 bg-slate-50 dark:bg-slate-900/30 rounded-2xl border border-dashed">
+                  <p>لا توجد أرقام تواصل مسجلة حاليًا</p>
+                </div>
+              ) : (
+                config.contacts.map((c, idx) => {
+                  const moveContact = (dir: 'up' | 'down') => {
+                    const arr = [...config.contacts]
+                    const target = dir === 'up' ? idx - 1 : idx + 1
+                    if (target < 0 || target >= arr.length) return
+                    const temp = arr[idx]
+                    arr[idx] = arr[target]
+                    arr[target] = temp
+                    setConfigField('contacts', arr)
+                  }
+
+                  const setAsPrimary = () => {
+                    const clean = c.whatsappNumber || normalizePhoneNumber(c.number)
+                    const arr = config.contacts.map((item, i) => ({
+                      ...item,
+                      isPrimary: i === idx,
+                    }))
+                    setConfig((prev) => ({
+                      ...prev,
+                      contacts: arr,
+                      primaryWhatsapp: clean || prev.primaryWhatsapp,
+                    }))
+                    toast.success(`تم تعيين «${c.roleTitle}» كرقم واتساب رئيسي`)
+                  }
+
+                  const handleDeleteContact = () => {
+                    if (config.contacts.length <= 1) {
+                      toast.error('يجب الإبقاء على رقم تواصل واحد على الأقل للمنظومة')
+                      return
+                    }
+                    if (!window.confirm('هل أنت متأكد من حذف هذا الرقم؟')) return
+                    const next = config.contacts.filter((_, i) => i !== idx)
+                    if (c.isPrimary && next.length > 0) {
+                      next[0].isPrimary = true
+                      const clean = next[0].whatsappNumber || normalizePhoneNumber(next[0].number)
+                      setConfig((prev) => ({
+                        ...prev,
+                        contacts: next,
+                        primaryWhatsapp: clean || prev.primaryWhatsapp,
+                      }))
+                    } else {
+                      setConfigField('contacts', next)
+                    }
+                    toast.success('تم حذف الرقم')
+                  }
+
+                  // Check duplicate phone in list
+                  const myClean = normalizePhoneNumber(c.number)
+                  const isDuplicate = myClean && config.contacts.some((other, otherIdx) => otherIdx !== idx && normalizePhoneNumber(other.number) === myClean)
+
+                  return (
+                    <div
+                      key={c.id || idx}
+                      className={`p-5 rounded-2xl border transition-all space-y-4 ${
+                        c.isPrimary
+                          ? 'bg-emerald-50/20 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-800 shadow-sm'
+                          : 'bg-slate-50/80 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/80'
+                      }`}
+                    >
+                      {/* Card Header */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-black text-sky-600 font-mono">
+                            #{idx + 1}
+                          </span>
+                          <span className="font-black text-sm text-slate-800 dark:text-slate-100">
+                            {c.roleTitle || 'رقم تواصل'}
+                          </span>
+                          {c.isPrimary && (
+                            <span className="px-2.5 py-0.5 rounded-full bg-emerald-500 text-white text-[10px] font-bold flex items-center gap-1 shadow-xs">
+                              <Star className="w-3 h-3 fill-white" />
+                              <span>الرقم الرئيسي للواتساب</span>
+                            </span>
+                          )}
+                          {!c.visible && (
+                            <span className="px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-bold">
+                              مخفي من الموقع
+                            </span>
+                          )}
+                          {isDuplicate && (
+                            <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200 text-[10px] font-bold">
+                              ⚠️ رقم مكرر
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Top Controls: Reorder, Set Primary & Delete */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {!c.isPrimary && (
+                            <button
+                              type="button"
+                              onClick={setAsPrimary}
+                              className="px-2.5 py-1 rounded-lg bg-emerald-100/70 hover:bg-emerald-200 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+                              title="تعيين كرقم واتساب رئيسي"
+                            >
+                              <Star className="w-3 h-3" />
+                              <span>تعيين كرئيسي</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            disabled={idx === 0}
+                            onClick={() => moveContact('up')}
+                            className="p-1.5 rounded-lg bg-white dark:bg-slate-700 border text-slate-600 dark:text-slate-300 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                            title="تحريك لأعلى"
+                          >
+                            <ArrowUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={idx === config.contacts.length - 1}
+                            onClick={() => moveContact('down')}
+                            className="p-1.5 rounded-lg bg-white dark:bg-slate-700 border text-slate-600 dark:text-slate-300 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                            title="تحريك لأسفل"
+                          >
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleDeleteContact}
+                            className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                            title="حذف الرقم"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Input Fields */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        {/* Title Arabic */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                            عنوان الرقم بالعربية (مثل: المبيعات)
+                          </label>
+                          <input
+                            type="text"
+                            value={c.roleTitle}
+                            placeholder="مثال: المبيعات والدعم الفني"
+                            onChange={(e) => {
+                              const arr = [...config.contacts]
+                              arr[idx].roleTitle = e.target.value
+                              setConfigField('contacts', arr)
+                            }}
+                            className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs font-bold"
+                          />
+                        </div>
+
+                        {/* Title English */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                            العنوان بالإنجليزية (Title En)
+                          </label>
+                          <input
+                            type="text"
+                            value={c.roleTitleEn || ''}
+                            placeholder="e.g. Sales & Support"
+                            onChange={(e) => {
+                              const arr = [...config.contacts]
+                              arr[idx].roleTitleEn = e.target.value
+                              setConfigField('contacts', arr)
+                            }}
+                            className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs"
+                            dir="ltr"
+                          />
+                        </div>
+
+                        {/* Country Code */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                            كود الدولة
+                          </label>
+                          <select
+                            value={c.countryCode || '+20'}
+                            onChange={(e) => {
+                              const arr = [...config.contacts]
+                              arr[idx].countryCode = e.target.value
+                              arr[idx].whatsappNumber = normalizePhoneNumber(arr[idx].number)
+                              setConfigField('contacts', arr)
+                            }}
+                            className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs font-bold font-mono"
+                          >
+                            <option value="+20">🇪🇬 مصر (+20)</option>
+                            <option value="+966">🇸🇦 السعودية (+966)</option>
+                            <option value="+971">🇦🇪 الإمارات (+971)</option>
+                            <option value="+965">🇰🇼 الكويت (+965)</option>
+                            <option value="+974">🇶🇦 قطر (+974)</option>
+                            <option value="+968">🇴🇲 عُمان (+968)</option>
+                            <option value="+973">🇧🇭 البحرين (+973)</option>
+                            <option value="+962">🇯🇴 الأردن (+962)</option>
+                            <option value="+964">🇮🇶 العراق (+964)</option>
+                            <option value="+1">🇺🇸 أمريكا / كندا (+1)</option>
+                            <option value="+44">🇬🇧 المملكة المتحدة (+44)</option>
+                            <option value="+">🌍 دولي آخر</option>
+                          </select>
+                        </div>
+
+                        {/* Phone Number with Normalization */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                            رقم الهاتف (محلي أو دولي)
+                          </label>
+                          <input
+                            type="text"
+                            value={c.number}
+                            placeholder="مثال: 01551007018"
+                            onChange={(e) => {
+                              const rawVal = e.target.value
+                              // Auto normalize digits
+                              const cleanDigits = rawVal
+                                .replace(/[٠-٩]/g, (ch) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch)))
+                                .replace(/[۰-۹]/g, (ch) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(ch)))
+                                .replace(/[^\d+]/g, '')
+                              const arr = [...config.contacts]
+                              arr[idx].number = cleanDigits
+                              const cleanWa = normalizePhoneNumber(cleanDigits)
+                              arr[idx].whatsappNumber = cleanWa
+                              setConfigField('contacts', arr)
+                              if (c.isPrimary && cleanWa) {
+                                setConfigField('primaryWhatsapp', cleanWa)
+                              }
+                            }}
+                            className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border text-xs font-mono font-bold"
+                            dir="ltr"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Toggles: Supports WhatsApp & Visible */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                        <div className="flex items-center gap-6 flex-wrap">
+                          <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-700 dark:text-slate-300">
+                            <Switch
+                              checked={c.whatsappEnabled !== false}
+                              onCheckedChange={(checked) => {
+                                const arr = [...config.contacts]
+                                arr[idx].whatsappEnabled = checked
+                                setConfigField('contacts', arr)
+                              }}
+                            />
+                            <span>يدعم محادثة واتساب (إظهار زر wa.me)</span>
+                          </label>
+
+                          <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-700 dark:text-slate-300">
+                            <Switch
+                              checked={c.visible !== false}
+                              onCheckedChange={(checked) => {
+                                const arr = [...config.contacts]
+                                arr[idx].visible = checked
+                                setConfigField('contacts', arr)
+                              }}
+                            />
+                            <span>إظهار في الموقع (الفوتر والتواصل)</span>
+                          </label>
+                        </div>
+
+                        {/* Test Links */}
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={`tel:${c.number.replace(/\s+/g, '')}`}
+                            className="px-2 py-1 rounded-lg bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 hover:bg-sky-100 text-[11px] font-bold flex items-center gap-1"
+                            title="تجربة الاتصال"
+                          >
+                            <Phone className="w-3 h-3" />
+                            <span>اتصال</span>
+                          </a>
+
+                          {c.whatsappEnabled && c.whatsappNumber && (
+                            <a
+                              href={`https://wa.me/${c.whatsappNumber}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-2 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 text-[11px] font-bold flex items-center gap-1"
+                              title="تجربة الواتساب"
+                            >
+                              <MessageCircle className="w-3 h-3" />
+                              <span>واتساب</span>
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+
+            {/* Footer Text Settings */}
+            <div className="pt-6 border-t border-slate-100 dark:border-slate-800 space-y-4">
+              <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200">
+                إعدادات نصوص وحقوق الملكية بالفوتر
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    نص حقوق الملكية في الفوتر (بالعربية)
+                  </label>
+                  <input
+                    type="text"
+                    value={config.footerText}
+                    onChange={(e) => setConfigField('footerText', e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    نص حقوق الملكية في الفوتر (بالإنجليزية)
+                  </label>
+                  <input
+                    type="text"
+                    value={config.english?.footerText || ''}
+                    placeholder="e.g. © 2026 Yalla Clinic. All rights reserved."
+                    onChange={(e) => {
+                      setConfig((prev) => ({
+                        ...prev,
+                        english: {
+                          ...prev.english,
+                          footerText: e.target.value,
+                        },
+                      }))
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border text-xs"
+                    dir="ltr"
+                  />
+                </div>
               </div>
             </div>
           </section>

@@ -57,32 +57,40 @@ export async function readLandingConfig() {
 export async function publicLandingConfig() {
   const config = await readLandingConfig()
   
-  // 1. Fetch real approved feedback
+  // 1. Fetch real approved feedback from collection
   const reviews = await queryDocuments('landing_feedback', true).catch(() => {
     console.error('LANDING_FEEDBACK_QUERY_FAILED')
     return []
   })
 
-  config.feedbacks = [
-    ...config.feedbacks.filter((item) => item.approved && item.visible !== false),
-    ...reviews
-      .filter((item) => item.approved && item.visible !== false)
-      .map(
-        (item) =>
-          ({
-            id: item.id,
-            authorName: String(item.authorName || ''),
-            clinicName: String(item.clinicName || ''),
-            specialty: String(item.specialty || ''),
-            rating: Number(item.rating) || 5,
-            comment: String(item.comment || ''),
-            avatarUrl: String(item.avatarUrl || ''),
-            approved: true,
-            visible: true,
-            createdAt: String(item.createdAt || ''),
-          }) satisfies FeedbackItem,
-      ),
-  ]
+  const mergedFeedbacksMap = new Map<string, FeedbackItem>()
+
+  // A. Add config.feedbacks (manual/curated)
+  for (const item of (config.feedbacks || [])) {
+    if (item.approved && item.visible !== false) {
+      mergedFeedbacksMap.set(item.id, item)
+    }
+  }
+
+  // B. Add approved & visible submitted reviews from landing_feedback
+  for (const item of reviews) {
+    if (item.approved && item.visible !== false) {
+      mergedFeedbacksMap.set(item.id, {
+        id: item.id,
+        authorName: String(item.authorName || ''),
+        clinicName: String(item.clinicName || ''),
+        specialty: String(item.specialty || ''),
+        rating: Number(item.rating) || 5,
+        comment: String(item.comment || ''),
+        avatarUrl: String(item.avatarUrl || ''),
+        approved: true,
+        visible: item.visible !== false,
+        createdAt: String(item.createdAt || ''),
+      } satisfies FeedbackItem)
+    }
+  }
+
+  config.feedbacks = Array.from(mergedFeedbacksMap.values())
 
   // 2. Hydrate dual-source automated stats
   const metrics = await fetchAutomatedMetrics()

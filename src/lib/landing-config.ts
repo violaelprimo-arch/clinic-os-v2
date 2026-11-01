@@ -155,6 +155,7 @@ const faqItem = z.object({
 const contact = z.object({
   id,
   number: short.min(5),
+  countryCode: z.string().max(10).default('+20'),
   whatsappNumber: z.string().max(25).default(''),
   roleTitle: short,
   roleTitleEn: short.default(''),
@@ -382,6 +383,10 @@ export type LandingInquiryItem = {
   createdAt: string
   status: 'new' | 'in_progress' | 'resolved' | 'closed'
   internalNotes?: string
+  isArchived?: boolean
+  archivedAt?: string | null
+  isDeleted?: boolean
+  deletedAt?: string | null
 }
 
 export const DEFAULT_ORBIT_CARDS: OrbitCardItem[] = [
@@ -980,6 +985,7 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
       id: 'sales',
       visible: true,
       number: '01551007018',
+      countryCode: '+20',
       whatsappNumber: '201551007018',
       roleTitle: 'المبيعات والدعم الفني',
       roleTitleEn: 'Sales & technical support',
@@ -1033,9 +1039,69 @@ export function mergeLandingConfig(value: unknown): LandingPageConfig {
     faqItems: Array.isArray(data.faqItems) && data.faqItems.length > 0
       ? data.faqItems
       : DEFAULT_FAQ_ITEMS,
+    contacts: (() => {
+      let rawList: any[] = Array.isArray(data.contacts) ? [...data.contacts] : []
+      if (rawList.length === 0) {
+        rawList = [...DEFAULT_LANDING_CONFIG.contacts]
+      }
+      // If legacy data.primaryWhatsapp is set and not already present, ensure it's in the list
+      const legacyNum = data.primaryWhatsapp ? normalizePhoneNumber(data.primaryWhatsapp) : ''
+      if (legacyNum && !rawList.some((c) => normalizePhoneNumber(c.number || c.whatsappNumber) === legacyNum)) {
+        rawList.unshift({
+          id: 'legacy-primary',
+          number: data.primaryWhatsapp,
+          countryCode: '+20',
+          whatsappNumber: legacyNum,
+          roleTitle: 'المبيعات والدعم الفني',
+          roleTitleEn: 'Sales & Support',
+          isPrimary: true,
+          whatsappEnabled: true,
+          visible: true,
+        })
+      }
+      // Deduplicate by normalized number
+      const seen = new Set<string>()
+      const list: any[] = []
+      for (const item of rawList) {
+        const raw = String(item.number || item.whatsappNumber || '').trim()
+        const norm = normalizePhoneNumber(raw)
+        if (!norm || seen.has(norm)) continue
+        seen.add(norm)
+        list.push({
+          id: item.id || `contact_${list.length + 1}`,
+          number: raw,
+          countryCode: item.countryCode || '+20',
+          whatsappNumber: item.whatsappNumber ? normalizePhoneNumber(item.whatsappNumber) : norm,
+          roleTitle: String(item.roleTitle || 'المبيعات والدعم الفني').trim(),
+          roleTitleEn: String(item.roleTitleEn || '').trim(),
+          isPrimary: Boolean(item.isPrimary),
+          whatsappEnabled: item.whatsappEnabled !== false,
+          visible: item.visible !== false,
+        })
+      }
+      if (list.length > 0 && !list.some((c) => c.isPrimary)) {
+        list[0].isPrimary = true
+      }
+      return list.length > 0 ? list : DEFAULT_LANDING_CONFIG.contacts
+    })(),
   })
 
-  return parsed.success ? parsed.data : structuredClone(DEFAULT_LANDING_CONFIG)
+  if (parsed.success) {
+    const res = parsed.data
+    const primaryContact =
+      res.contacts.find((c) => c.isPrimary && c.visible !== false) ||
+      res.contacts.find((c) => c.isPrimary) ||
+      res.contacts[0]
+    if (primaryContact) {
+      res.primaryWhatsapp =
+        primaryContact.whatsappNumber ||
+        normalizePhoneNumber(primaryContact.number) ||
+        res.primaryWhatsapp
+    }
+    return res
+  }
+
+  return structuredClone(DEFAULT_LANDING_CONFIG)
 }
 
 export function normalizePhoneNumber(value: string): string {
@@ -1071,6 +1137,14 @@ export function normalizePhoneNumber(value: string): string {
 
 export function whatsappNumber(value: string): string {
   return normalizePhoneNumber(value)
+}
+
+export function getSenderWhatsAppUrl(contact: string): string | null {
+  if (!contact || contact.includes('@')) return null
+  const clean = normalizePhoneNumber(contact)
+  if (!clean || clean.length < 8 || clean.length > 15) return null
+  const defaultText = 'أهلًا دكتور، بنتواصل مع حضرتك من دعم Yalla Clinic بخصوص رسالتك الأخيرة.'
+  return `https://wa.me/${clean}?text=${encodeURIComponent(defaultText)}`
 }
 
 export const feedbackSubmissionSchema = z.object({

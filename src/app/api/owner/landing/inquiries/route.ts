@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { queryDocuments, writeDocument } from '@/lib/server/firebase-rest'
+import { queryDocuments, writeDocument, deleteDocument } from '@/lib/server/firebase-rest'
 import {
   ApiError,
   apiFailure,
@@ -42,8 +42,32 @@ export async function PATCH(request: NextRequest) {
       updates.internalNotes = String(data.internalNotes || '').slice(0, 2000)
     }
 
+    if (typeof data.isArchived === 'boolean') {
+      updates.isArchived = data.isArchived
+      updates.archivedAt = data.isArchived ? (data.archivedAt || new Date().toISOString()) : null
+    }
+
+    if (typeof data.isDeleted === 'boolean') {
+      updates.isDeleted = data.isDeleted
+      updates.deletedAt = data.isDeleted ? (data.deletedAt || new Date().toISOString()) : null
+    }
+
     await writeDocument('landing_inquiries/' + data.id, updates, true)
 
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    return apiFailure(error)
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    await requireOwner(request)
+    const data = await readJson(request)
+    if (typeof data.id !== 'string' || !/^[\w-]{1,100}$/.test(data.id)) {
+      throw new ApiError(400, 'INVALID_ID', 'معرف الرسالة غير صالح.')
+    }
+    await deleteDocument('landing_inquiries/' + data.id)
     return NextResponse.json({ success: true })
   } catch (error) {
     return apiFailure(error)

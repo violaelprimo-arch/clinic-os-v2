@@ -74,7 +74,11 @@ export function LandingTestimonialsSection({
       }
 
       setSubmitted(true)
-      toast.success('تم إرسال تقييمك بنجاح!')
+      toast.success(
+        isRtl
+          ? 'تم إرسال رأيك بنجاح وسيظهر بعد مراجعة الإدارة'
+          : 'Your review was submitted and will appear after admin review!'
+      )
     } catch (err: any) {
       console.error('Feedback submit error:', err)
       toast.error(err?.message || 'تعذر إرسال التقييم، يرجى المحاولة ثانيةً')
@@ -270,10 +274,12 @@ export function LandingTestimonialsSection({
                 <CheckCircle2 className="w-7 h-7" />
               </div>
               <h4 className="font-black text-base text-slate-900 dark:text-white">
-                شكرًا جزيلاً لمشاركتك!
+                {isRtl ? 'شكرًا جزيلاً لمشاركتك دكتور!' : 'Thank you for your review!'}
               </h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto leading-relaxed">
-                تم استلام تقييمك ورأيك بنجاح. سيتم مراجعته واعتماده من إدارة المنصة ليظهر على الصفحة الرئيسية.
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto leading-relaxed font-medium">
+                {isRtl
+                  ? 'تم استلام تقييمك ورأيك بنجاح. سيتم مراجعته واعتماده من إدارة المنصة قبل نشره في الواجهة الرئيسية.'
+                  : 'Your review was received successfully and will be published upon administration review.'}
               </p>
               <div className="pt-2">
                 <button

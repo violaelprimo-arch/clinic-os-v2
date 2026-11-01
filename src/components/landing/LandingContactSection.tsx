@@ -148,28 +148,58 @@ export function LandingContactSection({
                 <span>{isRtl ? 'محادثة فورية عبر واتساب' : 'Chat on WhatsApp'}</span>
               </a>
 
-              {contacts.map((c) => (
-                <div
-                  key={c.id}
-                  className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs"
-                >
-                  <div>
-                    <span className="font-bold text-slate-800 dark:text-slate-200 block">
-                      {isRtl ? c.roleTitle : c.roleTitleEn || c.roleTitle}
-                    </span>
-                    <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px]" dir="ltr">
-                      {c.number}
-                    </span>
-                  </div>
-                  <a
-                    href={`tel:${c.number}`}
-                    className="p-2 rounded-xl bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 hover:bg-sky-100 transition-colors"
-                    title="اتصال هاتفي"
+              {contacts.filter((c) => c.visible !== false).map((c) => {
+                const cleanPhone = c.number || c.whatsappNumber || ''
+                const cleanWa = c.whatsappNumber ? whatsappNumber(c.whatsappNumber) : whatsappNumber(cleanPhone)
+                const waLink = cleanWa ? `https://wa.me/${cleanWa}` : null
+
+                return (
+                  <div
+                    key={c.id}
+                    className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs gap-3"
                   >
-                    <Phone className="w-3.5 h-3.5" />
-                  </a>
-                </div>
-              ))}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-800 dark:text-slate-200 block truncate">
+                          {isRtl ? c.roleTitle : c.roleTitleEn || c.roleTitle}
+                        </span>
+                        {c.isPrimary && (
+                          <span className="px-2 py-0.5 rounded-md bg-sky-100 dark:bg-sky-950/80 text-sky-700 dark:text-sky-300 text-[10px] font-bold shrink-0">
+                            {isRtl ? 'رئيسي' : 'Primary'}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px] block mt-0.5" dir="ltr">
+                        {cleanPhone}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <a
+                        href={`tel:${cleanPhone.replace(/\s+/g, '')}`}
+                        className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/60 transition-colors flex items-center gap-1.5 font-bold text-xs"
+                        title={isRtl ? 'اتصال هاتفي' : 'Phone Call'}
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline text-[11px]">{isRtl ? 'اتصال' : 'Call'}</span>
+                      </a>
+
+                      {c.whatsappEnabled && waLink && (
+                        <a
+                          href={waLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition-colors flex items-center gap-1.5 font-bold text-xs"
+                          title={isRtl ? 'محادثة واتساب' : 'WhatsApp Chat'}
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline text-[11px]">واتساب</span>
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
 
             <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2 text-[11px] text-slate-400">

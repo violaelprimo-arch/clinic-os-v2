@@ -45,13 +45,26 @@ export async function PATCH(request: NextRequest) {
     const data = await readJson(request)
     if (
       typeof data.id !== 'string' ||
-      !/^[\w-]{1,100}$/.test(data.id) ||
-      typeof data.approved !== 'boolean'
+      !/^[\w-]{1,100}$/.test(data.id)
     )
       throw new ApiError(400, 'INVALID_FEEDBACK', 'الطلب غير صالح.')
+
+    const updates: Record<string, any> = {}
+    if (typeof data.approved === 'boolean') updates.approved = data.approved
+    if (typeof data.visible === 'boolean') updates.visible = data.visible
+    if (typeof data.comment === 'string' && data.comment.trim()) updates.comment = data.comment.trim()
+    if (typeof data.authorName === 'string' && data.authorName.trim()) updates.authorName = data.authorName.trim()
+    if (typeof data.clinicName === 'string' && data.clinicName.trim()) updates.clinicName = data.clinicName.trim()
+    if (typeof data.specialty === 'string') updates.specialty = data.specialty.trim()
+    if (typeof data.rating === 'number' && data.rating >= 1 && data.rating <= 5) updates.rating = Math.round(data.rating)
+
+    if (Object.keys(updates).length === 0) {
+      throw new ApiError(400, 'NO_UPDATES', 'لم يتم تقديم أي تعديلات صالحة.')
+    }
+
     await writeDocument(
       'landing_feedback/' + data.id,
-      { approved: data.approved },
+      updates,
       true,
     )
     await writeDocument(

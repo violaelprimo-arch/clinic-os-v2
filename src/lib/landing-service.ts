@@ -124,6 +124,25 @@ export async function getClientFeedback() {
   ).feedback
 }
 
+export async function approveClientFeedback(
+  id: string,
+  approved: boolean,
+  updates?: Partial<FeedbackItem>
+) {
+  await landingApi('/api/owner/landing/feedback', 'PATCH', { id, approved, ...(updates || {}) })
+}
+
+export async function updateClientFeedback(
+  id: string,
+  updates: Partial<FeedbackItem>
+) {
+  await landingApi('/api/owner/landing/feedback', 'PATCH', { id, ...updates })
+}
+
+export async function deleteClientFeedback(id: string) {
+  await landingApi('/api/owner/landing/feedback', 'DELETE', { id })
+}
+
 export async function submitLandingInquiry(data: {
   type: 'suggestion' | 'complaint' | 'inquiry'
   name: string
@@ -145,7 +164,18 @@ export async function getLandingInquiries() {
 
 export async function updateLandingInquiry(
   id: string,
-  updates: { status?: string; internalNotes?: string }
+  updates: {
+    status?: string
+    internalNotes?: string
+    isArchived?: boolean
+    archivedAt?: string | null
+    isDeleted?: boolean
+    deletedAt?: string | null
+  }
 ) {
   await landingApi('/api/owner/landing/inquiries', 'PATCH', { id, ...updates })
+}
+
+export async function deleteLandingInquiry(id: string) {
+  await landingApi('/api/owner/landing/inquiries', 'DELETE', { id })
 }

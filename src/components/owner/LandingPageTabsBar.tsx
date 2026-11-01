@@ -16,6 +16,7 @@ interface LandingPageTabsBarProps {
   onTabChange: (id: string) => void
   newInquiriesCount?: number
   newTrialsCount?: number
+  pendingFeedbackCount?: number
   isRtl?: boolean
 }
 
@@ -43,6 +44,7 @@ export function LandingPageTabsBar({
   onTabChange,
   newInquiriesCount = 0,
   newTrialsCount = 0,
+  pendingFeedbackCount = 0,
   isRtl = true,
 }: LandingPageTabsBarProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -296,7 +298,13 @@ export function LandingPageTabsBar({
         {tabs.map(([id, labelAr, Icon], index) => {
           const active = activeTab === id
           const badgeCount =
-            id === 'inbox' ? newInquiriesCount : id === 'trials' ? newTrialsCount : 0
+            id === 'inbox'
+              ? newInquiriesCount
+              : id === 'trials'
+              ? newTrialsCount
+              : id === 'testimonials'
+              ? pendingFeedbackCount
+              : 0
           const displayLabel = isRtl ? labelAr : (tabLabelsEn[id] || labelAr)
 
           return (
