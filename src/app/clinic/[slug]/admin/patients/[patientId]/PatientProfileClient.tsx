@@ -3,18 +3,20 @@
 import { ResidentialAreaSelector, ResidentialAreaValue } from '@/components/common/ResidentialAreaSelector'
 
 import { use, useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { db } from '@/lib/firebase'
-import { collection, query, where, getDocs, updateDoc, doc, onSnapshot } from 'firebase/firestore'
+import { collection, query, where, getDocs, getDoc, updateDoc, doc, onSnapshot } from 'firebase/firestore'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Clock, Phone, ArrowRight, User, Calendar, Pill, Printer, Activity, ChevronDown, ChevronUp, Stethoscope, CheckCircle, FileText, Download, MapPin } from 'lucide-react'
+import { Receipt, Clock, Phone, ArrowRight, User, Calendar, Pill, Printer, Activity, ChevronDown, ChevronUp, Stethoscope, CheckCircle, FileText, Download, MapPin } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { generateCleanRxFileName, formatPrescriptionWhatsAppMessage, openManualWhatsAppChat, getSavedWhatsAppTarget } from '@/lib/whatsappShare'
 import { WhatsAppShareButton } from '@/components/common/WhatsAppShareButton'
+import { InvoiceView, type InvoiceData } from '@/components/clinic/InvoiceView'
 import { useLanguage } from '@/context/LanguageContext'
 import { getPhoneSearchVariants } from '@/lib/countryPhoneHelper'
 
@@ -46,7 +48,12 @@ export function safeDecodePatientId(rawId: string): string {
 }
 
 export default function PatientProfileClient({ slug, patientId }: { slug: string; patientId: string }) {
-  const phone = safeDecodePatientId(patientId)
+  const searchParams = useSearchParams()
+  const targetNameParam = (searchParams?.get('name') || searchParams?.get('patientName') || '').trim()
+  const appointmentIdParam = (searchParams?.get('appointmentId') || '').trim()
+  const phoneParam = (searchParams?.get('phone') || '').trim()
+  const rawDecodedId = safeDecodePatientId(patientId)
+  const phone = rawDecodedId
   const { t, dir } = useLanguage()
 
   const [sharingApptId, setSharingApptId] = useState<string | null>(null)
@@ -180,6 +187,36 @@ export default function PatientProfileClient({ slug, patientId }: { slug: string
   const [vitalsGlucose, setVitalsGlucose] = useState<string>('')
   const [vitalsWeight, setVitalsWeight] = useState<string>('')
   const [isSavingVitals, setIsSavingVitals] = useState(false)
+  const [selectedInvoiceForView, setSelectedInvoiceForView] = useState<InvoiceData | null>(null)
+
+  const handleOpenInvoice = (appt: any) => {
+    const isPaid = appt.paymentStatus === 'paid' || appt.status === 'completed'
+    const invNumber = appt.invoiceNumber || `INV-${appt.id.slice(0, 8).toUpperCase()}`
+    const price = Number(appt.servicePrice) || 250
+    const discount = Number(appt.discountApplied) || 0
+    const net = Number(appt.netTotal) || price
+
+    const invData: InvoiceData = {
+      invoiceNumber: invNumber,
+      clinicName: clinic?.clinicName || 'العيادة الطبية',
+      doctorName: appt.doctorName || clinic?.doctorName,
+      branchName: appt.branchName,
+      clinicAddress: clinic?.clinicAddress,
+      clinicPhone: clinic?.clinicPhone,
+      patientName: patientData?.name || appt?.patientName || 'المريض',
+      patientPhone: phone || appt?.phone || '',
+      date: appt.date || new Date().toISOString().split('T')[0],
+      serviceName: appt.serviceName || 'كشف طبي',
+      servicePrice: price,
+      discount,
+      netTotal: net,
+      paymentMethod: appt.paymentMethod || 'cash',
+      paymentStatus: isPaid ? 'paid' : 'pending',
+      appointmentId: appt.id,
+      queueNumber: appt.queue_number
+    }
+    setSelectedInvoiceForView(invData)
+  }
 
   const handleOpenEditVitals = (appt: any) => {
     setEditingVitalsFor(appt.id)
@@ -230,14 +267,38 @@ export default function PatientProfileClient({ slug, patientId }: { slug: string
         const cData = { id: cSnap.docs[0].id, ...cSnap.docs[0].data() }
         setClinic(cData)
 
-        if (!phone) {
+        let resolvedPhone = rawDecodedId
+        let resolvedName = targetNameParam
+        let specificAppointment: any = null
+
+        // Support opening by appointmentId directly or resolving family member
+        const candidateApptId = appointmentIdParam || (rawDecodedId && !rawDecodedId.startsWith('+') && !/^\d{8,15}$/.test(rawDecodedId) ? rawDecodedId : null)
+
+        if (candidateApptId) {
+          try {
+            const aSnap = await getDoc(doc(db, 'appointments', candidateApptId))
+            if (aSnap.exists()) {
+              specificAppointment = { id: aSnap.id, ...aSnap.data() }
+              if (specificAppointment.phone) resolvedPhone = specificAppointment.phone
+              if (specificAppointment.patientName) resolvedName = specificAppointment.patientName
+            }
+          } catch (e) {
+            console.error('Error fetching specific appointment:', e)
+          }
+        }
+
+        if (!resolvedPhone && phoneParam) {
+          resolvedPhone = phoneParam
+        }
+
+        if (!resolvedPhone) {
           setAppointments([])
           setLoading(false)
           return
         }
 
-        const searchPhones = getPhoneSearchVariants(phone).slice(0, 10)
-        const phoneVariants = searchPhones.length > 0 ? searchPhones : [phone]
+        const searchPhones = getPhoneSearchVariants(resolvedPhone).slice(0, 10)
+        const phoneVariants = searchPhones.length > 0 ? searchPhones : [resolvedPhone]
 
         const qAppt = query(
           collection(db, 'appointments'),
@@ -247,26 +308,36 @@ export default function PatientProfileClient({ slug, patientId }: { slug: string
         unsub = onSnapshot(qAppt, (snap) => {
           if (cancelled) return
           if (!snap.empty) {
-            const appts = snap.docs
+            let appts = snap.docs
               .map(d => ({ id: d.id, ...d.data() } as any))
               .sort((a: any, b: any) => new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime())
+
+            // Disambiguate patients who share the same phone number
+            if (resolvedName) {
+              const normTarget = resolvedName.trim().toLowerCase()
+              const nameFiltered = appts.filter(a => (a.patientName || '').trim().toLowerCase() === normTarget)
+              if (nameFiltered.length > 0) {
+                appts = nameFiltered
+              }
+            }
+
             setAppointments(appts)
 
-            const latest = appts[0]
+            const target = specificAppointment || appts[0]
             setPatientData({
-              name: latest.patientName || 'مريض بدون اسم',
-              age: latest.age || '',
-              dob: latest.dob || '',
-              phone: latest.phone || phone,
-              residence: latest.patientResidenceSnapshot || latest.residence || null
+              name: target.patientName || resolvedName || 'مريض بدون اسم',
+              age: target.age || '',
+              dob: target.dob || '',
+              phone: target.phone || resolvedPhone,
+              residence: target.patientResidenceSnapshot || target.residence || null
             })
           } else {
             setAppointments([])
             setPatientData({
-              name: 'سجل جديد',
+              name: resolvedName || 'سجل جديد',
               age: '',
               dob: '',
-              phone
+              phone: resolvedPhone
             })
           }
           setLoading(false)
@@ -282,7 +353,7 @@ export default function PatientProfileClient({ slug, patientId }: { slug: string
       cancelled = true
       if (unsub) unsub()
     }
-  }, [slug, phone])
+  }, [slug, rawDecodedId, appointmentIdParam, targetNameParam])
 
 
   const handleSaveProfileResidence = async () => {
@@ -723,6 +794,53 @@ export default function PatientProfileClient({ slug, patientId }: { slug: string
                         )}
                       </div>
 
+                      {/* 3. Invoice & Financial Receipt Section */}
+                      <div className="space-y-3 pt-3 border-t border-border">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <h5 className="font-bold text-sm text-foreground flex items-center gap-1.5">
+                            <Receipt className="w-4 h-4 text-emerald-600" />
+                            <span>الفاتورة والإيصال المالي</span>
+                          </h5>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-xs text-foreground">
+                              {Number(appt.netTotal) || Number(appt.servicePrice) || 250} ج.م
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] font-bold ${
+                                appt.paymentStatus === 'paid' || appt.status === 'completed'
+                                  ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                                  : 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                              }`}
+                            >
+                              {appt.paymentStatus === 'paid' || appt.status === 'completed' ? 'مدفوعة' : 'غير مدفوعة / سداد نقدي'}
+                            </Badge>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
+                            type="button"
+                            onClick={() => handleOpenInvoice(appt)}
+                            className="h-9 px-3.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Receipt className="w-4 h-4" />
+                            <span>عرض وطباعة الفاتورة PDF</span>
+                          </Button>
+
+                          <a
+                            href={`/clinic/${slug}/invoice/${appt.invoiceNumber || appt.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 h-9 px-3.5 text-xs font-bold rounded-xl border border-border text-foreground hover:bg-secondary transition-colors cursor-pointer"
+                            title="فتح الفاتورة الإلكترونية في تبويب مستقل"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-muted-foreground" />
+                            <span>صفحة الفاتورة العامة</span>
+                          </a>
+                        </div>
+                      </div>
+
                     </div>
                   )}
                 </div>
@@ -777,6 +895,15 @@ export default function PatientProfileClient({ slug, patientId }: { slug: string
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Invoice View Modal */}
+      {selectedInvoiceForView && (
+        <InvoiceView
+          invoice={selectedInvoiceForView}
+          slug={slug}
+          onClose={() => setSelectedInvoiceForView(null)}
+        />
+      )}
 
     </div>
   )

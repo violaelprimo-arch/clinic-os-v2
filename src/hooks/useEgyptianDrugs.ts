@@ -111,7 +111,7 @@ async function fetchAndMergeDrugs(): Promise<EgyptianDrug[]> {
     }
   }
 
-  // 1. Register baseline comprehensive Egyptian catalog (1,000+ curated items)
+  // 1. Register baseline comprehensive Egyptian catalog (curated top items in-memory)
   for (const c of EGYPTIAN_DRUGS_CATALOG) {
     registerDrug({
       id: c.id,
@@ -133,6 +133,47 @@ async function fetchAndMergeDrugs(): Promise<EgyptianDrug[]> {
       isMarketUpdated: c.isMarketUpdated ?? (c.price > 0),
       lastMarketUpdate: c.lastMarketUpdate || '',
     })
+  }
+
+  // 1b. Load complete 27,000+ catalog asynchronously in the browser without taxing Worker CPU
+  if (typeof window !== 'undefined') {
+    try {
+      const res = await fetch('/data/egyptian-drugs-compact.json')
+      if (res.ok) {
+        const compactList = await res.json()
+        if (Array.isArray(compactList)) {
+          for (const item of compactList) {
+            const nameEn = item.n || ''
+            const nameAr = item.ar || ''
+            const canonKey =
+              canonicalDrugIdentifier(nameEn) ||
+              canonicalDrugIdentifier(nameAr) ||
+              normalizeDrugKey(nameEn)
+            if (canonKey && !drugMap.has(canonKey)) {
+              drugMap.set(canonKey, {
+                id: item.id || `eg-${canonKey}`,
+                name: nameEn,
+                nameAr,
+                commercial_name_en: nameEn,
+                commercial_name_ar: nameAr,
+                scientific_name: item.ing || 'معتمد مصرياً',
+                activeIngredient: item.ing || 'معتمد مصرياً',
+                manufacturer: item.c || 'سوق الدواء المصري',
+                company: item.c || 'سوق الدواء المصري',
+                drug_class: 'دليل الأدوية المصري',
+                route: item.f || 'أقراص',
+                form: item.f || 'أقراص',
+                price_egp: Number(item.p) || 0,
+                price: Number(item.p) || 0,
+                canonicalKey: canonKey,
+              })
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Could not load full compact drug database in background:', err)
+    }
   }
 
   // 2. Fetch live market prices from Firestore (single source of truth for updated Egyptian prices)

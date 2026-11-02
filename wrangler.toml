@@ -33,3 +33,4 @@ binding = "ASSETS"
 
 [observability]
 enabled = true
+

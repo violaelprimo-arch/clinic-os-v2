@@ -25,7 +25,6 @@ import { db } from '@/lib/firebase'
 import { collection, addDoc, setDoc, query, where, getDocs, getDoc, doc, updateDoc, onSnapshot } from 'firebase/firestore'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { EGYPTIAN_DRUGS } from '@/lib/egyptian-drugs'
 import { useEgyptianDrugs, type EgyptianDrug } from '@/hooks/useEgyptianDrugs'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
@@ -43,6 +42,11 @@ import { useLanguage } from '@/context/LanguageContext'
 import { VoiceDictationButton } from '@/components/clinic/VoiceDictationButton'
 import { stopGlobalVoiceDictation } from '@/hooks/useVoiceDictation'
 import { DictationLanguage } from '@/types/speech'
+import { InstructionAutocompleteInput } from '@/components/clinic/InstructionAutocompleteInput'
+import {
+  fetchPrescriptionSuggestions,
+  savePrescriptionSuggestions
+} from '@/lib/prescriptionSuggestions'
 
 export default function PrescriptionsPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -88,6 +92,32 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const [selectedBranchName, setSelectedBranchName] = useState('')
   const [whatsappTarget, setWhatsappTarget] = useState<'auto' | 'app' | 'web'>('auto')
   const [showWhatsappMenu, setShowWhatsappMenu] = useState(false)
+
+  // Previous Instructions Autocomplete State
+  const [dosageSuggestions, setDosageSuggestions] = useState<string[]>([])
+  const [durationSuggestions, setDurationSuggestions] = useState<string[]>([])
+  const [instructionsSuggestions, setInstructionsSuggestions] = useState<string[]>([])
+
+  // Patient Selection & Profile URL
+  const hasPatientSelected = useMemo(() => {
+    return Boolean(
+      (patientName && patientName.trim()) ||
+      (patientPhone && patientPhone.trim()) ||
+      appointmentId
+    )
+  }, [patientName, patientPhone, appointmentId])
+
+  const patientProfileUrl = useMemo(() => {
+    if (!hasPatientSelected) return ''
+    const cleanPhone = (patientPhone || '').trim()
+    const primaryId = appointmentId || (cleanPhone ? encodeURIComponent(cleanPhone) : 'profile')
+    const params = new URLSearchParams()
+    if (patientName.trim()) params.set('name', patientName.trim())
+    if (appointmentId) params.set('appointmentId', appointmentId)
+    if (cleanPhone) params.set('phone', cleanPhone)
+    const queryString = params.toString() ? `?${params.toString()}` : ''
+    return `/clinic/${slug}/admin/patients/${primaryId}${queryString}`
+  }, [slug, appointmentId, patientPhone, patientName, hasPatientSelected])
 
   // 6 Clinical Built-in Protocols for Instant 1-Click Prescription
   const BUILTIN_PROTOCOLS = useMemo(() => [
@@ -409,6 +439,25 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       return pBranch ? pBranch === activeBranchId : isMain
     })
   }, [todayPatients, activeBranchId, clinic])
+
+  // Load previous instruction suggestions for this clinic/doctor
+  useEffect(() => {
+    if (!clinicId) return
+    let cancelled = false
+    fetchPrescriptionSuggestions(clinicId, clinic?.doctorEmail)
+      .then((data) => {
+        if (cancelled) return
+        setDosageSuggestions(data.dosages)
+        setDurationSuggestions(data.durations)
+        setInstructionsSuggestions(data.instructions)
+      })
+      .catch((err) => {
+        console.warn('Could not load prescription suggestions:', err)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [clinicId, clinic?.doctorEmail])
 
   // Stop active speech dictation if doctor leaves the prescription page
   useEffect(() => {
@@ -732,13 +781,21 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     setIsSaving(true)
     try {
       if (clinicId) {
-        const vitalsData = includeVitals && (bpSys || bpDia || pulse || temp || glucose || weight) ? {
-          bloodPressureSystolic: bpSys.trim() ? Number(bpSys.trim()) || bpSys.trim() : null,
-          bloodPressureDiastolic: bpDia.trim() ? Number(bpDia.trim()) || bpDia.trim() : null,
-          heartRate: pulse.trim() ? Number(pulse.trim()) || pulse.trim() : null,
-          temperature: temp.trim() ? Number(temp.trim()) || temp.trim() : null,
-          glucoseLevel: glucose.trim() ? Number(glucose.trim()) || glucose.trim() : null,
-          weightKg: weight.trim() ? Number(weight.trim()) || weight.trim() : null,
+        const hasVitals = Boolean(
+          (vitalsBpSys && vitalsBpSys.trim()) ||
+          (vitalsBpDia && vitalsBpDia.trim()) ||
+          (vitalsPulse && vitalsPulse.trim()) ||
+          (vitalsTemp && vitalsTemp.trim()) ||
+          (vitalsGlucose && vitalsGlucose.trim()) ||
+          (vitalsWeight && vitalsWeight.trim())
+        )
+        const vitalsData = hasVitals ? {
+          bloodPressureSystolic: vitalsBpSys && vitalsBpSys.trim() ? Number(vitalsBpSys.trim()) || vitalsBpSys.trim() : null,
+          bloodPressureDiastolic: vitalsBpDia && vitalsBpDia.trim() ? Number(vitalsBpDia.trim()) || vitalsBpDia.trim() : null,
+          heartRate: vitalsPulse && vitalsPulse.trim() ? Number(vitalsPulse.trim()) || vitalsPulse.trim() : null,
+          temperature: vitalsTemp && vitalsTemp.trim() ? Number(vitalsTemp.trim()) || vitalsTemp.trim() : null,
+          glucoseLevel: vitalsGlucose && vitalsGlucose.trim() ? Number(vitalsGlucose.trim()) || vitalsGlucose.trim() : null,
+          weightKg: vitalsWeight && vitalsWeight.trim() ? Number(vitalsWeight.trim()) || vitalsWeight.trim() : null,
           recordedAt: new Date().toISOString()
         } : null
 
@@ -781,6 +838,40 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             details: { prescriptionId: docRef.id, patientName, patientPhone, appointmentId }
           })
         } catch (e) {}
+
+        // Persist used dosage, duration, and instructions to clinic suggestions bank
+        try {
+          const itemsToSave: Array<{ type: 'dosage' | 'duration' | 'instruction'; text: string }> = []
+          for (const d of drugs) {
+            if (d.dosage && typeof d.dosage === 'string' && d.dosage.trim().length >= 2) {
+              itemsToSave.push({ type: 'dosage', text: d.dosage.trim() })
+            }
+            if (d.duration && typeof d.duration === 'string' && d.duration.trim().length >= 2) {
+              itemsToSave.push({ type: 'duration', text: d.duration.trim() })
+            }
+          }
+          if (instructions && typeof instructions === 'string' && instructions.trim().length >= 3) {
+            itemsToSave.push({ type: 'instruction', text: instructions.trim() })
+          }
+          if (itemsToSave.length > 0 && clinicId) {
+            savePrescriptionSuggestions(clinicId, itemsToSave, clinic?.doctorEmail).catch(() => {})
+            // Update in-memory suggestions immediately for current session
+            setDosageSuggestions(prev => {
+              const newItems = itemsToSave.filter(i => i.type === 'dosage').map(i => i.text)
+              return Array.from(new Set([...newItems, ...prev]))
+            })
+            setDurationSuggestions(prev => {
+              const newItems = itemsToSave.filter(i => i.type === 'duration').map(i => i.text)
+              return Array.from(new Set([...newItems, ...prev]))
+            })
+            setInstructionsSuggestions(prev => {
+              const newItems = itemsToSave.filter(i => i.type === 'instruction').map(i => i.text)
+              return Array.from(new Set([...newItems, ...prev]))
+            })
+          }
+        } catch (e) {
+          console.warn('Error saving prescription suggestions:', e)
+        }
 
         if (appointmentId) {
           try {
@@ -990,13 +1081,13 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       diagnosis,
       instructions,
       notes,
-      vitalSigns: includeVitals ? {
-        bloodPressureSystolic: bpSys,
-        bloodPressureDiastolic: bpDia,
-        heartRate: pulse,
-        temperature: temp,
-        glucoseLevel: glucose,
-        weightKg: weight
+      vitalSigns: (vitalsBpSys || vitalsBpDia || vitalsPulse || vitalsTemp || vitalsGlucose || vitalsWeight) ? {
+        bloodPressureSystolic: vitalsBpSys,
+        bloodPressureDiastolic: vitalsBpDia,
+        heartRate: vitalsPulse,
+        temperature: vitalsTemp,
+        glucoseLevel: vitalsGlucose,
+        weightKg: vitalsWeight
       } : null,
       drugs: drugs.filter(d => d.name && d.name.trim() !== ''),
       primaryColor,
@@ -1131,13 +1222,39 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
 
           {/* Patient Details Card */}
           <div className="yalla-card p-5 space-y-4 border border-border">
-            <div className="flex items-center justify-between pb-3 border-b border-border">
+            <div className="flex items-center justify-between pb-3 border-b border-border flex-wrap gap-2">
               <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
                 <UserIcon className="w-4 h-4 text-primary" />
                 {t('patient_visit_info', 'بيانات المريض والزيارة')}
               </h3>
 
-              {filteredTodayPatients.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Open Patient Medical Profile in New Tab */}
+                {hasPatientSelected ? (
+                  <a
+                    href={patientProfileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-black rounded-xl bg-sky-600 hover:bg-sky-700 text-white shadow-xs hover:shadow-md transition-all cursor-pointer"
+                    title={t('open_patient_profile_tooltip', 'فتح الملف الطبي الكامل للمريض في تبويب جديد (دون فقدان بيانات الروشتة الحالية)')}
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>{t('open_patient_profile', 'فتح ملف المريض')}</span>
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-80"
+                    title={t('select_patient_first_tooltip', 'اختر المريض أولًا لفتح ملفه الطبي')}
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>{t('open_patient_profile', 'فتح ملف المريض')}</span>
+                    <span className="text-[10px] font-normal opacity-80">({t('select_patient_first', 'اختر المريض أولًا')})</span>
+                  </button>
+                )}
+
+                {filteredTodayPatients.length > 0 && (
                 <select
                   className="text-xs font-bold border border-border rounded-xl px-2.5 py-1.5 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
                   onChange={(e) => {
@@ -1182,6 +1299,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                   ))}
                 </select>
               )}
+              </div>
             </div>
 
             <div className="grid sm:grid-cols-3 gap-3">
@@ -1301,11 +1419,13 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                   size="sm"
                 />
               </div>
-              <Input
-                ref={instructionsInputRef}
+              <InstructionAutocompleteInput
+                inputRef={instructionsInputRef}
                 value={instructions}
-                onChange={e => setInstructions(e.target.value)}
+                onChange={setInstructions}
+                suggestions={instructionsSuggestions}
                 placeholder={t('doctor_instructions_placeholder', 'مثال: شرب سوائل دافئة، الراحة التامة، العودة للاستشارة بعد أسبوع')}
+                typeLabel={t('doctor_instructions', 'التعليمات والإرشادات')}
                 className="h-10 text-xs rounded-xl bg-background border-border text-foreground"
               />
             </div>
@@ -1320,100 +1440,6 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                 rows={2}
               />
             </div>
-          </div>
-
-          {/* Vital Signs Card (العلامات الحيوية - يحدد الطبيب كتابتها من عدمه) */}
-          <div className="yalla-card p-4 space-y-3 border border-border">
-            <div className="flex items-center justify-between pb-2 border-b border-border">
-              <div className="flex items-center gap-2">
-                <Activity className="w-4 h-4 text-rose-500" />
-                <h4 className="font-bold text-xs text-foreground">
-                  العلامات الحيوية (Vital Signs)
-                </h4>
-                <Badge variant="outline" className={`text-[10px] font-bold ${includeVitals ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-secondary text-muted-foreground'}`}>
-                  {includeVitals ? 'مدرجة بالروشتة والملف' : 'مخفية'}
-                </Badge>
-              </div>
-
-              <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-foreground">
-                <input
-                  type="checkbox"
-                  checked={includeVitals}
-                  onChange={(e) => setIncludeVitals(e.target.checked)}
-                  className="rounded text-primary focus:ring-primary w-4 h-4 cursor-pointer"
-                />
-                <span>كتابة العلامات الحيوية</span>
-              </label>
-            </div>
-
-            {includeVitals ? (
-              <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5 pt-1">
-                <div className="space-y-1">
-                  <Label className="text-[10.5px] font-bold text-muted-foreground">ضغط (SYS)</Label>
-                  <Input
-                    value={bpSys}
-                    onChange={e => setBpSys(e.target.value)}
-                    placeholder="120"
-                    className="h-9 text-xs rounded-lg bg-background border-border text-foreground"
-                    dir="ltr"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[10.5px] font-bold text-muted-foreground">ضغط (DIA)</Label>
-                  <Input
-                    value={bpDia}
-                    onChange={e => setBpDia(e.target.value)}
-                    placeholder="80"
-                    className="h-9 text-xs rounded-lg bg-background border-border text-foreground"
-                    dir="ltr"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[10.5px] font-bold text-muted-foreground">نبض (HR bpm)</Label>
-                  <Input
-                    value={pulse}
-                    onChange={e => setPulse(e.target.value)}
-                    placeholder="75"
-                    className="h-9 text-xs rounded-lg bg-background border-border text-foreground"
-                    dir="ltr"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[10.5px] font-bold text-muted-foreground">حرارة (°C)</Label>
-                  <Input
-                    value={temp}
-                    onChange={e => setTemp(e.target.value)}
-                    placeholder="37.0"
-                    className="h-9 text-xs rounded-lg bg-background border-border text-foreground"
-                    dir="ltr"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[10.5px] font-bold text-muted-foreground">سكر (mg/dL)</Label>
-                  <Input
-                    value={glucose}
-                    onChange={e => setGlucose(e.target.value)}
-                    placeholder="100"
-                    className="h-9 text-xs rounded-lg bg-background border-border text-foreground"
-                    dir="ltr"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[10.5px] font-bold text-muted-foreground">وزن (kg)</Label>
-                  <Input
-                    value={weight}
-                    onChange={e => setWeight(e.target.value)}
-                    placeholder="70"
-                    className="h-9 text-xs rounded-lg bg-background border-border text-foreground"
-                    dir="ltr"
-                  />
-                </div>
-              </div>
-            ) : (
-              <p className="text-[11px] text-muted-foreground">
-                العلامات الحيوية غير مفعلة، ولن تظهر بالروشتة وتختفي تماماً من ملف المريض. فعّل الخيار أعلاه لإدخالها.
-              </p>
-            )}
           </div>
 
           {/* High-Alert Allergy Banner (Pulsing VisionOS card when patient has recorded allergies) */}
@@ -1821,14 +1847,15 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                       </div>
                     </div>
                     <div className="sm:col-span-4">
-                      <div className="relative flex items-center">
-                        <Input
-                          value={drug.dosage}
-                          onChange={e => updateDrug(drug.id, 'dosage', e.target.value)}
-                          placeholder={t('dosage_label', 'الجرعة (مثال: قرص كل 12 ساعة)')}
-                          className="h-9 pe-8 text-xs rounded-lg bg-background border-border text-foreground"
-                        />
-                        <div className="absolute end-1 flex items-center">
+                      <InstructionAutocompleteInput
+                        id={`drug-dosage-input-${drug.id}`}
+                        value={drug.dosage}
+                        onChange={val => updateDrug(drug.id, 'dosage', val)}
+                        suggestions={dosageSuggestions}
+                        placeholder={t('dosage_label', 'الجرعة (مثال: قرص كل 12 ساعة)')}
+                        typeLabel={t('dosage_label', 'الجرعة')}
+                        className="pe-8"
+                        rightElement={
                           <VoiceDictationButton
                             fieldId={`drug-dosage-${drug.id}`}
                             fieldLabel={`${t('dosage_label', 'الجرعة')} #${index + 1}`}
@@ -1840,18 +1867,19 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                             showLanguagePill={false}
                             showStatusBadge={false}
                           />
-                        </div>
-                      </div>
+                        }
+                      />
                     </div>
                     <div className="sm:col-span-3">
-                      <div className="relative flex items-center">
-                        <Input
-                          value={drug.duration}
-                          onChange={e => updateDrug(drug.id, 'duration', e.target.value)}
-                          placeholder={t('duration_label', 'المدة (مثال: 5 أيام)')}
-                          className="h-9 pe-8 text-xs rounded-lg bg-background border-border text-foreground"
-                        />
-                        <div className="absolute end-1 flex items-center">
+                      <InstructionAutocompleteInput
+                        id={`drug-duration-input-${drug.id}`}
+                        value={drug.duration}
+                        onChange={val => updateDrug(drug.id, 'duration', val)}
+                        suggestions={durationSuggestions}
+                        placeholder={t('duration_label', 'المدة (مثال: 5 أيام)')}
+                        typeLabel={t('duration_label', 'المدة')}
+                        className="pe-8"
+                        rightElement={
                           <VoiceDictationButton
                             fieldId={`drug-duration-${drug.id}`}
                             fieldLabel={`${t('duration_label', 'المدة')} #${index + 1}`}
@@ -1863,8 +1891,8 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                             showLanguagePill={false}
                             showStatusBadge={false}
                           />
-                        </div>
-                      </div>
+                        }
+                      />
                     </div>
                   </div>
                 </div>
@@ -2131,13 +2159,13 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                     drugs={drugs.filter(d => d.name && d.name.trim() !== '')}
                     instructions={instructions}
                     notes={notes}
-                    vitalSigns={includeVitals ? {
-                      bloodPressureSystolic: bpSys,
-                      bloodPressureDiastolic: bpDia,
-                      heartRate: pulse,
-                      temperature: temp,
-                      glucoseLevel: glucose,
-                      weightKg: weight
+                    vitalSigns={(vitalsBpSys || vitalsBpDia || vitalsPulse || vitalsTemp || vitalsGlucose || vitalsWeight) ? {
+                      bloodPressureSystolic: vitalsBpSys,
+                      bloodPressureDiastolic: vitalsBpDia,
+                      heartRate: vitalsPulse,
+                      temperature: vitalsTemp,
+                      glucoseLevel: vitalsGlucose,
+                      weightKg: vitalsWeight
                     } : null}
                     templateMode={templateMode}
                     topOffset={topOffset}
