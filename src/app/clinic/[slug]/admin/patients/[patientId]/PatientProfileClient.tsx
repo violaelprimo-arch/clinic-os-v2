@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Receipt, Clock, Phone, ArrowRight, User, Calendar, Pill, Printer, Activity, ChevronDown, ChevronUp, Stethoscope, CheckCircle, FileText, Download, MapPin } from 'lucide-react'
+import { Receipt, ExternalLink, Clock, Phone, ArrowRight, User, Calendar, Pill, Printer, Activity, ChevronDown, ChevronUp, Stethoscope, CheckCircle, FileText, Download, MapPin } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { generateCleanRxFileName, formatPrescriptionWhatsAppMessage, openManualWhatsAppChat, getSavedWhatsAppTarget } from '@/lib/whatsappShare'
@@ -794,7 +794,7 @@ export default function PatientProfileClient({ slug, patientId }: { slug: string
                         )}
                       </div>
 
-                      {/* 3. Invoice & Financial Receipt Section */}
+                      {/* 3. Invoice & Financial Receipt Section (Dialog Modal exactly like Prescription) */}
                       <div className="space-y-3 pt-3 border-t border-border">
                         <div className="flex items-center justify-between flex-wrap gap-2">
                           <h5 className="font-bold text-sm text-foreground flex items-center gap-1.5">
@@ -813,31 +813,73 @@ export default function PatientProfileClient({ slug, patientId }: { slug: string
                                   : 'bg-amber-500/10 text-amber-600 border-amber-500/20'
                               }`}
                             >
-                              {appt.paymentStatus === 'paid' || appt.status === 'completed' ? 'مدفوعة' : 'غير مدفوعة / سداد نقدي'}
+                              {appt.paymentStatus === 'paid' || appt.status === 'completed' ? 'تم السداد بالكامل' : 'غير مدفوعة / سداد نقدي'}
                             </Badge>
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Button
-                            type="button"
-                            onClick={() => handleOpenInvoice(appt)}
-                            className="h-9 px-3.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
-                          >
-                            <Receipt className="w-4 h-4" />
-                            <span>عرض وطباعة الفاتورة PDF</span>
-                          </Button>
+                        <div className="space-y-2">
+                          <Dialog>
+                            <DialogTrigger>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="w-full h-12 bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 font-bold flex items-center justify-center gap-2 cursor-pointer transition-all hover:shadow-xs"
+                              >
+                                <Receipt className="w-4 h-4" />
+                                <span>عرض الفاتورة والإيصال المالي</span>
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent
+                              className="max-w-3xl max-h-[92vh] overflow-y-auto bg-card border border-border p-4 sm:p-6 rounded-3xl"
+                              dir={dir}
+                            >
+                              <DialogHeader className="print:hidden pb-3 border-b border-border">
+                                <DialogTitle className="text-foreground text-sm font-black flex items-center gap-2">
+                                  <Receipt className="w-4 h-4 text-emerald-600" />
+                                  <span>فاتورة الكشف الطبي الرسمية - {appt.date}</span>
+                                </DialogTitle>
+                              </DialogHeader>
 
-                          <a
-                            href={`/clinic/${slug}/invoice/${appt.invoiceNumber || appt.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 h-9 px-3.5 text-xs font-bold rounded-xl border border-border text-foreground hover:bg-secondary transition-colors cursor-pointer"
-                            title="فتح الفاتورة الإلكترونية في تبويب مستقل"
-                          >
-                            <FileText className="w-3.5 h-3.5 text-muted-foreground" />
-                            <span>صفحة الفاتورة العامة</span>
-                          </a>
+                              <div className="pt-2">
+                                <InvoiceView
+                                  invoice={{
+                                    invoiceNumber: appt.invoiceNumber || `INV-${appt.id.slice(0, 8).toUpperCase()}`,
+                                    clinicName: clinic?.clinicName || 'العيادة الطبية',
+                                    doctorName: appt.doctorName || clinic?.doctorName,
+                                    branchName: appt.branchName,
+                                    clinicAddress: clinic?.clinicAddress,
+                                    clinicPhone: clinic?.clinicPhone,
+                                    patientName: patientData?.name || appt?.patientName || 'المريض',
+                                    patientPhone: phone || appt?.phone || '',
+                                    date: appt.date || new Date().toISOString().split('T')[0],
+                                    serviceName: appt.serviceName || 'كشف طبي',
+                                    servicePrice: Number(appt.servicePrice) || 250,
+                                    discount: Number(appt.discountApplied) || 0,
+                                    netTotal: Number(appt.netTotal) || Number(appt.servicePrice) || 250,
+                                    paymentMethod: appt.paymentMethod || 'cash',
+                                    paymentStatus: (appt.paymentStatus === 'paid' || appt.status === 'completed') ? 'paid' : 'pending',
+                                    appointmentId: appt.id,
+                                    queueNumber: appt.queue_number
+                                  }}
+                                  slug={slug}
+                                />
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+
+                          <div className="flex justify-end">
+                            <a
+                              href={`/clinic/${slug}/invoice/${appt.invoiceNumber || appt.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground hover:text-primary transition-colors cursor-pointer py-1"
+                              title="فتح الفاتورة الإلكترونية في صفحة مستقلة"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              <span>رابط الفاتورة العامة المستقلة</span>
+                            </a>
+                          </div>
                         </div>
                       </div>
 
@@ -896,14 +938,7 @@ export default function PatientProfileClient({ slug, patientId }: { slug: string
         </DialogContent>
       </Dialog>
 
-      {/* Invoice View Modal */}
-      {selectedInvoiceForView && (
-        <InvoiceView
-          invoice={selectedInvoiceForView}
-          slug={slug}
-          onClose={() => setSelectedInvoiceForView(null)}
-        />
-      )}
+
 
     </div>
   )

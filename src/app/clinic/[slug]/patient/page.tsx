@@ -1866,14 +1866,35 @@ export default function PatientDashboardPage() {
         </div>
       )}
 
-      {/* 6. Invoice View Modal */}
+      {/* 6. Invoice View Modal (Matches Prescription Modal Exactly) */}
       {selectedInvoice && (
-        <InvoiceView
-          invoice={selectedInvoice}
-          isPatientView={true}
-          slug={slug}
-          onClose={() => setSelectedInvoice(null)}
-        />
+        <div dir="rtl" className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 overflow-y-auto">
+          <div className="w-full max-w-2xl bg-white dark:bg-[#081526] rounded-3xl p-5 shadow-2xl border border-sky-100 dark:border-slate-800 space-y-4 my-auto max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <Receipt className="w-5 h-5 text-emerald-600" />
+                <h3 className="font-black text-slate-900 dark:text-white text-base">
+                  فاتورة الكشف الطبي الرسمية
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedInvoice(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:bg-rose-50 hover:text-rose-500 transition-colors cursor-pointer"
+                title="إغلاق"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <InvoiceView
+              invoice={selectedInvoice}
+              isPatientView={true}
+              slug={slug}
+              onClose={() => setSelectedInvoice(null)}
+            />
+          </div>
+        </div>
       )}
     </div>
   )
