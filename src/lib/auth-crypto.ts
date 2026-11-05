@@ -5,6 +5,16 @@
 
 const AUTH_SALT_SECRET = process.env.AUTH_SECRET || 'clinic-os-v2-secure-cairo-salt-key-2026'
 
+// Password hashes created by older releases use AUTH_SALT_SECRET. Keep that
+// compatibility, but never let a publicly known fallback sign production
+// sessions. A separate session secret can be rotated without changing hashes.
+function getSessionSigningSecret(): string {
+  const configured = process.env.CLINIC_SESSION_SECRET || process.env.AUTH_SECRET
+  if (configured && configured.length >= 32) return configured
+  if (process.env.NODE_ENV === 'production') throw new Error('CLINIC_SESSION_SECRET_REQUIRED')
+  return AUTH_SALT_SECRET
+}
+
 /**
  * Hash a password with salt using SHA-256 via Web Crypto API.
  */
@@ -56,7 +66,7 @@ export async function createSessionToken(payload: {
   const json = JSON.stringify(data)
   const base64Data = btoa(unescape(encodeURIComponent(json)))
   const enc = new TextEncoder()
-  const signatureBuffer = await crypto.subtle.digest('SHA-256', enc.encode(`${base64Data}:${AUTH_SALT_SECRET}`))
+  const signatureBuffer = await crypto.subtle.digest('SHA-256', enc.encode(`${base64Data}:${getSessionSigningSecret()}`))
   const sigArray = Array.from(new Uint8Array(signatureBuffer))
   const signature = sigArray.map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 32)
 
@@ -78,7 +88,7 @@ export async function verifySessionToken(token: string): Promise<{
   try {
     const [base64Data, signature] = token.split('.')
     const enc = new TextEncoder()
-    const signatureBuffer = await crypto.subtle.digest('SHA-256', enc.encode(`${base64Data}:${AUTH_SALT_SECRET}`))
+    const signatureBuffer = await crypto.subtle.digest('SHA-256', enc.encode(`${base64Data}:${getSessionSigningSecret()}`))
     const sigArray = Array.from(new Uint8Array(signatureBuffer))
     const expectedSig = sigArray.map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 32)
 
