@@ -8,16 +8,22 @@ import { LanguageProvider } from '@/context/LanguageContext'
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
-  weight: ["400", "500", "600", "700", "800", "900"],
+  weight: ["400", "600", "700", "800"],
   variable: "--font-cairo",
-  display: "swap"
+  display: "swap",
+  preload: true,
+  fallback: ["system-ui", "-apple-system", "Segoe UI", "Roboto", "Arial", "sans-serif"],
+  adjustFontFallback: true
 })
 
 const inter = Inter({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
+  weight: ["400", "600", "700"],
   variable: "--font-inter",
-  display: "swap"
+  display: "swap",
+  preload: true,
+  fallback: ["system-ui", "-apple-system", "Segoe UI", "Roboto", "Arial", "sans-serif"],
+  adjustFontFallback: true
 })
 
 export const metadata: Metadata = {
@@ -72,11 +78,14 @@ export default function RootLayout({
               (function() {
                 try {
                   var t = localStorage.getItem('clinic_os_theme');
-                  if (t === 'dark') {
+                  var isDark = t === 'dark' || (!t && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                  if (isDark) {
                     document.documentElement.classList.add('dark');
+                    document.documentElement.classList.remove('light');
                     document.documentElement.style.colorScheme = 'dark';
                   } else {
                     document.documentElement.classList.remove('dark');
+                    document.documentElement.classList.add('light');
                     document.documentElement.style.colorScheme = 'light';
                   }
                   var l = localStorage.getItem('clinic_os_lang');

@@ -7,7 +7,7 @@ import { db } from '@/lib/firebase'
 import { collection, query, where, onSnapshot } from 'firebase/firestore'
 import { ShieldAlert } from 'lucide-react'
 import { useLanguage } from '@/context/LanguageContext'
-import { ClinicLoading } from '@/components/clinic/ClinicLoading'
+import { ClinicLandingSkeleton } from '@/components/clinic/ClinicLandingSkeleton'
 
 export default function ClinicPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -143,7 +143,7 @@ export default function ClinicPage({ params }: { params: Promise<{ slug: string 
   }, [slug])
 
   if (loading) {
-    return <ClinicLoading fullScreen size="lg" label={isRtl ? 'جاري تجهيز العيادة...' : 'Loading clinic...'} />
+    return <ClinicLandingSkeleton isRtl={isRtl} />
   }
 
   if (error || !clinic) {

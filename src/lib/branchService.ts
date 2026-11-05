@@ -164,11 +164,28 @@ export async function ensureClinicHasMainBranch(clinic: any): Promise<Branch> {
   }
 }
 
+const branchesMemoryCache = new Map<string, { data: Branch[]; expiresAt: number }>()
+
+export function invalidateBranchesCache(clinicId?: string) {
+  if (clinicId) {
+    branchesMemoryCache.delete(clinicId)
+  } else {
+    branchesMemoryCache.clear()
+  }
+}
+
 /**
  * Fetches all active (non-archived) branches for a clinic.
+ * Uses an in-memory cache with 30s TTL to prevent duplicate Firestore queries during navigation.
  * Searches both clinicId and clinic_id fields and deduplicates by id.
  */
 export async function getClinicBranches(clinicId: string, slug?: string): Promise<Branch[]> {
+  const now = Date.now()
+  const cached = branchesMemoryCache.get(clinicId)
+  if (cached && cached.expiresAt > now && cached.data.length > 0) {
+    return cached.data
+  }
+
   try {
     // If slug is available, attempt fast fetch from server API
     if (slug && typeof window !== 'undefined') {
@@ -177,6 +194,7 @@ export async function getClinicBranches(clinicId: string, slug?: string): Promis
         if (res.ok) {
           const data = await res.json()
           if (Array.isArray(data.branches) && data.branches.length > 0) {
+            branchesMemoryCache.set(clinicId, { data: data.branches, expiresAt: now + 30_000 })
             return data.branches
           }
         }
@@ -199,7 +217,11 @@ export async function getClinicBranches(clinicId: string, slug?: string): Promis
       map.set(d.id, { id: d.id, ...(d.data() as any) })
     })
 
-    return Array.from(map.values()).filter((b) => !b.isArchived)
+    const result = Array.from(map.values()).filter((b) => !b.isArchived)
+    if (result.length > 0) {
+      branchesMemoryCache.set(clinicId, { data: result, expiresAt: now + 30_000 })
+    }
+    return result
   } catch (err) {
     console.error('Error fetching branches:', err)
     return []

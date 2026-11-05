@@ -1,13 +1,13 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useLanguage } from '@/context/LanguageContext'
-import { BookingModal } from '@/components/clinic/BookingModal'
-import { PatientLiveTurn } from '@/components/clinic/PatientLiveTurn'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { ClinicLocationMap } from '@/components/clinic/ClinicLocationMap'
+import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { getClinicBranches, getWeeklyScheduleDisplayGroups, isClinicOpenNow } from '@/lib/branchService'
 import { sanitizeAddress, safeImageUrl } from '@/lib/mapsHelper'
 import { getClinicWebsiteUrl, getClinicTrackUrl, getClinicPatientPortalUrl } from '@/lib/clinicUrls'
@@ -21,8 +21,6 @@ import {
   Compass,
   CalendarCheck,
   User,
-  Sun,
-  Moon,
   Globe,
   Award,
   CheckCircle2,
@@ -34,6 +32,17 @@ import {
   Sparkles,
   Navigation
 } from 'lucide-react'
+
+// Dynamic lazy imports to isolate booking wizard and queue tracker from initial landing bundle
+const BookingModal = dynamic(
+  () => import('@/components/clinic/BookingModal').then((mod) => mod.BookingModal),
+  { ssr: false }
+)
+
+const PatientLiveTurn = dynamic(
+  () => import('@/components/clinic/PatientLiveTurn').then((mod) => mod.PatientLiveTurn),
+  { ssr: false }
+)
 
 export function PremiumLanding({ clinic, services = [], isPreview = false }: { clinic: any; services: any[]; isPreview?: boolean }) {
   const { isRtl, dir, toggleLanguage, t } = useLanguage()
@@ -47,7 +56,15 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
   const [selectedBranch, setSelectedBranch] = useState<any>(
     clinic?.branches?.[0] || { id: 'main', name: clinic?.clinicName || 'الفرع الرئيسي', address: clinic?.clinicAddress || '' }
   )
-  const [dark, setDark] = useState(false)
+
+  // Preload booking modal bundle in browser cache on button hover / focus for instant opening
+  const preloadBookingModal = useCallback(() => {
+    import('@/components/clinic/BookingModal')
+  }, [])
+
+  const preloadLiveTurn = useCallback(() => {
+    import('@/components/clinic/PatientLiveTurn')
+  }, [])
 
   // Fetch real branches from Firestore on mount so user-uploaded branch images & details appear immediately
   useEffect(() => {
@@ -75,11 +92,6 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
       isMounted = false
     }
   }, [clinic?.id, clinic?.slug, clinic?.branchImage])
-
-  const handleToggleDark = () => {
-    setDark(!dark)
-    document.documentElement.classList.toggle('dark')
-  }
 
   const handleOpenBooking = (service?: any, branch?: any) => {
     if (service) setSelectedService(service)
@@ -132,6 +144,8 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
             <motion.button
               whileHover={{ scale: 1.04, y: -1 }}
               whileTap={{ scale: 0.97 }}
+              onMouseEnter={preloadBookingModal}
+              onFocus={preloadBookingModal}
               onClick={() => handleOpenBooking()}
               className="bg-gradient-to-r from-[#0066dc] to-[#00a8e8] hover:shadow-lg text-white font-bold px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 transition-all shrink-0 cursor-pointer shadow-sky-500/25 shadow-md"
             >
@@ -142,6 +156,7 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
             {/* Patient Login & Register Button */}
             <Link
               href={patientPortalUrl}
+              prefetch={true}
               className="bg-white/90 dark:bg-slate-800 text-slate-800 dark:text-slate-100 hover:text-sky-600 dark:hover:text-sky-400 border border-slate-200 dark:border-slate-700 hover:border-sky-400 font-bold px-2.5 sm:px-3.5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm flex items-center gap-1 sm:gap-1.5 shadow-xs transition-all shrink-0 cursor-pointer"
               title={isRtl ? 'تسجيل دخول المريض أو إنشاء حساب جديد' : 'Patient Login or Register'}
             >
@@ -150,18 +165,14 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
               <span className="sm:hidden">{isRtl ? 'دخول' : 'Login'}</span>
             </Link>
 
-            <div className="flex items-center gap-0.5 sm:gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 sm:p-1 rounded-xl border border-slate-200/70 dark:border-slate-700 shrink-0">
-              <button
-                onClick={handleToggleDark}
-                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-slate-700 dark:text-amber-300 hover:bg-white dark:hover:bg-slate-700 transition-all cursor-pointer"
-                title={dark ? 'Light Mode' : 'Dark Mode'}
-              >
-                {dark ? <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-              </button>
+            <div className="flex items-center gap-1 bg-slate-100/90 dark:bg-slate-800/90 p-0.5 sm:p-1 rounded-xl border border-slate-200/70 dark:border-slate-700 shrink-0">
+              {/* Unified Theme Toggle */}
+              <ThemeToggle className="!h-7 !w-7 sm:!h-8 sm:!w-8 !p-0 border-0 bg-transparent shadow-none" />
               <button
                 onClick={toggleLanguage}
                 className="px-1.5 sm:px-2 h-7 sm:h-8 rounded-lg bg-sky-500 text-white font-bold text-[11px] sm:text-xs flex items-center gap-1 hover:bg-sky-600 transition-all cursor-pointer"
                 title="Switch Language"
+                aria-label="Switch Language"
               >
                 <span>{isRtl ? 'EN' : 'عربي'}</span>
                 <Globe className="w-3 h-3" />
@@ -188,13 +199,13 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
             </a>
           </nav>
 
-          <Link href={clinicWebsiteUrl} className="flex items-center shrink-0" dir="ltr">
+          <Link href={clinicWebsiteUrl} className="flex items-center shrink-0" dir="ltr" prefetch={true}>
             <ClinicLogo size="md" variant="auto" />
           </Link>
         </div>
       </header>
 
-      {/* Hero Section with Motion Graphics */}
+      {/* Hero Section */}
       <section
         id="hero"
         className="relative pt-10 pb-24 lg:pt-14 lg:pb-28 overflow-hidden bg-gradient-to-b from-[#e8f3ff] via-[#f5faff] to-white dark:from-[#071426] dark:via-[#0a1b33] dark:to-[#071222]"
@@ -246,6 +257,10 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
                     <img
                       src={heroDoctorImage}
                       alt={clinic?.doctorName || 'Doctor'}
+                      fetchPriority="high"
+                      decoding="async"
+                      width={320}
+                      height={384}
                       className="w-full h-72 sm:h-80 md:h-96 object-cover object-top group-hover:scale-105 transition-transform duration-700"
                     />
                     <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-slate-950/85 via-slate-950/40 to-transparent"></div>
@@ -268,35 +283,21 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
                       )}
                     </div>
                   </div>
-
-                  {/* Floating Years Experience Badge */}
-                  <motion.div
-                    animate={{ y: [0, -6, 0] }}
-                    transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
-                    className="absolute top-3 -left-3 sm:top-4 sm:-left-4 z-30 bg-white/95 dark:bg-slate-800 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl border-2 border-white dark:border-slate-700 shadow-xl flex flex-col items-center justify-center backdrop-blur-xs"
-                  >
-                    <div className="flex items-center gap-1 text-sky-600 dark:text-sky-400 font-extrabold text-base sm:text-xl leading-none">
-                      <span>+{clinic?.experienceYears ?? 10}</span>
-                      <Award className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    </div>
-                    <span className="text-[10px] sm:text-[11px] font-bold text-slate-600 dark:text-slate-300 mt-0.5">
-                      {isRtl ? 'سنوات خبرة' : 'Years Exp.'}
-                    </span>
-                  </motion.div>
                 </motion.div>
               </div>
             </div>
 
-            {/* Text & CTA Column with Entrance Animation */}
+            {/* Text / CTAs Column */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.1, ease: 'easeOut' }}
-              className="lg:col-span-6 order-1 lg:order-2 text-center lg:text-right space-y-4 sm:space-y-5"
+              transition={{ duration: 0.6, ease: 'easeOut' }}
+              className="lg:col-span-6 order-1 lg:order-2 text-center lg:text-start space-y-4 sm:space-y-6"
             >
               <motion.div
-                whileHover={{ scale: 1.03 }}
-                className="inline-flex items-center gap-2 px-3.5 py-1 sm:py-1.5 rounded-full bg-sky-100/90 dark:bg-sky-900/50 border border-sky-200 dark:border-sky-700/60 text-sky-700 dark:text-sky-300 text-xs sm:text-sm font-bold shadow-xs cursor-default"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-sky-100 dark:bg-sky-950/80 text-sky-700 dark:text-sky-300 text-xs font-bold border border-sky-200 dark:border-sky-800 shadow-xs"
               >
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
@@ -326,6 +327,8 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
                 <motion.button
                   whileHover={{ scale: 1.03, y: -2 }}
                   whileTap={{ scale: 0.97 }}
+                  onMouseEnter={preloadBookingModal}
+                  onFocus={preloadBookingModal}
                   onClick={() => handleOpenBooking()}
                   style={clinic?.primaryColor ? { background: `linear-gradient(135deg, ${clinic.primaryColor}, #00a8e8)` } : undefined}
                   className="bg-gradient-to-r from-[#0066dc] to-[#00a8e8] hover:shadow-xl text-white font-extrabold px-5 sm:px-7 md:px-8 py-3 sm:py-3.5 md:py-4 rounded-full text-xs sm:text-sm md:text-base flex items-center gap-2 shadow-lg shadow-sky-600/30 transition-all cursor-pointer"
@@ -337,6 +340,8 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
                 <motion.button
                   whileHover={{ scale: 1.03, y: -2 }}
                   whileTap={{ scale: 0.97 }}
+                  onMouseEnter={preloadLiveTurn}
+                  onFocus={preloadLiveTurn}
                   onClick={() => setLiveTurnOpen(true)}
                   className="bg-white/95 dark:bg-slate-800/90 hover:bg-sky-50 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-extrabold px-4 sm:px-6 md:px-7 py-3 sm:py-3.5 md:py-4 rounded-full text-xs sm:text-sm md:text-base border border-slate-200 dark:border-slate-700 shadow-sm transition-all flex items-center gap-2 cursor-pointer"
                 >
@@ -347,6 +352,7 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
                 <motion.div whileHover={{ scale: 1.03, y: -2 }} whileTap={{ scale: 0.97 }}>
                   <Link
                     href={`/clinic/${clinic?.slug || 'zizo'}/patient/login`}
+                    prefetch={true}
                     className="bg-white/90 dark:bg-slate-800/90 hover:bg-sky-50 dark:hover:bg-slate-700 text-slate-800 dark:text-white hover:text-sky-600 font-extrabold px-4 sm:px-6 py-3 sm:py-3.5 md:py-4 rounded-full text-xs sm:text-sm md:text-base border border-slate-200 dark:border-slate-700 shadow-sm transition-all flex items-center gap-2"
                   >
                     <User className="w-4 h-4 text-sky-600 dark:text-sky-400" />
@@ -359,14 +365,25 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
         </div>
       </section>
 
-      {/* Services Strip with Micro-Animations */}
-      <section id="services" className="relative z-20 -mt-14 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
-        <div className="bg-white dark:bg-[#081526] rounded-[28px] p-4 sm:p-6 shadow-xl border border-sky-100/80 dark:border-slate-800">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-4">
-            {(services.length ? services : [
-              { id: '1', name: 'كشف عادي', price: 300, duration: '15 دقيقة' },
-              { id: '2', name: 'متابعة دورية', price: 150, duration: '15 دقيقة' },
-              { id: '3', name: 'استشارات متخصصة', price: 250, duration: '20 دقيقة' },
+      {/* Services Section */}
+      <section id="services" className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
+        <div className="bg-white dark:bg-[#081526] rounded-[28px] sm:rounded-[36px] p-6 sm:p-10 md:p-12 shadow-xl border border-sky-100/80 dark:border-slate-800">
+          <div className="text-center max-w-2xl mx-auto mb-8 sm:mb-12">
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+              {isRtl ? 'الخدمات الطبية المتاحة' : 'Available Medical Services'}
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-2">
+              {isRtl
+                ? 'اختر الخدمة المطلوبة لحجز موعد مباشر أو الاستفسار عن تفاصيل الكشف'
+                : 'Select the required service for instant booking or check consultation details'}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-5">
+            {(services.length > 0 ? services : [
+              { id: '1', name: 'كشف عام', price: 250, duration: '15 دقيقة' },
+              { id: '2', name: 'استشارة ومتابعة', price: 150, duration: '10 دقائق' },
+              { id: '3', name: 'كشف مستعجل', price: 400, duration: 'فوري' },
               { id: '4', name: 'تحاليل طبية', price: 200, duration: '15 دقيقة' },
               { id: '5', name: 'تقييم غذائي', price: 200, duration: '20 دقيقة' }
             ]).map((srv, idx) => {
@@ -376,6 +393,7 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
                   key={srv.id || idx}
                   whileHover={{ y: -6, scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
+                  onMouseEnter={preloadBookingModal}
                   onClick={() => handleOpenBooking(srv)}
                   className="cursor-pointer rounded-2xl p-4 bg-slate-50/70 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/70 hover:border-sky-400 hover:shadow-lg transition-all flex flex-col items-center text-center group"
                 >
@@ -418,10 +436,9 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
               </p>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs flex items-center gap-1.5">
-                <Navigation className="w-3.5 h-3.5 text-sky-500" />
-                <span>{isRtl ? 'تحديث حي للاتجاهات' : 'Live Directions'}</span>
+            <div className="flex items-center gap-3 shrink-0">
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                {branches.length} {branches.length === 1 ? (isRtl ? 'فرع مسجل' : 'Branch Registered') : (isRtl ? 'فروع مسجلة' : 'Branches')}
               </span>
             </div>
           </div>
@@ -438,80 +455,79 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
       {/* Branches & Clinic Info Section */}
       <section id="branches" className="pb-16 sm:pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Clinic Info Card */}
-          <div id="contact" className="lg:col-span-4 order-2 lg:order-1">
-            <div className="bg-white dark:bg-[#081526] rounded-[28px] p-6 shadow-lg border border-sky-100 dark:border-slate-800 space-y-6">
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-black text-slate-900 dark:text-white">
-                    {isRtl ? 'معلومات العيادة' : 'Clinic Information'}
-                  </h2>
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                    clinic?.isClinicOpen !== false && isClinicOpenNow(selectedBranch?.weeklySchedule || clinic?.weeklySchedule)
-                      ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
-                      : 'bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
-                  }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${clinic?.isClinicOpen !== false && isClinicOpenNow(selectedBranch?.weeklySchedule || clinic?.weeklySchedule) ? 'bg-emerald-500 animate-ping' : 'bg-rose-500'}`}></span>
-                    <span>{clinic?.isClinicOpen !== false && isClinicOpenNow(selectedBranch?.weeklySchedule || clinic?.weeklySchedule) ? (isRtl ? 'مفتوح الآن' : 'Open Now') : (isRtl ? 'مغلق حالياً' : 'Closed Now')}</span>
-                  </span>
-                </div>
+          {/* Main Info Card */}
+          <div className="lg:col-span-4 bg-white dark:bg-[#081526] rounded-[28px] p-6 sm:p-7 shadow-lg border border-sky-100 dark:border-slate-800 space-y-6">
+            <div>
+              <h3 className="text-lg font-black text-slate-900 dark:text-white mb-1">
+                {selectedBranch?.name || clinic?.clinicName || (isRtl ? 'العيادة التخصصية' : 'Clinic')}
+              </h3>
+              <p className="text-xs text-sky-600 dark:text-sky-400 font-bold">
+                {clinic?.doctorName ? `${clinic.doctorTitle ? clinic.doctorTitle + ' ' : ''}${clinic.doctorName}` : ''}
+              </p>
+            </div>
 
-                <div className="space-y-3 text-sm">
-                  <div className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
-                    <span className="w-9 h-9 rounded-xl bg-sky-100 dark:bg-sky-900/50 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
-                      <MapPin className="w-4 h-4" />
-                    </span>
-                    <div className="font-bold text-slate-800 dark:text-slate-100">
-                      {sanitizeAddress(clinic?.clinicAddress) || (isRtl ? 'مدينة نصر - القاهرة' : 'Nasr City - Cairo')}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
-                    <span className="w-9 h-9 rounded-xl bg-sky-100 dark:bg-sky-900/50 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
-                      <Phone className="w-4 h-4" />
-                    </span>
-                    <a href={`tel:${clinic?.clinicPhone || '01551007018'}`} className="font-extrabold text-slate-800 dark:text-slate-100" dir="ltr">
-                      {clinic?.clinicPhone || '01551007018'}
-                    </a>
-                  </div>
-
-                  {clinic?.locationUrl && (
-                    <a
-                      href={clinic.locationUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="w-full py-3 px-4 rounded-2xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 font-bold text-sm border border-sky-200/80 dark:border-sky-800/70 flex items-center justify-center gap-2 transition-all"
-                    >
-                      <Compass className="w-4 h-4" />
-                      <span>{isRtl ? 'الاتجاهات على الخريطة' : 'Get Directions'}</span>
-                    </a>
-                  )}
-                </div>
+            <div className="space-y-3.5 text-sm">
+              <div className="flex items-start gap-3 text-slate-600 dark:text-slate-300">
+                <MapPin className="w-4 h-4 text-sky-500 shrink-0 mt-0.5" />
+                <span className="text-xs leading-relaxed">{selectedBranch?.address || clinic?.clinicAddress || (isRtl ? 'العنوان الرئيسي' : 'Main Address')}</span>
               </div>
 
-              <div className="border-t border-slate-100 dark:border-slate-800 pt-5">
-                <h3 className="text-base font-black text-slate-900 dark:text-white mb-3">
-                  {isRtl ? 'مواعيد العمل' : 'Working Hours'}
-                </h3>
-                <div className="space-y-2 text-sm">
-                  {getWeeklyScheduleDisplayGroups(selectedBranch?.weeklySchedule || clinic?.weeklySchedule, isRtl).map((grp, idx) => (
-                    <div key={idx} className="flex items-center justify-between py-2 px-3 rounded-xl bg-slate-50 dark:bg-slate-800/50">
-                      <span className="font-bold text-slate-700 dark:text-slate-300">{grp.daysLabel}</span>
-                      <span className={`font-extrabold text-xs ${grp.isOpen ? 'text-slate-900 dark:text-white' : 'text-rose-500 dark:text-rose-400'}`}>
-                        {grp.hoursLabel}
-                      </span>
-                    </div>
-                  ))}
+              {(selectedBranch?.phone || clinic?.clinicPhone) && (
+                <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300">
+                  <Phone className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <a
+                    href={`tel:${selectedBranch?.phone || clinic?.clinicPhone}`}
+                    className="text-xs font-mono font-bold hover:text-sky-600 dark:hover:text-sky-400 transition-colors"
+                    dir="ltr"
+                  >
+                    {selectedBranch?.phone || clinic?.clinicPhone}
+                  </a>
                 </div>
+              )}
+
+              {clinic?.locationUrl && (
+                <div className="pt-2">
+                  <a
+                    href={clinic.locationUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-full py-3 px-4 rounded-2xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 font-bold text-sm border border-sky-200/80 dark:border-sky-800/70 flex items-center justify-center gap-2 transition-all"
+                  >
+                    <Compass className="w-4 h-4" />
+                    <span>{isRtl ? 'الاتجاهات على الخريطة' : 'Get Directions'}</span>
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-slate-100 dark:border-slate-800 pt-5">
+              <h3 className="text-base font-black text-slate-900 dark:text-white mb-3">
+                {isRtl ? 'مواعيد العمل' : 'Working Hours'}
+              </h3>
+              <div className="space-y-2 text-sm">
+                {getWeeklyScheduleDisplayGroups(selectedBranch?.weeklySchedule || clinic?.weeklySchedule, isRtl).map((grp, idx) => (
+                  <div key={idx} className="flex items-center justify-between py-2 px-3 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                    <span className="font-bold text-slate-700 dark:text-slate-300">{grp.daysLabel}</span>
+                    <span className={`font-extrabold text-xs ${grp.isOpen ? 'text-slate-900 dark:text-white' : 'text-rose-500 dark:text-rose-400'}`}>
+                      {grp.hoursLabel}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
 
           {/* Branches Cards */}
-          <div className="lg:col-span-8 order-1 lg:order-2">
-            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white mb-6">
-              {isRtl ? 'فروع العيادة' : 'Clinic Branches'}
-            </h2>
+          <div className="lg:col-span-8 space-y-4">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xl font-black text-slate-900 dark:text-white">
+                {isRtl ? 'فروع العيادة وأماكن الكشف' : 'Clinic Branches'}
+              </h3>
+              <span className="text-xs text-slate-400 font-bold">
+                {branches.length} {isRtl ? 'فروع متاحة' : 'branches available'}
+              </span>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
               {branches.map((b: any, i: number) => (
                 <motion.div
@@ -525,7 +541,7 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
                       <img
                         src={b.image}
                         alt={b.name}
-                        loading="eager"
+                        loading="lazy"
                         decoding="async"
                         className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
                       />
@@ -538,15 +554,18 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
                   <div className="p-5 flex-1 flex flex-col justify-between text-center">
                     <div>
                       <h3 className="text-lg font-black text-slate-900 dark:text-white">{b.name}</h3>
-                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mt-1">{b.address}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{b.address || ''}</p>
                     </div>
-                    <motion.button
-                      whileTap={{ scale: 0.96 }}
+
+                    <button
+                      type="button"
+                      onMouseEnter={preloadBookingModal}
                       onClick={() => handleOpenBooking(undefined, b)}
-                      className="mt-4 w-full py-2.5 px-4 rounded-xl bg-sky-50 hover:bg-sky-500 text-sky-700 hover:text-white dark:bg-slate-800 dark:text-sky-300 dark:hover:bg-sky-500 dark:hover:text-white font-bold text-sm border border-sky-200/80 dark:border-slate-700 transition-all cursor-pointer shadow-xs"
+                      className="mt-4 w-full py-2.5 rounded-xl bg-sky-50 dark:bg-slate-800 text-sky-600 dark:text-sky-400 hover:bg-sky-500 hover:text-white font-extrabold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                     >
-                      {isRtl ? 'حجز في هذا الفرع' : 'Book This Branch'}
-                    </motion.button>
+                      <CalendarCheck className="w-3.5 h-3.5" />
+                      <span>{isRtl ? 'حجز في هذا الفرع' : 'Book at this branch'}</span>
+                    </button>
                   </div>
                 </motion.div>
               ))}
@@ -556,13 +575,14 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
       </section>
 
       {/* Footer */}
-      <footer className="bg-[#081526] text-white py-8 px-4 sm:px-6 lg:px-8 border-t border-slate-800 mt-auto">
+      <footer id="contact" className="mt-auto bg-slate-900 text-white py-8 px-4 sm:px-6 lg:px-8 border-t border-slate-800">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
           <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-5 text-xs text-slate-400 text-center sm:text-right">
             <span>جميع الحقوق محفوظة 2026 YallaCodex</span>
             <span className="hidden sm:inline opacity-40">•</span>
             <Link
               href={`/clinic/${clinic?.slug || 'zizo'}/patient/login`}
+              prefetch={true}
               className="text-sky-400 hover:text-sky-300 hover:underline font-bold transition-colors inline-flex items-center gap-1.5"
             >
               <User className="w-3.5 h-3.5" />
