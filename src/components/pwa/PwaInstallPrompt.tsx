@@ -91,17 +91,17 @@ export function PwaInstallPrompt() {
       {/* iOS Instructions Modal */}
       {showIosModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs" dir="rtl">
-          <div className="bg-white rounded-3xl p-6 max-w-sm w-full space-y-4 text-right border border-slate-200 shadow-2xl">
+          <div className="bg-card text-card-foreground rounded-3xl p-6 max-w-sm w-full space-y-4 text-right border border-border shadow-2xl">
             <div className="flex justify-between items-center">
-              <h3 className="font-black text-sm text-[#182230]">تثبيت التطبيق على iPhone</h3>
+              <h3 className="font-black text-sm text-foreground">تثبيت التطبيق على iPhone</h3>
               <button onClick={() => setShowIosModal(false)} className="text-slate-400 p-1">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <p className="text-xs text-slate-600 leading-relaxed">
+            <p className="text-xs text-muted-foreground leading-relaxed">
               لتثبيت Yalla Clinic على شاشتك الرئيسية وتفعيل التنبيهات:
             </p>
-            <ol className="text-xs space-y-2 text-slate-700 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+            <ol className="text-xs space-y-2 text-foreground bg-muted/50 p-3.5 rounded-2xl border border-border">
               <li className="flex items-center gap-2">
                 <span>1. اضغط على زر المشاركة</span>
                 <Share className="w-4 h-4 text-blue-500" />

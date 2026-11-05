@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { Eye, EyeOff, Loader2, ArrowRight } from 'lucide-react'
 import { PasswordInput } from '@/components/ui/password-input'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
+import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import {
   CountryInfo,
@@ -174,8 +175,18 @@ export default function PatientLoginPage() {
   }
 
   return (
-    <div dir="rtl" className="min-h-screen bg-[#f4f9ff] dark:bg-[#050d1a] flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white dark:bg-[#081526] rounded-[32px] p-6 shadow-xl border border-sky-100 dark:border-slate-800 space-y-5">
+    <div dir="rtl" className="min-h-screen bg-background flex flex-col items-center justify-center p-4 transition-colors">
+      <div className="w-full max-w-md flex justify-between items-center mb-3">
+        <Link
+          href={`/clinic/${slug}`}
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ArrowRight className="w-4 h-4" />
+          <span>العودة للعيادة</span>
+        </Link>
+        <ThemeToggle />
+      </div>
+      <div className="w-full max-w-md bg-card text-card-foreground rounded-[32px] p-6 shadow-xl border border-border space-y-5">
         <div className="text-center space-y-1">
           <Link href={`/clinic/${slug}`} className="inline-block mb-2" dir="ltr">
             <ClinicLogo size="md" variant="auto" />

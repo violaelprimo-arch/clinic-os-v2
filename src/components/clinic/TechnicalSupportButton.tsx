@@ -107,20 +107,20 @@ export function TechnicalSupportButton({
       {/* Support Numbers Modal */}
       {isOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4" dir="rtl">
-          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="bg-card text-card-foreground rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-border space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
               <div className="flex items-center gap-2">
-                <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#087CF4] flex items-center justify-center">
+                <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
                   <Headphones className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-black text-sm text-[#182230]">الدعم الفني — Yalla Clinic</h3>
-                  <p className="text-[10px] text-slate-400">يسعدنا تقديم المساعدة على مدار الساعة</p>
+                  <h3 className="font-black text-sm text-foreground">الدعم الفني — Yalla Clinic</h3>
+                  <p className="text-[10px] text-muted-foreground">يسعدنا تقديم المساعدة على مدار الساعة</p>
                 </div>
               </div>
               <button
                 onClick={() => setIsOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -130,13 +130,13 @@ export function TechnicalSupportButton({
               {supportNumbers.map((num, i) => (
                 <div
                   key={i}
-                  className="p-3 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between gap-3"
+                  className="p-3 rounded-2xl bg-secondary/50 border border-border flex items-center justify-between gap-3"
                 >
                   <div className="space-y-0.5">
-                    <span className="font-bold text-xs text-[#182230] block">
+                    <span className="font-bold text-xs text-foreground block">
                       {num.label || num.department || 'الدعم الفني للمنصة'}
                     </span>
-                    <span className="text-[11px] font-mono text-slate-500 block" dir="ltr">
+                    <span className="text-[11px] font-mono text-muted-foreground block" dir="ltr">
                       {num.phone}
                     </span>
                   </div>
@@ -144,14 +144,14 @@ export function TechnicalSupportButton({
                   <div className="flex items-center gap-1.5">
                     <a
                       href={`tel:${num.phone}`}
-                      className="p-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:text-[#087CF4] hover:border-[#087CF4] transition-colors"
+                      className="p-2 rounded-xl bg-card border border-border text-foreground hover:text-primary hover:border-primary transition-colors shadow-2xs"
                       title="اتصال هاتفي"
                     >
                       <Phone className="w-4 h-4" />
                     </a>
                     <button
                       onClick={() => openWhatsApp(num.phone)}
-                      className="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-100 transition-colors"
+                      className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors shadow-2xs"
                       title="مراسلة عبر واتساب"
                     >
                       <MessageSquare className="w-4 h-4" />
@@ -161,7 +161,7 @@ export function TechnicalSupportButton({
               ))}
             </div>
 
-            <div className="pt-2 text-center text-[10px] text-slate-400 border-t border-slate-100">
+            <div className="pt-2 text-center text-[10px] text-muted-foreground border-t border-border">
               جميع الحقوق محفوظة YallaCodeX 2026
             </div>
           </div>

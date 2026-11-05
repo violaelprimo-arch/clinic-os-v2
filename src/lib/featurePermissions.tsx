@@ -358,7 +358,7 @@ export function LockedFeatureScreen({
 
   return (
     <div className="min-h-[70vh] flex items-center justify-center p-4 sm:p-6" dir="rtl">
-      <div className="w-full max-w-xl bg-white border border-slate-200 rounded-3xl p-6 sm:p-9 text-center shadow-lg relative overflow-hidden space-y-6">
+      <div className="w-full max-w-xl bg-card text-card-foreground border border-border rounded-3xl p-6 sm:p-9 text-center shadow-lg relative overflow-hidden space-y-6">
         {/* Decorative Top Accent */}
         <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-amber-500 via-rose-500 to-amber-500"></div>
 
@@ -377,7 +377,7 @@ export function LockedFeatureScreen({
             <span>ميزة مقفولة ومقيدة في باقتك</span>
           </span>
 
-          <h2 className="text-xl sm:text-2xl font-black text-[#182230]">
+          <h2 className="text-xl sm:text-2xl font-black text-foreground">
             قسم {feat.label} غير متاح حالياً
           </h2>
 
@@ -388,9 +388,9 @@ export function LockedFeatureScreen({
         </div>
 
         {/* Feature Value Box */}
-        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-right space-y-2">
-          <span className="text-xs font-black text-slate-700 block">ماذا تقدم هذه الميزة للعيادة؟</span>
-          <p className="text-xs text-slate-600 leading-relaxed font-medium">
+        <div className="p-4 rounded-2xl bg-muted/50 border border-border text-right space-y-2">
+          <span className="text-xs font-black text-foreground block">ماذا تقدم هذه الميزة للعيادة؟</span>
+          <p className="text-xs text-muted-foreground leading-relaxed font-medium">
             {feat.description}
           </p>
         </div>
@@ -409,7 +409,7 @@ export function LockedFeatureScreen({
 
           <a
             href={`/clinic/${clinic?.slug || 'demo'}/admin`}
-            className="w-full sm:w-auto h-11 px-6 border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
+            className="w-full sm:w-auto h-11 px-6 border border-border hover:bg-muted text-foreground text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
           >
             <ArrowRight className="w-4 h-4" />
             <span>العودة إلى لوحة اليوم</span>

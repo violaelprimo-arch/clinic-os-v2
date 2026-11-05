@@ -1704,7 +1704,7 @@ function OwnerDashboard() {
   const customTemplateCount = clinics.filter(c => !!c.prescriptionTemplateUrl).length
 
   return (
-    <div className="space-y-7 pb-16 font-sans text-[#182230] transition-colors dark:text-slate-100 w-full min-w-0 max-w-full overflow-hidden" dir={dir}>
+    <div className="space-y-7 pb-16 font-sans text-foreground transition-colors dark:text-slate-100 w-full min-w-0 max-w-full overflow-hidden" dir={dir}>
       
       {/* 1. Header Overview & Title */}
       <motion.div
@@ -2343,15 +2343,15 @@ function OwnerDashboard() {
           </div>
 
           {/* 2. Filter Pills Switcher */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-2 bg-slate-100/80 rounded-2xl border border-slate-200">
+          <div className="flex flex-wrap items-center justify-between gap-3 p-2 bg-muted/70 dark:bg-card-elevated rounded-2xl border border-border">
             <div className="flex items-center gap-1.5 flex-wrap">
               <button
                 type="button"
                 onClick={() => setPaymentFilter('all')}
                 className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
                   paymentFilter === 'all'
-                    ? 'bg-white text-slate-900 shadow-xs border border-slate-200'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                    ? 'bg-card text-foreground shadow-xs border border-border'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-card/50'
                 }`}
               >
                 جميع الأطباء ({clinics.length})
@@ -2526,7 +2526,7 @@ function OwnerDashboard() {
                       const primaryPhone = c.doctorPhone || c.clinicPhone || ''
 
                       return (
-                        <tr key={c.id} className="hover:bg-slate-50/80 transition-colors">
+                        <tr key={c.id} className="hover:bg-muted/50 dark:hover:bg-muted/30 transition-colors">
                           {/* # */}
                           <td className="py-3.5 px-3 text-center font-mono text-slate-400 font-bold">
                             {idx + 1}
@@ -2539,7 +2539,7 @@ function OwnerDashboard() {
                                 {c.doctorName ? c.doctorName.charAt(0) : 'ط'}
                               </div>
                               <div className="min-w-0">
-                                <h4 className="font-black text-sm text-[#182230] truncate">
+                                <h4 className="font-black text-sm text-foreground truncate">
                                   {c.doctorName ? `د. ${c.doctorName}` : 'طبيب العيادة'}
                                 </h4>
                                 <p className="text-[11px] text-slate-500 font-medium truncate">
@@ -2552,7 +2552,7 @@ function OwnerDashboard() {
                           {/* 2. Clinic Name & Phone */}
                           <td className="py-3.5 px-4 min-w-[190px]">
                             <div className="space-y-1">
-                              <h4 className="font-bold text-xs text-[#182230] flex items-center gap-1.5">
+                              <h4 className="font-bold text-xs text-foreground flex items-center gap-1.5">
                                 <Building2 className="w-3.5 h-3.5 text-teal-600 shrink-0" />
                                 <span className="truncate">{c.clinicName}</span>
                               </h4>
@@ -2750,7 +2750,7 @@ function OwnerDashboard() {
           <Dialog open={!!scheduleModalClinic} onOpenChange={() => setScheduleModalClinic(null)}>
             <DialogContent className="max-w-md p-6 rounded-3xl" dir="rtl">
               <DialogHeader className="text-right">
-                <DialogTitle className="text-base font-black text-[#182230] flex items-center gap-2">
+                <DialogTitle className="text-base font-black text-foreground flex items-center gap-2">
                   <Clock className="w-5 h-5 text-teal-600" />
                   <span>مواعيد عمل: {scheduleModalClinic?.clinicName}</span>
                 </DialogTitle>
@@ -2793,7 +2793,7 @@ function OwnerDashboard() {
           <Dialog open={!!paymentModalClinic} onOpenChange={(open) => !open && setPaymentModalClinic(null)}>
             <DialogContent className="max-w-lg p-6 rounded-3xl" dir="rtl">
               <DialogHeader className="text-right pb-3 border-b border-slate-100">
-                <DialogTitle className="text-base font-black text-[#182230] flex items-center gap-2">
+                <DialogTitle className="text-base font-black text-foreground flex items-center gap-2">
                   <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
                     <CreditCard className="w-4 h-4" />
                   </div>
@@ -2821,7 +2821,7 @@ function OwnerDashboard() {
                           const selected = clinics.find(c => c.id === e.target.value)
                           if (selected) handleOpenPaymentModal(selected)
                         }}
-                        className="h-10 text-xs font-bold rounded-xl bg-slate-50 border border-slate-200 px-3 w-full focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 cursor-pointer"
+                        className="h-10 text-xs font-bold rounded-xl bg-muted/60 dark:bg-card-elevated border border-border text-foreground px-3 w-full focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 cursor-pointer"
                       >
                         {clinics.map(c => {
                           const p = resolveDoctorNumericPrice(c, packages)
@@ -2837,10 +2837,10 @@ function OwnerDashboard() {
                     </div>
 
                     {/* Summary KPI Pill */}
-                    <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
+                    <div className="p-3.5 bg-muted/40 dark:bg-card-elevated rounded-2xl border border-border space-y-2">
                       <div className="flex items-center justify-between">
                         <div>
-                          <h4 className="font-black text-sm text-[#182230]">
+                          <h4 className="font-black text-sm text-foreground">
                             {paymentModalClinic.clinicName}
                           </h4>
                           <p className="text-xs text-slate-500">
@@ -2853,15 +2853,15 @@ function OwnerDashboard() {
                       </div>
 
                       <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-200/60 text-center text-xs">
-                        <div className="bg-white p-2 rounded-xl border border-slate-100 shadow-2xs">
+                        <div className="bg-card text-card-foreground p-2 rounded-xl border border-border shadow-2xs">
                           <span className="text-slate-400 block text-[10px] font-bold">المبلغ المطلوب</span>
                           <span className="font-mono font-black text-slate-800">{numericPrice} ج.م</span>
                         </div>
-                        <div className="bg-white p-2 rounded-xl border border-slate-100 shadow-2xs">
+                        <div className="bg-card text-card-foreground p-2 rounded-xl border border-border shadow-2xs">
                           <span className="text-slate-400 block text-[10px] font-bold">المسدد حالياً</span>
                           <span className="font-mono font-black text-emerald-600">{currentPaid} ج.م</span>
                         </div>
-                        <div className="bg-white p-2 rounded-xl border border-slate-100 shadow-2xs">
+                        <div className="bg-card text-card-foreground p-2 rounded-xl border border-border shadow-2xs">
                           <span className="text-slate-400 block text-[10px] font-bold">المبلغ المتبقي</span>
                           <span className={`font-mono font-black ${remaining > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
                             {remaining} ج.م
@@ -2891,7 +2891,7 @@ function OwnerDashboard() {
                         required
                         value={settleAmount}
                         onChange={e => setSettleAmount(e.target.value)}
-                        className="h-11 font-mono font-black text-sm bg-white border-slate-200 text-left"
+                        className="h-11 font-mono font-black text-sm bg-card border-border text-foreground text-left"
                         dir="ltr"
                         placeholder="أدخل المبلغ المسدد..."
                       />
@@ -2904,7 +2904,7 @@ function OwnerDashboard() {
                         <select
                           value={settleMethod}
                           onChange={e => setSettleMethod(e.target.value as any)}
-                          className="h-10 text-xs font-bold rounded-xl bg-white border border-slate-200 px-3 w-full focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 cursor-pointer"
+                          className="h-10 text-xs font-bold rounded-xl bg-card border-border text-foreground px-3 w-full focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 cursor-pointer"
                         >
                           <option value="instapay">إنستاباي (InstaPay)</option>
                           <option value="vodafone_cash">فودافون كاش / محفظة ذكية</option>
@@ -2920,7 +2920,7 @@ function OwnerDashboard() {
                           type="date"
                           value={settleDate}
                           onChange={e => setSettleDate(e.target.value)}
-                          className="h-10 text-xs bg-white border-slate-200"
+                          className="h-10 text-xs bg-card border-border text-foreground"
                         />
                       </div>
                     </div>
@@ -2932,7 +2932,7 @@ function OwnerDashboard() {
                         value={settleNotes}
                         onChange={e => setSettleNotes(e.target.value)}
                         placeholder="مثال: رقم تحويل انستاباي #123456، اسم المحول، إلخ..."
-                        className="h-10 text-xs bg-white border-slate-200"
+                        className="h-10 text-xs bg-card border-border text-foreground"
                       />
                     </div>
 
@@ -3365,7 +3365,7 @@ function OwnerDashboard() {
           <Dialog open={isPackageModalOpen} onOpenChange={setIsPackageModalOpen}>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-6 sm:p-7 rounded-3xl" dir="rtl">
               <DialogHeader className="text-right">
-                <DialogTitle className="text-lg font-black text-[#182230] flex items-center gap-2">
+                <DialogTitle className="text-lg font-black text-foreground flex items-center gap-2">
                   <Package className="w-5 h-5 text-amber-600" />
                   <span>{editingPackageId ? 'تخصيص وتعديل بيانات الباقة' : 'إنشاء وتخصيص باقة جديدة'}</span>
                 </DialogTitle>
@@ -3450,7 +3450,7 @@ function OwnerDashboard() {
                       {renderPackageIcon({ logoUrl: pkgLogoUrl, icon: pkgIcon, color: pkgColor, name: pkgName }, 'lg')}
                       <div className="overflow-hidden">
                         <span className="text-[10px] text-slate-400 block font-bold">معاينة هوية الباقة:</span>
-                        <h5 className="font-black text-sm text-[#182230] truncate">{pkgName || 'اسم الباقة'}</h5>
+                        <h5 className="font-black text-sm text-foreground truncate">{pkgName || 'اسم الباقة'}</h5>
                         <span className="text-[10px] font-mono font-bold" style={{ color: pkgColor }}>
                           {pkgColor}
                         </span>
@@ -4200,7 +4200,7 @@ function OwnerDashboard() {
                   
                   {/* Prescription Image Upload */}
                   <div className="space-y-3">
-                    <div className="flex items-center gap-2 text-[#182230]">
+                    <div className="flex items-center gap-2 text-foreground">
                       <FileSignature className="w-5 h-5 text-[#087CF4]" />
                       <h4 className="font-bold text-xs">صورة تصميم ورقة الروشتة المطبوعة (A4 Template)</h4>
                     </div>
@@ -4256,7 +4256,7 @@ function OwnerDashboard() {
                   {/* AI Feature Toggle Switch */}
                   <div className="space-y-4 flex flex-col justify-between">
                     <div>
-                      <div className="flex items-center gap-2 text-[#182230]">
+                      <div className="flex items-center gap-2 text-foreground">
                         <Bot className="w-5 h-5 text-purple-600" />
                         <h4 className="font-bold text-xs">زر تشغيل / تعطيل المساعد الذكي (AI Chatbot) للعيادة</h4>
                       </div>
@@ -5051,7 +5051,7 @@ function OwnerDashboard() {
               </p>
 
             <div className="pb-4 mt-8 border-b border-[#E5EAF0]">
-              <h2 className="text-xl font-black text-[#182230] flex items-center gap-2">
+              <h2 className="text-xl font-black text-foreground flex items-center gap-2">
                 <Phone className="w-6 h-6 text-emerald-600" />
                 أرقام الدعم الفني للمنصة
               </h2>

@@ -23,7 +23,7 @@ export function ThemeToggle({
   if (!mounted) {
     return (
       <div
-        className={`w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 animate-pulse ${className}`}
+        className={`w-9 h-9 min-w-[36px] min-h-[36px] rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 animate-pulse ${className}`}
         aria-hidden="true"
       />
     )
@@ -40,17 +40,17 @@ export function ThemeToggle({
     <button
       type="button"
       onClick={toggleTheme}
-      className={`relative inline-flex items-center justify-center gap-2 h-9 px-2.5 rounded-xl transition-all duration-200 cursor-pointer border select-none bg-card border-border text-foreground hover:border-primary/50 shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-95 ${className}`}
+      className={`relative inline-flex items-center justify-center gap-2 h-9 min-w-[36px] px-2.5 rounded-xl transition-all duration-200 cursor-pointer border select-none bg-card border-border text-foreground hover:border-primary/50 hover:bg-secondary/60 shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-90 touch-manipulation shrink-0 ${className}`}
       title={titleText}
       aria-label={titleText}
     >
       {isDark ? (
-        <Sun className="w-4 h-4 transition-transform duration-300 hover:rotate-45 text-amber-400" />
+        <Sun className="w-4 h-4 transition-transform duration-300 hover:rotate-45 text-amber-400 shrink-0" />
       ) : (
-        <Moon className="w-4 h-4 transition-transform duration-300 hover:-rotate-12 text-primary" />
+        <Moon className="w-4 h-4 transition-transform duration-300 hover:-rotate-12 text-primary shrink-0" />
       )}
       {showLabel && (
-        <span className="text-xs font-bold">
+        <span className="text-xs font-bold shrink-0">
           {isDark ? (isAr ? 'فاتح' : 'Light') : (isAr ? 'داكن' : 'Dark')}
         </span>
       )}

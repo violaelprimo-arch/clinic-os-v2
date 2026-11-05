@@ -271,14 +271,14 @@ export function InvoiceView({
       <div
         ref={printableRef}
         id="printable-invoice"
-        className="bg-white p-6 sm:p-8 rounded-2xl border border-[#E5EAF0] shadow-sm max-w-2xl mx-auto space-y-6"
+        className="bg-white dark:bg-[#0c1e38] text-slate-900 dark:text-slate-100 p-6 sm:p-8 rounded-2xl border border-[#E5EAF0] dark:border-slate-800 shadow-sm max-w-2xl mx-auto space-y-6"
       >
         {/* Header */}
         <div className="flex justify-between items-start pb-5 border-b-2 border-slate-100">
           <div>
             <div className="flex items-center gap-2">
               <ClinicLogo size="sm" variant="light" showSubtitle={false} />
-              <h2 className="text-lg font-black text-[#182230]">{invoice.clinicName}</h2>
+              <h2 className="text-lg font-black text-[#182230] dark:text-white">{invoice.clinicName}</h2>
             </div>
             {invoice.doctorName && (
               <p className="text-xs font-bold text-[#087CF4] mt-1">
@@ -310,7 +310,7 @@ export function InvoiceView({
             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
               Invoice No.
             </span>
-            <span className="text-base font-black font-mono text-[#182230]">{invoice.invoiceNumber}</span>
+            <span className="text-base font-black font-mono text-[#182230] dark:text-white">{invoice.invoiceNumber}</span>
             <div className="mt-2 text-[11px] text-slate-500 font-mono">
               <p>Date: {invoice.date}</p>
               {invoice.cairoTime && <p>Time: {invoice.cairoTime}</p>}
@@ -319,12 +319,12 @@ export function InvoiceView({
         </div>
 
         {/* Patient Details & Status Banner */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 text-xs items-center">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-4 rounded-xl bg-slate-50 dark:bg-[#122849] border border-slate-100 dark:border-slate-700/60 text-xs items-center">
           <div>
             <span className="text-slate-400 font-bold block mb-1">
               {t('patient_data_label', isRtl ? 'بيانات المريض:' : 'Patient Details:')}
             </span>
-            <p className="font-black text-[#182230] text-sm">{invoice.patientName}</p>
+            <p className="font-black text-[#182230] dark:text-white text-sm">{invoice.patientName}</p>
             <p className="text-slate-500 font-mono mt-0.5" dir="ltr">{invoice.patientPhone}</p>
           </div>
 
@@ -356,7 +356,7 @@ export function InvoiceView({
         {/* Invoice Items Table */}
         <div className="overflow-hidden rounded-xl border border-[#E5EAF0]">
           <table className={`w-full text-xs ${isRtl ? 'text-right' : 'text-left'}`}>
-            <thead className="bg-slate-50 border-b border-[#E5EAF0] text-slate-500 font-black">
+            <thead className="bg-slate-50 dark:bg-[#122849] border-b border-[#E5EAF0] dark:border-slate-800 text-slate-500 dark:text-slate-300 font-black">
               <tr>
                 <th className="py-3 px-4">#</th>
                 <th className="py-3 px-4">{t('medical_service', isRtl ? 'الخدمة الطبية' : 'Medical Service')}</th>
@@ -400,7 +400,7 @@ export function InvoiceView({
             </p>
           </div>
 
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2 text-xs">
+          <div className="bg-slate-50 dark:bg-[#122849] p-4 rounded-xl border border-slate-100 dark:border-slate-700/60 space-y-2 text-xs">
             <div className="flex justify-between text-slate-500">
               <span>{t('subtotal', isRtl ? 'المجموع الفرعي:' : 'Subtotal:')}</span>
               <span className="font-bold">{invoice.servicePrice} {isRtl ? 'ج.م' : 'EGP'}</span>

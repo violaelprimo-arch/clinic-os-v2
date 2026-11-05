@@ -49,4 +49,42 @@ test('5. ThemeContext handles reduced-motion and system scheme changes', async (
   assert.ok(content.includes('prefers-reduced-motion: reduce'), 'Checks reduced motion preference');
   assert.ok(content.includes('prefers-color-scheme: dark'), 'Listens to system theme media query');
   assert.ok(content.includes('localStorage.setItem(\'clinic_os_theme\''), 'Persists user choice to localStorage');
+  assert.ok(content.includes('THEME_CHANGE'), 'Broadcasting THEME_CHANGE to iframes');
+});
+
+test('6. Global CSS defines fluid 200ms semantic token transitions and reduced-motion override', async () => {
+  const cssPath = path.resolve('D:/progect/clinic-os-v2/src/app/globals.css');
+  const content = fs.readFileSync(cssPath, 'utf8');
+
+  assert.ok(content.includes('transition-duration: 200ms'), '200ms transition duration applied');
+  assert.ok(content.includes('cubic-bezier(0.4, 0, 0.2, 1)'), 'cubic-bezier easing applied');
+  assert.ok(content.includes('prefers-reduced-motion: reduce'), 'prefers-reduced-motion override present in CSS');
+  assert.ok(content.includes('--card-elevated'), 'Theme tokens include card elevation');
+});
+
+test('7. ThemeToggle is present across all core portals and workflows', async () => {
+  const doctorLayoutPath = path.resolve('D:/progect/clinic-os-v2/src/app/clinic/[slug]/admin/layout.tsx');
+  const ownerLayoutPath = path.resolve('D:/progect/clinic-os-v2/src/app/owner/layout.tsx');
+  const patientPath = path.resolve('D:/progect/clinic-os-v2/src/app/clinic/[slug]/patient/page.tsx');
+  const patientLoginPath = path.resolve('D:/progect/clinic-os-v2/src/app/clinic/[slug]/patient/login/page.tsx');
+  const trackPath = path.resolve('D:/progect/clinic-os-v2/src/app/clinic/[slug]/track/page.tsx');
+  const landingPath = path.resolve('D:/progect/clinic-os-v2/src/components/clinic/PremiumLanding.tsx');
+
+  assert.ok(fs.readFileSync(doctorLayoutPath, 'utf8').includes('<ThemeToggle'), 'Doctor layout has ThemeToggle');
+  assert.ok(fs.readFileSync(ownerLayoutPath, 'utf8').includes('<ThemeToggle'), 'Owner layout has ThemeToggle');
+  assert.ok(fs.readFileSync(patientPath, 'utf8').includes('<ThemeToggle'), 'Patient portal has ThemeToggle');
+  assert.ok(fs.readFileSync(patientLoginPath, 'utf8').includes('<ThemeToggle'), 'Patient login has ThemeToggle');
+  assert.ok(fs.readFileSync(trackPath, 'utf8').includes('<ThemeToggle'), 'Track queue has ThemeToggle');
+  assert.ok(fs.readFileSync(landingPath, 'utf8').includes('<ThemeToggle'), 'Landing page has ThemeToggle');
+});
+
+test('8. Settings page synchronizes theme to preview iframe via postMessage', async () => {
+  const settingsPath = path.resolve('D:/progect/clinic-os-v2/src/app/clinic/[slug]/admin/settings/page.tsx');
+  const clinicPagePath = path.resolve('D:/progect/clinic-os-v2/src/app/clinic/[slug]/page.tsx');
+
+  const settingsContent = fs.readFileSync(settingsPath, 'utf8');
+  const clinicContent = fs.readFileSync(clinicPagePath, 'utf8');
+
+  assert.ok(settingsContent.includes("type: 'THEME_CHANGE'"), 'Settings posts THEME_CHANGE to iframe');
+  assert.ok(clinicContent.includes("event.data?.type === 'THEME_CHANGE'"), 'Clinic page receives THEME_CHANGE');
 });

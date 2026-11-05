@@ -34,7 +34,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [isSystem, setIsSystem] = useState<boolean>(true)
   const [mounted, setMounted] = useState(false)
 
-  // Fast theme application without lag, flashing, or layout thrashing
+  // Fast and smooth theme application with zero lag or layout thrashing
   const applyTheme = useCallback((t: Theme) => {
     if (typeof document === 'undefined') return
     const root = document.documentElement
@@ -44,16 +44,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       window.matchMedia &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-    // If user prefers reduced motion, disable transitions momentarily for an instantaneous flip
-    let css: HTMLStyleElement | null = null
     if (prefersReducedMotion) {
-      css = document.createElement('style')
-      css.appendChild(
-        document.createTextNode(
-          '*, *::before, *::after { -webkit-transition: none !important; -moz-transition: none !important; -o-transition: none !important; -ms-transition: none !important; transition: none !important; }'
-        )
-      )
-      document.head.appendChild(css)
+      root.classList.add('reduced-motion')
     }
 
     if (t === 'dark') {
@@ -66,14 +58,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       root.style.colorScheme = 'light'
     }
 
-    if (css) {
-      requestAnimationFrame(() => {
-        try {
-          if (css && document.head.contains(css)) {
-            document.head.removeChild(css)
-          }
-        } catch {}
-      })
+    // Broadcast theme update to any active iframes (such as live booking preview)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('clinic_theme_changed', { detail: { theme: t } }))
+      try {
+        const iframes = document.querySelectorAll('iframe')
+        iframes.forEach((ifr) => {
+          ifr.contentWindow?.postMessage({ type: 'THEME_CHANGE', theme: t }, '*')
+        })
+      } catch (e) {}
     }
   }, [])
 
@@ -85,20 +78,47 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     applyTheme(initial.theme)
 
     // Listen to OS system color scheme changes if user hasn't chosen a manual theme
-    if (typeof window !== 'undefined' && window.matchMedia) {
-      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-      const handleSystemChange = (e: MediaQueryListEvent) => {
-        const stored = localStorage.getItem('clinic_os_theme')
-        if (!stored) {
-          const nextTheme = e.matches ? 'dark' : 'light'
-          setThemeState(nextTheme)
-          setIsSystem(true)
-          applyTheme(nextTheme)
-        }
+    let mediaQuery: MediaQueryList | null = null
+    const handleSystemChange = (e: MediaQueryListEvent) => {
+      const stored = localStorage.getItem('clinic_os_theme')
+      if (!stored) {
+        const nextTheme = e.matches ? 'dark' : 'light'
+        setThemeState(nextTheme)
+        setIsSystem(true)
+        applyTheme(nextTheme)
       }
+    }
 
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
       mediaQuery.addEventListener('change', handleSystemChange)
-      return () => mediaQuery.removeEventListener('change', handleSystemChange)
+    }
+
+    // Listen for iframe THEME_CHANGE messages (for live preview in settings)
+    const handleWindowMessage = (e: MessageEvent) => {
+      if (e.data?.type === 'THEME_CHANGE' && (e.data.theme === 'dark' || e.data.theme === 'light')) {
+        setThemeState(e.data.theme)
+        applyTheme(e.data.theme)
+      }
+    }
+
+    // Listen for localStorage changes across windows/tabs
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'clinic_os_theme' && (e.newValue === 'dark' || e.newValue === 'light')) {
+        setThemeState(e.newValue)
+        applyTheme(e.newValue)
+      }
+    }
+
+    window.addEventListener('message', handleWindowMessage)
+    window.addEventListener('storage', handleStorageChange)
+
+    return () => {
+      if (mediaQuery) {
+        mediaQuery.removeEventListener('change', handleSystemChange)
+      }
+      window.removeEventListener('message', handleWindowMessage)
+      window.removeEventListener('storage', handleStorageChange)
     }
   }, [applyTheme])
 
@@ -116,19 +136,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const toggleTheme = useCallback(() => {
     const next: Theme = theme === 'dark' ? 'light' : 'dark'
-    const prefersReducedMotion =
-      typeof window !== 'undefined' &&
-      window.matchMedia &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
-    if (!prefersReducedMotion && typeof document !== 'undefined' && 'startViewTransition' in document) {
-      try {
-        ;(document as any).startViewTransition(() => {
-          setTheme(next)
-        })
-        return
-      } catch {}
-    }
     setTheme(next)
   }, [theme, setTheme])
 

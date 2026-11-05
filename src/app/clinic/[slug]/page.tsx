@@ -124,7 +124,7 @@ export default function ClinicPage({ params }: { params: Promise<{ slug: string 
       }
     } catch (e) {}
 
-    // 2. Real-time postMessage listener
+    // 2. Real-time postMessage listener (for live edits and instant Dark/Light theme sync)
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'CLINIC_PREVIEW_UPDATE' && event.data?.data) {
         const update = event.data.data
@@ -133,13 +133,43 @@ export default function ClinicPage({ params }: { params: Promise<{ slug: string 
           setLiveServices(update.services)
         }
       }
+      if (event.data?.type === 'THEME_CHANGE' && event.data?.theme) {
+        const t = event.data.theme
+        if (t === 'dark') {
+          document.documentElement.classList.add('dark')
+          document.documentElement.classList.remove('light')
+          document.documentElement.style.colorScheme = 'dark'
+        } else {
+          document.documentElement.classList.remove('dark')
+          document.documentElement.classList.add('light')
+          document.documentElement.style.colorScheme = 'light'
+        }
+      }
+    }
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'clinic_os_theme' && (e.newValue === 'dark' || e.newValue === 'light')) {
+        if (e.newValue === 'dark') {
+          document.documentElement.classList.add('dark')
+          document.documentElement.classList.remove('light')
+          document.documentElement.style.colorScheme = 'dark'
+        } else {
+          document.documentElement.classList.remove('dark')
+          document.documentElement.classList.add('light')
+          document.documentElement.style.colorScheme = 'light'
+        }
+      }
     }
 
     window.addEventListener('message', handleMessage)
+    window.addEventListener('storage', handleStorage)
     try {
       window.parent?.postMessage({ type: 'CLINIC_PREVIEW_READY' }, '*')
     } catch (e) {}
-    return () => window.removeEventListener('message', handleMessage)
+    return () => {
+      window.removeEventListener('message', handleMessage)
+      window.removeEventListener('storage', handleStorage)
+    }
   }, [slug])
 
   if (loading) {

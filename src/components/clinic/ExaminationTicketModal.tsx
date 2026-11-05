@@ -79,7 +79,7 @@ export function ExaminationTicketModal({
 
         {/* Visual Ticket Preview */}
         <div className="p-5 space-y-4 text-center">
-          <div className="p-5 rounded-2xl bg-white text-slate-900 border border-slate-200 shadow-inner space-y-3 font-mono">
+          <div className="p-5 rounded-2xl bg-white dark:bg-[#0c1e38] text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 shadow-inner space-y-3 font-mono">
             <div className="text-sm font-black tracking-wide border-b border-dashed border-slate-300 pb-2">
               {ticketData.clinicName}
               {ticketData.branchName && <div className="text-[11px] font-normal text-slate-600">{ticketData.branchName}</div>}

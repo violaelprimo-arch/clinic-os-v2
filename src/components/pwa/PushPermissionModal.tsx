@@ -82,7 +82,7 @@ export function PushPermissionModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in" dir="rtl">
-      <div className="bg-white rounded-3xl shadow-2xl border border-[#E5EAF0] w-full max-w-md p-5 sm:p-6 space-y-4 animate-in slide-in-from-bottom-4">
+      <div className="bg-card text-card-foreground rounded-3xl shadow-2xl border border-border w-full max-w-md p-5 sm:p-6 space-y-4 animate-in slide-in-from-bottom-4">
         
         {/* Header Icon & Close */}
         <div className="flex items-start justify-between">
@@ -99,22 +99,22 @@ export function PushPermissionModal({
 
         {/* Content */}
         <div className="space-y-1.5 text-right">
-          <h3 className="text-lg font-black text-[#182230] flex items-center gap-1.5">
+          <h3 className="text-lg font-black text-foreground flex items-center gap-1.5">
             <span>فعّل إشعارات دورك</span>
             <Sparkles className="w-4 h-4 text-amber-500" />
           </h3>
-          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+          <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
             اسمح لنا بإرسال تنبيه فوري على موبايلك لما دورك يقرب (من أول 5 أدوار) أو يحصل أي حركة في موعدك، حتى لو مش فاتح صفحة العيادة على الأجهزة المدعومة.
           </p>
         </div>
 
         {/* iOS Safari Special Instructions if active */}
         {showIosGuide && (
-          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2 text-right">
+          <div className="p-3.5 rounded-2xl bg-muted/50 border border-border text-xs space-y-2 text-right">
             <p className="font-bold text-[#182230]">لتفعيل الإشعارات على iPhone:</p>
-            <ol className="space-y-1 text-slate-600 list-decimal list-inside">
+            <ol className="space-y-1 text-muted-foreground list-decimal list-inside">
               <li>اضغط على زر المشاركة <Share className="w-3.5 h-3.5 inline mx-1 text-blue-500" /> في متصفح Safari بالأسفل.</li>
-              <li>اختر <span className="font-bold text-slate-800">"إضافة إلى الصفحة الرئيسية" <PlusSquare className="w-3.5 h-3.5 inline mx-1 text-[#087CF4]" /></span>.</li>
+              <li>اختر <span className="font-bold text-foreground">"إضافة إلى الصفحة الرئيسية" <PlusSquare className="w-3.5 h-3.5 inline mx-1 text-[#087CF4]" /></span>.</li>
               <li>افتح التطبيق من شاشتك الرئيسية لتفعيل الإشعارات الفورية.</li>
             </ol>
           </div>
@@ -133,7 +133,7 @@ export function PushPermissionModal({
           <Button
             variant="outline"
             onClick={handleDismiss}
-            className="h-11 px-4 text-xs sm:text-sm font-bold text-slate-600 border-[#E5EAF0] hover:bg-slate-50 rounded-xl cursor-pointer"
+            className="h-11 px-4 text-xs sm:text-sm font-bold text-foreground border-border hover:bg-muted rounded-xl cursor-pointer"
           >
             لاحقاً
           </Button>

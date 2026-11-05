@@ -152,7 +152,60 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground transition-colors duration-200;
+    @apply bg-background text-foreground;
+  }
+}
+
+/* =========================================================================
+   SEAMLESS 200ms DARK/LIGHT COLOR TRANSITION SYSTEM
+   Applies smooth 200ms transition strictly to color and border tokens
+   without touching layout geometry or causing reflow
+   ========================================================================= */
+html,
+body,
+header,
+aside,
+nav,
+footer,
+main,
+section,
+div,
+input,
+textarea,
+select,
+button,
+table,
+thead,
+tbody,
+tr,
+th,
+td,
+.card,
+.medical-card,
+.ios-glass-card,
+.yalla-card,
+.yalla-card-elevated,
+[class*="bg-background"],
+[class*="bg-card"],
+[class*="bg-sidebar"],
+[class*="bg-muted"],
+[class*="bg-secondary"],
+[class*="border-border"],
+[class*="text-foreground"],
+[class*="text-muted-foreground"] {
+  transition-property: background-color, border-color, color, fill, stroke, box-shadow;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html,
+  body,
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation-duration: 0.01ms !important;
   }
 }
 

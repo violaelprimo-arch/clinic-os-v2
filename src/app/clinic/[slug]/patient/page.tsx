@@ -18,6 +18,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ClinicLocationMap } from '@/components/clinic/ClinicLocationMap'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { NotificationCenter } from '@/components/clinic/NotificationCenter'
+import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { getPhoneSearchVariants } from '@/lib/countryPhoneHelper'
 import {
   CalendarCheck,
@@ -528,6 +529,9 @@ export default function PatientDashboardPage() {
                 recipientType="patient"
               />
             )}
+
+            {/* Theme Toggle */}
+            <ThemeToggle />
 
             {/* Logout button */}
             <button
