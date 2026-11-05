@@ -23,6 +23,31 @@ export async function GET(
     const clinicId = clinicDoc ? clinicDoc.id : slug
     const clinicData = clinicDoc ? clinicDoc.data() : null
 
+    const datesParam = searchParams.get('dates')
+    if (datesParam) {
+      const dateList = datesParam.split(',').map((d) => d.trim()).filter(Boolean)
+      const dailyCounts: Record<string, number> = {}
+
+      await Promise.all(
+        dateList.map(async (dStr) => {
+          const dQ = query(
+            collection(db, 'appointments'),
+            where('clinic_id', '==', clinicId),
+            where('date', '==', dStr)
+          )
+          const dSnap = await getDocs(dQ)
+          const active = dSnap.docs.filter((d) => d.data().status !== 'cancelled').length
+          dailyCounts[dStr] = active
+        })
+      )
+
+      return NextResponse.json({
+        success: true,
+        dailyCounts,
+        maxDailyBookings: Number(clinicData?.maxDailyBookings) || 0
+      })
+    }
+
     const nowCairo = new Date()
     const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(nowCairo)
 

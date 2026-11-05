@@ -1,5 +1,5 @@
 import { toast } from 'sonner'
-import { cleanPhoneForWhatsApp } from '@/lib/countryPhoneHelper'
+import { cleanPhoneForWhatsApp } from './countryPhoneHelper'
 
 /**
  * Normalizes phone number to standard international WhatsApp format:
@@ -456,6 +456,7 @@ export function formatInClinicBookingWhatsAppMessage({
   branchName,
   bookingDate,
   queueNumber,
+  clinicWebsiteUrl,
   trackUrl,
   clinicHomepageUrl,
   patientPortalUrl,
@@ -465,11 +466,15 @@ export function formatInClinicBookingWhatsAppMessage({
   branchName: string
   bookingDate: string
   queueNumber: number | string
-  trackUrl: string
+  clinicWebsiteUrl?: string
   clinicHomepageUrl?: string
+  trackUrl: string
   patientPortalUrl?: string
 }): string {
-  const resolvedHomepage = clinicHomepageUrl || (patientPortalUrl ? patientPortalUrl.replace(/\/patient\/?$/, '') : '')
+  const resolvedWebsite = clinicWebsiteUrl || clinicHomepageUrl
+  const websiteLine = resolvedWebsite ? `\n\nرابط موقع العيادة والحجز:\n${resolvedWebsite}` : ''
+  const portalLine = patientPortalUrl ? `\n\nللدخول إلى ملفك الطبي والروشتات:\n${patientPortalUrl}` : ''
+
   return `أهلًا بحضرتك، تم تسجيل حجزك في ${clinicName}.
 
 الخدمة: ${serviceName}
@@ -477,11 +482,8 @@ export function formatInClinicBookingWhatsAppMessage({
 التاريخ: ${bookingDate}
 رقم تذكرة الدور: #${queueNumber}
 
-لمتابعة دورك المباشر:
-${trackUrl}
-
-موقع العيادة والحجز:
-${resolvedHomepage}
+لمتابعة دورك المباشر ووقت الانتظار:
+${trackUrl}${websiteLine}${portalLine}
 
 ترتيب الدخول ووقت الانتظار يتحدثان حسب حركة العيادة.`
 }

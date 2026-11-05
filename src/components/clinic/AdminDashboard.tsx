@@ -323,12 +323,22 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
   const handleConfirmPayment = async (patient: any) => {
     if (!patient || isProcessing) return
     setIsProcessing(true)
+    const effectiveSlug = clinic?.slug || 'demo'
     try {
-      await updateDoc(doc(db, 'appointments', patient.id), {
-        paymentStatus: 'paid',
-        paymentConfirmedAt: new Date().toISOString(),
-        paymentConfirmedBy: 'staff'
+      const res = await fetch(`/api/clinic/${encodeURIComponent(effectiveSlug)}/payments/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appointmentId: patient.id })
       })
+
+      if (!res.ok) {
+        await updateDoc(doc(db, 'appointments', patient.id), {
+          paymentStatus: 'paid',
+          paymentConfirmedAt: new Date().toISOString(),
+          paymentConfirmedBy: 'staff'
+        })
+      }
+      toast.success('تم تأكيد استلام الدفع بنجاح')
       if (patient.phone) {
         await createClinicNotification({
           clinicId: clinic?.id || patient.clinic_id,

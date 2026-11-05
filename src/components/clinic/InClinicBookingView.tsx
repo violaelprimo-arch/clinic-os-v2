@@ -27,17 +27,8 @@ import {
 } from '@/lib/countryPhoneHelper'
 import { ResidentialAreaSelector, ResidentialAreaValue } from '@/components/common/ResidentialAreaSelector'
 import { openManualWhatsAppChat, formatInClinicBookingWhatsAppMessage } from '@/lib/whatsappShare'
-import { getClinicUrl } from '@/lib/clinic-url'
 import { Branch } from '@/types/clinic'
 import { getClinicBranches, ensureClinicHasMainBranch } from '@/lib/branchService'
-import {
-  resolveEffectiveDailyLimit,
-  isAppointmentActive,
-  evaluateDayAvailability,
-  findNearestAvailableDate,
-  getCairoDateString,
-  CAPACITY_FULL_MESSAGE
-} from '@/lib/bookingCapacity'
 import Link from 'next/link'
 
 interface PatientMatch {
@@ -86,7 +77,7 @@ export function InClinicBookingView({
     const loadBranches = async () => {
       try {
         await ensureClinicHasMainBranch(clinic)
-        const list = await getClinicBranches(clinicId)
+        const list = await getClinicBranches(clinicId, slug)
         const activeList = list.filter((b) => !b.isArchived)
         setBranches(activeList)
 
@@ -154,45 +145,6 @@ export function InClinicBookingView({
   const selectedBranch = useMemo(() => {
     return branches.find((b) => b.id === selectedBranchId) || branches[0]
   }, [branches, selectedBranchId])
-
-  // Capacity and Daily Limits
-  const maxLimit = useMemo(() => {
-    return resolveEffectiveDailyLimit(clinic, selectedBranch, branches.length > 1)
-  }, [clinic, selectedBranch, branches.length])
-
-  const [dateBookingCount, setDateBookingCount] = useState<number>(0)
-  const isDateFull = maxLimit > 0 && dateBookingCount >= maxLimit
-
-  const dateEvaluation = useMemo(() => {
-    return evaluateDayAvailability({
-      dateStr: bookingDate,
-      clinic,
-      branch: selectedBranch,
-      limit: maxLimit,
-      dailyCounts: { [bookingDate]: dateBookingCount },
-      isRtl
-    })
-  }, [bookingDate, clinic, selectedBranch, maxLimit, dateBookingCount, isRtl])
-
-  useEffect(() => {
-    if (!clinic?.id && !clinic?.slug) return
-    const clinicId = clinic.id || clinic.slug
-    const q = query(
-      collection(db, 'appointments'),
-      where('clinic_id', '==', clinicId),
-      where('date', '==', bookingDate)
-    )
-    const unsub = onSnapshot(q, (snap) => {
-      let active = snap.docs.filter((d) => isAppointmentActive(d.data().status))
-      if (branches.length > 1 && selectedBranchId && selectedBranchId !== 'main') {
-        active = active.filter((d) => (d.data().branch_id || d.data().branchId || null) === selectedBranchId)
-      }
-      setDateBookingCount(active.length)
-    }, (err) => {
-      console.error('Error listening to date capacity:', err)
-    })
-    return () => unsub()
-  }, [clinic?.id, clinic?.slug, bookingDate, selectedBranchId, branches.length])
 
   // Submission State
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -324,23 +276,6 @@ export function InClinicBookingView({
       return toast.error(isRtl ? 'يرجى اختيار الفرع' : 'Please select branch')
     }
 
-    if (!dateEvaluation.isSelectable) {
-      const nearest = findNearestAvailableDate({
-        requestedDateStr: bookingDate,
-        clinic,
-        branch: selectedBranch,
-        limit: maxLimit,
-        dailyCounts: { [bookingDate]: dateBookingCount },
-        isRtl
-      })
-      if (nearest) {
-        setBookingDate(nearest.iso)
-      }
-      return toast.error(
-        dateEvaluation.reason || (isRtl ? 'الموعد المحدد غير متاح للحجز' : 'Selected date unavailable')
-      )
-    }
-
     setIsSubmitting(true)
     try {
       const token = localStorage.getItem('clinic_session_token') || ''
@@ -385,7 +320,6 @@ export function InClinicBookingView({
   // 4. WhatsApp & Copy Helpers
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
   const trackUrl = `${baseUrl}/clinic/${encodeURIComponent(slug)}/track`
-  const clinicHomepageUrl = getClinicUrl(slug, '', clinic?.customDomain)
   const patientPortalUrl = `${baseUrl}/clinic/${encodeURIComponent(slug)}/patient`
 
   const confirmationMessage = useMemo(() => {
@@ -397,9 +331,9 @@ export function InClinicBookingView({
       bookingDate: bookingConfirmedResult.date,
       queueNumber: bookingConfirmedResult.queueNumber,
       trackUrl,
-      clinicHomepageUrl
+      patientPortalUrl
     })
-  }, [bookingConfirmedResult, clinic?.clinicName, clinic?.customDomain, slug, trackUrl, clinicHomepageUrl, isRtl])
+  }, [bookingConfirmedResult, clinic?.clinicName, trackUrl, patientPortalUrl, isRtl])
 
   const handleOpenWhatsApp = () => {
     if (!bookingConfirmedResult?.phone) return
@@ -601,16 +535,6 @@ export function InClinicBookingView({
                 className="text-primary hover:underline font-bold flex items-center gap-1"
               >
                 <span>{isRtl ? 'فتح رابط تتبع الدور' : 'Open Live Turn Link'}</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-
-              <a
-                href={clinicHomepageUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline font-bold flex items-center gap-1"
-              >
-                <span>{isRtl ? 'موقع العيادة والحجز' : 'Clinic Homepage & Booking'}</span>
                 <ExternalLink className="w-3 h-3" />
               </a>
 
@@ -881,66 +805,19 @@ export function InClinicBookingView({
 
                 {/* Date Selection */}
                 <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs font-bold text-foreground">
-                      {isRtl ? 'تاريخ الحجز' : 'Booking Date'} *
-                    </Label>
-                    <div className="flex items-center gap-1.5">
-                      <Badge
-                        className={`text-[10px] font-bold ${
-                          dateEvaluation.status === 'available'
-                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                            : dateEvaluation.status === 'full'
-                            ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-                            : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
-                        }`}
-                      >
-                        {dateEvaluation.statusLabel}
-                      </Badge>
-                      {maxLimit > 0 && (
-                        <Badge variant="outline" className="text-[10px] font-mono">
-                          {dateBookingCount}/{maxLimit}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
+                  <Label className="text-xs font-bold text-foreground">
+                    {isRtl ? 'تاريخ الحجز' : 'Booking Date'} *
+                  </Label>
                   <Input
                     type="date"
-                    min={getCairoDateString()}
                     value={bookingDate}
                     onChange={(e) => setBookingDate(e.target.value)}
                     className="h-11 rounded-2xl text-xs font-mono"
                     required
                   />
-                  {!dateEvaluation.isSelectable ? (
-                    <div className="flex items-center justify-between text-[11px] p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300">
-                      <span>{dateEvaluation.reason || 'الموعد غير متاح'}</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const nearest = findNearestAvailableDate({
-                            requestedDateStr: bookingDate,
-                            clinic,
-                            branch: selectedBranch,
-                            limit: maxLimit,
-                            dailyCounts: { [bookingDate]: dateBookingCount },
-                            isRtl
-                          })
-                          if (nearest) {
-                            setBookingDate(nearest.iso)
-                          }
-                        }}
-                        className="text-primary font-bold hover:underline cursor-pointer"
-                      >
-                        {isRtl ? 'اختر أقرب يوم متاح' : 'Select nearest date'}
-                      </button>
-                    </div>
-                  ) : (
-                    <p className="text-[11px] text-muted-foreground">
-                      {isRtl ? 'مواعيد الاستقبال لهذا اليوم: ' : 'Working hours today: '}
-                      <span className="font-bold text-foreground font-mono">{dateEvaluation.workingHoursLabel}</span>
-                    </p>
-                  )}
+                  <p className="text-[11px] text-muted-foreground">
+                    {isRtl ? 'الافتراضي هو اليوم للدخول المباشر في الطابور.' : 'Default is today for live queue.'}
+                  </p>
                 </div>
 
                 {/* Service Highlights Card */}
@@ -1092,4 +969,4 @@ export function InClinicBookingView({
       )}
     </div>
   )
-}
+}

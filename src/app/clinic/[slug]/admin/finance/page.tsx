@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
+import { getClinicBranches } from '@/lib/branchService'
 import { collection, query, where, getDocs } from 'firebase/firestore'
 import {
   printHtmlViaIframe,
@@ -94,9 +95,8 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
           const cData = { id: cSnap.docs[0].id, ...(cSnap.docs[0].data() as any) }
           setClinic(cData)
 
-          // Fetch branches subcollection
-          const bSnap = await getDocs(collection(db, 'clinics', cData.id, 'branches'))
-          const bList = bSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+          // Fetch branches from root collection / API
+          const bList = await getClinicBranches(cData.id, slug)
           setBranches(bList)
         }
       } catch (err) {
@@ -112,6 +112,56 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
     try {
       const activeFrom = overrideFrom !== undefined ? overrideFrom : fromDate
       const activeTo = overrideTo !== undefined ? overrideTo : toDate
+
+      // Try server API first (bypasses unauthenticated Firestore client rules)
+      try {
+        const queryParams = new URLSearchParams()
+        if (activeFrom) queryParams.set('from', activeFrom)
+        if (activeTo) queryParams.set('to', activeTo)
+        if (selectedBranchId && selectedBranchId !== 'all') queryParams.set('branchId', selectedBranchId)
+
+        const apiRes = await fetch(`/api/clinic/${encodeURIComponent(slug)}/finance?${queryParams.toString()}`)
+        if (apiRes.ok) {
+          const apiData = await apiRes.json()
+          if (apiData.success && apiData.summary) {
+            const s = apiData.summary
+            setTotals({
+              revenue: s.totalRevenue || 0,
+              patients: s.appointmentsCount || 0,
+              collected: s.collected || 0,
+              due: s.due || 0,
+              discounts: s.totalDiscounts || 0,
+              cash: s.cash || 0,
+              instapay: s.instapay || 0,
+              wallet: s.wallet || 0
+            })
+
+            if (Array.isArray(s.services)) {
+              setServicesData(s.services.map((item: any) => ({
+                name: item.name,
+                count: item.count,
+                total: item.total
+              })))
+            }
+
+            if (Array.isArray(s.timeline)) {
+              setTimelineData(s.timeline.map((item: any) => ({
+                key: item.date,
+                date: item.date,
+                day: item.date,
+                collected: item.collected,
+                revenue: item.revenue,
+                count: item.count
+              })))
+            }
+
+            setIsLoading(false)
+            return
+          }
+        }
+      } catch (apiErr) {
+        console.warn('Finance server API fallback to client query:', apiErr)
+      }
 
       const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
       const cSnap = await getDocs(cQ)

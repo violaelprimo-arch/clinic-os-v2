@@ -18,9 +18,9 @@ import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestor
 import { calculatePatientLivePosition, PatientQueueStatusResult } from '@/lib/queueCalculations'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import Link from 'next/link'
+import { getClinicTrackUrl } from '@/lib/clinicUrls'
 import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import { getPhoneSearchVariants } from '@/lib/countryPhoneHelper'
-import { getCairoDateString } from '@/lib/bookingCapacity'
 
 export function PatientLiveTurn({
   clinic,
@@ -114,7 +114,8 @@ export function PatientLiveTurn({
       return
     }
 
-    const today = getCairoDateString()
+    const now = new Date()
+    const today = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split('T')[0]
 
     const q = query(
       collection(db, 'appointments'),
@@ -193,8 +194,7 @@ export function PatientLiveTurn({
       targetAppointmentId: myAppt.id,
       targetAppointment: myAppt,
       allTodayAppointments: allTodayAppts,
-      clinic: clinicData,
-      bookingDateStr: myAppt.date
+      clinic: clinicData
     })
   }, [myAppt, allTodayAppts, clinicData])
 
@@ -346,7 +346,7 @@ export function PatientLiveTurn({
 
               <div className="pt-2 flex flex-col gap-2">
                 <Link
-                  href={`/clinic/${slug}/track/${otherDateAppt.id}`}
+                  href={getClinicTrackUrl(slug, undefined, { appointmentId: otherDateAppt.id })}
                   onClick={onClose}
                   className="w-full py-3 rounded-2xl bg-gradient-to-r from-[#0066dc] to-[#00a8e8] text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow hover:opacity-95 transition-all"
                 >
@@ -529,7 +529,7 @@ export function PatientLiveTurn({
               {/* Action Buttons */}
               <div className="pt-1 space-y-2">
                 <Link
-                  href={`/clinic/${slug}/track/${myAppt.id}`}
+                  href={getClinicTrackUrl(slug, undefined, { appointmentId: myAppt.id })}
                   onClick={onClose}
                   className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#0066dc] to-[#00a8e8] text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow hover:opacity-95 transition-all"
                 >
@@ -550,4 +550,4 @@ export function PatientLiveTurn({
       </div>
     </div>
   )
-}
+}

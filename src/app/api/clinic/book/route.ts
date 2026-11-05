@@ -30,7 +30,11 @@ export async function POST(req: NextRequest) {
       branchId,
       branchName,
       date,
-      time = '10:00 AM'
+      time = '10:00 AM',
+      paymentMethod = 'cash',
+      paymentStatus = 'unpaid',
+      paymentDetails = null,
+      residence = null
     } = body
 
     if (!patientName || !patientPhone) {
@@ -212,8 +216,10 @@ export async function POST(req: NextRequest) {
       date: bookingDate,
       time: String(time),
       status: 'waiting',
-      paymentMethod: 'cash',
-      paymentStatus: 'unpaid',
+      paymentMethod: paymentMethod || 'cash',
+      paymentStatus: paymentStatus === 'paid' ? 'paid' : 'unpaid',
+      paymentDetails: paymentDetails || null,
+      patientResidenceSnapshot: residence || null,
       createdAt: new Date().toISOString()
     }
 
@@ -324,6 +330,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       appointmentId: docRef.id,
+      id: docRef.id,
       queueNumber,
       aheadCount: livePos.aheadCount,
       effectivePosition: livePos.effectivePosition,
@@ -336,7 +343,17 @@ export async function POST(req: NextRequest) {
       time: String(time),
       branchName: branchName || 'الفرع الرئيسي',
       serviceName: verifiedServiceName,
-      servicePrice: verifiedServicePrice
+      servicePrice: verifiedServicePrice,
+      appointment: {
+        id: docRef.id,
+        queueNumber,
+        aheadCount: livePos.aheadCount,
+        date: bookingDate,
+        time: String(time),
+        branchName: branchName || 'الفرع الرئيسي',
+        patientName: cleanName,
+        servicePrice: verifiedServicePrice
+      }
     })
   } catch (err: any) {
     console.error('Error booking appointment:', err)

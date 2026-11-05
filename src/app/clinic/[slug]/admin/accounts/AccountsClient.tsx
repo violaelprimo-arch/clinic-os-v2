@@ -112,11 +112,20 @@ export default function AccountsClient({ slug }: { slug: string }) {
     if (!item.id || isProcessing) return
     setIsProcessing(true)
     try {
-      await updateDoc(doc(db, 'appointments', item.id), {
-        paymentStatus: 'paid',
-        confirmedAt: new Date().toISOString(),
-        confirmedBy: clinic?.doctorName || 'إدارة العيادة'
+      const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/payments/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appointmentId: item.id })
       })
+
+      if (!res.ok) {
+        // Fallback to client update
+        await updateDoc(doc(db, 'appointments', item.id), {
+          paymentStatus: 'paid',
+          confirmedAt: new Date().toISOString(),
+          confirmedBy: clinic?.doctorName || 'إدارة العيادة'
+        })
+      }
       toast.success('تم تأكيد استلام الدفعة بنجاح وتسجيلها في الحسابات')
     } catch {
       toast.error('خطأ في تأكيد الدفع')

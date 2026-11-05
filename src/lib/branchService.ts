@@ -65,8 +65,9 @@ export function checkScheduleConflicts(
   candidateBranch?: Partial<Branch>
 ): string[] {
   const conflicts: string[] = []
-  const allBranches = candidateBranch?.id
-    ? branches.map((b) => (b.id === candidateBranch.id ? { ...b, ...candidateBranch } : b))
+  const existingIndex = candidateBranch?.id ? branches.findIndex((b) => b.id === candidateBranch.id) : -1
+  const allBranches = existingIndex >= 0
+    ? branches.map((b, idx) => (idx === existingIndex ? ({ ...b, ...candidateBranch } as Branch) : b))
     : candidateBranch
     ? [...branches, candidateBranch as Branch]
     : branches
@@ -102,16 +103,24 @@ export function checkScheduleConflicts(
 export async function ensureClinicHasMainBranch(clinic: any): Promise<Branch> {
   const clinicId = clinic.id || clinic.slug
   const branchesRef = collection(db, 'branches')
-  const q = query(branchesRef, where('clinicId', '==', clinicId))
-  const snap = await getDocs(q)
 
-  if (!snap.empty) {
-    const existingBranches = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as Branch[]
-    const mainBranch = existingBranches.find((b) => b.isMain) || existingBranches[0]
-    if (clinic.weeklySchedule && clinic.weeklySchedule.length > 0 && (!mainBranch.weeklySchedule || mainBranch.weeklySchedule.length === 0)) {
-      mainBranch.weeklySchedule = clinic.weeklySchedule
+  try {
+    const [snap1, snap2] = await Promise.all([
+      getDocs(query(branchesRef, where('clinicId', '==', clinicId))),
+      getDocs(query(branchesRef, where('clinic_id', '==', clinicId)))
+    ])
+
+    const allDocs = [...snap1.docs, ...snap2.docs]
+    if (allDocs.length > 0) {
+      const existingBranches = allDocs.map((d) => ({ id: d.id, ...(d.data() as any) })) as Branch[]
+      const mainBranch = existingBranches.find((b) => b.isMain) || existingBranches[0]
+      if (clinic.weeklySchedule && clinic.weeklySchedule.length > 0 && (!mainBranch.weeklySchedule || mainBranch.weeklySchedule.length === 0)) {
+        mainBranch.weeklySchedule = clinic.weeklySchedule
+      }
+      return mainBranch
     }
-    return mainBranch
+  } catch (readErr) {
+    console.warn('Branch read warning in ensureClinicHasMainBranch:', readErr)
   }
 
   // Create default main branch
@@ -119,8 +128,9 @@ export async function ensureClinicHasMainBranch(clinic: any): Promise<Branch> {
     ? clinic.weeklySchedule
     : DEFAULT_WEEKLY_SCHEDULE
 
-  const defaultBranchData: Omit<Branch, 'id'> = {
+  const defaultBranchData: any = {
     clinicId,
+    clinic_id: clinicId,
     name: 'الفرع الرئيسي',
     governorate: 'القاهرة',
     city: 'القاهرة',
@@ -131,8 +141,8 @@ export async function ensureClinicHasMainBranch(clinic: any): Promise<Branch> {
     whatsapp: clinic.clinicPhone || '',
     weeklySchedule: schedule,
     workingHours: formatWeeklyScheduleSummary(schedule, true),
-    slotDuration: clinic.averageVisitTime || 15,
-    maxDailyBookings: clinic.maxDailyBookings || 0,
+    slotDuration: Number(clinic.averageVisitTime) || 15,
+    maxDailyBookings: Number(clinic.maxDailyBookings) || 0,
     services: clinic.services || [
       { id: '1', name: 'كشف عادي', price: 250, duration: '15 دقيقة' },
       { id: '2', name: 'استشارة', price: 150, duration: '10 دقائق' },
@@ -144,42 +154,52 @@ export async function ensureClinicHasMainBranch(clinic: any): Promise<Branch> {
     createdAt: new Date().toISOString()
   }
 
-  const newDocRef = await addDoc(branchesRef, defaultBranchData)
-  const createdBranch: Branch = { id: newDocRef.id, ...defaultBranchData }
-
-  // Gracefully link unassigned appointments to this main branch in batches
   try {
-    const apptsRef = collection(db, 'appointments')
-    const apptsQuery = query(apptsRef, where('clinic_id', '==', clinicId))
-    const apptsSnap = await getDocs(apptsQuery)
-
-    const unassigned = apptsSnap.docs.filter((d) => !d.data().branch_id)
-    if (unassigned.length > 0) {
-      const batch = writeBatch(db)
-      unassigned.forEach((docSnap) => {
-        batch.update(doc(db, 'appointments', docSnap.id), {
-          branch_id: newDocRef.id,
-          branchName: 'الفرع الرئيسي'
-        })
-      })
-      await batch.commit()
-    }
+    const newDocRef = await addDoc(branchesRef, defaultBranchData)
+    const createdBranch: Branch = { id: newDocRef.id, ...defaultBranchData }
+    return createdBranch
   } catch (err) {
-    console.warn('Branch backfill warning:', err)
+    console.warn('Could not addDoc main branch, returning memory fallback:', err)
+    return { id: 'main', ...defaultBranchData } as Branch
   }
-
-  return createdBranch
 }
 
 /**
  * Fetches all active (non-archived) branches for a clinic.
+ * Searches both clinicId and clinic_id fields and deduplicates by id.
  */
-export async function getClinicBranches(clinicId: string): Promise<Branch[]> {
+export async function getClinicBranches(clinicId: string, slug?: string): Promise<Branch[]> {
   try {
+    // If slug is available, attempt fast fetch from server API
+    if (slug && typeof window !== 'undefined') {
+      try {
+        const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/branches`)
+        if (res.ok) {
+          const data = await res.json()
+          if (Array.isArray(data.branches) && data.branches.length > 0) {
+            return data.branches
+          }
+        }
+      } catch (apiErr) {
+        // Fall back to direct Firestore read
+      }
+    }
+
     const branchesRef = collection(db, 'branches')
-    const q = query(branchesRef, where('clinicId', '==', clinicId))
-    const snap = await getDocs(q)
-    return snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as Branch[]
+    const [snap1, snap2] = await Promise.all([
+      getDocs(query(branchesRef, where('clinicId', '==', clinicId))),
+      getDocs(query(branchesRef, where('clinic_id', '==', clinicId)))
+    ])
+
+    const map = new Map<string, Branch>()
+    snap1.docs.forEach((d) => {
+      map.set(d.id, { id: d.id, ...(d.data() as any) })
+    })
+    snap2.docs.forEach((d) => {
+      map.set(d.id, { id: d.id, ...(d.data() as any) })
+    })
+
+    return Array.from(map.values()).filter((b) => !b.isArchived)
   } catch (err) {
     console.error('Error fetching branches:', err)
     return []

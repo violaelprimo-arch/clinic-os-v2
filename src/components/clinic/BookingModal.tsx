@@ -585,11 +585,53 @@ export function BookingModal({
         createdAt: new Date().toISOString()
       }
 
-      // Atomically allocate next sequential queue number with zero concurrency collisions
-      const cleanApptPayload = removeUndefinedFields(newAppt)
-      const { id: newApptId, queueNumber: allocatedQueueNumber } = await createAtomicAppointment(cleanApptPayload, maxLimit)
+      // Atomically allocate next sequential queue number via Server API (prevents client permission errors)
+      let newApptId = ''
+      let myQueueNumber = 1
+
+      try {
+        const bookRes = await fetch('/api/clinic/book', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            slug,
+            clinicId,
+            branchId,
+            branchName,
+            patientName: patientName.trim(),
+            patientPhone: cleanPhone,
+            age: age.trim() || null,
+            gender: gender || 'أنثى',
+            serviceId: selectedService?.id || '1',
+            serviceName,
+            servicePrice: payableAmount,
+            date: selectedDate,
+            paymentMethod,
+            paymentStatus,
+            paymentDetails: newAppt.paymentDetails,
+            residence: newAppt.patientResidenceSnapshot
+          })
+        })
+
+        const bookData = await bookRes.json()
+        if (!bookRes.ok) {
+          throw new Error(bookData.error || 'فشل في إتمام الحجز')
+        }
+
+        newApptId = bookData.appointmentId || bookData.id || bookData.appointment?.id
+        myQueueNumber = bookData.queueNumber || bookData.appointment?.queueNumber || 1
+      } catch (serverErr: any) {
+        if (serverErr.message && !serverErr.message.includes('fetch') && !serverErr.message.includes('Network')) {
+          throw serverErr
+        }
+        // Fallback to client-side atomic appointment
+        const cleanApptPayload = removeUndefinedFields(newAppt)
+        const atomicRes = await createAtomicAppointment(cleanApptPayload, maxLimit)
+        newApptId = atomicRes.id
+        myQueueNumber = atomicRes.queueNumber
+      }
+
       const docRef = { id: newApptId }
-      const myQueueNumber = allocatedQueueNumber
 
       // Auto ensure patient account exists for frictionless patient portal access
       try {

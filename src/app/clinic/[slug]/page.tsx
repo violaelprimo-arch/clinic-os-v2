@@ -72,8 +72,25 @@ export default function ClinicPage({ params }: { params: Promise<{ slug: string 
           return
         }
 
+        let finalData = clinicData
+        if (typeof window !== 'undefined') {
+          const isEmbedded = window.self !== window.top || new URLSearchParams(window.location.search).get('preview') === '1'
+          if (isEmbedded) {
+            try {
+              const stored = localStorage.getItem(`clinic_live_preview_${slug}`)
+              if (stored) {
+                const parsed = JSON.parse(stored)
+                finalData = { ...clinicData, ...parsed }
+                if (parsed.services && Array.isArray(parsed.services)) {
+                  setLiveServices(parsed.services)
+                }
+              }
+            } catch (e) {}
+          }
+        }
+
         setError('')
-        setClinic(clinicData)
+        setClinic(finalData)
         setLoading(false)
       },
       (err) => {
@@ -116,6 +133,9 @@ export default function ClinicPage({ params }: { params: Promise<{ slug: string 
     }
 
     window.addEventListener('message', handleMessage)
+    try {
+      window.parent?.postMessage({ type: 'CLINIC_PREVIEW_READY' }, '*')
+    } catch (e) {}
     return () => window.removeEventListener('message', handleMessage)
   }, [slug])
 

@@ -33,6 +33,7 @@ import {
   getPhoneSearchVariants
 } from '@/lib/countryPhoneHelper'
 import Link from 'next/link'
+import { getClinicWebsiteUrl, getClinicPatientPortalUrl } from '@/lib/clinicUrls'
 import { toast } from 'sonner'
 
 export default function TrackQueuePage({
@@ -171,16 +172,26 @@ export default function TrackQueuePage({
     const todayCairo = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(nowCairo)
     const apptDate = selectedAppointment.date || todayCairo
 
-    // Future appointment - calculate using schedule-anchored timeline engine
+    // Future appointment
     if (apptDate > todayCairo) {
-      return calculatePatientLivePosition({
-        targetAppointmentId: selectedAppointment.id,
-        targetAppointment: selectedAppointment,
-        allTodayAppointments: [],
-        clinic,
-        bookingDateStr: apptDate,
-        isRtl
-      })
+      const futureDate = new Date(`${apptDate}T09:00:00`)
+      const diffMs = Math.max(0, futureDate.getTime() - nowCairo.getTime())
+      const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+
+      return {
+        status: 'upcoming',
+        statusLabel: isRtl ? `موعد قادم يوم ${apptDate}` : `Upcoming appointment on ${apptDate}`,
+        isCurrentTurn: false,
+        isNextInLine: false,
+        aheadCount: 0,
+        effectivePosition: 0,
+        formattedWaitTime: diffDays === 1 ? (isRtl ? 'غداً' : 'Tomorrow') : (isRtl ? `خلال ${diffDays} يوم` : `In ${diffDays} days`),
+        isFuture: true,
+        daysRemaining: diffDays,
+        message: isRtl
+          ? `حجزك مؤكد ليوم ${apptDate}. يبدأ تتبع الدور المباشر وحساب مدة الانتظار في يوم الكشف.`
+          : `Your booking is confirmed for ${apptDate}. Live queue tracking begins on the day of your appointment.`
+      }
     }
 
     // Past appointment
@@ -209,8 +220,7 @@ export default function TrackQueuePage({
         targetAppointmentId: liveAppt.id,
         targetAppointment: liveAppt,
         allTodayAppointments: allTodayBranchAppts,
-        clinic,
-        isRtl
+        clinic
       })
     }
 
@@ -250,7 +260,7 @@ export default function TrackQueuePage({
             <ThemeToggle />
             <LanguageToggle />
             <Link
-              href={`/clinic/${slug}/patient`}
+              href={getClinicPatientPortalUrl(slug)}
               className="text-xs font-bold text-primary hover:underline px-2.5 py-1.5 rounded-xl hover:bg-primary/10 transition-colors flex items-center gap-1"
             >
               <span>{isRtl ? 'بوابة المريض' : 'Patient Portal'}</span>
@@ -389,7 +399,7 @@ export default function TrackQueuePage({
             </p>
             <div className="pt-2">
               <Link
-                href={`/clinic/${slug}`}
+                href={getClinicWebsiteUrl(slug)}
                 className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline"
               >
                 <span>{isRtl ? 'حجز موعد جديد في العيادة' : 'Book a New Appointment'}</span>
@@ -553,7 +563,7 @@ export default function TrackQueuePage({
               </Button>
 
               <Link
-                href={`/clinic/${slug}/patient`}
+                href={getClinicPatientPortalUrl(slug)}
                 className="inline-flex items-center justify-center gap-1.5 text-xs font-bold text-primary hover:underline px-4 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 transition-colors w-full sm:w-auto"
               >
                 <span>{isRtl ? 'الدخول إلى بوابة المريض والملف الطبي' : 'Open Patient Portal & Medical Records'}</span>
@@ -574,4 +584,4 @@ export default function TrackQueuePage({
       </footer>
     </div>
   )
-}
+}

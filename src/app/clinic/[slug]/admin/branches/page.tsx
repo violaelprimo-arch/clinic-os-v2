@@ -4,7 +4,7 @@ import { use, useEffect, useState } from 'react'
 import {
   Building2, Plus, Edit, Trash2, MapPin, Phone, Clock,
   Calendar, CheckCircle2, XCircle, AlertCircle, Save, X,
-  ExternalLink, Power, Archive, ShieldCheck, Image as ImageIcon, Sparkles, Lock
+  ExternalLink, Power, Archive, ShieldCheck, Image as ImageIcon, Sparkles, Lock, RefreshCw
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -75,30 +75,48 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
   const [isOpen, setIsOpen] = useState(true)
   const [weeklySchedule, setWeeklySchedule] = useState<BranchScheduleDay[]>(DEFAULT_WEEKLY_SCHEDULE)
   const [conflicts, setConflicts] = useState<string[]>([])
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [isResolvingCoords, setIsResolvingCoords] = useState(false)
 
-  useEffect(() => {
-    const fetchClinicAndBranches = async () => {
-      try {
-        const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
-        const cSnap = await getDocs(cQ)
-        if (cSnap.empty) {
+  const fetchClinicAndBranches = async () => {
+    setIsLoading(true)
+    setLoadError(null)
+    try {
+      const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
+      const cSnap = await getDocs(cQ)
+      if (cSnap.empty) {
+        setLoadError('العيادة غير موجودة')
+        setIsLoading(false)
+        return
+      }
+      const cData = { id: cSnap.docs[0].id, ...cSnap.docs[0].data() }
+      setClinic(cData)
+
+      // Fetch branches via server API (bypasses unauthenticated Firestore client rules)
+      const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/branches`)
+      if (res.ok) {
+        const data = await res.json()
+        if (Array.isArray(data.branches)) {
+          setBranches(data.branches)
           setIsLoading(false)
           return
         }
-        const cData = { id: cSnap.docs[0].id, ...cSnap.docs[0].data() }
-        setClinic(cData)
-
-        // Ensure main branch exists
-        await ensureClinicHasMainBranch(cData)
-        const branchList = await getClinicBranches(cData.id)
-        setBranches(branchList)
-      } catch (err) {
-        console.error('Error loading branches:', err)
-        toast.error('حدث خطأ أثناء تحميل الفروع')
-      } finally {
-        setIsLoading(false)
       }
+
+      // Fallback: direct service
+      await ensureClinicHasMainBranch(cData)
+      const branchList = await getClinicBranches(cData.id, slug)
+      setBranches(branchList)
+    } catch (err: any) {
+      console.error('Error loading branches:', err)
+      setLoadError(err.message || 'حدث خطأ أثناء تحميل الفروع')
+      toast.error('حدث خطأ أثناء تحميل الفروع')
+    } finally {
+      setIsLoading(false)
     }
+  }
+
+  useEffect(() => {
     fetchClinicAndBranches()
   }, [slug])
 
@@ -219,7 +237,8 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
     const clinicId = clinic.id || clinic.slug
 
     try {
-      const payload: Partial<Branch> = {
+      const payload: any = {
+        id: editingBranchId || undefined,
         clinicId,
         name,
         governorate,
@@ -227,34 +246,36 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
         area: sanitizeAddress(area) || city,
         address,
         mapsLink,
-        latitude: latitude ? parseFloat(latitude) : undefined,
-        longitude: longitude ? parseFloat(longitude) : undefined,
+        latitude: latitude ? parseFloat(latitude) : null,
+        longitude: longitude ? parseFloat(longitude) : null,
         phone,
         whatsapp: whatsapp || phone,
         image,
         slotDuration: Number(slotDuration) || 15,
         maxDailyBookings: Number(maxDailyBookings) || 0,
         isOpen,
-        weeklySchedule,
-        workingHours: formatWeeklyScheduleSummary(weeklySchedule, isRtl),
-        updatedAt: new Date().toISOString()
+        weeklySchedule
       }
 
+      const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/branches`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'فشل في حفظ بيانات الفرع')
+      }
+
+      const savedBranch: Branch = data.branch
       if (editingBranchId) {
-        await updateDoc(doc(db, 'branches', editingBranchId), payload)
         setBranches((prev) =>
-          prev.map((b) => (b.id === editingBranchId ? ({ ...b, ...payload } as Branch) : b))
+          prev.map((b) => (b.id === editingBranchId ? savedBranch : b))
         )
         toast.success(`تم تحديث بيانات فرع "${name}" بنجاح!`)
       } else {
-        const docRef = await addDoc(collection(db, 'branches'), {
-          ...payload,
-          isMain: false,
-          isArchived: false,
-          createdAt: new Date().toISOString()
-        })
-        const newBranch = { id: docRef.id, ...payload, isMain: false, isArchived: false } as Branch
-        setBranches((prev) => [...prev, newBranch])
+        setBranches((prev) => [...prev, savedBranch])
         toast.success(`تمت إضافة فرع "${name}" بنجاح!`)
       }
 
@@ -269,10 +290,12 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
 
   const handleToggleStatus = async (branchId: string, currentStatus: boolean) => {
     try {
-      await updateDoc(doc(db, 'branches', branchId), {
-        isOpen: !currentStatus,
-        updatedAt: new Date().toISOString()
+      const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/branches`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: branchId, name: branches.find(b => b.id === branchId)?.name || 'الفرع', isOpen: !currentStatus })
       })
+      if (!res.ok) throw new Error('Failed to update status')
       setBranches((prev) =>
         prev.map((b) => (b.id === branchId ? { ...b, isOpen: !currentStatus } : b))
       )
@@ -290,11 +313,10 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
       return
     }
     try {
-      await updateDoc(doc(db, 'branches', branchId), {
-        isArchived: true,
-        isOpen: false,
-        updatedAt: new Date().toISOString()
+      const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/branches?branchId=${encodeURIComponent(branchId)}`, {
+        method: 'DELETE'
       })
+      if (!res.ok) throw new Error('Failed to archive branch')
       setBranches((prev) => prev.filter((b) => b.id !== branchId))
       toast.success('تمت أرشفة الفرع بنجاح مع الحفاظ على كافة البيانات التاريخية')
     } catch (err) {
@@ -302,8 +324,44 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
     }
   }
 
-  if (isLoading || !clinic) {
+  const handleResolveMapsLink = async () => {
+    if (!mapsLink || !mapsLink.trim()) return
+    setIsResolvingCoords(true)
+    try {
+      const res = await fetch(`/api/resolve-maps-coords?url=${encodeURIComponent(mapsLink.trim())}`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.lat && data.lng) {
+          setLatitude(String(data.lat))
+          setLongitude(String(data.lng))
+          toast.success('تم استخراج إحداثيات الموقع من خرائط جوجل بنجاح')
+        }
+      }
+    } catch (e) {
+      // Keep address and link as is
+    } finally {
+      setIsResolvingCoords(false)
+    }
+  }
+
+  if (isLoading) {
     return <ClinicLoading fullScreen size="lg" label={t('loading_branches', language === 'en' ? 'Loading branches...' : 'جاري تحميل الفروع...')} />
+  }
+
+  if (loadError) {
+    return (
+      <div className="p-8 max-w-lg mx-auto text-center space-y-4" dir={dir}>
+        <div className="yalla-card p-6 border border-destructive/20 bg-destructive/5 space-y-3">
+          <AlertCircle className="w-10 h-10 text-destructive mx-auto" />
+          <h2 className="text-base font-bold text-foreground">تعذر تحميل بيانات الفروع</h2>
+          <p className="text-xs text-muted-foreground">{loadError}</p>
+          <Button onClick={fetchClinicAndBranches} className="yalla-gradient-btn text-white text-xs font-bold rounded-xl gap-2 mx-auto">
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>إعادة المحاولة</span>
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   return (

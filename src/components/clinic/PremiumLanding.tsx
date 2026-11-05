@@ -10,6 +10,7 @@ import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { ClinicLocationMap } from '@/components/clinic/ClinicLocationMap'
 import { getClinicBranches, getWeeklyScheduleDisplayGroups, isClinicOpenNow } from '@/lib/branchService'
 import { sanitizeAddress, safeImageUrl } from '@/lib/mapsHelper'
+import { getClinicWebsiteUrl, getClinicTrackUrl, getClinicPatientPortalUrl } from '@/lib/clinicUrls'
 import {
   Clock,
   Star,
@@ -36,6 +37,9 @@ import {
 
 export function PremiumLanding({ clinic, services = [] }: { clinic: any; services: any[] }) {
   const { isRtl, dir, toggleLanguage, t } = useLanguage()
+  const slug = clinic?.slug || ''
+  const clinicWebsiteUrl = getClinicWebsiteUrl(slug)
+  const patientPortalUrl = getClinicPatientPortalUrl(slug)
   const [bookingOpen, setBookingOpen] = useState(false)
   const [liveTurnOpen, setLiveTurnOpen] = useState(false)
   const [selectedService, setSelectedService] = useState<any>(null)
@@ -129,7 +133,7 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
 
             {/* Patient Login & Register Button */}
             <Link
-              href={`/clinic/${clinic?.slug || 'zizo'}/patient/login`}
+              href={patientPortalUrl}
               className="bg-white/90 dark:bg-slate-800 text-slate-800 dark:text-slate-100 hover:text-sky-600 dark:hover:text-sky-400 border border-slate-200 dark:border-slate-700 hover:border-sky-400 font-bold px-2.5 sm:px-3.5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm flex items-center gap-1 sm:gap-1.5 shadow-xs transition-all shrink-0 cursor-pointer"
               title={isRtl ? 'تسجيل دخول المريض أو إنشاء حساب جديد' : 'Patient Login or Register'}
             >
@@ -176,7 +180,7 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
             </a>
           </nav>
 
-          <Link href={`/clinic/${clinic?.slug || 'zizo'}`} className="flex items-center shrink-0" dir="ltr">
+          <Link href={clinicWebsiteUrl} className="flex items-center shrink-0" dir="ltr">
             <ClinicLogo size="md" variant="auto" />
           </Link>
         </div>

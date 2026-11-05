@@ -45,6 +45,8 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const [supportNumbers, setSupportNumbers] = useState<any[]>([]);
   const [newDoctorEmail, setNewDoctorEmail] = useState('');
   const [currentDoctorPassword, setCurrentDoctorPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isUpdatingEmail, setIsUpdatingEmail] = useState(false);
   const [newDoctorPassword, setNewDoctorPassword] = useState('');
   const [newDoctorPasswordConfirm, setNewDoctorPasswordConfirm] = useState('');
   const [currentRole, setCurrentRole] = useState('')
@@ -275,28 +277,6 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
 
   const handleSave = async () => {
-    let hashedDoctorPassword = ''
-    if (newDoctorPassword) {
-      if (!currentDoctorPassword) {
-        toast.error('يرجى إدخال كلمة المرور الحالية لتأكيد هويتك قبل تعيين كلمة مرور جديدة')
-        return
-      }
-      const isCurrentValid = await verifyPassword(currentDoctorPassword, clinic?.doctorPasswordHash || clinic?.doctorPassword)
-      if (!isCurrentValid) {
-        toast.error('كلمة المرور الحالية غير صحيحة')
-        return
-      }
-      if (newDoctorPassword.length < 6) {
-        toast.error('يجب ألا تقل كلمة المرور الجديدة عن 6 خانات')
-        return
-      }
-      if (newDoctorPassword !== newDoctorPasswordConfirm) {
-        toast.error('كلمتا المرور غير متطابقتين، يرجى التأكد من تطابق كلمة المرور وتأكيدها')
-        return
-      }
-      hashedDoctorPassword = await hashPassword(newDoctorPassword)
-    }
-
     if (!isCashEnabled && (!onlinePaymentEnabled || (!isWalletEnabled && !isInstapayEnabled))) {
       toast.error(t('no_payment_methods_warning', 'يجب تفعيل طريقة دفع واحدة على الأقل (كاش بالعيادة، أو إنستاباي، أو المحفظة الإلكترونية) لإتاحة الحجز للمرضى.'))
       return
@@ -351,7 +331,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         isClinicOpen,
         showPrices,
         ...(newDoctorEmail ? { doctorEmail: newDoctorEmail } : {}),
-        ...(hashedDoctorPassword ? { doctorPasswordHash: hashedDoctorPassword, doctorPassword: null, mustChangePassword: false, passwordLastChangedAt: new Date().toISOString() } : {}),
+        
         isWalletEnabled,
         isInstapayEnabled,
         queueNormal: Number(queueNormal) ?? 3,
@@ -378,7 +358,18 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         return
       }
 
-      await updateDoc(doc(db, 'clinics', clinicId), payload)
+      // Save via server API endpoint (bypasses unauthenticated Firestore rules)
+      const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+
+      if (!res.ok) {
+        // Fallback to direct client update if API returns non-ok
+        await updateDoc(doc(db, 'clinics', clinicId), payload)
+      }
+
       await syncClinicScheduleToMainBranch(
         clinicId,
         weeklySchedule,
@@ -393,13 +384,6 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         }
       )
       toast.success('تم حفظ كافة إعدادات العيادة بنجاح وتطبيقها فورياً');
-      if (newDoctorEmail || newDoctorPassword) {
-        toast.info('تم تغيير بيانات الدخول، يرجى تسجيل الدخول مجدداً.');
-        setTimeout(() => {
-          localStorage.removeItem('clinic_role');
-          window.location.href = `/clinic/${slug}/login`;
-        }, 2000);
-      }
     } catch (err: any) {
       console.error('Save Error:', err)
       toast.error('حدث خطأ أثناء الحفظ: ' + (err.message || ''))
@@ -553,6 +537,23 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
     }
   }, [previewClinicData, slug])
 
+  // Respond immediately when preview iframe finishes loading or announces readiness
+  useEffect(() => {
+    const handlePreviewReady = (e: MessageEvent) => {
+      if (e.data?.type === 'CLINIC_PREVIEW_READY' && iframeRef.current?.contentWindow) {
+        iframeRef.current.contentWindow.postMessage(
+          {
+            type: 'CLINIC_PREVIEW_UPDATE',
+            data: previewClinicData
+          },
+          '*'
+        )
+      }
+    }
+    window.addEventListener('message', handlePreviewReady)
+    return () => window.removeEventListener('message', handlePreviewReady)
+  }, [previewClinicData])
+
   const handleIframeLoad = () => {
     if (iframeRef.current?.contentWindow) {
       iframeRef.current.contentWindow.postMessage(
@@ -616,48 +617,137 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
       {/* TAB SECURITY */}
       {activeTab === 'security' && currentRole === 'doctor' && (
-        <div className="yalla-card p-6 max-w-2xl space-y-5 border border-border">
-          <div className="pb-3 border-b border-border">
-            <h3 className="font-bold text-sm text-foreground">{t('doctor_account_settings', 'إعدادات حساب الطبيب')}</h3>
-            <p className="text-xs text-muted-foreground">{t('doctor_account_desc', 'يمكنك هنا تغيير البريد الإلكتروني وكلمة المرور الخاصة بك. هذه البيانات لا تظهر لمالك المنصة.')}</p>
+        <div className="space-y-6 max-w-2xl">
+          {/* Change Password Card */}
+          <div className="yalla-card p-6 space-y-5 border border-border shadow-xs">
+            <div className="pb-3 border-b border-border">
+              <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
+                <Lock className="w-4 h-4 text-primary" />
+                <span>{t('change_password_title', 'تغيير كلمة المرور الخاصة بالطبيب')}</span>
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                {t('change_password_desc', 'قم بتأكيد كلمة المرور الحالية لتعيين كلمة مرور جديدة لحسابك.')}
+              </p>
+            </div>
+            <div className="space-y-4 pt-1">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-foreground">{t('current_doctor_password', 'كلمة المرور الحالية')}</Label>
+                <PasswordInput
+                  value={currentDoctorPassword}
+                  onChange={e => setCurrentDoctorPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="h-10 text-xs rounded-xl text-left"
+                  dir="ltr"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-foreground">{t('new_doctor_password', 'كلمة المرور الجديدة (6 خانات على الأقل)')}</Label>
+                <PasswordInput
+                  value={newDoctorPassword}
+                  onChange={e => setNewDoctorPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="h-10 text-xs rounded-xl text-left"
+                  dir="ltr"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-foreground">{t('confirm_new_password', 'تأكيد كلمة المرور الجديدة')}</Label>
+                <PasswordInput
+                  value={newDoctorPasswordConfirm}
+                  onChange={e => setNewDoctorPasswordConfirm(e.target.value)}
+                  placeholder="••••••••"
+                  className="h-10 text-xs rounded-xl text-left"
+                  dir="ltr"
+                />
+                {newDoctorPassword && newDoctorPasswordConfirm && newDoctorPassword !== newDoctorPasswordConfirm && (
+                  <p className="text-[11px] font-bold text-rose-500">{t('passwords_not_matching', 'كلمتا المرور غير متطابقتين')}</p>
+                )}
+              </div>
+              <Button
+                type="button"
+                disabled={isChangingPassword || !currentDoctorPassword || !newDoctorPassword || newDoctorPassword !== newDoctorPasswordConfirm}
+                onClick={async () => {
+                  if (!currentDoctorPassword) return toast.error('يرجى إدخال كلمة المرور الحالية')
+                  if (!newDoctorPassword) return toast.error('يرجى إدخال كلمة المرور الجديدة')
+                  if (newDoctorPassword.length < 6) return toast.error('يجب ألا تقل كلمة المرور الجديدة عن 6 خانات')
+                  if (newDoctorPassword !== newDoctorPasswordConfirm) return toast.error('كلمتا المرور غير متطابقتين')
+
+                  setIsChangingPassword(true)
+                  try {
+                    const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/change-password`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        currentPassword: currentDoctorPassword,
+                        newPassword: newDoctorPassword
+                      })
+                    })
+                    const data = await res.json()
+                    if (!res.ok) {
+                      throw new Error(data.error || 'فشل في تغيير كلمة المرور')
+                    }
+                    toast.success('تم تحديث كلمة المرور بنجاح!')
+                    setCurrentDoctorPassword('')
+                    setNewDoctorPassword('')
+                    setNewDoctorPasswordConfirm('')
+                  } catch (e: any) {
+                    toast.error(e.message || 'حدث خطأ أثناء تغيير كلمة المرور')
+                  } finally {
+                    setIsChangingPassword(false)
+                  }
+                }}
+                className="w-full sm:w-auto h-10 px-5 yalla-gradient-btn text-white font-bold rounded-xl text-xs cursor-pointer"
+              >
+                {isChangingPassword ? 'جاري التحديث...' : 'تحديث كلمة المرور'}
+              </Button>
+            </div>
           </div>
-          <div className="space-y-4 pt-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-slate-600">{t('new_doctor_email', 'البريد الإلكتروني الجديد')}</Label>
-              <Input
-                type="email"
-                value={newDoctorEmail}
-                onChange={e => setNewDoctorEmail(e.target.value)}
-                placeholder="doctor@clinic.com"
-                className="h-10 text-xs rounded-xl text-left"
-                dir="ltr"
-              />
+
+          {/* Change Email Card */}
+          <div className="yalla-card p-6 space-y-5 border border-border shadow-xs">
+            <div className="pb-3 border-b border-border">
+              <h3 className="font-bold text-sm text-foreground">{t('new_doctor_email_title', 'البريد الإلكتروني لحساب الطبيب')}</h3>
+              <p className="text-xs text-muted-foreground">{t('new_doctor_email_desc', 'البريد المستخدم في تسجيل الدخول واستلام الإشعارات.')}</p>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-slate-600">{t('new_doctor_password', 'كلمة المرور الجديدة')}</Label>
-              <PasswordInput
-                value={newDoctorPassword}
-                onChange={e => setNewDoctorPassword(e.target.value)}
-                placeholder="••••••••"
-                className="h-10 text-xs rounded-xl text-left"
-                dir="ltr"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-slate-600">{t('confirm_new_password', 'تأكيد كلمة المرور الجديدة')}</Label>
-              <PasswordInput
-                value={newDoctorPasswordConfirm}
-                onChange={e => setNewDoctorPasswordConfirm(e.target.value)}
-                placeholder="••••••••"
-                className="h-10 text-xs rounded-xl text-left"
-                dir="ltr"
-              />
-              {newDoctorPassword && newDoctorPasswordConfirm && newDoctorPassword !== newDoctorPasswordConfirm && (
-                <p className="text-[11px] font-bold text-rose-500">{t('passwords_not_matching', 'كلمتا المرور غير متطابقتين')}</p>
-              )}
-            </div>
-            <div className="p-3 bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-bold rounded-xl">
-              {t('security_logout_notice', 'تنبيه: سيتم تسجيل خروجك بعد الحفظ وستحتاج لتسجيل الدخول بالبيانات الجديدة.')}
+            <div className="space-y-4 pt-1">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-foreground">{t('new_doctor_email', 'البريد الإلكتروني الجديد')}</Label>
+                <Input
+                  type="email"
+                  value={newDoctorEmail}
+                  onChange={e => setNewDoctorEmail(e.target.value)}
+                  placeholder={clinic?.doctorEmail || "doctor@clinic.com"}
+                  className="h-10 text-xs rounded-xl text-left"
+                  dir="ltr"
+                />
+              </div>
+              <Button
+                type="button"
+                disabled={isUpdatingEmail || !newDoctorEmail || newDoctorEmail === clinic?.doctorEmail}
+                onClick={async () => {
+                  if (!newDoctorEmail || !newDoctorEmail.includes('@')) {
+                    return toast.error('يرجى إدخال بريد إلكتروني صحيح')
+                  }
+                  setIsUpdatingEmail(true)
+                  try {
+                    const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/settings`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ doctorEmail: newDoctorEmail.trim().toLowerCase() })
+                    })
+                    if (!res.ok) throw new Error('فشل تحديث البريد')
+                    toast.success('تم تحديث البريد الإلكتروني بنجاح')
+                    setClinic((prev: any) => ({ ...prev, doctorEmail: newDoctorEmail.trim().toLowerCase() }))
+                  } catch (e: any) {
+                    toast.error(e.message || 'خطأ في تحديث البريد')
+                  } finally {
+                    setIsUpdatingEmail(false)
+                  }
+                }}
+                className="w-full sm:w-auto h-10 px-5 bg-secondary text-secondary-foreground hover:bg-secondary/80 font-bold rounded-xl text-xs cursor-pointer"
+              >
+                {isUpdatingEmail ? 'جاري الحفظ...' : 'حفظ البريد الإلكتروني'}
+              </Button>
             </div>
           </div>
         </div>
