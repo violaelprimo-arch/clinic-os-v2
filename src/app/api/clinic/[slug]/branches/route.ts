@@ -50,22 +50,31 @@ export async function GET(
       return NextResponse.json({ error: 'معرف العيادة مطلوب' }, { status: 400 })
     }
 
-    const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
-    const cSnap = await getDocs(cQ)
-    if (cSnap.empty) {
-      return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404 })
+    let clinic: any = null
+    let clinicId = slug
+
+    try {
+      const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
+      const cSnap = await getDocs(cQ)
+      if (!cSnap.empty) {
+        clinic = cSnap.docs[0].data()
+        clinicId = cSnap.docs[0].id
+      }
+    } catch (dbErr) {
+      console.warn('Firestore clinics lookup failed, proceeding with fallback:', dbErr)
     }
 
-    const cDoc = cSnap.docs[0]
-    const clinic = cDoc.data()
-    const clinicId = cDoc.id
+    let branches: Branch[] = []
+    try {
+      branches = await fetchBranchesForClinic(clinicId)
+    } catch (bErr) {
+      console.warn('fetchBranchesForClinic failed:', bErr)
+    }
 
-    let branches = await fetchBranchesForClinic(clinicId)
-
-    // Fallback: If no branches exist, provision the default Main Branch
+    // Fallback: If no branches exist, return or provision the default Main Branch
     if (branches.length === 0) {
       const schedule: BranchScheduleDay[] =
-        Array.isArray(clinic.weeklySchedule) && clinic.weeklySchedule.length > 0
+        Array.isArray(clinic?.weeklySchedule) && clinic.weeklySchedule.length > 0
           ? clinic.weeklySchedule
           : DEFAULT_WEEKLY_SCHEDULE
 
@@ -76,22 +85,22 @@ export async function GET(
         governorate: 'القاهرة',
         city: 'القاهرة',
         area: '',
-        address: sanitizeAddress(clinic.clinicAddress || clinic.address) || 'مقر العيادة الرئيسي',
-        mapsLink: clinic.mapsLink || '',
-        phone: clinic.clinicPhone || (clinic.clinicPhones?.[0] || '01012345678'),
-        whatsapp: clinic.clinicPhone || '',
+        address: sanitizeAddress(clinic?.clinicAddress || clinic?.address) || 'مقر العيادة الرئيسي',
+        mapsLink: clinic?.mapsLink || '',
+        phone: clinic?.clinicPhone || (clinic?.clinicPhones?.[0] || '01012345678'),
+        whatsapp: clinic?.clinicPhone || '',
         weeklySchedule: schedule,
         workingHours: formatWeeklyScheduleSummary(schedule, true),
-        slotDuration: Number(clinic.averageVisitTime) || 15,
-        maxDailyBookings: Number(clinic.maxDailyBookings) || 0,
-        services: Array.isArray(clinic.services) && clinic.services.length > 0
+        slotDuration: Number(clinic?.averageVisitTime) || 15,
+        maxDailyBookings: Number(clinic?.maxDailyBookings) || 0,
+        services: Array.isArray(clinic?.services) && clinic.services.length > 0
           ? clinic.services
           : [
               { id: '1', name: 'كشف عادي', price: 250, duration: '15 دقيقة' },
               { id: '2', name: 'استشارة', price: 150, duration: '10 دقائق' },
               { id: '3', name: 'كشف مستعجل', price: 400, duration: 'فوري' }
             ],
-        isOpen: clinic.isClinicOpen !== false,
+        isOpen: clinic?.isClinicOpen !== false,
         isArchived: false,
         isMain: true,
         createdAt: new Date().toISOString()
@@ -101,7 +110,8 @@ export async function GET(
         const newDocRef = await addDoc(collection(db, 'branches'), defaultBranchData)
         branches = [{ id: newDocRef.id, ...defaultBranchData }]
       } catch (createErr) {
-        console.error('Error auto-creating default main branch:', createErr)
+        console.warn('Could not persist default branch to Firestore, returning in-memory branch:', createErr)
+        branches = [{ id: 'main-branch-' + slug, ...defaultBranchData }]
       }
     }
 

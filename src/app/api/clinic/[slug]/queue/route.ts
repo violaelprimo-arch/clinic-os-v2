@@ -17,11 +17,19 @@ export async function GET(
     const appointmentId = searchParams.get('appointmentId')
 
     // 1. Resolve clinic document
-    const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
-    const cSnap = await getDocs(cQ)
-    const clinicDoc = cSnap.empty ? null : cSnap.docs[0]
-    const clinicId = clinicDoc ? clinicDoc.id : slug
-    const clinicData = clinicDoc ? clinicDoc.data() : null
+    let clinicDoc = null
+    let clinicId = slug
+    let clinicData: any = null
+
+    try {
+      const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
+      const cSnap = await getDocs(cQ)
+      clinicDoc = cSnap.empty ? null : cSnap.docs[0]
+      clinicId = clinicDoc ? clinicDoc.id : slug
+      clinicData = clinicDoc ? clinicDoc.data() : null
+    } catch (e) {
+      console.warn('Firestore clinic lookup in queue failed:', e)
+    }
 
     const datesParam = searchParams.get('dates')
     if (datesParam) {
@@ -30,14 +38,18 @@ export async function GET(
 
       await Promise.all(
         dateList.map(async (dStr) => {
-          const dQ = query(
-            collection(db, 'appointments'),
-            where('clinic_id', '==', clinicId),
-            where('date', '==', dStr)
-          )
-          const dSnap = await getDocs(dQ)
-          const active = dSnap.docs.filter((d) => d.data().status !== 'cancelled').length
-          dailyCounts[dStr] = active
+          try {
+            const dQ = query(
+              collection(db, 'appointments'),
+              where('clinic_id', '==', clinicId),
+              where('date', '==', dStr)
+            )
+            const dSnap = await getDocs(dQ)
+            const active = dSnap.docs.filter((d) => d.data().status !== 'cancelled').length
+            dailyCounts[dStr] = active
+          } catch {
+            dailyCounts[dStr] = 0
+          }
         })
       )
 
@@ -52,15 +64,20 @@ export async function GET(
     const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(nowCairo)
 
     // 2. Fetch today's appointments for this clinic
-    const todayApptQ = query(
-      collection(db, 'appointments'),
-      where('clinic_id', '==', clinicId),
-      where('date', '==', todayStr)
-    )
-    const todayApptSnap = await getDocs(todayApptQ)
-    const allTodayAppts = todayApptSnap.docs
-      .map((d) => ({ id: d.id, ...d.data() } as any))
-      .filter((a) => !branchId || a.branch_id === branchId || a.branchName === branchId)
+    let allTodayAppts: any[] = []
+    try {
+      const todayApptQ = query(
+        collection(db, 'appointments'),
+        where('clinic_id', '==', clinicId),
+        where('date', '==', todayStr)
+      )
+      const todayApptSnap = await getDocs(todayApptQ)
+      allTodayAppts = todayApptSnap.docs
+        .map((d) => ({ id: d.id, ...d.data() } as any))
+        .filter((a) => !branchId || a.branch_id === branchId || a.branchName === branchId)
+    } catch (e) {
+      console.warn('Queue todayAppt query failed:', e)
+    }
 
     const inProgressAppt = allTodayAppts.find((a) => a.status === 'in_progress')
     const waitingAppts = allTodayAppts.filter((a) => a.status === 'waiting' || !a.status)
