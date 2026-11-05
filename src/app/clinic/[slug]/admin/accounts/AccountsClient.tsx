@@ -127,6 +127,9 @@ export default function AccountsClient({ slug }: { slug: string }) {
         })
       }
       toast.success('تم تأكيد استلام الدفعة بنجاح وتسجيلها في الحسابات')
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('clinic_payment_confirmed', { detail: { appointmentId: item.id } }))
+      }
     } catch {
       toast.error('خطأ في تأكيد الدفع')
     } finally {

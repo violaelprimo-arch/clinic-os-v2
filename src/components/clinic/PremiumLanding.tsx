@@ -35,7 +35,7 @@ import {
   Navigation
 } from 'lucide-react'
 
-export function PremiumLanding({ clinic, services = [] }: { clinic: any; services: any[] }) {
+export function PremiumLanding({ clinic, services = [], isPreview = false }: { clinic: any; services: any[]; isPreview?: boolean }) {
   const { isRtl, dir, toggleLanguage, t } = useLanguage()
   const slug = clinic?.slug || ''
   const clinicWebsiteUrl = getClinicWebsiteUrl(slug)
@@ -117,6 +117,14 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
 
   return (
     <div dir={dir} className="min-h-screen flex flex-col bg-[#f4f9ff] dark:bg-[#050d1a] text-slate-900 dark:text-slate-50 font-sans transition-colors overflow-x-hidden">
+      {/* Top Banner when in Live Settings Preview */}
+      {isPreview && (
+        <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white py-1.5 px-3 text-center text-xs font-black shadow-sm sticky top-0 z-50 flex items-center justify-center gap-2">
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>معاينة حية لصفحة حجز المريض — التعديلات تظهر فوراً قبل الحفظ ويمكنك تجربة الحجز بأمان</span>
+        </div>
+      )}
+
       {/* Header / Navbar */}
       <header className="sticky top-0 z-40 bg-white/90 dark:bg-[#081526]/90 backdrop-blur-xl border-b border-sky-100 dark:border-slate-800">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-2 sm:gap-4">
@@ -576,6 +584,7 @@ export function PremiumLanding({ clinic, services = [] }: { clinic: any; service
           initialService={selectedService}
           initialBranch={selectedBranch}
           onClose={() => setBookingOpen(false)}
+          isPreview={isPreview}
         />
       )}
 

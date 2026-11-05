@@ -19,7 +19,15 @@ export function ClinicPublicAccessGuard({
   const pathname = usePathname()
   const router = useRouter()
   const [result, setResult] = useState<GuardResult | null>(null)
+  const isPreview =
+    typeof window !== 'undefined' &&
+    (window.self !== window.top ||
+      new URLSearchParams(window.location.search).get('preview') === '1')
+
   const isBypassed =
+    isPreview ||
+    pathname === `/clinic/${slug}` ||
+    pathname === '/' ||
     pathname.startsWith(`/clinic/${slug}/admin`) ||
     pathname === '/admin' ||
     pathname.startsWith('/admin/') ||

@@ -49,6 +49,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
   const [toDate, setToDate] = useState(lastDayOfMonth)
   const [report, setReport] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [weeklyData, setWeeklyData] = useState<any[]>([])
   const [timelineData, setTimelineData] = useState<any[]>([])
   const [chartViewMode, setChartViewMode] = useState<'weekly' | 'timeline'>('weekly')
@@ -78,9 +79,14 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
         const bId = e.detail?.branchId || 'all'
         setSelectedBranchId(bId)
       }
+      const handlePaymentConfirmed = () => {
+        generateReport()
+      }
       window.addEventListener('clinic_branch_changed', handleBranchChanged)
+      window.addEventListener('clinic_payment_confirmed', handlePaymentConfirmed)
       return () => {
         window.removeEventListener('clinic_branch_changed', handleBranchChanged)
+        window.removeEventListener('clinic_payment_confirmed', handlePaymentConfirmed)
       }
     }
   }, [])
@@ -109,6 +115,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
   // Generate Report with accurate weekly and daily timeline calculations
   const generateReport = async (overrideFrom?: string, overrideTo?: string) => {
     setIsLoading(true)
+    setLoadError(null)
     try {
       const activeFrom = overrideFrom !== undefined ? overrideFrom : fromDate
       const activeTo = overrideTo !== undefined ? overrideTo : toDate
@@ -126,35 +133,61 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
           if (apiData.success && apiData.summary) {
             const s = apiData.summary
             setTotals({
-              revenue: s.totalRevenue || 0,
-              patients: s.appointmentsCount || 0,
-              collected: s.collected || 0,
-              due: s.due || 0,
-              discounts: s.totalDiscounts || 0,
-              cash: s.cash || 0,
-              instapay: s.instapay || 0,
-              wallet: s.wallet || 0
+              revenue: Number(s.totalRevenue) || 0,
+              patients: Number(s.appointmentsCount) || 0,
+              collected: Number(s.collected) || 0,
+              due: Number(s.due) || 0,
+              discounts: Number(s.totalDiscounts) || 0,
+              cash: Number(s.cash) || 0,
+              instapay: Number(s.instapay) || 0,
+              wallet: Number(s.wallet) || 0
             })
 
+            const colorPalette = ['bg-[#087CF4]', 'bg-[#02CFF3]', 'bg-amber-500', 'bg-emerald-500', 'bg-purple-500']
+
             if (Array.isArray(s.services)) {
-              setServicesData(s.services.map((item: any) => ({
+              setServicesData(s.services.map((item: any, idx: number) => ({
                 name: item.name,
                 count: item.count,
-                total: item.total
+                total: item.total,
+                pct: item.pct !== undefined ? item.pct : (s.appointmentsCount > 0 ? Math.round((item.count / s.appointmentsCount) * 100) : 0),
+                color: colorPalette[idx % colorPalette.length]
               })))
+            } else {
+              setServicesData([])
+            }
+
+            if (Array.isArray(s.payments) && s.payments.length > 0) {
+              setPaymentsData(s.payments)
+            } else {
+              const totalColl = s.collected || 1
+              const defaultPayments = [
+                { name: 'كاش بالعيادة', pct: Math.round(((s.cash || 0) / totalColl) * 100), color: 'bg-emerald-500', amount: s.cash || 0 },
+                { name: 'إنستاباي (InstaPay)', pct: Math.round(((s.instapay || 0) / totalColl) * 100), color: 'bg-purple-600', amount: s.instapay || 0 },
+                { name: 'محافظ إلكترونية', pct: Math.round(((s.wallet || 0) / totalColl) * 100), color: 'bg-amber-500', amount: s.wallet || 0 }
+              ].filter(p => p.amount > 0)
+              setPaymentsData(defaultPayments)
+            }
+
+            if (Array.isArray(s.weekly)) {
+              setWeeklyData(s.weekly)
+            } else {
+              setWeeklyData([])
             }
 
             if (Array.isArray(s.timeline)) {
-              setTimelineData(s.timeline.map((item: any) => ({
-                key: item.date,
-                date: item.date,
-                day: item.date,
-                collected: item.collected,
-                revenue: item.revenue,
-                count: item.count
-              })))
+              setTimelineData(s.timeline)
+            } else {
+              setTimelineData([])
             }
 
+            if (Array.isArray(apiData.appointments)) {
+              setReport(apiData.appointments)
+            } else {
+              setReport([])
+            }
+
+            setLoadError(null)
             setIsLoading(false)
             return
           }
@@ -416,10 +449,10 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
     }))
   }, [chartViewMode, chartMetric, weeklyData, timelineData])
 
-  // Chart Statistics (Peak Day, Average, Total)
+  // Chart Statistics (Peak Day, Average, Total with clarified basis)
   const chartStats = useMemo(() => {
     if (!activeChartData || activeChartData.length === 0) {
-      return { peakDay: null, average: 0, total: 0 }
+      return { peakDay: null, average: 0, total: 0, avgLabel: 'متوسط يومي' }
     }
     let total = 0
     let peak = activeChartData[0]
@@ -429,9 +462,11 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
         peak = item
       }
     })
-    const avg = Math.round(total / (activeChartData.length || 1))
-    return { peakDay: (peak?.val || 0) > 0 ? peak : null, average: avg, total }
-  }, [activeChartData])
+    const divisor = chartViewMode === 'weekly' ? 7 : Math.max(activeChartData.length, 1)
+    const avg = Math.round(total / divisor)
+    const avgLabel = chartViewMode === 'weekly' ? 'متوسط يومي أسبوعي' : `متوسط يومي (${divisor} يوم)`
+    return { peakDay: (peak?.val || 0) > 0 ? peak : null, average: avg, total, avgLabel }
+  }, [activeChartData, chartViewMode])
 
   // Multi-branch Breakdown calculation
   const branchBreakdown = useMemo(() => {
@@ -746,7 +781,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
 
               {/* Average Badge */}
               <span className="text-[11px] font-bold px-2.5 py-1 rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-xs">
-                {language === 'en' ? 'Daily Avg:' : 'متوسط يومي:'} {chartStats.average.toLocaleString()} {t('currency_egp', 'ج.م')}
+                {language === 'en' ? 'Daily Avg:' : `${chartStats.avgLabel}:`} {chartStats.average.toLocaleString()} {t('currency_egp', 'ج.م')}
               </span>
 
               {/* View Mode Toggle */}
@@ -802,6 +837,20 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
               </div>
             </div>
           </div>
+
+          {/* Error Banner when Loading/Permissions Fail */}
+          {loadError && (
+            <div className="p-4 my-2 rounded-2xl bg-destructive/10 border border-destructive/20 text-destructive text-center flex items-center justify-between gap-2">
+              <span className="text-xs font-bold">{loadError}</span>
+              <button
+                type="button"
+                onClick={() => generateReport()}
+                className="px-3 py-1 bg-destructive text-white rounded-lg text-xs font-bold hover:bg-destructive/90 transition-all cursor-pointer"
+              >
+                إعادة المحاولة
+              </button>
+            </div>
+          )}
 
           {/* Glowing SVG Area Curve */}
           <div className="relative w-full h-64 pt-2">

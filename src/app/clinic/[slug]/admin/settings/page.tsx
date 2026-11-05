@@ -28,10 +28,12 @@ import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import { cleanPhoneForWhatsApp } from '@/lib/countryPhoneHelper'
 import { formatWeeklyScheduleSummary, syncClinicScheduleToMainBranch } from '@/lib/branchService'
 import { hashPassword, verifyPassword } from '@/lib/auth-crypto'
+import { getClinicWebsiteUrl } from '@/lib/clinicUrls'
 
 export default function ClinicSettings({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
+  const publicClinicUrl = getClinicWebsiteUrl(slug)
   const { t, tDynamic, dir, isRtl, language } = useLanguage()
 
   const [activeTab, setActiveTab] = useState<'profile' | 'branding' | 'queue' | 'services' | 'payment' | 'staff' | 'print' | 'ai' | 'security'>('profile')
@@ -566,10 +568,41 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
     }
   }
 
+  const handleDiscardChanges = () => {
+    if (!clinic) return
+    setDoctorName(clinic.doctorName || '')
+    setDoctorTitle(clinic.doctorTitle || 'د.')
+    setClinicName(clinic.clinicName || '')
+    setSpecialty(clinic.specialty || '')
+    setHeroSubtitle(clinic.heroSubtitle || '')
+    setCertificationTitle(clinic.certificationTitle || '')
+    setCertificationEntity(clinic.certificationEntity || '')
+    setExperienceYears(clinic.experienceYears ?? 10)
+    setDoctorRating(clinic.doctorRating || '4.9')
+    setPhotoUrl(clinic.heroImage || clinic.doctorPhoto || '')
+    setBranchImage(clinic.branchImage || '')
+    setLogoUrl(clinic.logoUrl || '')
+    setPrimaryColor(clinic.primaryColor || '#087CF4')
+    setSecondaryColor(clinic.secondaryColor || '#02CFF3')
+    setAddress(clinic.clinicAddress || clinic.address || '')
+    setClinicPhone(clinic.clinicPhone || (clinic.clinicPhones?.[0] || ''))
+    setPhones(clinic.clinicPhones?.length ? clinic.clinicPhones : [clinic.clinicPhone || ''])
+    setMapsLink(clinic.mapsLink || '')
+    setIsClinicOpen(clinic.isClinicOpen !== false)
+    setShowPrices(clinic.showPrices !== false)
+    setHidePrices(clinic.hidePrices === true)
+    if (Array.isArray(clinic.weeklySchedule)) setWeeklySchedule(clinic.weeklySchedule)
+    if (Array.isArray(clinic.services)) setServices(clinic.services)
+    setAverageVisitTime(clinic.averageVisitTime || 15)
+    setMaxDailyBookings(clinic.maxDailyBookings || 0)
+
+    toast.info(t('reverted_to_saved', 'تم التراجع عن التعديلات المؤقتة وإعادة المعاينة لآخر بيانات محفوظة'))
+  }
+
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto" dir={dir}>
       
-      {/* 1. Header with Title and Global Save CTA */}
+      {/* 1. Header with Title, Discard and Global Save CTA */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-black text-foreground flex items-center gap-2">
@@ -581,14 +614,27 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           </p>
         </div>
 
-        <Button
-          onClick={handleSave}
-          disabled={isSaving}
-          className="h-10 px-6 font-bold yalla-gradient-btn text-white rounded-xl text-xs shadow-md"
-        >
-          <Save className={`w-4 h-4 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
-          {isSaving ? t('saving', 'جاري الحفظ...') : t('save_changes', 'حفظ التعديلات')}
-        </Button>
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleDiscardChanges}
+            disabled={isSaving}
+            className="h-10 px-4 font-bold border-border rounded-xl text-xs hover:bg-muted transition-colors cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
+            {t('discard_changes', 'تراجع عن التعديلات')}
+          </Button>
+
+          <Button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="h-10 px-6 font-bold yalla-gradient-btn text-white rounded-xl text-xs shadow-md cursor-pointer"
+          >
+            <Save className={`w-4 h-4 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
+            {isSaving ? t('saving', 'جاري الحفظ...') : t('save_changes', 'حفظ التعديلات')}
+          </Button>
+        </div>
       </div>
 
       {/* 2. Structured Settings Tabs */}
@@ -1419,11 +1465,11 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
                   {/* Open in new tab */}
                   <a
-                    href={`/clinic/${slug}`}
+                    href={publicClinicUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-muted transition-colors flex items-center gap-1 text-xs font-bold"
-                    title={t('open_live_page', 'فتح صفحة العيادة')}
+                    className="p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-muted transition-colors flex items-center gap-1 text-xs font-bold cursor-pointer"
+                    title={t('open_live_page', 'فتح صفحة العيادة العامة')}
                   >
                     <ExternalLink className="w-4 h-4" />
                   </a>
@@ -1432,122 +1478,48 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               
               {/* Scrollable Preview Area */}
               <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar bg-slate-100/80 dark:bg-slate-950 p-3 sm:p-4 flex flex-col items-center justify-start">
-                {/* 1. DESKTOP VIEW */}
-                {previewDevice === 'desktop' && (
-                  <div className="w-full flex flex-col items-center my-auto">
-                    {/* Browser Bar */}
-                    <div className="w-full max-w-[620px] bg-slate-200 dark:bg-slate-800 rounded-t-xl px-3 py-2 flex items-center gap-2 border border-border border-b-0 shadow-xs">
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="w-2.5 h-2.5 rounded-full bg-rose-400 inline-block" />
-                        <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block" />
-                      </div>
-                      <div className="flex-1 bg-white/80 dark:bg-slate-900/80 text-[11px] text-muted-foreground rounded-lg px-3 py-1 text-center truncate font-mono border border-border/50 shadow-xs" dir="ltr">
-                        https://yallaclinic.com/clinic/{slug}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setIframeKey(k => k + 1)}
-                        className="p-1 text-muted-foreground hover:text-foreground cursor-pointer rounded-md hover:bg-black/5 dark:hover:bg-white/5"
-                        title={t('refresh_preview', 'تحديث')}
-                      >
-                        <RefreshCw className="w-3 h-3" />
-                      </button>
+                <div
+                  className={`transition-all duration-300 ease-in-out flex flex-col items-center w-full my-auto ${
+                    previewDevice === 'desktop'
+                      ? 'max-w-[860px]'
+                      : previewDevice === 'tablet'
+                      ? 'max-w-[580px]'
+                      : 'max-w-[390px]'
+                  }`}
+                >
+                  {/* Browser Bar / Window Shell */}
+                  <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-t-2xl px-3 py-2 flex items-center gap-2 border border-border border-b-0 shadow-xs">
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-400 inline-block" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block" />
                     </div>
-
-                    {/* True Desktop Viewport (1200px desktop viewport scaled cleanly to fit) */}
-                    <div className="w-full max-w-[620px] overflow-hidden flex justify-center rounded-b-xl border border-border bg-white dark:bg-slate-950 shadow-2xl">
-                      <div
-                        style={{
-                          width: '1200px',
-                          transform: 'scale(0.51)',
-                          transformOrigin: 'top center',
-                          marginBottom: '-49%'
-                        }}
-                        className="shrink-0"
-                      >
-                        <iframe
-                          ref={iframeRef}
-                          key={`preview-desktop-${iframeKey}`}
-                          src={`/clinic/${slug}?preview=1`}
-                          onLoad={handleIframeLoad}
-                          className="w-[1200px] h-[860px] border-0 bg-white dark:bg-slate-950"
-                          title="معاينة الكمبيوتر"
-                        />
-                      </div>
+                    <div className="flex-1 bg-white/80 dark:bg-slate-900/80 text-[11px] text-muted-foreground rounded-lg px-3 py-1 text-center truncate font-mono border border-border/50 shadow-xs select-all" dir="ltr">
+                      {publicClinicUrl}
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => setIframeKey(k => k + 1)}
+                      className="p-1 text-muted-foreground hover:text-foreground cursor-pointer rounded-md hover:bg-black/5 dark:hover:bg-white/5"
+                      title={t('refresh_preview', 'تحديث')}
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                    </button>
                   </div>
-                )}
 
-                {/* 2. TABLET VIEW (iPad) */}
-                {previewDevice === 'tablet' && (
-                  <div className="my-auto flex flex-col items-center w-full">
-                    {/* iPad Tablet Frame */}
-                    <div className="w-full max-w-[540px] rounded-[36px] border-[10px] border-slate-900 dark:border-slate-800 shadow-2xl overflow-hidden bg-slate-950 flex flex-col shrink-0">
-                      {/* Top Camera Dot */}
-                      <div className="h-4 bg-slate-950 flex items-center justify-center shrink-0">
-                        <div className="w-2.5 h-2.5 rounded-full bg-slate-800 ring-1 ring-slate-700" />
-                      </div>
-                      {/* Scaled Tablet Viewport (768px standard iPad viewport) */}
-                      <div className="w-full overflow-hidden flex justify-center bg-white dark:bg-slate-950">
-                        <div
-                          style={{
-                            width: '768px',
-                            transform: 'scale(0.67)',
-                            transformOrigin: 'top center',
-                            marginBottom: '-33%'
-                          }}
-                          className="shrink-0"
-                        >
-                          <iframe
-                            ref={iframeRef}
-                            key={`preview-tablet-${iframeKey}`}
-                            src={`/clinic/${slug}?preview=1`}
-                            onLoad={handleIframeLoad}
-                            className="w-[768px] h-[860px] border-0 bg-white dark:bg-slate-950"
-                            title="معاينة التابلت"
-                          />
-                        </div>
-                      </div>
-                      {/* Home Indicator Bar */}
-                      <div className="h-4 bg-slate-950 flex items-center justify-center shrink-0">
-                        <div className="w-32 h-1 bg-slate-700 rounded-full" />
-                      </div>
-                    </div>
+                  {/* Single Persistent Iframe Wrapper */}
+                  <div className="w-full overflow-hidden flex justify-center rounded-b-2xl border border-border bg-white dark:bg-slate-950 shadow-2xl">
+                    <iframe
+                      ref={iframeRef}
+                      key={`preview-single-${iframeKey}`}
+                      src={`/clinic/${slug}?preview=1`}
+                      className={`w-full border-0 bg-white dark:bg-slate-950 transition-all duration-300 ${
+                        previewDevice === 'mobile' ? 'h-[720px]' : 'h-[820px]'
+                      }`}
+                      title="معاينة حجز المريض الحية"
+                    />
                   </div>
-                )}
-
-                {/* 3. MOBILE VIEW (iPhone) */}
-                {previewDevice === 'mobile' && (
-                  <div className="my-auto flex flex-col items-center">
-                    {/* iPhone Mobile Frame */}
-                    <div className="w-[390px] max-w-full rounded-[48px] border-[10px] border-slate-900 dark:border-slate-800 shadow-2xl overflow-hidden bg-slate-950 flex flex-col shrink-0">
-                      {/* Dynamic Island */}
-                      <div className="h-8 bg-slate-950 flex items-center justify-between px-6 text-white text-[10px] font-bold shrink-0 select-none">
-                        <span>9:41</span>
-                        <div className="w-24 h-5 bg-black rounded-full flex items-center justify-end px-2.5 shadow-inner">
-                          <div className="w-2.5 h-2.5 rounded-full bg-slate-900 border border-slate-700" />
-                        </div>
-                        <span>5G 100%</span>
-                      </div>
-                      {/* True Mobile Viewport (390px 1:1 pixel exact native mobile layout) */}
-                      <div className="w-full overflow-hidden flex justify-center bg-white dark:bg-slate-950">
-                        <iframe
-                          ref={iframeRef}
-                          key={`preview-mobile-${iframeKey}`}
-                          src={`/clinic/${slug}?preview=1`}
-                          onLoad={handleIframeLoad}
-                          className="w-[390px] h-[720px] border-0 bg-white dark:bg-slate-950"
-                          title="معاينة الموبايل"
-                        />
-                      </div>
-                      {/* Home Bar Indicator */}
-                      <div className="h-5 bg-slate-950 flex items-center justify-center shrink-0">
-                        <div className="w-28 h-1 bg-slate-600 rounded-full" />
-                      </div>
-                    </div>
-                  </div>
-                )}
+                </div>
               </div>
             </div>
           </div>

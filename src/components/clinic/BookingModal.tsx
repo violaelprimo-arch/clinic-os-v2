@@ -62,7 +62,8 @@ export function BookingModal({
   branches: propBranches,
   initialService = null,
   initialBranch = null,
-  onClose
+  onClose,
+  isPreview = false
 }: {
   clinic: any
   services?: any[]
@@ -70,6 +71,7 @@ export function BookingModal({
   initialService?: any
   initialBranch?: any
   onClose: () => void
+  isPreview?: boolean
 }) {
   const router = useRouter()
   const clinicId = clinic?.id || clinic?.slug || 'demo'
@@ -585,6 +587,24 @@ export function BookingModal({
         createdAt: new Date().toISOString()
       }
 
+      // In Preview Mode: simulate success without saving real database records or charging payments
+      if (isPreview) {
+        setBookingSuccess({
+          appointmentId: 'preview-simulated-id',
+          queueNumber: 1,
+          aheadCount: 0,
+          effectivePosition: 1,
+          estimatedEntranceTime12H: '10:15 ص',
+          isEstimateConfirmed: true,
+          branchName: branchName,
+          date: selectedDate,
+          paymentMethod: paymentMethod === 'cash' ? 'كاش بالعيادة' : paymentMethod === 'instapay' ? 'InstaPay' : 'محفظة إلكترونية'
+        })
+        toast.info('تمت تجربة الحجز بنجاح (وضع المعاينة) - هذا حجز افتراضي للتجربة فقط')
+        setSubmitting(false)
+        return
+      }
+
       // Atomically allocate next sequential queue number via Server API (prevents client permission errors)
       let newApptId = ''
       let myQueueNumber = 1
@@ -815,6 +835,12 @@ export function BookingModal({
           </div>
           <div className="w-9" />
         </div>
+
+        {isPreview && (
+          <div className="bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 rounded-2xl p-2.5 text-center text-xs font-bold">
+            ⚡ وضع المعاينة التفاعلية — تجربة الحجز محاكاة فقط ولا تنشئ سجلاً حقيقياً
+          </div>
+        )}
 
         <div className="text-center">
           <h3 className="text-xl font-black text-slate-900 dark:text-white">حجز موعد جديد</h3>

@@ -339,6 +339,9 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
         })
       }
       toast.success('تم تأكيد استلام الدفع بنجاح')
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('clinic_payment_confirmed', { detail: { appointmentId: patient.id } }))
+      }
       if (patient.phone) {
         await createClinicNotification({
           clinicId: clinic?.id || patient.clinic_id,

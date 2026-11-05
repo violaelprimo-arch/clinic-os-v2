@@ -103,11 +103,14 @@ export default function ClinicPage({ params }: { params: Promise<{ slug: string 
     return () => unsubscribe()
   }, [slug, isRtl])
 
+  const [isEmbedded, setIsEmbedded] = useState(false)
+
   // Real-time synchronization for settings live preview (iframe)
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const isEmbedded = window.self !== window.top || new URLSearchParams(window.location.search).get('preview') === '1'
-    if (!isEmbedded) return
+    const embedded = window.self !== window.top || new URLSearchParams(window.location.search).get('preview') === '1'
+    setIsEmbedded(embedded)
+    if (!embedded) return
 
     // 1. Initial hydration from localStorage
     try {
@@ -167,7 +170,7 @@ export default function ClinicPage({ params }: { params: Promise<{ slug: string 
   return (
     <>
       <DynamicTheme color={clinic.primaryColor} />
-      <PremiumLanding clinic={clinic} services={services} />
+      <PremiumLanding clinic={clinic} services={services} isPreview={isEmbedded} />
     </>
   )
 }
