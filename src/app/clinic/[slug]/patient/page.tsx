@@ -460,7 +460,7 @@ export default function PatientDashboardPage() {
 
   if (loading) {
     return (
-      <div dir="rtl" className="min-h-screen bg-slate-50 dark:bg-[#050d1a] flex items-center justify-center p-4">
+      <div dir="rtl" className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-9 h-9 animate-spin text-sky-600" />
           <span className="text-sm font-bold text-slate-600 dark:text-slate-300">
@@ -490,16 +490,16 @@ export default function PatientDashboardPage() {
   ]
 
   return (
-    <div dir="rtl" className="min-h-screen bg-[#f8fbff] dark:bg-[#050d1a] text-slate-900 dark:text-white antialiased transition-colors">
+    <div dir="rtl" className="min-h-screen bg-background text-foreground antialiased transition-colors">
       {/* Top Mobile & Desktop Navigation Header */}
-      <header className="sticky top-0 z-30 bg-white/80 dark:bg-[#081526]/80 backdrop-blur-md border-b border-sky-100 dark:border-slate-800 shadow-xs">
+      <header className="sticky top-0 z-30 bg-card/85 backdrop-blur-md border-b border-border shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href={`/clinic/${slug}`} className="flex items-center shrink-0" dir="ltr">
               <ClinicLogo size="md" variant="auto" />
             </Link>
             <div className="hidden sm:block border-r border-slate-200 dark:border-slate-700 pr-3 mr-1">
-              <h1 className="text-sm font-black text-slate-900 dark:text-white leading-tight">
+              <h1 className="text-sm font-black text-foreground leading-tight">
                 {clinic?.clinicName || 'بوابة المريض الذكية'}
               </h1>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
@@ -554,7 +554,7 @@ export default function PatientDashboardPage() {
           {/* ============================================================ */}
           <aside className="lg:col-span-4 xl:col-span-3 space-y-5 mb-6 lg:mb-0">
             {/* Patient Profile Card with interactive Avatar */}
-            <div className="bg-white dark:bg-[#081526] rounded-3xl p-5 shadow-sm border border-sky-100 dark:border-slate-800 space-y-4">
+            <div className="bg-card text-card-foreground rounded-3xl p-5 shadow-sm border border-border space-y-4">
               <div className="flex items-center gap-4">
                 {/* Avatar with Camera badge */}
                 <div className="relative group shrink-0">
@@ -590,7 +590,7 @@ export default function PatientDashboardPage() {
                 {/* Patient Name and Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <h2 className="font-black text-slate-900 dark:text-white text-base truncate">
+                    <h2 className="font-black text-foreground text-base truncate">
                       {patientName}
                     </h2>
                     <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 text-[10px] font-extrabold border border-emerald-200 dark:border-emerald-800 shrink-0 flex items-center gap-0.5">
@@ -631,7 +631,7 @@ export default function PatientDashboardPage() {
             </div>
 
             {/* Desktop Navigation Menu (hidden on mobile, shown on lg+) */}
-            <nav className="hidden lg:block bg-white dark:bg-[#081526] rounded-3xl p-3 shadow-sm border border-sky-100 dark:border-slate-800 space-y-1">
+            <nav className="hidden lg:block bg-card text-card-foreground rounded-3xl p-3 shadow-sm border border-border space-y-1">
               {navTabs.map(({ id, label, Icon, count }) => {
                 const active = activeTab === id
                 return (
@@ -641,7 +641,7 @@ export default function PatientDashboardPage() {
                     className={`w-full py-3 px-4 rounded-2xl text-xs flex items-center justify-between transition-all cursor-pointer font-bold ${
                       active
                         ? 'bg-sky-50 dark:bg-sky-950/70 text-sky-600 dark:text-sky-300 font-black shadow-xs border-r-4 border-sky-600'
-                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                        : 'text-muted-foreground hover:bg-slate-50 dark:hover:bg-slate-800/50'
                     }`}
                   >
                     <div className="flex items-center gap-3">
@@ -700,7 +700,7 @@ export default function PatientDashboardPage() {
           <div className="lg:col-span-8 xl:col-span-9 space-y-6">
             
             {/* Mobile Navigation Tabs (Horizontal Scrollable Pills for <lg) */}
-            <div className="lg:hidden bg-white dark:bg-[#081526] p-2 rounded-2xl shadow-sm border border-sky-100 dark:border-slate-800 overflow-x-auto no-scrollbar flex items-center gap-1.5">
+            <div className="lg:hidden bg-card text-card-foreground p-2 rounded-2xl shadow-sm border border-border overflow-x-auto no-scrollbar flex items-center gap-1.5">
               {navTabs.map(({ id, label, Icon, count }) => {
                 const active = activeTab === id
                 return (
@@ -729,12 +729,12 @@ export default function PatientDashboardPage() {
 
             {/* Top Metric Cards / Summary Bar */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-              <div className="bg-white dark:bg-[#081526] p-4 rounded-3xl border border-sky-100 dark:border-slate-800 shadow-sm flex items-center gap-3">
+              <div className="bg-card text-card-foreground p-4 rounded-3xl border border-border shadow-sm flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-sky-100 dark:bg-sky-950/70 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
                   <CalendarCheck className="w-5 h-5" />
                 </div>
                 <div>
-                  <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-mono block leading-none">
+                  <span className="text-xl sm:text-2xl font-black text-foreground font-mono block leading-none">
                     {upcomingAppointments.length}
                   </span>
                   <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-bold">
@@ -743,12 +743,12 @@ export default function PatientDashboardPage() {
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-[#081526] p-4 rounded-3xl border border-sky-100 dark:border-slate-800 shadow-sm flex items-center gap-3">
+              <div className="bg-card text-card-foreground p-4 rounded-3xl border border-border shadow-sm flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-indigo-100 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
                   <Stethoscope className="w-5 h-5" />
                 </div>
                 <div>
-                  <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-mono block leading-none">
+                  <span className="text-xl sm:text-2xl font-black text-foreground font-mono block leading-none">
                     {completedVisits.length}
                   </span>
                   <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-bold">
@@ -757,12 +757,12 @@ export default function PatientDashboardPage() {
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-[#081526] p-4 rounded-3xl border border-sky-100 dark:border-slate-800 shadow-sm flex items-center gap-3">
+              <div className="bg-card text-card-foreground p-4 rounded-3xl border border-border shadow-sm flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-emerald-100 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
                   <FileText className="w-5 h-5" />
                 </div>
                 <div>
-                  <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-mono block leading-none">
+                  <span className="text-xl sm:text-2xl font-black text-foreground font-mono block leading-none">
                     {prescriptions.length}
                   </span>
                   <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-bold">
@@ -771,12 +771,12 @@ export default function PatientDashboardPage() {
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-[#081526] p-4 rounded-3xl border border-sky-100 dark:border-slate-800 shadow-sm flex items-center gap-3">
+              <div className="bg-card text-card-foreground p-4 rounded-3xl border border-border shadow-sm flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-950/70 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
                   <Receipt className="w-5 h-5" />
                 </div>
                 <div>
-                  <span className="text-base sm:text-lg font-black text-slate-900 dark:text-white font-mono block leading-none truncate">
+                  <span className="text-base sm:text-lg font-black text-foreground font-mono block leading-none truncate">
                     {financialMetrics.totalPaid} ج.م
                   </span>
                   <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-bold">
@@ -853,13 +853,13 @@ export default function PatientDashboardPage() {
                 </div>
               </div>
             ) : (
-              <div className="p-6 rounded-3xl bg-white dark:bg-[#081526] border border-sky-100 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="p-6 rounded-3xl bg-card text-card-foreground border border-border shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-4 text-center sm:text-right">
                   <div className="w-12 h-12 rounded-2xl bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
                     <Calendar className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="font-black text-slate-900 dark:text-white text-sm sm:text-base">
+                    <h3 className="font-black text-foreground text-sm sm:text-base">
                       ليس لديك مواعيد قادمة مسجلة حالياً
                     </h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -887,9 +887,9 @@ export default function PatientDashboardPage() {
                   {/* Two columns: Recent Visits & Recent Prescriptions */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Recent Visit Preview */}
-                    <div className="bg-white dark:bg-[#081526] rounded-3xl p-5 border border-sky-100 dark:border-slate-800 shadow-sm space-y-4">
+                    <div className="bg-card text-card-foreground rounded-3xl p-5 border border-border shadow-sm space-y-4">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 font-black text-slate-900 dark:text-white text-sm">
+                        <div className="flex items-center gap-2 font-black text-foreground text-sm">
                           <Stethoscope className="w-4 h-4 text-sky-600" />
                           <span>آخر زيارة للعيادة</span>
                         </div>
@@ -907,7 +907,7 @@ export default function PatientDashboardPage() {
                         <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/60 space-y-3">
                           <div className="flex items-start justify-between">
                             <div>
-                              <span className="text-xs font-black text-slate-900 dark:text-white block">
+                              <span className="text-xs font-black text-foreground block">
                                 {lastVisit.serviceName || 'كشف طبي'}
                               </span>
                               <span className="text-[11px] text-slate-500 dark:text-slate-400">
@@ -922,14 +922,14 @@ export default function PatientDashboardPage() {
                           {lastVisit.diagnosis && (
                             <div className="p-2.5 rounded-xl bg-sky-50 dark:bg-sky-950/40 text-xs">
                               <span className="text-[10px] text-slate-400 font-bold block">التشخيص:</span>
-                              <span className="font-bold text-slate-800 dark:text-slate-200">{lastVisit.diagnosis}</span>
+                              <span className="font-bold text-foreground">{lastVisit.diagnosis}</span>
                             </div>
                           )}
 
                           <button
                             type="button"
                             onClick={() => setSelectedVisitForDetails(lastVisit)}
-                            className="w-full py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-sky-50 dark:hover:bg-slate-700 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-slate-700 font-bold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                            className="w-full py-2 rounded-xl bg-secondary hover:bg-sky-50 dark:hover:bg-slate-700 text-sky-600 dark:text-sky-400 border border-border font-bold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                           >
                             <Eye className="w-3.5 h-3.5" />
                             <span>عرض تفاصيل الزيارة والتوصيات</span>
@@ -944,9 +944,9 @@ export default function PatientDashboardPage() {
                     </div>
 
                     {/* Recent Prescription Preview */}
-                    <div className="bg-white dark:bg-[#081526] rounded-3xl p-5 border border-sky-100 dark:border-slate-800 shadow-sm space-y-4">
+                    <div className="bg-card text-card-foreground rounded-3xl p-5 border border-border shadow-sm space-y-4">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 font-black text-slate-900 dark:text-white text-sm">
+                        <div className="flex items-center gap-2 font-black text-foreground text-sm">
                           <FileText className="w-4 h-4 text-emerald-600" />
                           <span>آخر روشتة معتمدة</span>
                         </div>
@@ -964,7 +964,7 @@ export default function PatientDashboardPage() {
                         <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/60 space-y-3">
                           <div className="flex items-start justify-between">
                             <div>
-                              <span className="text-xs font-black text-slate-900 dark:text-white block">
+                              <span className="text-xs font-black text-foreground block">
                                 روشتة علاجية ({lastRx.drugs?.length || 0} أدوية)
                               </span>
                               <span className="text-[11px] text-slate-500 dark:text-slate-400">
@@ -981,7 +981,7 @@ export default function PatientDashboardPage() {
                               {lastRx.drugs.slice(0, 3).map((d: any, idx: number) => (
                                 <span
                                   key={idx}
-                                  className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-bold text-slate-700 dark:text-slate-300"
+                                  className="px-2 py-0.5 rounded-md bg-secondary border border-slate-200 dark:border-slate-700 text-[10px] font-bold text-muted-foreground"
                                 >
                                   {d.name || d}
                                 </span>
@@ -1013,9 +1013,9 @@ export default function PatientDashboardPage() {
                   </div>
 
                   {/* Financial Overview Card */}
-                  <div className="bg-white dark:bg-[#081526] rounded-3xl p-5 border border-sky-100 dark:border-slate-800 shadow-sm space-y-4">
+                  <div className="bg-card text-card-foreground rounded-3xl p-5 border border-border shadow-sm space-y-4">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 font-black text-slate-900 dark:text-white text-sm">
+                      <div className="flex items-center gap-2 font-black text-foreground text-sm">
                         <Receipt className="w-4 h-4 text-sky-600" />
                         <span>الملخص المالي والفواتير</span>
                       </div>
@@ -1032,7 +1032,7 @@ export default function PatientDashboardPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
                         <span className="text-[11px] text-slate-400 block font-bold">إجمالي المطالبات</span>
-                        <span className="text-lg font-black text-slate-900 dark:text-white font-mono mt-1 block">
+                        <span className="text-lg font-black text-foreground font-mono mt-1 block">
                           {financialMetrics.totalBilled} ج.م
                         </span>
                       </div>
@@ -1058,7 +1058,7 @@ export default function PatientDashboardPage() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="font-black text-slate-900 dark:text-white text-base">
+                      <h3 className="font-black text-foreground text-base">
                         مواعيدي في العيادة
                       </h3>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -1076,7 +1076,7 @@ export default function PatientDashboardPage() {
                   </div>
 
                   {appointments.length === 0 ? (
-                    <div className="p-12 text-center bg-white dark:bg-[#081526] rounded-3xl border border-sky-100 dark:border-slate-800 space-y-3">
+                    <div className="p-12 text-center bg-card text-card-foreground rounded-3xl border border-border space-y-3">
                       <Calendar className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto" />
                       <h4 className="font-bold text-slate-700 dark:text-slate-200 text-sm">
                         لا توجد مواعيد مسجلة حتى الآن
@@ -1107,12 +1107,12 @@ export default function PatientDashboardPage() {
                         return (
                           <div
                             key={appt.id}
-                            className="bg-white dark:bg-[#081526] rounded-3xl p-5 border border-sky-100 dark:border-slate-800 shadow-sm space-y-4 flex flex-col justify-between"
+                            className="bg-card text-card-foreground rounded-3xl p-5 border border-border shadow-sm space-y-4 flex flex-col justify-between"
                           >
                             <div className="space-y-3">
                               <div className="flex items-start justify-between gap-2">
                                 <div>
-                                  <div className="font-black text-slate-900 dark:text-white text-sm">
+                                  <div className="font-black text-foreground text-sm">
                                     {appt.serviceName || 'كشف طبي'} {appt.isUrgent && <span className="text-rose-600 font-extrabold mr-1">(مستعجل)</span>}
                                   </div>
                                   <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1.5">
@@ -1154,7 +1154,7 @@ export default function PatientDashboardPage() {
                                     ? `موعد قادم (${appt.date})`
                                     : 'في قائمة الانتظار'}
                                 </span>
-                                <span className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
+                                <span className="text-xs font-mono font-bold text-muted-foreground">
                                   {appt.netTotal || appt.servicePrice || 250} ج.م
                                 </span>
                               </div>
@@ -1225,7 +1225,7 @@ export default function PatientDashboardPage() {
                 <div className="space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                      <h3 className="font-black text-slate-900 dark:text-white text-base">
+                      <h3 className="font-black text-foreground text-base">
                         سجل الزيارات الطبية
                       </h3>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -1242,14 +1242,14 @@ export default function PatientDashboardPage() {
                           value={visitSearchTerm}
                           onChange={(e) => setVisitSearchTerm(e.target.value)}
                           placeholder="بحث بالطبيب أو الخدمة..."
-                          className="w-44 sm:w-52 pr-8 pl-3 py-2 rounded-xl bg-white dark:bg-[#081526] border border-sky-100 dark:border-slate-800 text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-400"
+                          className="w-44 sm:w-52 pr-8 pl-3 py-2 rounded-xl bg-card text-card-foreground border border-border text-xs text-foreground placeholder:text-slate-400"
                         />
                       </div>
                       <input
                         type="date"
                         value={visitDateFilter}
                         onChange={(e) => setVisitDateFilter(e.target.value)}
-                        className="py-2 px-3 rounded-xl bg-white dark:bg-[#081526] border border-sky-100 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-200"
+                        className="py-2 px-3 rounded-xl bg-card text-card-foreground border border-border text-xs text-slate-700 dark:text-slate-200"
                       />
                       {(visitDateFilter || visitSearchTerm) && (
                         <button
@@ -1268,7 +1268,7 @@ export default function PatientDashboardPage() {
                   </div>
 
                   {filteredVisits.length === 0 ? (
-                    <div className="p-12 text-center bg-white dark:bg-[#081526] rounded-3xl border border-sky-100 dark:border-slate-800 space-y-3">
+                    <div className="p-12 text-center bg-card text-card-foreground rounded-3xl border border-border space-y-3">
                       <Stethoscope className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto" />
                       <h4 className="font-bold text-slate-700 dark:text-slate-200 text-sm">
                         {completedVisits.length === 0
@@ -1290,7 +1290,7 @@ export default function PatientDashboardPage() {
                         return (
                           <div
                             key={visit.id}
-                            className="bg-white dark:bg-[#081526] rounded-3xl p-5 border border-sky-100 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-sky-300 transition-colors"
+                            className="bg-card text-card-foreground rounded-3xl p-5 border border-border shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-sky-300 transition-colors"
                           >
                             <div className="flex items-start gap-4">
                               <div className="w-11 h-11 rounded-2xl bg-sky-100 dark:bg-sky-950/70 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
@@ -1298,7 +1298,7 @@ export default function PatientDashboardPage() {
                               </div>
                               <div className="space-y-1">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <h4 className="font-black text-slate-900 dark:text-white text-sm">
+                                  <h4 className="font-black text-foreground text-sm">
                                     {visit.serviceName || 'كشف طبي'}
                                   </h4>
                                   <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
@@ -1313,7 +1313,7 @@ export default function PatientDashboardPage() {
                                   <span>{visit.branchName || 'الفرع الرئيسي'}</span>
                                 </p>
                                 {visit.diagnosis && (
-                                  <p className="text-xs text-slate-700 dark:text-slate-300 font-bold bg-sky-50 dark:bg-sky-950/40 px-2.5 py-1 rounded-lg inline-block">
+                                  <p className="text-xs text-muted-foreground font-bold bg-sky-50 dark:bg-sky-950/40 px-2.5 py-1 rounded-lg inline-block">
                                     التشخيص: {visit.diagnosis}
                                   </p>
                                 )}
@@ -1355,7 +1355,7 @@ export default function PatientDashboardPage() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="font-black text-slate-900 dark:text-white text-base">
+                      <h3 className="font-black text-foreground text-base">
                         الروشتات الطبية المعتمدة
                       </h3>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -1365,7 +1365,7 @@ export default function PatientDashboardPage() {
                   </div>
 
                   {prescriptions.length === 0 ? (
-                    <div className="p-12 text-center bg-white dark:bg-[#081526] rounded-3xl border border-sky-100 dark:border-slate-800 space-y-3">
+                    <div className="p-12 text-center bg-card text-card-foreground rounded-3xl border border-border space-y-3">
                       <FileText className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto" />
                       <h4 className="font-bold text-slate-700 dark:text-slate-200 text-sm">
                         لا توجد روشتات صادرة حتى الآن
@@ -1379,12 +1379,12 @@ export default function PatientDashboardPage() {
                       {prescriptions.map((rx) => (
                         <div
                           key={rx.id}
-                          className="bg-white dark:bg-[#081526] rounded-3xl p-5 border border-sky-100 dark:border-slate-800 shadow-sm space-y-4 flex flex-col justify-between"
+                          className="bg-card text-card-foreground rounded-3xl p-5 border border-border shadow-sm space-y-4 flex flex-col justify-between"
                         >
                           <div className="space-y-3">
                             <div className="flex items-start justify-between">
                               <div>
-                                <span className="font-black text-slate-900 dark:text-white text-sm block">
+                                <span className="font-black text-foreground text-sm block">
                                   {rx.date || 'بتاريخ الكشف'}
                                 </span>
                                 <span className="text-xs text-slate-500 dark:text-slate-400">
@@ -1400,7 +1400,7 @@ export default function PatientDashboardPage() {
                             {rx.diagnosis && (
                               <div className="bg-sky-50 dark:bg-sky-950/40 p-2.5 rounded-xl text-xs">
                                 <span className="font-bold text-slate-500 dark:text-slate-400 block text-[10px]">التشخيص:</span>
-                                <span className="font-bold text-slate-800 dark:text-slate-200">{rx.diagnosis}</span>
+                                <span className="font-bold text-foreground">{rx.diagnosis}</span>
                               </div>
                             )}
 
@@ -1413,7 +1413,7 @@ export default function PatientDashboardPage() {
                                   {rx.drugs.map((d: any, idx: number) => (
                                     <span
                                       key={idx}
-                                      className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md text-[10px] font-bold text-slate-700 dark:text-slate-300"
+                                      className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md text-[10px] font-bold text-muted-foreground"
                                     >
                                       {d.name || d}
                                     </span>
@@ -1426,7 +1426,7 @@ export default function PatientDashboardPage() {
                           <button
                             type="button"
                             onClick={() => setSelectedRx(rx)}
-                            className="w-full py-2.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-sky-50 dark:hover:bg-slate-700 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-slate-700 font-extrabold text-xs transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer pt-2"
+                            className="w-full py-2.5 rounded-xl bg-secondary hover:bg-sky-50 dark:hover:bg-slate-700 text-sky-700 dark:text-sky-300 border border-border font-extrabold text-xs transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer pt-2"
                           >
                             <FileText className="w-3.5 h-3.5" />
                             <span>عرض وتحميل الروشتة الرسمية PDF</span>
@@ -1443,7 +1443,7 @@ export default function PatientDashboardPage() {
                 <div className="space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                      <h3 className="font-black text-slate-900 dark:text-white text-base">
+                      <h3 className="font-black text-foreground text-base">
                         الفواتير وسندات الدفع
                       </h3>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -1452,14 +1452,14 @@ export default function PatientDashboardPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-[#081526] px-3 py-1.5 rounded-xl border border-sky-100 dark:border-slate-800">
+                      <span className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-card text-card-foreground px-3 py-1.5 rounded-xl border border-border">
                         إجمالي الفواتير: <strong className="font-mono text-sky-600">{invoiceAppointments.length}</strong>
                       </span>
                     </div>
                   </div>
 
                   {invoiceAppointments.length === 0 ? (
-                    <div className="p-12 text-center bg-white dark:bg-[#081526] rounded-3xl border border-sky-100 dark:border-slate-800 space-y-3">
+                    <div className="p-12 text-center bg-card text-card-foreground rounded-3xl border border-border space-y-3">
                       <Receipt className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto" />
                       <h4 className="font-bold text-slate-700 dark:text-slate-200 text-sm">
                         لا توجد فواتير أو حجوزات مسجلة حتى الآن
@@ -1471,7 +1471,7 @@ export default function PatientDashboardPage() {
                   ) : (
                     <>
                       {/* DESKTOP TABLE VIEW (hidden on mobile, shown on md+) */}
-                      <div className="hidden md:block bg-white dark:bg-[#081526] rounded-3xl border border-sky-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                      <div className="hidden md:block bg-card text-card-foreground rounded-3xl border border-border shadow-sm overflow-hidden">
                         <table className="w-full text-right text-xs">
                           <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold">
                             <tr>
@@ -1503,7 +1503,7 @@ export default function PatientDashboardPage() {
                                   <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">
                                     {appt.date}
                                   </td>
-                                  <td className="py-3.5 px-4 font-bold text-slate-800 dark:text-slate-200">
+                                  <td className="py-3.5 px-4 font-bold text-foreground">
                                     {appt.serviceName || 'كشف'} {appt.branchName ? `(${appt.branchName})` : ''}
                                   </td>
                                   <td className="py-3.5 px-4 font-mono text-slate-500">
@@ -1512,10 +1512,10 @@ export default function PatientDashboardPage() {
                                   <td className="py-3.5 px-4 font-mono text-rose-500">
                                     {discount > 0 ? `-${discount}` : '0'}
                                   </td>
-                                  <td className="py-3.5 px-4 font-mono font-black text-slate-900 dark:text-white text-sm">
+                                  <td className="py-3.5 px-4 font-mono font-black text-foreground text-sm">
                                     {net} ج.م
                                   </td>
-                                  <td className="py-3.5 px-4 text-slate-600 dark:text-slate-400">
+                                  <td className="py-3.5 px-4 text-muted-foreground">
                                     {appt.paymentMethod === 'instapay'
                                       ? 'انستاباي'
                                       : appt.paymentMethod === 'wallet'
@@ -1562,14 +1562,14 @@ export default function PatientDashboardPage() {
                           return (
                             <div
                               key={appt.id}
-                              className="bg-white dark:bg-[#081526] rounded-3xl p-5 border border-sky-100 dark:border-slate-800 shadow-sm space-y-3"
+                              className="bg-card text-card-foreground rounded-3xl p-5 border border-border shadow-sm space-y-3"
                             >
                               <div className="flex items-start justify-between">
                                 <div>
                                   <span className="font-mono font-bold text-sky-600 dark:text-sky-400 text-xs block">
                                     فاتورة #{invNumber}
                                   </span>
-                                  <h4 className="font-black text-slate-900 dark:text-white text-sm mt-0.5">
+                                  <h4 className="font-black text-foreground text-sm mt-0.5">
                                     {appt.serviceName || 'كشف طبي'}
                                   </h4>
                                   <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -1577,7 +1577,7 @@ export default function PatientDashboardPage() {
                                   </p>
                                 </div>
                                 <div className="text-left">
-                                  <span className="font-black text-base text-slate-900 dark:text-white font-mono block">
+                                  <span className="font-black text-base text-foreground font-mono block">
                                     {net} ج.م
                                   </span>
                                   <span
@@ -1615,7 +1615,7 @@ export default function PatientDashboardPage() {
               {activeTab === 'medical' && (
                 <div className="space-y-4">
                   <div>
-                    <h3 className="font-black text-slate-900 dark:text-white text-base">
+                    <h3 className="font-black text-foreground text-base">
                       الملف الطبي والبيانات الشخصية
                     </h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -1623,7 +1623,7 @@ export default function PatientDashboardPage() {
                     </p>
                   </div>
 
-                  <div className="bg-white dark:bg-[#081526] rounded-3xl p-6 border border-sky-100 dark:border-slate-800 shadow-sm space-y-5">
+                  <div className="bg-card text-card-foreground rounded-3xl p-6 border border-border shadow-sm space-y-5">
                     {/* Patient identity overview */}
                     <div className="flex items-center gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
                       <div
@@ -1637,7 +1637,7 @@ export default function PatientDashboardPage() {
                         )}
                       </div>
                       <div>
-                        <h4 className="font-black text-slate-900 dark:text-white text-base">
+                        <h4 className="font-black text-foreground text-base">
                           {patientName}
                         </h4>
                         <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5" dir="ltr">
@@ -1657,17 +1657,17 @@ export default function PatientDashboardPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                       <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
                         <span className="text-[11px] text-slate-400 block font-bold">الاسم المسجل</span>
-                        <strong className="text-slate-900 dark:text-white mt-1 block">{patientName}</strong>
+                        <strong className="text-foreground mt-1 block">{patientName}</strong>
                       </div>
 
                       <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
                         <span className="text-[11px] text-slate-400 block font-bold">رقم الهاتف المعتمد</span>
-                        <strong className="text-slate-900 dark:text-white font-mono mt-1 block" dir="ltr">{patientPhone}</strong>
+                        <strong className="text-foreground font-mono mt-1 block" dir="ltr">{patientPhone}</strong>
                       </div>
 
                       <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
                         <span className="text-[11px] text-slate-400 block font-bold">العمر / السن</span>
-                        <strong className="text-slate-900 dark:text-white mt-1 block">
+                        <strong className="text-foreground mt-1 block">
                           {patientAge ? `${patientAge} سنة` : 'غير محدد'}
                         </strong>
                       </div>
@@ -1686,7 +1686,7 @@ export default function PatientDashboardPage() {
                             <MapPin className="w-3.5 h-3.5 text-sky-500" />
                             <span>منطقة السكن المسجلة</span>
                           </span>
-                          <strong className="text-slate-900 dark:text-white mt-1 block">
+                          <strong className="text-foreground mt-1 block">
                             {[
                               appointments[0].residentialArea.governorateNameAr,
                               appointments[0].residentialArea.cityNameAr,
@@ -1728,7 +1728,7 @@ export default function PatientDashboardPage() {
               {activeTab === 'location' && (
                 <div className="space-y-4">
                   <div>
-                    <h3 className="font-black text-slate-900 dark:text-white text-base">
+                    <h3 className="font-black text-foreground text-base">
                       خريطة العيادة ومواقع الفروع
                     </h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -1749,7 +1749,7 @@ export default function PatientDashboardPage() {
         </div>
 
         {/* Footer */}
-        <footer className="mt-12 pt-6 border-t border-sky-100 dark:border-slate-800/80 text-center text-xs text-slate-400 dark:text-slate-500 font-bold">
+        <footer className="mt-12 pt-6 border-t border-border/80 text-center text-xs text-slate-400 dark:text-slate-500 font-bold">
           <p>© 2026 Yalla Clinic — تشغيل وتطوير Yalla CodeX. جميع الحقوق محفوظة.</p>
         </footer>
       </main>
@@ -1808,9 +1808,9 @@ export default function PatientDashboardPage() {
       {/* 5. Prescription View Modal (A4 Print / PDF) */}
       {selectedRx && (
         <div dir="rtl" className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 overflow-y-auto">
-          <div className="w-full max-w-2xl bg-white dark:bg-[#081526] rounded-3xl p-5 shadow-2xl border border-sky-100 dark:border-slate-800 space-y-4 my-auto">
+          <div className="w-full max-w-2xl bg-card text-card-foreground rounded-3xl p-5 shadow-2xl border border-border space-y-4 my-auto">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="font-black text-slate-900 dark:text-white text-base">
+              <h3 className="font-black text-foreground text-base">
                 الروشتة الطبية الرسمية
               </h3>
               <button
@@ -1873,11 +1873,11 @@ export default function PatientDashboardPage() {
       {/* 6. Invoice View Modal (Matches Prescription Modal Exactly) */}
       {selectedInvoice && (
         <div dir="rtl" className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 overflow-y-auto">
-          <div className="w-full max-w-2xl bg-white dark:bg-[#081526] rounded-3xl p-5 shadow-2xl border border-sky-100 dark:border-slate-800 space-y-4 my-auto max-h-[92vh] overflow-y-auto">
+          <div className="w-full max-w-2xl bg-card text-card-foreground rounded-3xl p-5 shadow-2xl border border-border space-y-4 my-auto max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <Receipt className="w-5 h-5 text-emerald-600" />
-                <h3 className="font-black text-slate-900 dark:text-white text-base">
+                <h3 className="font-black text-foreground text-base">
                   فاتورة الكشف الطبي الرسمية
                 </h3>
               </div>
