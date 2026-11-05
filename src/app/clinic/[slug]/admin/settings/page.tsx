@@ -27,7 +27,6 @@ import { extractCoordsFromLink, safeImageUrl } from '@/lib/mapsHelper'
 import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import { cleanPhoneForWhatsApp } from '@/lib/countryPhoneHelper'
 import { formatWeeklyScheduleSummary, syncClinicScheduleToMainBranch } from '@/lib/branchService'
-import { hashPassword, verifyPassword } from '@/lib/auth-crypto'
 import { getClinicWebsiteUrl } from '@/lib/clinicUrls'
 
 export default function ClinicSettings({ params }: { params: Promise<{ slug: string }> }) {
@@ -46,6 +45,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const [secondaryColor, setSecondaryColor] = useState('#2F80ED')
   const [supportNumbers, setSupportNumbers] = useState<any[]>([]);
   const [newDoctorEmail, setNewDoctorEmail] = useState('');
+  const [currentDoctorEmailPassword, setCurrentDoctorEmailPassword] = useState('');
   const [currentDoctorPassword, setCurrentDoctorPassword] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isUpdatingEmail, setIsUpdatingEmail] = useState(false);
@@ -332,7 +332,6 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         isCashEnabled: Boolean(isCashEnabled),
         isClinicOpen,
         showPrices,
-        ...(newDoctorEmail ? { doctorEmail: newDoctorEmail } : {}),
         
         isWalletEnabled,
         isInstapayEnabled,
@@ -360,7 +359,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         return
       }
 
-      // Save via server API endpoint (bypasses unauthenticated Firestore rules)
+      // Save via authenticated server API endpoint.
       const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -368,8 +367,8 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       })
 
       if (!res.ok) {
-        // Fallback to direct client update if API returns non-ok
-        await updateDoc(doc(db, 'clinics', clinicId), payload)
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(errorData.error || 'فشل حفظ الإعدادات')
       }
 
       await syncClinicScheduleToMainBranch(
@@ -767,23 +766,39 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                   dir="ltr"
                 />
               </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-foreground">كلمة المرور الحالية لتأكيد تغيير البريد</Label>
+                <PasswordInput
+                  value={currentDoctorEmailPassword}
+                  onChange={e => setCurrentDoctorEmailPassword(e.target.value)}
+                  autoComplete="current-password"
+                  className="h-10 text-xs rounded-xl text-left"
+                  dir="ltr"
+                />
+              </div>
               <Button
                 type="button"
-                disabled={isUpdatingEmail || !newDoctorEmail || newDoctorEmail === clinic?.doctorEmail}
+                disabled={isUpdatingEmail || !newDoctorEmail || !currentDoctorEmailPassword || newDoctorEmail.trim().toLowerCase() === clinic?.doctorEmail?.toLowerCase()}
                 onClick={async () => {
                   if (!newDoctorEmail || !newDoctorEmail.includes('@')) {
                     return toast.error('يرجى إدخال بريد إلكتروني صحيح')
                   }
                   setIsUpdatingEmail(true)
                   try {
-                    const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/settings`, {
+                    const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/change-email`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ doctorEmail: newDoctorEmail.trim().toLowerCase() })
+                      body: JSON.stringify({
+                        newEmail: newDoctorEmail.trim().toLowerCase(),
+                        currentPassword: currentDoctorEmailPassword
+                      })
                     })
-                    if (!res.ok) throw new Error('فشل تحديث البريد')
+                    const data = await res.json().catch(() => ({}))
+                    if (!res.ok) throw new Error(data.error || 'فشل تحديث البريد')
                     toast.success('تم تحديث البريد الإلكتروني بنجاح')
-                    setClinic((prev: any) => ({ ...prev, doctorEmail: newDoctorEmail.trim().toLowerCase() }))
+                    setClinic((prev: any) => ({ ...prev, doctorEmail: data.email }))
+                    setNewDoctorEmail('')
+                    setCurrentDoctorEmailPassword('')
                   } catch (e: any) {
                     toast.error(e.message || 'خطأ في تحديث البريد')
                   } finally {
