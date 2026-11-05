@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore'
+import { collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { verifySessionToken } from '@/lib/auth-crypto'
+import { getClinicDoctorAccount } from '@/lib/server/clinic-credential-access'
+import { writeDocument } from '@/lib/server/firebase-rest'
+import { pickNormalClinicSettings } from '@/lib/clinic-credential-policy'
 import { syncClinicScheduleToMainBranch, formatWeeklyScheduleSummary } from '@/lib/branchService'
 
 /**
@@ -53,54 +55,24 @@ export async function POST(
 ) {
   try {
     const { slug } = await params
-    const sessionToken =
-      req.cookies.get('clinic_session')?.value ||
-      req.headers.get('Authorization')?.replace('Bearer ', '')
-
-    if (!sessionToken) {
-      return NextResponse.json({ error: 'غير مصرح بالوصول — يرجى تسجيل الدخول' }, { status: 401 })
+    if (!slug) return NextResponse.json({ error: 'معرف العيادة مطلوب' }, { status: 400 })
+    const account = await getClinicDoctorAccount(req, slug)
+    if (!account.ok) {
+      return NextResponse.json({ error: account.error }, { status: account.status })
     }
 
-    const session = await verifySessionToken(sessionToken)
-    if (!session.valid || !session.payload) {
-      return NextResponse.json({ error: 'جلسة الدخول غير صالحة أو منتهية' }, { status: 401 })
+    // Never accept doctorEmail or password fields via the ordinary settings API.
+    const body = await req.json().catch(() => null)
+    const settings = pickNormalClinicSettings(body)
+    if (!Object.keys(settings).length) {
+      return NextResponse.json({ error: 'لا توجد إعدادات مسموح بتعديلها' }, { status: 400 })
     }
-
-    const userRole = session.payload.role
-    if (userRole !== 'doctor' && userRole !== 'owner') {
-      return NextResponse.json({ error: 'تعديل إعدادات العيادة متاح فقط للطبيب أو مالك المنصة' }, { status: 403 })
+    const cleanedPayload: Record<string, any> = {
+      ...settings,
+      updatedAt: new Date().toISOString(),
     }
-
-    const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
-    const cSnap = await getDocs(cQ)
-    if (cSnap.empty) {
-      return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404 })
-    }
-
-    const cDoc = cSnap.docs[0]
-    const clinicId = cDoc.id
-
-    const body = await req.json().catch(() => ({}))
-
-    // Disallow password mutations through normal settings save
-    const {
-      newDoctorPassword,
-      currentDoctorPassword,
-      doctorPassword,
-      doctorPasswordHash,
-      assistantPassword,
-      assistantPasswordHash,
-      ...safePayload
-    } = body
-
-    safePayload.updatedAt = new Date().toISOString()
-
-    // Remove any undefined values
-    const cleanedPayload: Record<string, any> = Object.fromEntries(
-      Object.entries(safePayload).filter(([_, v]) => v !== undefined)
-    )
-
-    await updateDoc(doc(db, 'clinics', clinicId), cleanedPayload)
+    const clinicId = account.clinicId
+    await writeDocument(`clinics/${clinicId}`, cleanedPayload, true)
 
     // Sync schedule to main branch if weeklySchedule provided
     if (Array.isArray(cleanedPayload.weeklySchedule) && cleanedPayload.weeklySchedule.length > 0) {
@@ -129,8 +101,10 @@ export async function POST(
   } catch (err: any) {
     console.error('Error in settings POST:', err)
     return NextResponse.json(
-      { error: 'فشل في حفظ إعدادات العيادة: ' + (err.message || '') },
-      { status: 500 }
+      { error: err?.message === 'FIREBASE_SERVER_NOT_CONFIGURED'
+        ? 'خدمة حفظ إعدادات العيادة غير مهيأة، تواصل مع الدعم'
+        : 'تعذر حفظ إعدادات العيادة، حاول مرة أخرى' },
+      { status: err?.message === 'FIREBASE_SERVER_NOT_CONFIGURED' ? 503 : 500 }
     )
   }
 }
