@@ -236,7 +236,7 @@ export default function TrackQueuePage({
 
   return (
     <div
-      className="min-h-screen bg-gradient-to-b from-background via-background to-secondary/20 text-foreground font-sans transition-colors duration-200"
+      className="min-h-screen bg-gradient-to-b from-background via-background to-secondary/20 text-foreground font-sans"
       dir={dir}
     >
       <style dangerouslySetInnerHTML={{ __html: `:root { --primary: ${primaryColor}; }` }} />

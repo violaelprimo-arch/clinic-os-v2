@@ -128,7 +128,7 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
   const serviceIcons = [Clock, MapPin, Stethoscope, ShieldCheck, FlaskConical, Activity]
 
   return (
-    <div dir={dir} className="min-h-screen flex flex-col bg-[#f4f9ff] dark:bg-[#050d1a] text-slate-900 dark:text-slate-50 font-sans transition-colors overflow-x-hidden">
+    <div dir={dir} className="min-h-screen flex flex-col bg-background text-foreground font-sans overflow-x-hidden">
       {/* Top Banner when in Live Settings Preview */}
       {isPreview && (
         <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white py-1.5 px-3 text-center text-xs font-black shadow-sm sticky top-0 z-50 flex items-center justify-center gap-2">
@@ -138,7 +138,7 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
       )}
 
       {/* Header / Navbar */}
-      <header className="sticky top-0 z-40 bg-white/90 dark:bg-[#081526]/90 backdrop-blur-xl border-b border-sky-100 dark:border-slate-800">
+      <header className="sticky top-0 z-40 bg-card/90 backdrop-blur-xl border-b border-border">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-2 sm:gap-4">
           <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             <motion.button
@@ -306,7 +306,7 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
                 <span>{clinic?.heroBadge || (isRtl ? 'رعاية صحية أفضل.. بخطوة أسهل' : 'Better Healthcare.. In One Easy Step')}</span>
               </motion.div>
 
-              <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black text-slate-900 dark:text-white leading-tight tracking-tight">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black text-foreground leading-tight tracking-tight">
                 <span className="block mb-1 sm:mb-2">{isRtl ? 'احجز موعدك الآن' : 'Book Your Appointment'}</span>
                 <span className="bg-gradient-to-l from-slate-900 via-sky-800 to-sky-600 dark:from-white dark:via-sky-200 dark:to-sky-400 bg-clip-text text-transparent text-xl sm:text-2xl md:text-3xl lg:text-4xl block">
                   {clinic?.clinicName ? (isRtl ? `في ${clinic.clinicName}` : `At ${clinic.clinicName}`) : (isRtl ? 'في عيادة د. أحمد عبد العزيز' : 'At Dr. Ahmed Abdel Aziz Clinic')}
@@ -317,7 +317,7 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
                 <p className="text-sm sm:text-base md:text-lg font-bold text-slate-700 dark:text-slate-200">
                   {clinic?.specialty || (isRtl ? 'استشاري الطب الباطني والجهاز الهضمي • علاج الحالات المتقدمة' : 'Consultant of Internal Medicine & Gastroenterology')}
                 </p>
-                <p className="text-xs sm:text-sm md:text-base text-slate-500 dark:text-slate-400 leading-relaxed max-w-xl mx-auto lg:mx-0">
+                <p className="text-xs sm:text-sm md:text-base text-muted-foreground leading-relaxed max-w-xl mx-auto lg:mx-0">
                   {clinic?.heroSubtitle || (isRtl ? 'رعاية متكاملة .. خبرة .. اهتمام بكل مريض' : 'Comprehensive Care .. Expertise .. Patient Attention')}
                 </p>
               </div>
@@ -367,12 +367,12 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
 
       {/* Services Section */}
       <section id="services" className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
-        <div className="bg-white dark:bg-[#081526] rounded-[28px] sm:rounded-[36px] p-6 sm:p-10 md:p-12 shadow-xl border border-sky-100/80 dark:border-slate-800">
+        <div className="bg-card text-card-foreground rounded-[28px] sm:rounded-[36px] p-6 sm:p-10 md:p-12 shadow-xl border border-border">
           <div className="text-center max-w-2xl mx-auto mb-8 sm:mb-12">
-            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+            <h2 className="text-2xl sm:text-3xl font-black text-foreground">
               {isRtl ? 'الخدمات الطبية المتاحة' : 'Available Medical Services'}
             </h2>
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-2">
+            <p className="text-xs sm:text-sm text-muted-foreground mt-2">
               {isRtl
                 ? 'اختر الخدمة المطلوبة لحجز موعد مباشر أو الاستفسار عن تفاصيل الكشف'
                 : 'Select the required service for instant booking or check consultation details'}
@@ -401,7 +401,7 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
                     <IconComp className="w-6 h-6" />
                   </div>
                   <h3 className="font-extrabold text-slate-800 dark:text-white text-sm sm:text-base mb-1">{srv.name}</h3>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-bold">
+                  <p className="text-[11px] text-muted-foreground font-bold">
                     {clinic?.showPrices !== false && !clinic?.hidePrices && srv.price ? `${srv.price} ${isRtl ? 'ج.م' : 'EGP'}` : ''} {srv.duration ? `• ${srv.duration}` : ''}
                   </p>
                 </motion.div>
@@ -426,10 +426,10 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
                 <MapPin className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
                 <span>{isRtl ? 'الموقع الجغرافي ونظام الملاحة الذكي' : 'GPS Location & Smart Navigation'}</span>
               </div>
-              <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white mt-2">
+              <h2 className="text-2xl sm:text-3xl font-black text-foreground mt-2">
                 {isRtl ? 'خريطة الوصول وموقع العيادة' : 'Clinic Location Map'}
               </h2>
-              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1 max-w-2xl">
                 {isRtl
                   ? 'توجّه مباشرة إلى مقر العيادة عبر الملاحة الذكية واستعرض الفروع المتاحة وتفاصيل العنوان الدقيق المسجل في النظام.'
                   : 'Navigate directly to the clinic or check available branch locations and accurate address details.'}
@@ -437,7 +437,7 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
             </div>
 
             <div className="flex items-center gap-3 shrink-0">
-              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+              <span className="text-xs font-bold text-muted-foreground">
                 {branches.length} {branches.length === 1 ? (isRtl ? 'فرع مسجل' : 'Branch Registered') : (isRtl ? 'فروع مسجلة' : 'Branches')}
               </span>
             </div>
@@ -456,9 +456,9 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
       <section id="branches" className="pb-16 sm:pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Main Info Card */}
-          <div className="lg:col-span-4 bg-white dark:bg-[#081526] rounded-[28px] p-6 sm:p-7 shadow-lg border border-sky-100 dark:border-slate-800 space-y-6">
+          <div className="lg:col-span-4 bg-card text-card-foreground rounded-[28px] p-6 sm:p-7 shadow-lg border border-border space-y-6">
             <div>
-              <h3 className="text-lg font-black text-slate-900 dark:text-white mb-1">
+              <h3 className="text-lg font-black text-foreground mb-1">
                 {selectedBranch?.name || clinic?.clinicName || (isRtl ? 'العيادة التخصصية' : 'Clinic')}
               </h3>
               <p className="text-xs text-sky-600 dark:text-sky-400 font-bold">
@@ -467,13 +467,13 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
             </div>
 
             <div className="space-y-3.5 text-sm">
-              <div className="flex items-start gap-3 text-slate-600 dark:text-slate-300">
+              <div className="flex items-start gap-3 text-muted-foreground">
                 <MapPin className="w-4 h-4 text-sky-500 shrink-0 mt-0.5" />
                 <span className="text-xs leading-relaxed">{selectedBranch?.address || clinic?.clinicAddress || (isRtl ? 'العنوان الرئيسي' : 'Main Address')}</span>
               </div>
 
               {(selectedBranch?.phone || clinic?.clinicPhone) && (
-                <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300">
+                <div className="flex items-center gap-3 text-muted-foreground">
                   <Phone className="w-4 h-4 text-emerald-500 shrink-0" />
                   <a
                     href={`tel:${selectedBranch?.phone || clinic?.clinicPhone}`}
@@ -501,14 +501,14 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
             </div>
 
             <div className="border-t border-slate-100 dark:border-slate-800 pt-5">
-              <h3 className="text-base font-black text-slate-900 dark:text-white mb-3">
+              <h3 className="text-base font-black text-foreground mb-3">
                 {isRtl ? 'مواعيد العمل' : 'Working Hours'}
               </h3>
               <div className="space-y-2 text-sm">
                 {getWeeklyScheduleDisplayGroups(selectedBranch?.weeklySchedule || clinic?.weeklySchedule, isRtl).map((grp, idx) => (
                   <div key={idx} className="flex items-center justify-between py-2 px-3 rounded-xl bg-slate-50 dark:bg-slate-800/50">
                     <span className="font-bold text-slate-700 dark:text-slate-300">{grp.daysLabel}</span>
-                    <span className={`font-extrabold text-xs ${grp.isOpen ? 'text-slate-900 dark:text-white' : 'text-rose-500 dark:text-rose-400'}`}>
+                    <span className={`font-extrabold text-xs ${grp.isOpen ? 'text-foreground' : 'text-rose-500 dark:text-rose-400'}`}>
                       {grp.hoursLabel}
                     </span>
                   </div>
@@ -520,7 +520,7 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
           {/* Branches Cards */}
           <div className="lg:col-span-8 space-y-4">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-xl font-black text-slate-900 dark:text-white">
+              <h3 className="text-xl font-black text-foreground">
                 {isRtl ? 'فروع العيادة وأماكن الكشف' : 'Clinic Branches'}
               </h3>
               <span className="text-xs text-slate-400 font-bold">
@@ -534,7 +534,7 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
                   key={b.id || i}
                   whileHover={{ y: -8 }}
                   transition={{ duration: 0.2 }}
-                  className="bg-white dark:bg-[#081526] rounded-[24px] overflow-hidden shadow-md hover:shadow-xl border border-sky-100/90 dark:border-slate-800 flex flex-col transition-all"
+                  className="bg-card text-card-foreground rounded-[24px] overflow-hidden shadow-md hover:shadow-xl border border-border flex flex-col transition-all"
                 >
                   <div className="relative h-44 overflow-hidden bg-sky-100 dark:bg-slate-800">
                     {b.image && (
@@ -553,8 +553,8 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
                   </div>
                   <div className="p-5 flex-1 flex flex-col justify-between text-center">
                     <div>
-                      <h3 className="text-lg font-black text-slate-900 dark:text-white">{b.name}</h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{b.address || ''}</p>
+                      <h3 className="text-lg font-black text-foreground">{b.name}</h3>
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{b.address || ''}</p>
                     </div>
 
                     <button

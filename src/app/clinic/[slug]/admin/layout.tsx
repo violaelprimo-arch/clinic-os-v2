@@ -427,14 +427,14 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="flex h-screen bg-background font-sans overflow-hidden text-foreground print:block print:h-auto print:overflow-visible print:bg-white transition-colors duration-200" dir={dir}>
+    <div className="flex h-screen bg-background font-sans overflow-hidden text-foreground print:block print:h-auto print:overflow-visible print:bg-white" dir={dir}>
       <DynamicTheme color={primaryColor} />
       <style dangerouslySetInnerHTML={{ __html: `:root { --primary: ${primaryColor}; }` }} />
 
       {/* =========================================================================
           1. DESKTOP SIDEBAR (Theme-Aware: Clean White in Light / Deep Navy in Dark)
          ========================================================================= */}
-      <aside className="w-68 bg-sidebar/95 backdrop-blur-2xl text-sidebar-foreground hidden lg:flex flex-col border-e border-sidebar-border relative z-30 shrink-0 select-none shadow-xl print:hidden transition-colors duration-200">
+      <aside className="w-68 bg-sidebar/95 backdrop-blur-2xl text-sidebar-foreground hidden lg:flex flex-col border-e border-sidebar-border relative z-30 shrink-0 select-none shadow-xl print:hidden">
         {/* Brand Header */}
         <div className="p-4 border-b border-sidebar-border bg-sidebar/50 backdrop-blur-sm">
           <Link href={`/clinic/${slug}/admin`} className="flex items-center gap-3">
@@ -688,7 +688,7 @@ export default function AdminLayout({
         <div className="fixed bottom-10 left-20 w-96 h-96 bg-cyan-500/10 dark:bg-cyan-500/15 rounded-full blur-[120px] pointer-events-none z-0 transform-gpu will-change-transform" />
 
         {/* Sticky Topbar */}
-        <header className="h-16 bg-card/80 backdrop-blur-md border-b border-border/80 px-4 md:px-8 flex items-center justify-between gap-4 z-20 shrink-0 print:hidden transition-colors duration-200">
+        <header className="h-16 bg-card/80 backdrop-blur-md border-b border-border/80 px-4 md:px-8 flex items-center justify-between gap-4 z-20 shrink-0 print:hidden">
           {/* Start side: Mobile Menu Button & Search */}
           <div className="flex items-center gap-3 flex-1 max-w-lg">
             <button

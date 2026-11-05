@@ -16,6 +16,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
+import { useTheme } from '@/context/ThemeContext'
 import { sortQueue } from '@/lib/queueCalculations'
 
 interface TvConfig {
@@ -113,8 +114,9 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
   const lastAnnouncedCallKeyRef = useRef<string | null>(null)
   const isFirstDataLoadRef = useRef<boolean>(true)
 
-  // Light / Dark Mode State
-  const [themeMode, setThemeMode] = useState<'dark' | 'light'>('dark')
+  // Light / Dark Mode State unified with global ThemeContext
+  const { theme, toggleTheme } = useTheme()
+  const isDark = theme === 'dark'
 
   // Screen Settings Modal State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -202,10 +204,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
   // Load Saved Theme, Settings, and Audio state from localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const savedTheme = localStorage.getItem(`clinic_${slug}_tv_theme`) as 'dark' | 'light'
-      if (savedTheme) {
-        setThemeMode(savedTheme)
-      }
+      // Global theme is managed automatically via ThemeContext
 
       const savedAudio = localStorage.getItem(`clinic_${slug}_tv_audio`)
       if (savedAudio === 'true') {
@@ -688,14 +687,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
     }
   }, [currentPatient, isAudioEnabled, tvConfig.announceName, tvConfig.voiceGender, tvConfig.announcementPhrase, tvConfig.speechTone, tvConfig.chimeSound])
 
-  // Toggle Theme Mode (Dark <-> Light)
-  const toggleTheme = () => {
-    const nextMode = themeMode === 'dark' ? 'light' : 'dark'
-    setThemeMode(nextMode)
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(`clinic_${slug}_tv_theme`, nextMode)
-    }
-  }
+  // toggleTheme is inherited directly from useTheme()
 
   // Toggle Fullscreen
   const toggleFullscreen = () => {
@@ -754,7 +746,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
   const marqueeDuration = tvConfig.tickerSpeed === 'fast' ? '18s' : tvConfig.tickerSpeed === 'slow' ? '40s' : '28s'
   const marqueeAnimationClass = tvConfig.tickerDirection === 'ltr' ? 'animate-marquee-ltr' : 'animate-marquee-rtl'
 
-  const isDark = themeMode === 'dark'
+  // isDark is derived from useTheme() above
 
   if (clinic && !isTvEnabled) {
     return (
@@ -787,7 +779,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
   return (
     <div
       dir="rtl"
-      className={`min-h-screen font-sans overflow-hidden flex flex-col justify-between select-none relative transition-colors duration-300 ${
+      className={`min-h-screen font-sans overflow-hidden flex flex-col justify-between select-none relative ${
         isDark ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-900'
       }`}
     >

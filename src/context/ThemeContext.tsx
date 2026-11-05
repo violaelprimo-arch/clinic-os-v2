@@ -34,10 +34,35 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [isSystem, setIsSystem] = useState<boolean>(true)
   const [mounted, setMounted] = useState(false)
 
-  // Fast and smooth theme application with zero lag or layout thrashing
+  // Fast and smooth theme application with zero lag, tearing, or transition mismatch
   const applyTheme = useCallback((t: Theme) => {
     if (typeof document === 'undefined') return
     const root = document.documentElement
+
+    // Temporarily suppress all transitions across DOM to guarantee 100% synchronous color swap without tearing
+    let cleanupTransitions: (() => void) | null = null
+    try {
+      const style = document.createElement('style')
+      style.id = 'theme-transition-suppressor'
+      style.appendChild(
+        document.createTextNode(
+          '*,*::before,*::after{-webkit-transition:none!important;-moz-transition:none!important;-o-transition:none!important;-ms-transition:none!important;transition:none!important;animation-duration:0s!important}'
+        )
+      )
+      root.classList.add('switching-theme')
+      document.head.appendChild(style)
+      cleanupTransitions = () => {
+        // Double rAF ensures paint has committed before re-enabling interactive hover/focus transitions
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            root.classList.remove('switching-theme')
+            if (style.parentNode) {
+              style.parentNode.removeChild(style)
+            }
+          })
+        })
+      }
+    } catch (e) {}
 
     const prefersReducedMotion =
       typeof window !== 'undefined' &&
@@ -58,6 +83,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       root.classList.add('light')
       root.setAttribute('data-theme', 'light')
       root.style.colorScheme = 'light'
+    }
+
+    // Force synchronous style recalculation while transitions are suppressed
+    try {
+      ;(() => window.getComputedStyle(document.body).opacity)()
+    } catch (e) {}
+
+    // Restore interactive transitions on next frame
+    if (cleanupTransitions) {
+      cleanupTransitions()
     }
 
     // Broadcast theme update only if an iframe is present (such as live booking preview)

@@ -169,6 +169,19 @@ body {
   transition: background-color 150ms ease, color 150ms ease;
 }
 
+/* Instant synchronous theme switching: disables all transitions during toggle to eliminate tearing */
+html.switching-theme,
+html.switching-theme *,
+html.switching-theme *::before,
+html.switching-theme *::after,
+.disable-transitions,
+.disable-transitions *,
+.disable-transitions *::before,
+.disable-transitions *::after {
+  transition: none !important;
+  animation-duration: 0.001ms !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

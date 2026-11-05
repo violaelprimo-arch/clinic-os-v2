@@ -40,7 +40,7 @@ export default function OwnerLayout({ children }: { children: ReactNode }) {
 
   return (
     <OwnerNavigationContext.Provider value={{ activeTab: activeOwnerTab, setActiveTab: setActiveOwnerTab }}>
-    <div className="flex h-dvh min-h-0 overflow-hidden bg-background font-sans text-foreground transition-colors duration-200" dir={dir}>
+    <div className="flex h-dvh min-h-0 overflow-hidden bg-background font-sans text-foreground" dir={dir}>
 
       {/* Ambient background glows for authentic glassmorphism */}
       <div className="fixed top-20 -right-20 w-96 h-96 bg-primary/10 rounded-full blur-[120px] pointer-events-none -z-10" />
