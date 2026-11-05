@@ -147,28 +147,12 @@ export default function ClinicPage({ params }: { params: Promise<{ slug: string 
       }
     }
 
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'clinic_os_theme' && (e.newValue === 'dark' || e.newValue === 'light')) {
-        if (e.newValue === 'dark') {
-          document.documentElement.classList.add('dark')
-          document.documentElement.classList.remove('light')
-          document.documentElement.style.colorScheme = 'dark'
-        } else {
-          document.documentElement.classList.remove('dark')
-          document.documentElement.classList.add('light')
-          document.documentElement.style.colorScheme = 'light'
-        }
-      }
-    }
-
     window.addEventListener('message', handleMessage)
-    window.addEventListener('storage', handleStorage)
     try {
       window.parent?.postMessage({ type: 'CLINIC_PREVIEW_READY' }, '*')
     } catch (e) {}
     return () => {
       window.removeEventListener('message', handleMessage)
-      window.removeEventListener('storage', handleStorage)
     }
   }, [slug])
 

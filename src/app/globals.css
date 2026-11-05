@@ -157,54 +157,20 @@
 }
 
 /* =========================================================================
-   SEAMLESS 200ms DARK/LIGHT COLOR TRANSITION SYSTEM
-   Applies smooth 200ms transition strictly to color and border tokens
-   without touching layout geometry or causing reflow
+   LIGHT / DARK THEME COLOR SYSTEM
+   Instant CSS variable evaluation with zero style recalc queues or frame drops.
+   Smooth transitions are kept strictly to body & top-level layout containers.
    ========================================================================= */
-html,
-body,
-header,
-aside,
-nav,
-footer,
-main,
-section,
-div,
-input,
-textarea,
-select,
-button,
-table,
-thead,
-tbody,
-tr,
-th,
-td,
-.card,
-.medical-card,
-.ios-glass-card,
-.yalla-card,
-.yalla-card-elevated,
-[class*="bg-background"],
-[class*="bg-card"],
-[class*="bg-sidebar"],
-[class*="bg-muted"],
-[class*="bg-secondary"],
-[class*="border-border"],
-[class*="text-foreground"],
-[class*="text-muted-foreground"] {
-  transition-property: background-color, border-color, color, fill, stroke, box-shadow;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 200ms;
+body {
+  transition: background-color 150ms ease, color 150ms ease;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html,
-  body,
   *,
   *::before,
   *::after {
     transition: none !important;
+    transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
   }
 }
@@ -228,7 +194,7 @@ html[dir="ltr"], [dir="ltr"] {
   border: 1px solid rgba(255, 255, 255, 0.25);
   box-shadow: 0 4px 16px 0 rgba(8, 124, 244, 0.35), inset 0 1px 0 0 rgba(255, 255, 255, 0.35);
   border-radius: 14px;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), filter 0.2s ease, box-shadow 0.2s ease;
 }
 .yalla-gradient-btn:hover {
   filter: brightness(1.06);
@@ -247,7 +213,7 @@ html[dir="ltr"], [dir="ltr"] {
   border-radius: 20px;
   border: 1px solid var(--border);
   box-shadow: 0 4px 20px -2px rgba(6, 26, 56, 0.05), 0 1px 3px 0 rgba(6, 26, 56, 0.02), inset 0 1px 0 0 rgba(255, 255, 255, 0.7);
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .medical-card:hover,
 .yalla-card:hover {
@@ -286,7 +252,7 @@ html[dir="ltr"], [dir="ltr"] {
 .medical-card-interactive,
 .yalla-card-interactive {
   border-radius: 20px;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, box-shadow 0.2s ease;
   cursor: pointer;
 }
 .medical-card-interactive:hover,
@@ -322,7 +288,7 @@ html[dir="ltr"], [dir="ltr"] {
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 16px 40px -10px rgba(0, 0, 0, 0.45), inset 0 1px 1px 0 rgba(255, 255, 255, 0.3);
   border-radius: 24px;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .ultra-glass:hover {
   border-color: rgba(0, 240, 255, 0.35);
@@ -336,7 +302,7 @@ html[dir="ltr"], [dir="ltr"] {
   border: 1px solid rgba(255, 255, 255, 0.15);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
   border-radius: 14px;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.15s ease, background-color 0.15s ease;
 }
 .ios-glass-btn:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -362,7 +328,7 @@ html[dir="ltr"], [dir="ltr"] {
   border: 1px solid rgba(255, 255, 255, 0.8);
   box-shadow: 0 8px 32px 0 rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.9);
   border-radius: 24px;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .dark .ios-glass-card {

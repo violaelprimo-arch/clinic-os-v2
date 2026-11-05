@@ -52,12 +52,12 @@ test('5. ThemeContext handles reduced-motion and system scheme changes', async (
   assert.ok(content.includes('THEME_CHANGE'), 'Broadcasting THEME_CHANGE to iframes');
 });
 
-test('6. Global CSS defines fluid 200ms semantic token transitions and reduced-motion override', async () => {
+test('6. Global CSS defines lightweight surface transitions and eliminates heavy global selectors', async () => {
   const cssPath = path.resolve('D:/progect/clinic-os-v2/src/app/globals.css');
   const content = fs.readFileSync(cssPath, 'utf8');
 
-  assert.ok(content.includes('transition-duration: 200ms'), '200ms transition duration applied');
-  assert.ok(content.includes('cubic-bezier(0.4, 0, 0.2, 1)'), 'cubic-bezier easing applied');
+  assert.ok(content.includes('background-color 150ms ease, color 150ms ease'), 'Body has targeted 150ms color transition');
+  assert.ok(!content.includes('div,\ninput,\ntextarea'), 'No heavy universal div transition selectors causing lag');
   assert.ok(content.includes('prefers-reduced-motion: reduce'), 'prefers-reduced-motion override present in CSS');
   assert.ok(content.includes('--card-elevated'), 'Theme tokens include card elevation');
 });

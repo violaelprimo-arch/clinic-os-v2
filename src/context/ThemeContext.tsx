@@ -58,14 +58,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       root.style.colorScheme = 'light'
     }
 
-    // Broadcast theme update to any active iframes (such as live booking preview)
+    // Broadcast theme update only if an iframe is present (such as live booking preview)
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('clinic_theme_changed', { detail: { theme: t } }))
       try {
-        const iframes = document.querySelectorAll('iframe')
-        iframes.forEach((ifr) => {
-          ifr.contentWindow?.postMessage({ type: 'THEME_CHANGE', theme: t }, '*')
-        })
+        const hasIframe = document.querySelector('iframe')
+        if (hasIframe) {
+          const iframes = document.querySelectorAll('iframe')
+          iframes.forEach((ifr) => {
+            ifr.contentWindow?.postMessage({ type: 'THEME_CHANGE', theme: t }, '*')
+          })
+        }
       } catch (e) {}
     }
   }, [])
@@ -83,9 +85,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       const stored = localStorage.getItem('clinic_os_theme')
       if (!stored) {
         const nextTheme = e.matches ? 'dark' : 'light'
-        setThemeState(nextTheme)
+        setThemeState((prev) => {
+          if (prev === nextTheme) return prev
+          applyTheme(nextTheme)
+          return nextTheme
+        })
         setIsSystem(true)
-        applyTheme(nextTheme)
       }
     }
 
@@ -97,16 +102,24 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     // Listen for iframe THEME_CHANGE messages (for live preview in settings)
     const handleWindowMessage = (e: MessageEvent) => {
       if (e.data?.type === 'THEME_CHANGE' && (e.data.theme === 'dark' || e.data.theme === 'light')) {
-        setThemeState(e.data.theme)
-        applyTheme(e.data.theme)
+        const next = e.data.theme as Theme
+        setThemeState((prev) => {
+          if (prev === next) return prev
+          applyTheme(next)
+          return next
+        })
       }
     }
 
     // Listen for localStorage changes across windows/tabs
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'clinic_os_theme' && (e.newValue === 'dark' || e.newValue === 'light')) {
-        setThemeState(e.newValue)
-        applyTheme(e.newValue)
+        const next = e.newValue as Theme
+        setThemeState((prev) => {
+          if (prev === next) return prev
+          applyTheme(next)
+          return next
+        })
       }
     }
 
@@ -124,20 +137,30 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const setTheme = useCallback(
     (t: Theme) => {
-      setThemeState(t)
+      setThemeState((prev) => {
+        if (prev === t) return prev
+        try {
+          localStorage.setItem('clinic_os_theme', t)
+        } catch {}
+        applyTheme(t)
+        return t
+      })
       setIsSystem(false)
-      try {
-        localStorage.setItem('clinic_os_theme', t)
-      } catch {}
-      applyTheme(t)
     },
     [applyTheme]
   )
 
   const toggleTheme = useCallback(() => {
-    const next: Theme = theme === 'dark' ? 'light' : 'dark'
-    setTheme(next)
-  }, [theme, setTheme])
+    setThemeState((prev) => {
+      const next: Theme = prev === 'dark' ? 'light' : 'dark'
+      try {
+        localStorage.setItem('clinic_os_theme', next)
+      } catch {}
+      applyTheme(next)
+      setIsSystem(false)
+      return next
+    })
+  }, [applyTheme])
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme, setTheme, isSystem }}>

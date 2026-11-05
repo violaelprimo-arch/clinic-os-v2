@@ -23,7 +23,6 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { MessageCircle } from 'lucide-react'
 import { useLanguage } from '@/context/LanguageContext'
-import { useTheme } from '@/context/ThemeContext'
 import { extractCoordsFromLink, safeImageUrl } from '@/lib/mapsHelper'
 import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import { cleanPhoneForWhatsApp } from '@/lib/countryPhoneHelper'
@@ -35,7 +34,6 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const slug = resolvedParams.slug
   const publicClinicUrl = getClinicWebsiteUrl(slug)
   const { t, tDynamic, dir, isRtl, language } = useLanguage()
-  const { theme } = useTheme()
 
   const [activeTab, setActiveTab] = useState<'profile' | 'branding' | 'queue' | 'services' | 'payment' | 'staff' | 'print' | 'ai' | 'security'>('profile')
   const [logoUrl, setLogoUrl] = useState('')
@@ -540,23 +538,11 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
     }
   }, [previewClinicData, slug])
 
-  // Sync Dark/Light theme changes to the preview iframe in real time
-  useEffect(() => {
-    if (iframeRef.current?.contentWindow) {
-      iframeRef.current.contentWindow.postMessage(
-        {
-          type: 'THEME_CHANGE',
-          theme
-        },
-        '*'
-      )
-    }
-  }, [theme])
-
   // Respond immediately when preview iframe finishes loading or announces readiness
   useEffect(() => {
     const handlePreviewReady = (e: MessageEvent) => {
       if (e.data?.type === 'CLINIC_PREVIEW_READY' && iframeRef.current?.contentWindow) {
+        const currentTheme = document.documentElement.classList.contains('dark') ? 'dark' : 'light'
         iframeRef.current.contentWindow.postMessage(
           {
             type: 'CLINIC_PREVIEW_UPDATE',
@@ -567,7 +553,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         iframeRef.current.contentWindow.postMessage(
           {
             type: 'THEME_CHANGE',
-            theme
+            theme: currentTheme
           },
           '*'
         )
@@ -575,10 +561,11 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
     }
     window.addEventListener('message', handlePreviewReady)
     return () => window.removeEventListener('message', handlePreviewReady)
-  }, [previewClinicData, theme])
+  }, [previewClinicData])
 
   const handleIframeLoad = () => {
     if (iframeRef.current?.contentWindow) {
+      const currentTheme = document.documentElement.classList.contains('dark') ? 'dark' : 'light'
       iframeRef.current.contentWindow.postMessage(
         {
           type: 'CLINIC_PREVIEW_UPDATE',
@@ -589,7 +576,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       iframeRef.current.contentWindow.postMessage(
         {
           type: 'THEME_CHANGE',
-          theme
+          theme: currentTheme
         },
         '*'
       )
