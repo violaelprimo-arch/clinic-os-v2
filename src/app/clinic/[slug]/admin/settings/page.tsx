@@ -318,6 +318,9 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         doctorTitle: doctorTitle || 'د.',
         specialty: specialty || '',
         heroSubtitle: heroSubtitle || '',
+      doctorBio: heroSubtitle || '',
+      bio: heroSubtitle || '',
+      ratingsCount: clinic?.ratingsCount || 120,
         bookingPageConfig,
         certificationTitle: certificationTitle || '',
         certificationEntity: certificationEntity || '',
@@ -403,19 +406,23 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         throw new Error(errorData.error || 'فشل حفظ الإعدادات')
       }
 
-      await syncClinicScheduleToMainBranch(
-        clinicId,
-        weeklySchedule,
-        formatWeeklyScheduleSummary(weeklySchedule, isRtl),
-        {
-          address: address || '',
-          mapsLink: mapsLink || '',
-          latitude: latitude ? parseFloat(latitude) : undefined,
-          longitude: longitude ? parseFloat(longitude) : undefined,
-          phone: phones[0] || '',
-          maxDailyBookings: Number(maxDailyBookings) || 0
-        }
-      )
+      try {
+        await syncClinicScheduleToMainBranch(
+          clinicId,
+          weeklySchedule,
+          formatWeeklyScheduleSummary(weeklySchedule, isRtl),
+          {
+            address: address || '',
+            mapsLink: mapsLink || '',
+            latitude: latitude ? parseFloat(latitude) : undefined,
+            longitude: longitude ? parseFloat(longitude) : undefined,
+            phone: phones[0] || '',
+            maxDailyBookings: Number(maxDailyBookings) || 0
+          }
+        )
+      } catch {
+        // Server already synchronized branch schedule in /api/clinic/[slug]/settings
+      }
       toast.success('تم حفظ كافة إعدادات العيادة بنجاح وتطبيقها فورياً');
     } catch (err: any) {
       console.error('Save Error:', err)
@@ -518,6 +525,9 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       doctorTitle: doctorTitle || 'د.',
       specialty: specialty || (isRtl ? 'استشاري الطب التخصصي' : 'Consultant Physician'),
       heroSubtitle: heroSubtitle || '',
+      doctorBio: heroSubtitle || '',
+      bio: heroSubtitle || '',
+      ratingsCount: clinic?.ratingsCount || 120,
       bookingPageConfig,
       certificationTitle: certificationTitle || '',
       certificationEntity: certificationEntity || '',

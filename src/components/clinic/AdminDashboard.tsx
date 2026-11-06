@@ -885,10 +885,22 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
             setIsProcessing(true)
             try {
               const nextIsOpen = clinic?.isClinicOpen === false ? true : false
-              await updateDoc(doc(db, 'clinics', clinic.id), {
-                isClinicOpen: nextIsOpen,
-                updatedAt: new Date().toISOString()
+              const token = typeof window !== 'undefined' ? localStorage.getItem('clinic_session_token') : null
+              const clinicSlug = clinic?.slug
+              if (!clinicSlug) throw new Error('NO_SLUG')
+              const res = await fetch(`/api/clinic/${encodeURIComponent(clinicSlug)}/settings`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                  isClinicOpen: nextIsOpen,
+                  updatedAt: new Date().toISOString()
+                })
               })
+              if (!res.ok) throw new Error('FAILED_UPDATE')
 
               import('@/lib/patientNotificationHelper').then(({ triggerPatientEventPush }) => {
                 triggerPatientEventPush({

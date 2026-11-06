@@ -48,6 +48,8 @@ const allowedSettings = new Set([
   'instapayHandle', 'isCashEnabled', 'isClinicOpen', 'showPrices',
   'isWalletEnabled', 'isInstapayEnabled', 'queueNormal', 'queueConsult',
   'queueUrgent', 'queuePattern', 'assistants', 'bookingPageConfig',
+  'aiKnowledge', 'doctorBio', 'bio', 'ratingsCount',
+  'favorite_drugs', 'favoriteDrugs', 'custom_drugs', 'hiddenProtocolIds',
 ])
 
 export function pickNormalClinicSettings(body: unknown): Record<string, unknown> {

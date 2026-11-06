@@ -23,6 +23,7 @@ import { isClinicFeatureEnabled, LockedFeatureScreen, FeatureKey } from '@/lib/f
 import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { LanguageToggle } from '@/components/common/LanguageToggle'
 import { useLanguage } from '@/context/LanguageContext'
+import { displayDoctorName } from '@/lib/booking-page-config'
 
 export default function AdminLayout({
   children,
@@ -452,7 +453,7 @@ export default function AdminLayout({
               </Avatar>
               <div className="overflow-hidden flex-1 text-start">
                 <h3 className="font-bold text-xs text-foreground truncate">
-                  {clinic?.doctorName ? `د. ${clinic.doctorName}` : (clinic?.clinicName || 'العيادة الطبية')}
+                  {clinic?.doctorName ? displayDoctorName(clinic.doctorName, clinic.doctorTitle || 'د.') : (clinic?.clinicName || 'العيادة الطبية')}
                 </h3>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -602,7 +603,7 @@ export default function AdminLayout({
                 </Avatar>
                 <div className="overflow-hidden flex-1 text-start">
                   <h3 className="font-bold text-xs text-foreground truncate">
-                    {clinic?.doctorName ? `د. ${clinic.doctorName}` : (clinic?.clinicName || 'العيادة الطبية')}
+                    {clinic?.doctorName ? displayDoctorName(clinic.doctorName, clinic.doctorTitle || 'د.') : (clinic?.clinicName || 'العيادة الطبية')}
                   </h3>
                   <span className="text-[10px] text-muted-foreground font-medium block truncate">
                     {role === 'assistant' ? t('assistant', 'مساعد العيادة') : t('certified_doctor', 'طبيب معتمد')}
@@ -767,7 +768,7 @@ export default function AdminLayout({
               </Avatar>
               <div className="hidden xl:block text-start">
                 <p className="text-xs font-bold text-foreground leading-tight">
-                  {clinic?.doctorName ? `د. ${clinic.doctorName}` : 'الطبيب المسجل'}
+                  {clinic?.doctorName ? displayDoctorName(clinic.doctorName, clinic.doctorTitle || 'د.') : 'الطبيب المسجل'}
                 </p>
                 <p className="text-[10px] text-muted-foreground font-mono">/clinic/{slug}</p>
               </div>

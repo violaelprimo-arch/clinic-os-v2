@@ -18,6 +18,7 @@ import Link from 'next/link'
 import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 import { useTheme } from '@/context/ThemeContext'
 import { sortQueue } from '@/lib/queueCalculations'
+import { displayDoctorName } from '@/lib/booking-page-config'
 
 interface TvConfig {
   tickerText: string
@@ -1056,7 +1057,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
             }`}>
               <div className="flex items-center gap-2 font-bold">
                 <Stethoscope className={`w-4 h-4 ${isDark ? 'text-cyan-400' : 'text-blue-600'}`} />
-                <span>{clinic?.doctorName ? `${clinic?.doctorTitle || 'د.'} ${clinic.doctorName}` : (clinic?.clinicName || 'طبيب العيادة')}</span>
+                <span>{clinic?.doctorName ? displayDoctorName(clinic.doctorName, clinic.doctorTitle || 'د.') : (clinic?.clinicName || 'طبيب العيادة')}</span>
               </div>
               <div className="font-mono text-xs font-semibold">
                 {currentPatient ? 'جارٍ الكشف الآن • يرجى الانتظار' : 'العيادة جاهزة لاستقبال المرضى'}

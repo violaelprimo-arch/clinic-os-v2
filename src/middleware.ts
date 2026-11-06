@@ -26,6 +26,11 @@ async function handleAdminAuth(req: NextRequest, targetClinicSlug: string, subdo
       ? new URL('/login', req.url)
       : new URL(`/clinic/${targetClinicSlug}/login`, req.url)
 
+    // PREVENT LOOP: If we are ALREADY requesting the loginUrl, do not redirect
+    if (req.nextUrl.pathname === loginUrl.pathname) {
+      return NextResponse.next()
+    }
+
     const response = NextResponse.redirect(loginUrl, 307)
     response.cookies.delete('clinic_session')
     return response
@@ -135,6 +140,17 @@ export function middleware(req: NextRequest) {
   // 4. SERVER-SIDE ENFORCEMENT FOR ADMIN ROUTES (A01 - P0)
   if (isAdminRoute && targetClinicSlug) {
     return handleAdminAuth(req, targetClinicSlug, subdomain)
+  }
+
+  // 4.1 On production platform apex domains, redirect /clinic/<slug>/... to canonical tenant subdomain
+  const isPlatformApex = BASE_PLATFORM_DOMAINS.some(d => cleanHost === d || cleanHost === `www.${d}`)
+  if (isPlatformApex && targetClinicSlug && pathname.startsWith(`/clinic/${targetClinicSlug}`)) {
+    const baseDomain = BASE_PLATFORM_DOMAINS.find(d => cleanHost === d || cleanHost === `www.${d}`) || 'yalla-clinic.com'
+    const remainder = pathname.slice(`/clinic/${targetClinicSlug}`.length)
+    const cleanPath = remainder === '' ? '/' : remainder
+    const tenantUrl = new URL(cleanPath, `https://${targetClinicSlug}.${baseDomain}`)
+    tenantUrl.search = url.search
+    return NextResponse.redirect(tenantUrl, 307)
   }
 
   // 5. Clinic Doctor Subdomain rewrite:

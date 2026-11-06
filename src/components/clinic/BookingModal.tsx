@@ -101,16 +101,22 @@ export function BookingModal({
   // Pre-calculate initial branches synchronously for instant 0ms rendering
   const computeInitialBranches = () => {
     if (propBranches && propBranches.length > 0) {
-      return propBranches.map((b: any) => ({
-        ...b,
-        image: b.image || b.imageUrl || fallbackMainImage
-      }))
+      const active = propBranches.filter((b: any) => !b.isArchived && b.isOpen !== false)
+      if (active.length > 0) {
+        return active.map((b: any) => ({
+          ...b,
+          image: b.image || b.imageUrl || fallbackMainImage
+        }))
+      }
     }
     if (clinic?.branches && clinic.branches.length > 0) {
-      return clinic.branches.map((b: any) => ({
-        ...b,
-        image: b.image || b.imageUrl || fallbackMainImage
-      }))
+      const active = clinic.branches.filter((b: any) => !b.isArchived && b.isOpen !== false)
+      if (active.length > 0) {
+        return active.map((b: any) => ({
+          ...b,
+          image: b.image || b.imageUrl || fallbackMainImage
+        }))
+      }
     }
     return [defaultMainBranch]
   }
@@ -140,8 +146,8 @@ export function BookingModal({
     const loadBranches = async () => {
       try {
         if (clinic?.id) {
-          const dbBranches = await getClinicBranches(clinic.id).catch(() => [])
-          const active = dbBranches.filter((b: any) => !b.isArchived)
+          const dbBranches = await getClinicBranches(clinic.id, clinic.slug || slug).catch(() => [])
+          const active = dbBranches.filter((b: any) => !b.isArchived && b.isOpen !== false)
           if (active.length > 0 && isMounted) {
             const mapped = active.map((b: any) => ({
               ...b,
@@ -155,7 +161,8 @@ export function BookingModal({
           }
         }
         if (clinic?.branches && clinic.branches.length > 0 && isMounted) {
-          const mapped = clinic.branches.map((b: any) => ({
+          const active = clinic.branches.filter((b: any) => !b.isArchived && b.isOpen !== false)
+          const mapped = active.map((b: any) => ({
             ...b,
             image: b.image || b.imageUrl || fallbackMainImage
           }))

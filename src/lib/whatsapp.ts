@@ -83,7 +83,7 @@ export async function sendWhatsAppNotification(payload: WhatsAppPayload): Promis
 
   if (!accessToken || !phoneNumberId) {
     try {
-      const cQ = query(collection(db, 'clinics'), where('slug', '==', 'zizo'))
+      const cQ = query(collection(db, 'clinics'), where('slug', '==', 'yalla-demo'))
       const cSnap = await getDocs(cQ)
       if (!cSnap.empty) {
         const cData = cSnap.docs[0].data()

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { getClinicLoginUrl, getClinicWebsiteUrl, getClinicPatientPortalUrl, getClinicTvUrl } from './clinicUrls'
 
 const text = z.string().trim().max(4000)
 const short = z.string().trim().max(250)
@@ -867,9 +868,9 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
   demoButtonText: 'طلب ديمو مجاني',
   patientPortalButtonText: 'تواصل مع الدعم الفني',
   loginButtonText: 'دخول العيادة',
-  loginUrl: '/clinic/yalla-demo/login',
-  demoUrl: '/clinic/yalla-demo',
-  patientUrl: '/clinic/yalla-demo/patient',
+  loginUrl: getClinicLoginUrl('yalla-demo'),
+  demoUrl: getClinicWebsiteUrl('yalla-demo'),
+  patientUrl: getClinicPatientPortalUrl('yalla-demo'),
   primaryWhatsapp: '201551007018',
   footerText: 'جميع الحقوق محفوظة لمنصة Yalla Clinic — تشغيل وتطوير YallaCodeX © 2026',
   demoSectionTitle: 'معرض واجهات يلا كلينيك الحقيقية',

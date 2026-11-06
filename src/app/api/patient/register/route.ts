@@ -6,7 +6,7 @@ import { hashPassword, createSessionToken } from '@/lib/auth-crypto'
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}))
-    const { slug = 'zizo', name, phone, age, password } = body
+    const { slug = 'yalla-demo', name, phone, age, password } = body
 
     if (!name || !phone || !password) {
       return NextResponse.json(

@@ -8,7 +8,7 @@ import { useLanguage } from '@/context/LanguageContext'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { ClinicLocationMap } from '@/components/clinic/ClinicLocationMap'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
-import { getClinicBranches, getWeeklyScheduleDisplayGroups, isClinicOpenNow } from '@/lib/branchService'
+import { getClinicBranches, getWeeklyScheduleDisplayGroups, isClinicOpenNow, getBranchAvailability, formatBranchCount } from '@/lib/branchService'
 import { sanitizeAddress, safeImageUrl, resolveEffectiveLocation } from '@/lib/mapsHelper'
 import { getClinicWebsiteUrl, getClinicTrackUrl, getClinicPatientPortalUrl } from '@/lib/clinicUrls'
 import { displayDoctorName, normalizeBookingPageConfig } from '@/lib/booking-page-config'
@@ -352,7 +352,7 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
                   {clinic?.specialty || (isRtl ? 'استشاري الطب الباطني والجهاز الهضمي • علاج الحالات المتقدمة' : 'Consultant of Internal Medicine & Gastroenterology')}
                 </p>
                 <p className="text-xs sm:text-sm md:text-base text-muted-foreground leading-relaxed max-w-xl mx-auto lg:mx-0">
-                  {clinic?.heroSubtitle || (isRtl ? 'رعاية متكاملة .. خبرة .. اهتمام بكل مريض' : 'Comprehensive Care .. Expertise .. Patient Attention')}
+                  {clinic?.doctorBio || clinic?.bio || clinic?.heroSubtitle || (isRtl ? 'رعاية متكاملة .. خبرة .. اهتمام بكل مريض' : 'Comprehensive Care .. Expertise .. Patient Attention')}
                 </p>
               </div>
 
@@ -570,13 +570,19 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
                     {isRtl ? page.branchesTitleAr : page.branchesTitleEn}
                   </h3>
                   <span className="text-xs text-slate-400 font-bold">
-                    {branches.length} {isRtl ? 'فروع متاحة' : 'branches available'}
+                    {formatBranchCount(branches.length, isRtl)}
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
                   {branches.map((b: any, i: number) => {
-                    const isOpen = clinic?.isClinicOpen !== false && isClinicOpenNow(b.weeklySchedule || clinic?.weeklySchedule)
+                    const avail = getBranchAvailability(clinic, b)
+                    const badgeBg =
+                      avail.status === 'open_now'
+                        ? 'bg-emerald-500'
+                        : avail.status === 'closed_today'
+                        ? 'bg-slate-600'
+                        : 'bg-amber-600'
                     return (
                       <motion.div
                         key={b.id || i}
@@ -594,9 +600,9 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
                               className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
                             />
                           )}
-                          <span className={`absolute top-3 right-3 px-2.5 py-1 rounded-full text-[11px] font-bold text-white shadow flex items-center gap-1 ${isOpen ? 'bg-emerald-500' : 'bg-slate-600'}`}>
+                          <span className={`absolute top-3 right-3 px-2.5 py-1 rounded-full text-[11px] font-bold text-white shadow flex items-center gap-1 ${badgeBg}`}>
                             <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                            <span>{isOpen ? (isRtl ? 'مفتوح الآن' : 'Open Now') : (isRtl ? 'مغلق حاليًا' : 'Closed Now')}</span>
+                            <span>{isRtl ? avail.badgeAr : avail.badgeEn}</span>
                           </span>
                         </div>
                         <div className="p-5 flex-1 flex flex-col justify-between text-center">

@@ -15,22 +15,30 @@ import { DEFAULT_WEEKLY_SCHEDULE, formatWeeklyScheduleSummary } from '@/lib/bran
 import { sanitizeAddress } from '@/lib/mapsHelper'
 
 /**
- * Helper to fetch all branches for a clinic doc ID.
- * Looks for both clinicId and clinic_id fields for complete backward and forward compatibility.
+ * Helper to fetch all branches for a clinic doc ID and slug.
+ * Looks for clinicId, clinic_id, and clinicSlug fields for complete backward and forward compatibility,
+ * ensuring doctor, patient, and owner dashboards see the exact same branches.
  */
-async function fetchBranchesForClinic(clinicId: string): Promise<Branch[]> {
+async function fetchBranchesForClinic(clinicId: string, slug?: string): Promise<Branch[]> {
   const branchesRef = collection(db, 'branches')
-  const [snap1, snap2] = await Promise.all([
+  const queries = [
     getDocs(query(branchesRef, where('clinicId', '==', clinicId))),
     getDocs(query(branchesRef, where('clinic_id', '==', clinicId)))
-  ])
+  ]
 
+  if (slug && slug !== clinicId) {
+    queries.push(getDocs(query(branchesRef, where('clinicId', '==', slug))))
+    queries.push(getDocs(query(branchesRef, where('clinic_id', '==', slug))))
+    queries.push(getDocs(query(branchesRef, where('clinicSlug', '==', slug))))
+    queries.push(getDocs(query(branchesRef, where('slug', '==', slug))))
+  }
+
+  const snaps = await Promise.all(queries)
   const map = new Map<string, Branch>()
-  snap1.docs.forEach((d) => {
-    map.set(d.id, { id: d.id, ...(d.data() as any) })
-  })
-  snap2.docs.forEach((d) => {
-    map.set(d.id, { id: d.id, ...(d.data() as any) })
+  snaps.forEach((snap) => {
+    snap.docs.forEach((d) => {
+      map.set(d.id, { id: d.id, ...(d.data() as any) })
+    })
   })
 
   return Array.from(map.values()).filter((b) => !b.isArchived)
@@ -66,7 +74,7 @@ export async function GET(
 
     let branches: Branch[] = []
     try {
-      branches = await fetchBranchesForClinic(clinicId)
+      branches = await fetchBranchesForClinic(clinicId, slug)
     } catch (bErr) {
       console.warn('fetchBranchesForClinic failed:', bErr)
     }
@@ -193,6 +201,8 @@ export async function POST(
     const branchPayload: any = {
       clinicId,
       clinic_id: clinicId,
+      clinicSlug: slug,
+      slug: slug,
       name: String(name).trim(),
       governorate: governorate || 'القاهرة',
       city: city || 'القاهرة',

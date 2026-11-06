@@ -5,7 +5,7 @@
 
 import { collection, query, where, getDocs, limit, Firestore } from 'firebase/firestore'
 
-export const SINGLE_CLINIC_SLUG = 'zizo'
+export const SINGLE_CLINIC_SLUG = 'yalla-demo'
 
 export interface SingleClinicMeta {
   slug: string

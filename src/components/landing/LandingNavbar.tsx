@@ -8,6 +8,7 @@ import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { LanguageToggle } from '@/components/common/LanguageToggle'
 import { useLanguage } from '@/context/LanguageContext'
 import { type LandingPageConfig } from '@/lib/landing-config'
+import { getClinicLoginUrl } from '@/lib/clinicUrls'
 
 interface LandingNavbarProps {
   config: LandingPageConfig
@@ -78,7 +79,7 @@ export function LandingNavbar({ config, onOpenTrial }: LandingNavbarProps) {
 
           {/* Clinic Login button */}
           <Link
-            href={config.loginUrl || '/clinic/yalla-demo/login'}
+            href={config.loginUrl || getClinicLoginUrl('yalla-demo')}
             className="landing-btn-press px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200 font-bold text-xs transition-colors"
           >
             {isRtl ? config.loginButtonText || 'دخول العيادة' : config.english.loginButtonText || 'Clinic Login'}

@@ -32,8 +32,10 @@ export function ClinicPublicAccessGuard({
     pathname === '/admin' ||
     pathname.startsWith('/admin/') ||
     pathname === `/clinic/${slug}/login` ||
+    pathname.startsWith(`/clinic/${slug}/login`) ||
     pathname === '/login' ||
-    pathname.startsWith('/login/') ||
+    pathname.startsWith('/login') ||
+    pathname.includes('/patient/login') ||
     pathname.includes('/tv') ||
     pathname.includes('/track') ||
     pathname.includes('/prescription')
@@ -42,32 +44,40 @@ export function ClinicPublicAccessGuard({
     if (isBypassed) return
 
     let cancelled = false
-    const token = localStorage.getItem('clinic_session_token')
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
+    const token = typeof window !== 'undefined' ? localStorage.getItem('clinic_session_token') : null
+    if (!token) {
+      setResult({ pathname })
+      return
+    }
+
+    const headers = { Authorization: `Bearer ${token}` }
 
     fetch('/api/auth/session', { headers, cache: 'no-store' })
       .then(async (response) => {
-        if (response.status === 401) return null
-        if (!response.ok) throw new Error('تعذر التحقق من جلسة العيادة.')
+        if (response.status === 401) {
+          localStorage.removeItem('clinic_session_token')
+          localStorage.removeItem('clinic_role')
+          return null
+        }
+        if (!response.ok) return null
         return response.json()
       })
       .then((session) => {
         if (cancelled) return
-        if (session?.authenticated && session.user?.role === 'doctor') {
-          router.replace(`/clinic/${slug}/admin`)
+        if (
+          session?.authenticated &&
+          session.user?.role === 'doctor' &&
+          !pathname.includes('/admin') &&
+          !pathname.includes('/login')
+        ) {
+          router.replace(pathname.startsWith('/clinic/') ? `/clinic/${slug}/admin` : '/admin')
           return
         }
         setResult({ pathname })
       })
-      .catch((cause: unknown) => {
+      .catch(() => {
         if (cancelled) return
-        setResult({
-          pathname,
-          error:
-            cause instanceof Error
-              ? cause.message
-              : 'تعذر التحقق من جلسة العيادة.',
-        })
+        setResult({ pathname })
       })
 
     return () => {

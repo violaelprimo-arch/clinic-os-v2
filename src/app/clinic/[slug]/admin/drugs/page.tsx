@@ -185,10 +185,20 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
     
     setFavoriteList(newList)
     try {
-      await updateDoc(doc(db, 'clinics', clinicId), {
-        favorite_drugs: newList,
-        favoriteDrugs: newList
+      const token = typeof window !== 'undefined' ? localStorage.getItem('clinic_session_token') : null
+      const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/settings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          favorite_drugs: newList,
+          favoriteDrugs: newList
+        })
       })
+      if (!res.ok) throw new Error('SAVE_FAILED')
       toast.success(isFav ? 'تم الإزالة من المفضلة' : 'تمت الإضافة للمفضلة')
     } catch (err) {
       toast.error('حدث خطأ أثناء حفظ المفضلة')
@@ -224,9 +234,17 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
 
     if (clinicId) {
       try {
-        await updateDoc(doc(db, 'clinics', clinicId), {
-          custom_drugs: updated
+        const token = typeof window !== 'undefined' ? localStorage.getItem('clinic_session_token') : null
+        const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/settings`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          credentials: 'include',
+          body: JSON.stringify({ custom_drugs: updated })
         })
+        if (!res.ok) throw new Error('SAVE_FAILED')
         toast.success('تم حفظ الدواء بنجاح في قاعدة بيانات العيادة الدائمة')
       } catch (err) {
         console.error('Error saving custom drug:', err)

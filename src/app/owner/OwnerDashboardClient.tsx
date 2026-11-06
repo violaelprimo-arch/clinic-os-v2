@@ -1168,7 +1168,7 @@ function OwnerDashboard() {
       const collectionsToExport = ['clinics', 'appointments', 'prescriptions', 'expenses', 'audit_logs']
       const backupData: Record<string, any> = {
         exportedAt: new Date().toISOString(),
-        system: 'Yalla Clinic - Single Clinic System (zizo)',
+        system: 'Yalla Clinic OS Platform',
         data: {}
       }
 
@@ -1197,7 +1197,7 @@ function OwnerDashboard() {
         action: 'BACKUP_EXPORTED',
         actorName: 'مالك النظام Super Admin',
         actorRole: 'owner',
-        clinicId: editingId || 'zizo',
+        clinicId: editingId || 'platform',
         details: { collections: collectionsToExport }
       })
 

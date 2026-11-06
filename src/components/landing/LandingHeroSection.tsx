@@ -21,6 +21,7 @@ import {
   Box,
 } from 'lucide-react'
 import { useLanguage } from '@/context/LanguageContext'
+import { getClinicLoginUrl } from '@/lib/clinicUrls'
 import { ClinicPillars3DScene } from './ClinicPillars3DScene'
 import { OrbitCardItem } from '@/lib/landing-config'
 
@@ -51,7 +52,7 @@ export function LandingHeroSection({
   trialButtonText = 'طلب تجربة مجانية',
   galleryButtonText = 'شاهد صور النظام الحقيقية',
   loginButtonText = 'تسجيل الدخول للعيادة',
-  loginUrl = '/clinic/yalla-demo/login',
+  loginUrl = getClinicLoginUrl('yalla-demo'),
   trialDaysCount = 14,
   enable3DTilt = true,
   enableHero3D = true,

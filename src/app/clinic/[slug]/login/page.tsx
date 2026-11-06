@@ -548,7 +548,7 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
             <div>
               {isRtl ? 'ليس لديك حساب بعد؟ ' : "Don't have an account yet? "}
               <a
-                href="https://wa.me/201012345678"
+                href="https://wa.me/201551007018"
                 target="_blank"
                 rel="noreferrer"
                 className="text-primary font-bold hover:underline"

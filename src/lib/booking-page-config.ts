@@ -113,12 +113,25 @@ export function normalizeBookingPageConfig(input: unknown): BookingPageConfig {
   return result
 }
 
-/** Some legacy records already contain the honorific in doctorName. */
-export function displayDoctorName(name: string | undefined, title: string | undefined): string {
-  const trimmedName = (name || '').trim()
-  const trimmedTitle = (title || '').trim()
-  if (!trimmedTitle || !trimmedName) return trimmedName
-  if (trimmedName === trimmedTitle || trimmedName.startsWith(`${trimmedTitle} `)) return trimmedName
-  if (/^(د\.|دكتور|الدكتور|Dr\.?)(\s|$)/i.test(trimmedName)) return trimmedName
-  return `${trimmedTitle} ${trimmedName}`
+/**
+ * Cleanly format doctor name with an honorific/title.
+ * Strips any duplicated titles (e.g. "د. د. أحمد السعيد" or "د. دكتور أحمد")
+ * ensuring it formats cleanly as "د. أحمد السعيد" or "Dr. Ahmed" everywhere.
+ */
+export function displayDoctorName(name: string | undefined, title: string = 'د.'): string {
+  if (!name || typeof name !== 'string') return ''
+  let cleaned = name.trim()
+  if (!cleaned) return ''
+
+  // Repeatedly remove leading doctor prefixes to eliminate duplicates
+  const prefixRegex = /^(د\.|دكتور|دكتورة|أ\.د\.|استشاري|طبيب|dr\.|doctor)\s+/i
+  let hadPrefix = false
+  while (prefixRegex.test(cleaned)) {
+    hadPrefix = true
+    cleaned = cleaned.replace(prefixRegex, '').trim()
+  }
+
+  const effectiveTitle = (title || (hadPrefix ? 'د.' : '')).trim()
+  if (!effectiveTitle) return cleaned
+  return `${effectiveTitle} ${cleaned}`
 }

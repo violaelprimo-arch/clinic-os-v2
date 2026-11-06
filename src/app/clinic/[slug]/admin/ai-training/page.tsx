@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState, useRef } from 'react'
 import { db } from '@/lib/firebase'
-import { collection, query, where, updateDoc, doc, onSnapshot } from 'firebase/firestore'
+import { collection, query, where, doc, onSnapshot } from 'firebase/firestore'
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -81,23 +81,30 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
     setIsLoading(true)
 
     try {
-      await updateDoc(doc(db, 'clinics', clinicId), { aiKnowledge: newMessages })
+      const token = typeof window !== 'undefined' ? localStorage.getItem('clinic_session_token') : null
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (token) headers['Authorization'] = `Bearer ${token}`
 
       const res = await fetch('/api/ai-train', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
+        credentials: 'include',
         body: JSON.stringify({ slug, newMessages })
       })
 
       const data = await res.json()
 
-      if (data.reply) {
-        const finalMessages = [...newMessages, { role: 'model' as const, text: data.reply }]
-        setMessages(finalMessages)
-        await updateDoc(doc(db, 'clinics', clinicId), { aiKnowledge: finalMessages })
+      if (!res.ok || data.error) {
+        throw new Error(data.error || t('ai_error_model'))
       }
-    } catch (err) {
-      toast.error(t('ai_error_model'))
+
+      if (data.finalMessages) {
+        setMessages(data.finalMessages)
+      } else if (data.reply) {
+        setMessages([...newMessages, { role: 'model' as const, text: data.reply }])
+      }
+    } catch (err: any) {
+      toast.error(err?.message || t('ai_error_model'))
     } finally {
       setIsLoading(false)
     }
@@ -107,13 +114,35 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
     if (!clinicId) return
     if (!confirm(t('ai_confirm_clear'))) return
 
-    const initial = [{
-      role: 'model' as const,
-      text: t('ai_cleared_msg')
-    }]
-    setMessages(initial)
-    await updateDoc(doc(db, 'clinics', clinicId), { aiKnowledge: initial })
-    toast.success(t('ai_cleared_toast'))
+    setIsLoading(true)
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('clinic_session_token') : null
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      const res = await fetch('/api/ai-train', {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({ slug, action: 'clear' })
+      })
+
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'تعذر مسح ذاكرة المساعد الذكي')
+      }
+
+      if (data.messages) {
+        setMessages(data.messages)
+      } else {
+        setMessages([{ role: 'model', text: t('ai_cleared_msg') }])
+      }
+      toast.success(t('ai_cleared_toast'))
+    } catch (err: any) {
+      toast.error(err?.message || 'تعذر مسح ذاكرة المساعد الذكي')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (

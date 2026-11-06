@@ -28,6 +28,7 @@ import Link from 'next/link'
 import { useEgyptianDrugs, type EgyptianDrug } from '@/hooks/useEgyptianDrugs'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
+import { displayDoctorName } from '@/lib/booking-page-config'
 import { WhatsAppShareButton } from '@/components/common/WhatsAppShareButton'
 import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import { printHtmlViaIframe, generateA4PrescriptionHtml } from '@/lib/printService'
@@ -690,11 +691,18 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     try {
       if (tmpl.isBuiltin) {
         // Built-in template: Hide it for this clinic in Firestore
-        setHiddenBuiltinIds(prev => Array.from(new Set([...prev, tmpl.id])))
+        const updatedHidden = Array.from(new Set([...hiddenBuiltinIds, tmpl.id]))
+        setHiddenBuiltinIds(updatedHidden)
         if (clinicId) {
-          const { arrayUnion } = await import('firebase/firestore')
-          await updateDoc(doc(db, 'clinics', clinicId), {
-            hiddenProtocolIds: arrayUnion(tmpl.id)
+          const token = typeof window !== 'undefined' ? localStorage.getItem('clinic_session_token') : null
+          await fetch(`/api/clinic/${encodeURIComponent(slug)}/settings`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {})
+            },
+            credentials: 'include',
+            body: JSON.stringify({ hiddenProtocolIds: updatedHidden })
           })
         }
         toast.success(`تم حذف قالب «${templateName}» بنجاح`)
@@ -905,7 +913,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
               recipientType: 'patient',
               recipientTarget: patientPhone,
               title: 'تم إصدار الروشتة الطبية 📄',
-              body: `تم اعتماد الروشتة الطبية الخاصة بك بواسطة د. ${clinic?.doctorName || 'العيادة'}. يمكنك استعراضها وتحميلها عبر بوابتك الإلكترونية.`,
+              body: `تم اعتماد الروشتة الطبية الخاصة بك بواسطة ${displayDoctorName(clinic?.doctorName, clinic?.doctorTitle || 'د.') || 'العيادة'}. يمكنك استعراضها وتحميلها عبر بوابتك الإلكترونية.`,
               type: 'prescription_ready',
               eventId: `rx_ready_${docRef.id}`,
               appointmentId: appointmentId || undefined

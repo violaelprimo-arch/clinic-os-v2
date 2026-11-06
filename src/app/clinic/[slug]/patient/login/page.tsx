@@ -21,7 +21,7 @@ import {
 export default function PatientLoginPage() {
   const router = useRouter()
   const params = useParams()
-  const slug = (params?.slug as string) || 'zizo'
+  const slug = (params?.slug as string) || 'yalla-demo'
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [name, setName] = useState('')
   const [age, setAge] = useState('')

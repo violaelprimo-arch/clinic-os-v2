@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { readDocument } from '@/lib/server/firebase-rest'
+import { displayDoctorName } from '@/lib/booking-page-config'
 
 type OtpMail = { email: string; otp: string; doctorName?: string; clinicName?: string }
 
@@ -23,18 +24,19 @@ export async function sendPasswordResetOtp({ email, otp, doctorName, clinicName 
 
   if (!resendKey && !brevoKey) throw new Error('EMAIL_PROVIDER_NOT_CONFIGURED')
 
-  const name = safeHtml(doctorName || 'دكتور')
+  const formattedName = displayDoctorName(doctorName, 'د.') || 'طبيب العيادة'
+  const name = safeHtml(formattedName)
   const clinic = safeHtml(clinicName || 'يلا كلينيك')
   const code = safeHtml(otp)
   const subject = 'رمز استعادة كلمة المرور - يلا كلينيك'
-  const text = `مرحباً د. ${doctorName || 'دكتور'}،\n\nرمز استعادة كلمة المرور لحساب ${clinicName || 'العيادة'} هو: ${otp}\n\nصالح لمدة 10 دقائق ومتاح للاستخدام مرة واحدة فقط. لا تشاركه مع أي شخص.\n\nYalla Clinic`
+  const text = `مرحباً ${formattedName}،\n\nرمز استعادة كلمة المرور لحساب ${clinicName || 'العيادة'} هو: ${otp}\n\nصالح لمدة 10 دقائق ومتاح للاستخدام مرة واحدة فقط. لا تشاركه مع أي شخص.\n\nYalla Clinic`
   const html = `<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"></head>
     <body style="margin:0;padding:32px;background:#f0f5fc;font-family:Arial,sans-serif;color:#123">
       <main style="max-width:500px;margin:auto;background:white;border-radius:22px;overflow:hidden;border:1px solid #d6e4f3">
         <header style="padding:28px;background:linear-gradient(120deg,#0066dc,#00b6e6);color:white;text-align:center">
           <h1 style="margin:0;font-size:25px">Yalla Clinic</h1><p style="margin:10px 0 0">استعادة كلمة المرور</p>
         </header><section style="padding:30px;text-align:right;line-height:1.9">
-          <p>مرحباً د. ${name}،</p><p>رمز تأكيد استعادة كلمة المرور لحساب ${clinic}:</p>
+          <p>مرحباً ${name}،</p><p>رمز تأكيد استعادة كلمة المرور لحساب ${clinic}:</p>
           <div style="font-size:38px;font-weight:bold;letter-spacing:8px;text-align:center;border:2px dashed #0066dc;background:#f5faff;color:#0059bd;border-radius:15px;padding:16px">${code}</div>
           <p style="font-size:13px;color:#526477">الرمز صالح لمدة 10 دقائق ولمرة واحدة فقط. لا تشاركه مع أي شخص. إذا لم تطلبه، تجاهل هذه الرسالة.</p>
         </section></main></body></html>`

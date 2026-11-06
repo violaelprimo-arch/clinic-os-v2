@@ -139,6 +139,14 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
   const isLimitReached = activeBranches.length >= maxBranches
   const canAddBranch = isOwner && branchesEnabled && !isLimitReached
 
+  const formatBranchLimitText = (count: number) => {
+    if (language === 'en') return `${count} ${count === 1 ? 'branch' : 'branches'}`
+    if (count === 1) return 'فرع واحد'
+    if (count === 2) return 'فرعين'
+    if (count >= 3 && count <= 10) return `${count} فروع`
+    return `${count} فرعاً`
+  }
+
   const openAddModal = () => {
     if (!isOwner) {
       toast.error(language === 'en' ? 'Adding branches is restricted to Platform Super Admin.' : 'إضافة فروع جديدة متاح حصرياً بواسطة مالك المنصة Super Admin.')
@@ -149,7 +157,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
       return
     }
     if (isLimitReached) {
-      toast.error(`لقد وصلت للحد الأقصى المسموح به من الفروع (${maxBranches} فروع). يرجى ترقية الباقة لإضافة فروع جديدة.`)
+      toast.error(language === 'en' ? `You have reached the maximum allowed branches (${formatBranchLimitText(maxBranches)}). Please upgrade your plan.` : `لقد وصلت للحد الأقصى المسموح به من الفروع (${formatBranchLimitText(maxBranches)}). يرجى ترقية الباقة لإضافة فروع جديدة.`)
       return
     }
     setEditingBranchId(null)
@@ -220,7 +228,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
         return toast.error('ميزة تعدد الفروع غير مفعلة لاشتراك عيادتكم. يرجى التواصل مع إدارة Yalla Clinic.')
       }
       if (isLimitReached) {
-        return toast.error(`تم الوصول للحد الأقصى للفروع المسموح بها (${maxBranches} فروع). يرجى ترقية الباقة لإضافة فروع جديدة.`)
+        return toast.error(language === 'en' ? `Maximum allowed branches reached (${formatBranchLimitText(maxBranches)}). Please upgrade your plan.` : `تم الوصول للحد الأقصى للفروع المسموح بها (${formatBranchLimitText(maxBranches)}). يرجى ترقية الباقة لإضافة فروع جديدة.`)
       }
     }
 
@@ -391,7 +399,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
           >
             {!branchesEnabled
               ? (language === 'en' ? 'Multi-branch feature not enabled' : 'ميزة تعدد الفروع غير مفعلة')
-              : (language === 'en' ? `Branch Plan: ${activeBranches.length} of ${maxBranches} branches` : `باقة الفروع: ${activeBranches.length} من ${maxBranches} فروع`)}
+              : (language === 'en' ? `Branch Plan: ${activeBranches.length} of ${formatBranchLimitText(maxBranches)}` : `باقة الفروع: ${activeBranches.length} من ${formatBranchLimitText(maxBranches)}`)}
           </Badge>
 
           {isOwner && canAddBranch && (
@@ -429,7 +437,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
             <span>
-              {language === 'en' ? `Maximum branch capacity reached (${activeBranches.length} of ${maxBranches} branches).` : `تم استهلاك السعة القصوى للفروع المتاحة في باقتكم (${activeBranches.length} من أصل ${maxBranches} فروع). لترقية الباقة يرجى التواصل مع إدارة Yalla Clinic.`}
+              {language === 'en' ? `Maximum branch capacity reached (${activeBranches.length} of ${formatBranchLimitText(maxBranches)}).` : `تم استهلاك السعة القصوى للفروع المتاحة في باقتكم (${activeBranches.length} من أصل ${formatBranchLimitText(maxBranches)}). لترقية الباقة يرجى التواصل مع إدارة Yalla Clinic.`}
             </span>
           </div>
         </div>

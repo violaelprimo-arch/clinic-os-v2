@@ -66,7 +66,7 @@ type TabType = 'overview' | 'appointments' | 'visits' | 'prescriptions' | 'invoi
 export default function PatientDashboardPage() {
   const router = useRouter()
   const params = useParams()
-  const slug = (params?.slug as string) || 'zizo'
+  const slug = (params?.slug as string) || 'yalla-demo'
 
   // Patient session state
   const [patient, setPatient] = useState<{

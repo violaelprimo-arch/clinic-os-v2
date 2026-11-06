@@ -28,6 +28,7 @@ import {
 import { ResidentialAreaSelector, ResidentialAreaValue } from '@/components/common/ResidentialAreaSelector'
 import { openManualWhatsAppChat, formatInClinicBookingWhatsAppMessage } from '@/lib/whatsappShare'
 import { Branch } from '@/types/clinic'
+import { formatServiceDuration } from '@/lib/branchService'
 import { getClinicBranches, ensureClinicHasMainBranch } from '@/lib/branchService'
 import Link from 'next/link'
 
@@ -825,7 +826,7 @@ export function InClinicBookingView({
                   <div>
                     <span className="text-muted-foreground block text-[11px]">{isRtl ? 'مدة الكشف التقديرية' : 'Est. Duration'}</span>
                     <strong className="font-bold text-foreground">
-                      {selectedService?.duration || 15} {isRtl ? 'دقيقة' : 'mins'}
+                      {formatServiceDuration(selectedService?.duration, isRtl)}
                     </strong>
                   </div>
                   <div>

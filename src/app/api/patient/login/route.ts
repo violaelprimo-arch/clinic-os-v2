@@ -6,7 +6,7 @@ import { verifyPassword, hashPassword, createSessionToken } from '@/lib/auth-cry
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}))
-    const { slug = 'zizo', phone, password } = body
+    const { slug = 'yalla-demo', phone, password } = body
 
     if (!phone || !password) {
       return NextResponse.json(

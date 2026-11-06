@@ -397,6 +397,84 @@ export function isClinicOpenNow(schedule?: any[]): boolean {
   return curMins >= startMins && curMins <= endMins
 }
 
+export interface BranchAvailability {
+  isClinicOnline: boolean
+  isBranchEnabled: boolean
+  isWorkingNow: boolean
+  canBookOnline: boolean
+  status: 'open_now' | 'closed_today' | 'branch_paused' | 'clinic_paused'
+  statusLabelAr: string
+  statusLabelEn: string
+  badgeAr: string
+  badgeEn: string
+}
+
+/**
+ * Authoritative single backend source for clinic and branch availability.
+ * Correctly distinguishes weekly closing hours, manually disabled branches, and online booking availability.
+ */
+export function getBranchAvailability(clinic: any, branch?: any): BranchAvailability {
+  const isClinicOnline = clinic?.isClinicOpen !== false
+  const isBranchEnabled = branch ? (!branch.isArchived && branch.isOpen !== false) : true
+  const schedule = branch?.weeklySchedule || clinic?.weeklySchedule
+  const isWorkingNow = isClinicOpenNow(schedule)
+  const canBookOnline = isClinicOnline && isBranchEnabled
+
+  let status: 'open_now' | 'closed_today' | 'branch_paused' | 'clinic_paused' = 'open_now'
+  let statusLabelAr = 'مفتوح الآن'
+  let statusLabelEn = 'Open Now'
+
+  if (!isClinicOnline) {
+    status = 'clinic_paused'
+    statusLabelAr = 'الحجوزات متوقفة مؤقتاً'
+    statusLabelEn = 'Booking Paused'
+  } else if (!isBranchEnabled) {
+    status = 'branch_paused'
+    statusLabelAr = 'الفرع مغلق مؤقتاً'
+    statusLabelEn = 'Branch Inactive'
+  } else if (!isWorkingNow) {
+    status = 'closed_today'
+    statusLabelAr = 'مغلق حالياً'
+    statusLabelEn = 'Closed Now'
+  }
+
+  return {
+    isClinicOnline,
+    isBranchEnabled,
+    isWorkingNow,
+    canBookOnline,
+    status,
+    statusLabelAr,
+    statusLabelEn,
+    badgeAr: statusLabelAr,
+    badgeEn: statusLabelEn
+  }
+}
+
+/**
+ * Arabic and English singular/plural branch count formatter.
+ * Prevents awkward labels like "1 فروع متاحة".
+ */
+export function formatBranchCount(count: number, isRtl: boolean = true): string {
+  if (isRtl) {
+    if (count === 1) return 'فرع واحد متاح'
+    if (count === 2) return 'فرعان متاحان'
+    if (count >= 3 && count <= 10) return `${count} فروع متاحة`
+    return `${count} فرعاً متاحاً`
+  }
+  return count === 1 ? '1 branch available' : `${count} branches available`
+}
+
+/**
+ * Format medical service duration without repeating units (e.g. avoiding "15 دقيقة دقيقة").
+ */
+export function formatServiceDuration(duration: string | number | undefined, isRtl: boolean = true): string {
+  if (!duration) return isRtl ? '15 دقيقة' : '15 mins'
+  const str = String(duration).trim()
+  if (/(دقيقة|دقائق|mins?|minutes?)/i.test(str)) return str
+  return isRtl ? `${str} دقيقة` : `${str} mins`
+}
+
 /**
  * Synchronizes the updated clinic weekly schedule, working hours, and address to the clinic's main branch.
  */

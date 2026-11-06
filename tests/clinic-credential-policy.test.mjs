@@ -101,5 +101,8 @@ test('Booking page customization is bounded and never exposes credential keys', 
 test('Doctor title does not repeat with legacy prefixed doctor names', () => {
   assert.equal(displayDoctorName('د. أحمد السعيد', 'د.'), 'د. أحمد السعيد')
   assert.equal(displayDoctorName('أحمد السعيد', 'د.'), 'د. أحمد السعيد')
+  assert.equal(displayDoctorName('د. د. أحمد السعيد', 'د.'), 'د. أحمد السعيد')
+  assert.equal(displayDoctorName('د. دكتور أحمد السعيد', 'د.'), 'د. أحمد السعيد')
   assert.equal(displayDoctorName('Dr. Ahmed', 'Dr.'), 'Dr. Ahmed')
+  assert.equal(displayDoctorName('Dr. Dr. Ahmed', 'Dr.'), 'Dr. Ahmed')
 })

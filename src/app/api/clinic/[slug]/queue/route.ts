@@ -10,7 +10,7 @@ export async function GET(
 ) {
   try {
     const resolvedParams = await params
-    const slug = resolvedParams.slug || 'zizo'
+    const slug = resolvedParams.slug || 'yalla-demo'
     const { searchParams } = new URL(req.url)
     const phone = searchParams.get('phone')
     const branchId = searchParams.get('branchId')

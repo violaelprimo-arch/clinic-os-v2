@@ -6,6 +6,7 @@ import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { ShieldCheck, Phone, MessageCircle } from 'lucide-react'
 import { useLanguage } from '@/context/LanguageContext'
 import { type LandingPageConfig, normalizePhoneNumber } from '@/lib/landing-config'
+import { getClinicLoginUrl, getClinicPatientPortalUrl, getClinicTvUrl } from '@/lib/clinicUrls'
 
 interface LandingFooterProps {
   config: LandingPageConfig
@@ -16,7 +17,7 @@ export function LandingFooter({ config }: LandingFooterProps) {
 
   const patientPortalUrl = React.useMemo(() => {
     const raw = (config.patientUrl || '').trim()
-    if (!raw) return '/clinic/yalla-demo/patient'
+    if (!raw) return getClinicPatientPortalUrl('yalla-demo')
     if (raw.endsWith('/patient') || raw.includes('/patient')) return raw
     return `${raw.replace(/\/$/, '')}/patient`
   }, [config.patientUrl])
@@ -66,7 +67,7 @@ export function LandingFooter({ config }: LandingFooterProps) {
             <ul className="space-y-2.5">
               <li>
                 <Link
-                  href={config.loginUrl || '/clinic/yalla-demo/login'}
+                  href={config.loginUrl || getClinicLoginUrl('yalla-demo')}
                   className="hover:text-sky-600 dark:hover:text-sky-400 transition-colors font-medium flex items-center gap-1.5"
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-sky-500 shrink-0"></span>
@@ -75,7 +76,7 @@ export function LandingFooter({ config }: LandingFooterProps) {
               </li>
               <li>
                 <Link
-                  href="/clinic/yalla-demo/tv"
+                  href={getClinicTvUrl('yalla-demo')}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-sky-600 dark:hover:text-sky-400 transition-colors font-medium flex items-center gap-1.5"

@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
 
     const result = await checkAndSendFiveAheadAlerts(
       clinicId,
-      clinicSlug || 'zizo',
+      clinicSlug || 'yalla-demo',
       clinicName || 'العيادة',
       mapsLink || '',
       regularPerUrgent || 2,
