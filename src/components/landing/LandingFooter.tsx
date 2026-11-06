@@ -14,13 +14,6 @@ interface LandingFooterProps {
 export function LandingFooter({ config }: LandingFooterProps) {
   const { isRtl } = useLanguage()
 
-  const patientPortalUrl = React.useMemo(() => {
-    const raw = (config.patientUrl || '').trim()
-    if (!raw) return '/clinic/yalla-demo/patient'
-    if (raw.endsWith('/patient') || raw.includes('/patient')) return raw
-    return `${raw.replace(/\/$/, '')}/patient`
-  }, [config.patientUrl])
-
   const activeContacts = React.useMemo(() => {
     const list = (config.contacts || []).filter((c) => c.visible !== false)
     if (list.length > 0) return list
@@ -45,7 +38,7 @@ export function LandingFooter({ config }: LandingFooterProps) {
   return (
     <footer className="border-t border-sky-100 dark:border-slate-800 bg-white/70 dark:bg-[#060e1c] text-slate-600 dark:text-slate-400 py-12 px-4 sm:px-6 lg:px-8 transition-colors">
       <div className="max-w-7xl mx-auto space-y-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {/* Col 1: Brand Info */}
           <div className="lg:col-span-2 space-y-3">
             <Link href="/" className="inline-block" dir="ltr">
@@ -56,58 +49,6 @@ export function LandingFooter({ config }: LandingFooterProps) {
                 ? 'يلا كلينك: المنظومة السحابية المتكاملة لإدارة العيادات والمراكز الطبية. مصممة لتنظيم الحجوزات، الدور اللحظي، الروشتات، والملفات الطبية بأعلى معايير السرية والأمان.'
                 : 'Yalla Clinic: The unified cloud clinic operating system. Effortlessly manage appointments, queues, EMR and A4 prescriptions.'}
             </p>
-          </div>
-
-          {/* Col 2: System Portals (بوابات النظام) */}
-          <div className="space-y-2 text-xs">
-            <h4 className="font-black text-slate-900 dark:text-white text-xs mb-3">
-              {isRtl ? 'بوابات النظام' : 'System Portals'}
-            </h4>
-            <ul className="space-y-2.5">
-              <li>
-                <Link
-                  href={config.loginUrl || '/clinic/yalla-demo/login'}
-                  className="hover:text-sky-600 dark:hover:text-sky-400 transition-colors font-medium flex items-center gap-1.5"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-sky-500 shrink-0"></span>
-                  <span>{isRtl ? 'تسجيل دخول العيادة' : 'Clinic Login'}</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/clinic/yalla-demo/tv"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-sky-600 dark:hover:text-sky-400 transition-colors font-medium flex items-center gap-1.5"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-                  <span>{isRtl ? 'شاشة غرفة الانتظار (TV)' : 'Waiting Room Screen (TV)'}</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href={patientPortalUrl}
-                  className="hover:text-sky-600 dark:hover:text-sky-400 transition-colors font-medium flex items-center gap-1.5"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 shrink-0"></span>
-                  <span>{isRtl ? 'بوابة المريض الذكية' : 'Smart Patient Portal'}</span>
-                </Link>
-              </li>
-              <li>
-                <a
-                  href="#contact"
-                  onClick={() => {
-                    if (typeof window !== 'undefined') {
-                      window.dispatchEvent(new CustomEvent('select-contact-type', { detail: 'complaint' }))
-                    }
-                  }}
-                  className="hover:text-sky-600 dark:hover:text-sky-400 transition-colors font-medium flex items-center gap-1.5"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
-                  <span>{isRtl ? 'الاقتراحات والشكاوى' : 'Suggestions & Complaints'}</span>
-                </a>
-              </li>
-            </ul>
           </div>
 
           {/* Col 3: Quick Links (روابط سريعة) */}
