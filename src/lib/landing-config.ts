@@ -867,7 +867,7 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
   demoButtonText: 'طلب ديمو مجاني',
   patientPortalButtonText: 'تواصل مع الدعم الفني',
   loginButtonText: 'دخول العيادة',
-  loginUrl: '/clinic/zizo/login',
+  loginUrl: '/login',
   demoUrl: '/clinic/zizo',
   patientUrl: '/clinic/zizo/patient',
   primaryWhatsapp: '201551007018',
@@ -998,9 +998,15 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
 export function mergeLandingConfig(value: unknown): LandingPageConfig {
   const data = value && typeof value === 'object' ? (value as Partial<LandingPageConfig>) : {}
 
+  const rawLoginUrl = typeof data.loginUrl === 'string' ? data.loginUrl.trim() : ''
+  const effectiveLoginUrl = (!rawLoginUrl || rawLoginUrl === '/clinic/zizo/login' || rawLoginUrl.includes('/clinic/zizo') || rawLoginUrl.includes('zizo.yalla-clinic.com') || rawLoginUrl.includes('yalla-demo'))
+    ? '/login'
+    : rawLoginUrl
+
   const parsed = landingConfigSchema.safeParse({
     ...DEFAULT_LANDING_CONFIG,
     ...data,
+    loginUrl: effectiveLoginUrl,
     english: { ...DEFAULT_LANDING_CONFIG.english, ...(data.english || {}) },
     sectionOrder: Array.isArray(data.sectionOrder) && data.sectionOrder.length > 0
       ? data.sectionOrder

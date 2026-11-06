@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { collection, query, where, getDocs, addDoc } from 'firebase/firestore'
+import { collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { hashPassword, createSessionToken } from '@/lib/auth-crypto'
+import { queryDocuments, writeDocument } from '@/lib/server/firebase-rest'
+
+function normalizePhone(p: string): string {
+  return String(p || '').replace(/\D/g, '').replace(/^20/, '0')
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -25,21 +30,36 @@ export async function POST(req: NextRequest) {
     const cleanPhone = String(phone).trim().replace(/\s+/g, '')
     const cleanName = String(name).trim()
     const cleanAge = String(age || '').trim()
+    const normalizedInputPhone = normalizePhone(cleanPhone)
 
     // Resolve clinic
-    const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
-    const cSnap = await getDocs(cQ)
-    const clinicId = cSnap.empty ? slug : cSnap.docs[0].id
+    let clinicId = slug
+    try {
+      const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
+      const cSnap = await getDocs(cQ)
+      if (!cSnap.empty) {
+        clinicId = cSnap.docs[0].id
+      }
+    } catch (e) {
+      console.warn('Clinic query error:', e)
+    }
 
-    // Check if phone already exists in this clinic
-    const checkQ = query(
-      collection(db, 'patient_accounts'),
-      where('clinic_id', '==', clinicId),
-      where('phone', '==', cleanPhone)
-    )
-    const checkSnap = await getDocs(checkQ)
+    // Check if phone already exists in this clinic via server REST
+    let allAccounts: any[] = []
+    try {
+      allAccounts = await queryDocuments('patient_accounts')
+    } catch (e) {
+      console.warn('queryDocuments patient_accounts error:', e)
+    }
 
-    if (!checkSnap.empty) {
+    const existing = allAccounts.find((acc: any) => {
+      const pNorm = normalizePhone(acc.phone)
+      const phoneMatches = pNorm === normalizedInputPhone || acc.phone === cleanPhone
+      const clinicMatches = !acc.clinic_id || acc.clinic_id === clinicId || acc.clinicId === clinicId
+      return phoneMatches && clinicMatches
+    })
+
+    if (existing) {
       return NextResponse.json(
         { error: 'رقم الهاتف مسجل بالفعل في هذه العيادة. يرجى تسجيل الدخول.' },
         { status: 409 }
@@ -48,18 +68,19 @@ export async function POST(req: NextRequest) {
 
     // Cryptographically hash password (A03 - P0 Hardening)
     const passwordHash = await hashPassword(String(password))
+    const newDocId = crypto.randomUUID()
 
-    const newDoc = await addDoc(collection(db, 'patient_accounts'), {
+    await writeDocument(`patient_accounts/${newDocId}`, {
       clinic_id: clinicId,
       name: cleanName,
       phone: cleanPhone,
       age: cleanAge,
       passwordHash,
       createdAt: new Date().toISOString()
-    })
+    }, true)
 
     const patientData = {
-      id: newDoc.id,
+      id: newDocId,
       name: cleanName,
       phone: cleanPhone,
       age: cleanAge,
@@ -73,31 +94,28 @@ export async function POST(req: NextRequest) {
       phone: cleanPhone,
       clinicId,
       slug,
-      patientId: newDoc.id
+      patientId: newDocId
     })
 
-    const response = NextResponse.json(
-      {
-        success: true,
-        token,
-        patient: patientData
-      },
-      { status: 201 }
-    )
+    const response = NextResponse.json({
+      success: true,
+      token,
+      patient: patientData
+    })
 
     response.cookies.set('patient_session', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: 30 * 24 * 60 * 60
+      maxAge: 30 * 24 * 60 * 60 // 30 days
     })
 
     return response
   } catch (error: any) {
-    console.error('Patient register API error:', error)
+    console.error('Patient registration API error:', error)
     return NextResponse.json(
-      { error: 'حدث خطأ في الخادم أثناء إنشاء الحساب' },
+      { error: 'حدث خطأ في الخادم أثناء إنشاء الحساب: ' + (error.message || '') },
       { status: 500 }
     )
   }

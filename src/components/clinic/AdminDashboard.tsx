@@ -128,11 +128,18 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
       where('date', '==', selectedDashboardDate)
     )
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
-      setRawAppointments(data)
-      setIsLoading(false)
-    })
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const data = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
+        setRawAppointments(data)
+        setIsLoading(false)
+      },
+      (error) => {
+        console.error('Error fetching dashboard appointments:', error)
+        setIsLoading(false)
+      }
+    )
     return () => unsubscribe()
   }, [clinic?.id, selectedDashboardDate])
 
@@ -142,9 +149,15 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
   useEffect(() => {
     if (!clinic?.id) return
     const qB = query(collection(db, 'branches'), where('clinicId', '==', clinic.id))
-    const unsub = onSnapshot(qB, (snap) => {
-      setBranches(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
-    })
+    const unsub = onSnapshot(
+      qB,
+      (snap) => {
+        setBranches(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
+      },
+      (error) => {
+        console.warn('Error fetching branches:', error)
+      }
+    )
     return () => unsub()
   }, [clinic?.id])
 
@@ -1051,22 +1064,22 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
         {/* Card 4: Total Revenue (Only when finance is enabled) */}
         {isFinanceEnabled && (
           <div className="yalla-card p-5 sm:p-6 flex items-center justify-between relative overflow-hidden group hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none group-hover:scale-150 transition-transform duration-500" />
+            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none group-hover:scale-150 transition-transform duration-500" />
             <div className="relative z-10">
               <div className="flex items-center gap-1.5 mb-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                 <p className="text-xs font-bold text-muted-foreground">{t('total_revenue', 'إجمالي الإيرادات')}</p>
               </div>
               <h3 className="text-3xl sm:text-4xl font-black text-foreground tracking-tight">
-                {totalRevenue.toLocaleString()} <span className="text-sm font-bold text-cyan-600 dark:text-cyan-400">{t('currency_egp', 'ج.م')}</span>
+                {totalRevenue.toLocaleString()} <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{t('currency_egp', 'ج.م')}</span>
               </h3>
               <div className="flex items-center gap-1.5 mt-2">
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                   {t('collected_today', 'تحصيل اليوم')}
                 </span>
               </div>
             </div>
-            <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-cyan-500/5 border border-cyan-500/25 flex items-center justify-center text-cyan-600 dark:text-cyan-400 shadow-sm shadow-cyan-500/15 group-hover:scale-110 transition-transform duration-300 shrink-0">
+            <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 border border-emerald-500/25 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shadow-sm shadow-emerald-500/15 group-hover:scale-110 transition-transform duration-300 shrink-0">
               <DollarSign className="w-6 h-6" />
             </div>
           </div>
@@ -1861,7 +1874,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                                   <span>{new Date(b.createdAt).toLocaleTimeString(language === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' })}</span>
                                 )}
                                 {b.paymentMethod && b.paymentMethod !== 'cash' && (
-                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20 inline-flex items-center gap-1 font-mono">
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20 inline-flex items-center gap-1 font-mono">
                                     <span>{b.paymentMethod === 'instapay' ? 'InstaPay' : tDynamic('محفظة')}:</span>
                                     <span>{b.transferNumber || t('waiting_confirmation', 'بانتظار التأكيد')}</span>
                                   </span>

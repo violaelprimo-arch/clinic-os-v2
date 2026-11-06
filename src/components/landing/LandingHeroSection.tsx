@@ -51,7 +51,7 @@ export function LandingHeroSection({
   trialButtonText = 'طلب تجربة مجانية',
   galleryButtonText = 'شاهد صور النظام الحقيقية',
   loginButtonText = 'تسجيل الدخول للعيادة',
-  loginUrl = '/clinic/zizo/login',
+  loginUrl = '/login',
   trialDaysCount = 14,
   enable3DTilt = true,
   enableHero3D = true,

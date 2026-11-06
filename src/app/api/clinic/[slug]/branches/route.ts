@@ -13,25 +13,45 @@ import { verifySessionToken } from '@/lib/auth-crypto'
 import { Branch, BranchScheduleDay } from '@/types/clinic'
 import { DEFAULT_WEEKLY_SCHEDULE, formatWeeklyScheduleSummary } from '@/lib/branchService'
 import { sanitizeAddress } from '@/lib/mapsHelper'
+import { queryDocuments } from '@/lib/server/firebase-rest'
 
 /**
  * Helper to fetch all branches for a clinic doc ID.
  * Looks for both clinicId and clinic_id fields for complete backward and forward compatibility.
  */
-async function fetchBranchesForClinic(clinicId: string): Promise<Branch[]> {
-  const branchesRef = collection(db, 'branches')
-  const [snap1, snap2] = await Promise.all([
-    getDocs(query(branchesRef, where('clinicId', '==', clinicId))),
-    getDocs(query(branchesRef, where('clinic_id', '==', clinicId)))
-  ])
-
+async function fetchBranchesForClinic(clinicId: string, slug?: string): Promise<Branch[]> {
   const map = new Map<string, Branch>()
-  snap1.docs.forEach((d) => {
-    map.set(d.id, { id: d.id, ...(d.data() as any) })
-  })
-  snap2.docs.forEach((d) => {
-    map.set(d.id, { id: d.id, ...(d.data() as any) })
-  })
+
+  try {
+    const branchesRef = collection(db, 'branches')
+    const [snap1, snap2] = await Promise.all([
+      getDocs(query(branchesRef, where('clinicId', '==', clinicId))),
+      getDocs(query(branchesRef, where('clinic_id', '==', clinicId)))
+    ])
+
+    snap1.docs.forEach((d) => {
+      map.set(d.id, { id: d.id, ...(d.data() as any) })
+    })
+    snap2.docs.forEach((d) => {
+      map.set(d.id, { id: d.id, ...(d.data() as any) })
+    })
+  } catch (clientErr) {
+    console.warn('Client SDK fetch branches failed, falling back to server REST:', clientErr)
+  }
+
+  // Fallback to server REST if client SDK failed or returned empty
+  if (map.size === 0) {
+    try {
+      const restBranches = await queryDocuments('branches')
+      for (const b of restBranches) {
+        if (b.clinicId === clinicId || b.clinic_id === clinicId || (slug && (b.clinicId === slug || b.clinic_id === slug))) {
+          map.set(b.id, b as unknown as Branch)
+        }
+      }
+    } catch (restErr) {
+      console.warn('REST fetch branches failed:', restErr)
+    }
+  }
 
   return Array.from(map.values()).filter((b) => !b.isArchived)
 }
@@ -66,7 +86,7 @@ export async function GET(
 
     let branches: Branch[] = []
     try {
-      branches = await fetchBranchesForClinic(clinicId)
+      branches = await fetchBranchesForClinic(clinicId, slug)
     } catch (bErr) {
       console.warn('fetchBranchesForClinic failed:', bErr)
     }

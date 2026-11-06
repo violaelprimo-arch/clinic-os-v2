@@ -173,6 +173,22 @@ export default function AdminLayout({
       window.location.href = `/clinic/${slug}/login`
     }
 
+    const tryServerFallback = async () => {
+      try {
+        const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/settings`, { cache: 'no-store' })
+        if (res.ok) {
+          const data = await res.json()
+          if (data.clinic) {
+            setClinic(data.clinic)
+            return true
+          }
+        }
+      } catch (e) {
+        console.warn('Layout server fallback failed:', e)
+      }
+      return false
+    }
+
     const q = query(collection(db, 'clinics'), where('slug', '==', slug))
     const unsubscribe = onSnapshot(
       q,
@@ -193,12 +209,14 @@ export default function AdminLayout({
             aiEnabled: true,
             assistantPermissions: ['appointments']
           })
+        } else {
+          tryServerFallback()
         }
         setLoading(false)
       },
       (err) => {
         console.error(err)
-        setLoading(false)
+        tryServerFallback().finally(() => setLoading(false))
       }
     )
 
@@ -643,7 +661,7 @@ export default function AdminLayout({
                     <div
                       className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all ${
                         isActive
-                          ? 'yalla-gradient-btn font-bold shadow-md shadow-primary/25'
+                          ? 'bg-primary text-primary-foreground font-bold shadow-md shadow-primary/25 border border-white/20'
                           : 'text-muted-foreground hover:text-foreground hover:bg-secondary/70 dark:hover:bg-card-elevated'
                       }`}
                     >
@@ -683,9 +701,9 @@ export default function AdminLayout({
           3. MAIN WORKSPACE AREA & TOPBAR
          ========================================================================= */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden print:h-auto print:overflow-visible print:block relative">
-        {/* Subtle Ambient Background Orbs for Glassmorphism Depth */}
-        <div className="fixed top-10 right-60 w-96 h-96 bg-primary/10 dark:bg-primary/20 rounded-full blur-[100px] pointer-events-none z-0 transform-gpu will-change-transform" />
-        <div className="fixed bottom-10 left-20 w-96 h-96 bg-cyan-500/10 dark:bg-cyan-500/15 rounded-full blur-[120px] pointer-events-none z-0 transform-gpu will-change-transform" />
+        {/* Subtle Ambient Background Orbs for Clean SaaS Depth */}
+        <div className="fixed top-10 right-60 w-96 h-96 bg-primary/5 dark:bg-primary/10 rounded-full blur-[100px] pointer-events-none z-0 transform-gpu will-change-transform" />
+        <div className="fixed bottom-10 left-20 w-96 h-96 bg-sky-500/5 dark:bg-sky-500/10 rounded-full blur-[120px] pointer-events-none z-0 transform-gpu will-change-transform" />
 
         {/* Sticky Topbar */}
         <header className="h-16 bg-card/80 backdrop-blur-md border-b border-border/80 px-4 md:px-8 flex items-center justify-between gap-4 z-20 shrink-0 print:hidden transition-colors duration-200">

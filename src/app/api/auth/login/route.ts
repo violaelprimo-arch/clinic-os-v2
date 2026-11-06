@@ -8,22 +8,62 @@ import { SINGLE_CLINIC_SLUG } from '@/lib/single-clinic'
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { email, password, slug = SINGLE_CLINIC_SLUG } = body
+    const { email, password, slug: rawSlug } = body
 
     if (!email || !password) {
       return NextResponse.json({ error: 'يرجى إدخال البريد الإلكتروني وكلمة المرور' }, { status: 400 })
     }
 
     const trimmedEmail = String(email).trim().toLowerCase()
+    const slug = typeof rawSlug === 'string' && rawSlug.trim() ? rawSlug.trim() : null
 
-    // 1. Fetch the single clinic document
-    const q = query(collection(db, 'clinics'), where('slug', '==', slug))
-    const snap = await getDocs(q)
-    if (snap.empty) {
-      return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404 })
+    // 1. Locate the clinic document
+    let clinicDoc: any = null
+    let effectiveSlug: string = slug || SINGLE_CLINIC_SLUG
+
+    if (slug) {
+      const q = query(collection(db, 'clinics'), where('slug', '==', slug))
+      const snap = await getDocs(q)
+      if (!snap.empty) {
+        clinicDoc = snap.docs[0]
+        effectiveSlug = clinicDoc.data().slug || slug
+      }
+    } else {
+      // Universal login: lookup clinic by doctor email
+      const docQ = query(collection(db, 'clinics'), where('doctorEmail', '==', trimmedEmail))
+      const docSnap = await getDocs(docQ)
+      if (!docSnap.empty) {
+        clinicDoc = docSnap.docs[0]
+        effectiveSlug = clinicDoc.data().slug || effectiveSlug
+      } else {
+        // Lookup clinic by assistant primary email
+        const assQ = query(collection(db, 'clinics'), where('assistantEmail', '==', trimmedEmail))
+        const assSnap = await getDocs(assQ)
+        if (!assSnap.empty) {
+          clinicDoc = assSnap.docs[0]
+          effectiveSlug = clinicDoc.data().slug || effectiveSlug
+        } else {
+          // Check all clinics for secondary assistant array matching email
+          const allClinicsSnap = await getDocs(collection(db, 'clinics'))
+          for (const d of allClinicsSnap.docs) {
+            const data = d.data()
+            if (Array.isArray(data.assistants)) {
+              if (data.assistants.some((a: any) => (a.email || '').trim().toLowerCase() === trimmedEmail)) {
+                clinicDoc = d
+                effectiveSlug = data.slug || effectiveSlug
+                break
+              }
+            }
+          }
+        }
+      }
     }
 
-    const clinicDoc = snap.docs[0]
+    if (!clinicDoc) {
+      // Prevent tenant enumeration by returning standard 401
+      return NextResponse.json({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' }, { status: 401 })
+    }
+
     const clinic = clinicDoc.data()
     const clinicId = clinicDoc.id
 
@@ -88,7 +128,7 @@ export async function POST(req: NextRequest) {
       email: trimmedEmail,
       name: userName,
       clinicId,
-      slug,
+      slug: effectiveSlug,
       branchId: assignedBranchId,
       branchName: assignedBranchName,
       mustChangePassword: isMustChangePassword
@@ -100,18 +140,21 @@ export async function POST(req: NextRequest) {
       actorName: userName,
       actorRole: role,
       clinicId,
-      details: { email: trimmedEmail, branchId: assignedBranchId }
+      details: { email: trimmedEmail, branchId: assignedBranchId, universal: !slug }
     })
+
+    const canonicalDashboardUrl = `/clinic/${effectiveSlug}/admin`
 
     const response = NextResponse.json({
       success: true,
       token,
+      redirectUrl: canonicalDashboardUrl,
       user: {
         role,
         name: userName,
         email: trimmedEmail,
         clinicId,
-        slug,
+        slug: effectiveSlug,
         branchId: assignedBranchId,
         branchName: assignedBranchName,
         mustChangePassword: isMustChangePassword

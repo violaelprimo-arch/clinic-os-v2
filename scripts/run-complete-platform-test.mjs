@@ -93,7 +93,7 @@ async function main() {
   console.log('🌟 RUNNING FULL PLATFORM VERIFICATION TEST SUITE (Yalla Clinic / Clinic OS)');
   console.log('='.repeat(80));
 
-  const MAIN_CLINIC_SLUGS = ['zizo', 'dr-tarek-internal', 'dr-sara-eyes', 'dr-karim-derma', 'dr-nada-pediatrics'];
+  const MAIN_CLINIC_SLUGS = ['zizo', 'dr-tarek-internal', 'dr-sara-eyes', 'karim', 'dr-nada-pediatrics'];
 
   // -------------------------------------------------------------
   // SUITE 1: Multi-Clinic & Staff Authentication & Cryptography
@@ -334,7 +334,7 @@ async function main() {
 
     // 1. Off-day rejection (Friday is closed)
     const fridayCheck = validateBookingAvailability({
-      bookingDate: '2026-11-06', // Friday
+      bookingDate: '2026-11-13', // Future Friday (holiday)
       clinic,
       currentActiveBookings: 0
     });
@@ -588,7 +588,7 @@ async function main() {
     { name: 'Clinic Zizo TV Screen', url: 'https://yalla-clinic.com/clinic/zizo/tv' },
     { name: 'Clinic Dr. Tarek Booking Page', url: 'https://yalla-clinic.com/clinic/dr-tarek-internal' },
     { name: 'Clinic Dr. Sara Booking Page', url: 'https://yalla-clinic.com/clinic/dr-sara-eyes' },
-    { name: 'Clinic Dr. Karim Booking Page', url: 'https://yalla-clinic.com/clinic/dr-karim-derma' },
+    { name: 'Clinic Dr. Karim Booking Page', url: 'https://yalla-clinic.com/clinic/karim' },
     { name: 'Clinic Dr. Nada Booking Page', url: 'https://yalla-clinic.com/clinic/dr-nada-pediatrics' },
     { name: 'Patient Login Page', url: 'https://yalla-clinic.com/clinic/zizo/patient/login' },
     { name: 'Clinic Admin Login Page', url: 'https://yalla-clinic.com/clinic/zizo/login' },

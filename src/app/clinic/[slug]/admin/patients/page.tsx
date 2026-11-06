@@ -131,7 +131,10 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
       try {
         const clinicQ = query(collection(db, 'clinics'), where('slug', '==', slug))
         const clinicSnap = await getDocs(clinicQ)
-        if (clinicSnap.empty) return
+        if (clinicSnap.empty) {
+          setLoading(false)
+          return
+        }
         const cData = { id: clinicSnap.docs[0].id, ...clinicSnap.docs[0].data() }
         setClinic(cData)
         setClinicId(cData.id)

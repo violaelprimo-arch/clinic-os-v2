@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { collection, query, where, getDocs, addDoc, updateDoc, doc } from 'firebase/firestore'
+import { collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { verifyPassword, hashPassword, createSessionToken } from '@/lib/auth-crypto'
+import { queryDocuments, writeDocument, createDocument } from '@/lib/server/firebase-rest'
+
+function normalizePhone(p: string): string {
+  return String(p || '').replace(/\D/g, '').replace(/^20/, '0')
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,26 +21,36 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanPhone = String(phone).trim().replace(/\s+/g, '')
+    const normalizedInputPhone = normalizePhone(cleanPhone)
 
     // Resolve clinic
-    const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
-    const cSnap = await getDocs(cQ)
-    const clinicId = cSnap.empty ? slug : cSnap.docs[0].id
+    let clinicId = slug
+    try {
+      const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
+      const cSnap = await getDocs(cQ)
+      if (!cSnap.empty) {
+        clinicId = cSnap.docs[0].id
+      }
+    } catch (e) {
+      console.warn('Clinic lookup error, using slug as clinicId:', e)
+    }
 
-    // Check patient_accounts
-    const accQ = query(
-      collection(db, 'patient_accounts'),
-      where('clinic_id', '==', clinicId),
-      where('phone', '==', cleanPhone)
-    )
-    const accSnap = await getDocs(accQ)
+    // Check patient_accounts via secure server REST (bypasses unauthenticated Firestore rule restrictions)
+    let allAccounts: any[] = []
+    try {
+      allAccounts = await queryDocuments('patient_accounts')
+    } catch (e) {
+      console.warn('queryDocuments for patient_accounts failed:', e)
+    }
 
-    if (!accSnap.empty) {
-      const userDoc = accSnap.docs[0]
-      const user = userDoc.data()
-      const storedPassword = user.passwordHash || user.password
+    const userDoc = allAccounts.find((acc: any) => {
+      const pNorm = normalizePhone(acc.phone)
+      return pNorm === normalizedInputPhone || acc.phone === cleanPhone
+    })
 
-      // A03 - Reject accounts without a password; do NOT allow arbitrary password bypass
+    if (userDoc) {
+      const storedPassword = userDoc.passwordHash || userDoc.password
+
       if (!storedPassword || String(storedPassword).trim() === '') {
         return NextResponse.json(
           {
@@ -55,19 +70,19 @@ export async function POST(req: NextRequest) {
       }
 
       // Automatically upgrade legacy plaintext password to secure cryptographic hash
-      if (!user.passwordHash) {
+      if (!userDoc.passwordHash) {
         const newHash = await hashPassword(String(password))
-        updateDoc(doc(db, 'patient_accounts', userDoc.id), {
+        writeDocument(`patient_accounts/${userDoc.id}`, {
           passwordHash: newHash,
           password: ''
-        }).catch(() => {})
+        }, true).catch(() => {})
       }
 
       const patientData = {
         id: userDoc.id,
-        name: user.name || 'المريض',
+        name: userDoc.name || 'المريض',
         phone: cleanPhone,
-        age: user.age || '',
+        age: userDoc.age || '',
         clinic_id: clinicId,
         slug
       }
@@ -99,31 +114,38 @@ export async function POST(req: NextRequest) {
     }
 
     // Check past appointments
-    const apptQ = query(
-      collection(db, 'appointments'),
-      where('clinic_id', '==', clinicId),
-      where('phone', '==', cleanPhone)
-    )
-    const apptSnap = await getDocs(apptQ)
+    let pastAppointments: any[] = []
+    try {
+      const apptQ = query(
+        collection(db, 'appointments'),
+        where('clinic_id', '==', clinicId)
+      )
+      const apptSnap = await getDocs(apptQ)
+      pastAppointments = apptSnap.docs
+        .map(d => ({ id: d.id, ...d.data() as any }))
+        .filter(a => normalizePhone(a.phone) === normalizedInputPhone || a.phone === cleanPhone)
+    } catch (e) {
+      console.warn('Appointments lookup failed:', e)
+    }
 
-    if (!apptSnap.empty) {
-      const firstAppt = apptSnap.docs[0].data()
+    if (pastAppointments.length > 0) {
+      const firstAppt = pastAppointments[0]
       const patientName = firstAppt.patientName || 'المريض'
       const patientAge = firstAppt.age || ''
-
       const passwordHash = await hashPassword(String(password))
 
-      const newAccRef = await addDoc(collection(db, 'patient_accounts'), {
+      const newId = crypto.randomUUID()
+      await writeDocument(`patient_accounts/${newId}`, {
         clinic_id: clinicId,
         name: patientName,
         phone: cleanPhone,
         age: patientAge,
         passwordHash,
         createdAt: new Date().toISOString()
-      })
+      }, true)
 
       const patientData = {
-        id: newAccRef.id,
+        id: newId,
         name: patientName,
         phone: cleanPhone,
         age: patientAge,
@@ -137,7 +159,7 @@ export async function POST(req: NextRequest) {
         phone: cleanPhone,
         clinicId,
         slug,
-        patientId: newAccRef.id
+        patientId: newId
       })
 
       const response = NextResponse.json({
@@ -164,7 +186,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Patient login API error:', error)
     return NextResponse.json(
-      { error: 'حدث خطأ في الخادم أثناء تسجيل الدخول' },
+      { error: 'حدث خطأ في الخادم أثناء تسجيل الدخول: ' + (error.message || '') },
       { status: 500 }
     )
   }

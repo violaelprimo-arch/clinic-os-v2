@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Menu, X, ArrowLeft, ArrowRight, UserCheck, ShieldCheck } from 'lucide-react'
+import { Menu, X, ArrowLeft, ArrowRight, UserCheck, ShieldCheck, Lock } from 'lucide-react'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { LanguageToggle } from '@/components/common/LanguageToggle'
@@ -78,7 +78,7 @@ export function LandingNavbar({ config, onOpenTrial }: LandingNavbarProps) {
 
           {/* Clinic Login button */}
           <Link
-            href={config.loginUrl || '/clinic/zizo/login'}
+            href={config.loginUrl || '/login'}
             className="landing-btn-press px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200 font-bold text-xs transition-colors"
           >
             {isRtl ? config.loginButtonText || 'دخول العيادة' : config.english.loginButtonText || 'Clinic Login'}
@@ -122,22 +122,33 @@ export function LandingNavbar({ config, onOpenTrial }: LandingNavbarProps) {
             ))}
           </nav>
 
-          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-            <div className="flex items-center gap-1">
-              <ThemeToggle />
-              <LanguageToggle />
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                setMobileMenuOpen(false)
-                onOpenTrial()
-              }}
-              className="px-4 py-2 rounded-xl bg-sky-600 text-white font-black text-xs shadow-sm"
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+            <Link
+              href={config.loginUrl || '/login'}
+              onClick={() => setMobileMenuOpen(false)}
+              className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-xs"
             >
-              {isRtl ? config.trialButtonText || 'طلب تجربة' : 'Free Trial'}
-            </button>
+              <span>{isRtl ? config.loginButtonText || 'دخول العيادة' : config.english.loginButtonText || 'Clinic Login'}</span>
+              <Lock className="w-3.5 h-3.5 text-sky-600" />
+            </Link>
+
+            <div className="flex items-center justify-between pt-1">
+              <div className="flex items-center gap-1">
+                <ThemeToggle />
+                <LanguageToggle />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false)
+                  onOpenTrial()
+                }}
+                className="px-4 py-2 rounded-xl bg-sky-600 text-white font-black text-xs shadow-sm cursor-pointer"
+              >
+                {isRtl ? config.trialButtonText || 'طلب تجربة' : 'Free Trial'}
+              </button>
+            </div>
           </div>
         </div>
       )}

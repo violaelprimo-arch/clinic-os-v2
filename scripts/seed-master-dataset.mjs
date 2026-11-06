@@ -223,7 +223,7 @@ const CLINICS_DATA = [
   },
   {
     id: 'b2LvVyPnssx736ENZ7XI',
-    slug: 'dr-karim-derma',
+    slug: 'karim',
     name: 'عيادة د. كريم عبد الرحمن للجلدية والليزر والتجميل',
     specialty: 'أمراض جلدية وتناسلية وتجميل',
     doctorName: 'د. كريم عبد الرحمن',
@@ -365,10 +365,12 @@ async function seedMasterData() {
       });
     }
 
-    // 1. Update clinic doc in Firestore
+    // 1. Create or Update clinic doc in Firestore
     const clinicRef = doc(db, 'clinics', c.id);
-    await updateDoc(clinicRef, {
+    await setDoc(clinicRef, {
+      slug: c.slug,
       name: c.name,
+      clinicName: c.name,
       specialty: c.specialty,
       doctorName: c.doctorName,
       doctorEmail: c.doctorEmail,
@@ -387,8 +389,10 @@ async function seedMasterData() {
       weeklySchedule: DEFAULT_SCHEDULE,
       isActive: true,
       subscriptionPlan: 'enterprise',
+      aiEnabled: true,
+      primaryColor: '#087CF4',
       updatedAt: new Date().toISOString()
-    });
+    }, { merge: true });
     console.log(`   ✓ Clinic doc updated with Doctor (${c.doctorEmail}) and Assistants (${c.assistantEmail})`);
 
     // 2. Ensure branches in `branches` collection

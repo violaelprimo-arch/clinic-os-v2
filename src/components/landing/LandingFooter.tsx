@@ -66,7 +66,7 @@ export function LandingFooter({ config }: LandingFooterProps) {
             <ul className="space-y-2.5">
               <li>
                 <Link
-                  href={config.loginUrl || '/clinic/zizo/login'}
+                  href={config.loginUrl || '/login'}
                   className="hover:text-sky-600 dark:hover:text-sky-400 transition-colors font-medium flex items-center gap-1.5"
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-sky-500 shrink-0"></span>

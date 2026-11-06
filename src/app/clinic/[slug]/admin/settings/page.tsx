@@ -14,7 +14,7 @@ import {
   Wallet, Users, Clock, Printer, ShieldCheck, Settings, Lock,
   CheckCircle2, Bell, Sparkles, Building2, Copy, ExternalLink,
   Monitor, Tablet, Smartphone, User, RefreshCw,
-  ArrowUp, ArrowDown, Zap, Banknote, CreditCard, AlertCircle
+  ArrowUp, ArrowDown, Zap, Banknote, CreditCard, AlertCircle, Check
 } from 'lucide-react'
 import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 import { db } from '@/lib/firebase'
@@ -29,13 +29,23 @@ import { cleanPhoneForWhatsApp } from '@/lib/countryPhoneHelper'
 import { formatWeeklyScheduleSummary, syncClinicScheduleToMainBranch } from '@/lib/branchService'
 import { getClinicWebsiteUrl } from '@/lib/clinicUrls'
 
+export const COLOR_PRESETS = [
+  { label: 'أزرق ملكي طبي', labelEn: 'Royal Medical Blue', primary: '#087CF4', secondary: '#0284C7' },
+  { label: 'كحلي وقور', labelEn: 'Prestige Navy', primary: '#0F2042', secondary: '#1E3A8A' },
+  { label: 'أخضر صحي', labelEn: 'Emerald Care', primary: '#059669', secondary: '#10B981' },
+  { label: 'تيل بحري', labelEn: 'Modern Teal', primary: '#0D9488', secondary: '#14B8A6' },
+  { label: 'ياقوتي نقي', labelEn: 'Clinical Sapphire', primary: '#1D4ED8', secondary: '#3B82F6' },
+  { label: 'عنابي راقي', labelEn: 'Burgundy Elite', primary: '#991B1B', secondary: '#DC2626' },
+  { label: 'بنفسجي وقور', labelEn: 'Deep Violet', primary: '#6D28D9', secondary: '#8B5CF6' },
+]
+
 export default function ClinicSettings({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
   const publicClinicUrl = getClinicWebsiteUrl(slug)
   const { t, tDynamic, dir, isRtl, language } = useLanguage()
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'branding' | 'queue' | 'services' | 'payment' | 'staff' | 'print' | 'ai' | 'security'>('profile')
+  const [activeTab, setActiveTab] = useState<'profile' | 'branding' | 'booking_design' | 'queue' | 'services' | 'payment' | 'staff' | 'print' | 'ai' | 'security'>('profile')
   const [logoUrl, setLogoUrl] = useState('')
   const [thermalMonoLogoUrl, setThermalMonoLogoUrl] = useState('')
   const [slogan, setSlogan] = useState('')
@@ -446,7 +456,10 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const baseTabs = [
     { id: 'security', label: t('tab_security', 'الأمان والحساب'), icon: Lock },
     { id: 'profile', label: t('tab_profile', 'الهوية والبيانات'), icon: Building2 },
-    ...(canEditBranding ? [{ id: 'branding', label: t('tab_branding', 'هوية العيادة والطباعة'), icon: Palette }] : []),
+    ...(canEditBranding ? [
+      { id: 'branding', label: t('tab_branding', 'هوية العيادة والطباعة'), icon: Printer },
+      { id: 'booking_design', label: t('tab_booking_design', 'تصميم صفحة الحجز'), icon: Palette }
+    ] : []),
     { id: 'queue', label: t('tab_queue', 'المواعيد والدور'), icon: Clock },
     { id: 'services', label: t('tab_services', 'الخدمات والأسعار'), icon: ShieldCheck },
     { id: 'payment', label: t('tab_payment', 'طرق الدفع'), icon: Wallet },
@@ -1062,14 +1075,14 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
       {/* TAB 1: Profile & Visual Identity */}
       {activeTab === 'profile' && (
-        <div className="space-y-6">
-          <div className="grid lg:grid-cols-2 gap-6 items-start">
-            {/* Form Side */}
-            <div className="yalla-card p-6 space-y-5">
-              <div className="pb-3 border-b border-border">
-                <h3 className="font-bold text-sm text-foreground">{t('general_clinic_data', 'البيانات العامة للعيادة')}</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">{t('general_clinic_desc', 'تخصيص بيانات الطبيب والعيادة التي تظهر للمرضى في الصفحة الرئيسية')}</p>
-              </div>
+        <div className="yalla-card p-6 sm:p-8 max-w-4xl space-y-6">
+          <div className="pb-3 border-b border-border">
+            <h3 className="font-bold text-base text-foreground flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-primary" />
+              {t('general_clinic_data', 'البيانات العامة للعيادة')}
+            </h3>
+            <p className="text-xs text-muted-foreground mt-0.5">{t('general_clinic_desc', 'تخصيص بيانات الطبيب والعيادة التي تظهر للمرضى في الصفحة الرئيسية')}</p>
+          </div>
 
               {/* Doctor Photo Section */}
               <div className="p-4 rounded-2xl bg-muted/40 border border-border space-y-3">
@@ -1215,18 +1228,6 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-muted-foreground">{t('certification_entity_label', 'الجهة المانحة (النقابة / الزمالة)')}</Label>
-                  <Input
-                    value={certificationEntity}
-                    onChange={e => setCertificationEntity(e.target.value)}
-                    placeholder="Egyptian Medical Syndicate"
-                    className="h-10 text-xs rounded-xl"
-                  />
-                </div>
-              </div>
-
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
                   <Label className="text-xs font-bold text-muted-foreground">{t('experience_years_label', 'سنوات الخبرة (تظهر في البادج العائم على الصورة)')}</Label>
                   <Input
                     type="number"
@@ -1235,16 +1236,6 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                     value={experienceYears}
                     onChange={e => setExperienceYears(e.target.value)}
                     placeholder="10"
-                    className="h-10 text-xs rounded-xl font-bold"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-muted-foreground">{t('doctor_rating_label', 'تقييم الطبيب (يظهر على كارت الطبيب)')}</Label>
-                  <Input
-                    value={doctorRating}
-                    onChange={e => setDoctorRating(e.target.value)}
-                    placeholder="4.9"
                     className="h-10 text-xs rounded-xl font-bold"
                   />
                 </div>
@@ -1413,14 +1404,140 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                 </div>
               </div>
             </div>
+      )}
 
-            {/* Preview Side */}
-            <div className="yalla-card overflow-hidden bg-slate-100/70 dark:bg-slate-900/40 relative flex flex-col hidden lg:flex border border-border sticky top-20 h-[calc(100vh-120px)] min-h-[700px] shadow-sm">
+      {/* TAB BOOKING DESIGN: Booking Page Designer & Live Simulation */}
+      {activeTab === 'booking_design' && (
+        <div className="grid lg:grid-cols-12 gap-6 items-start">
+          {/* Controls Side (5 cols) */}
+          <div className="lg:col-span-5 space-y-6">
+            <div className="yalla-card p-6 space-y-6">
+              <div className="pb-3 border-b border-border">
+                <h3 className="font-bold text-base text-foreground flex items-center gap-2">
+                  <Palette className="w-5 h-5 text-primary" />
+                  {t('booking_appearance_title', 'مظهر وألوان صفحة الحجز')}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {t('booking_appearance_desc', 'اختر باليت الألوان الطبية المناسبة لهوية عيادتك، وتحكم في خيارات العرض المباشرة.')}
+                </p>
+              </div>
+
+              {/* Color Presets */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold text-foreground">
+                    {t('color_presets_label', 'باليتات الألوان الطبية المعتمدة')}
+                  </Label>
+                  <span className="text-[10px] text-muted-foreground font-medium">{t('click_to_apply', 'اضغط للتطبيق الفوري')}</span>
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                  {COLOR_PRESETS.map((preset) => {
+                    const isSelected = primaryColor.toLowerCase() === preset.primary.toLowerCase()
+                    return (
+                      <button
+                        key={preset.primary}
+                        type="button"
+                        onClick={() => {
+                          setPrimaryColor(preset.primary)
+                          setSecondaryColor(preset.secondary)
+                        }}
+                        className={`flex items-center justify-between p-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                          isSelected
+                            ? 'border-primary bg-primary/5 text-primary shadow-2xs'
+                            : 'border-border bg-card hover:bg-muted/50 text-foreground'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="flex items-center -space-x-1 rtl:space-x-reverse">
+                            <span
+                              style={{ backgroundColor: preset.primary }}
+                              className="w-5 h-5 rounded-full border-2 border-white dark:border-slate-800 shadow-2xs inline-block"
+                            />
+                            <span
+                              style={{ backgroundColor: preset.secondary }}
+                              className="w-4 h-4 rounded-full border-2 border-white dark:border-slate-800 shadow-2xs inline-block"
+                            />
+                          </div>
+                          <span>{isRtl ? preset.label : preset.labelEn}</span>
+                        </div>
+                        {isSelected && <Check className="w-4 h-4 text-primary" />}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Custom Colors */}
+              <div className="space-y-4 pt-3 border-t border-border">
+                <h4 className="font-bold text-xs text-foreground">{t('custom_brand_colors', 'تخصيص يدوي دقيق للألوان')}</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold text-muted-foreground">{t('primary_color', 'اللون الأساسي')}</Label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={primaryColor}
+                        onChange={e => setPrimaryColor(e.target.value)}
+                        className="w-9 h-9 rounded-xl cursor-pointer border border-border p-0.5 bg-background shrink-0"
+                      />
+                      <Input
+                        value={primaryColor}
+                        onChange={e => setPrimaryColor(e.target.value)}
+                        className="h-9 text-xs rounded-xl font-mono text-left"
+                        dir="ltr"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold text-muted-foreground">{t('secondary_color', 'اللون الثانوي')}</Label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={secondaryColor}
+                        onChange={e => setSecondaryColor(e.target.value)}
+                        className="w-9 h-9 rounded-xl cursor-pointer border border-border p-0.5 bg-background shrink-0"
+                      />
+                      <Input
+                        value={secondaryColor}
+                        onChange={e => setSecondaryColor(e.target.value)}
+                        className="h-9 text-xs rounded-xl font-mono text-left"
+                        dir="ltr"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Toggles */}
+              <div className="space-y-3 pt-3 border-t border-border">
+                <div className="flex items-center justify-between p-3 rounded-xl bg-muted/40 border border-border">
+                  <div className="space-y-0.5">
+                    <Label className="text-xs font-bold text-foreground">{t('clinic_status_toggle', 'استقبال الحجوزات')}</Label>
+                    <p className="text-[10px] text-muted-foreground">{isClinicOpen ? t('clinic_open_accepting', 'العيادة متاحة للمرضى') : t('clinic_closed_now', 'العيادة مغلقة حالياً')}</p>
+                  </div>
+                  <Switch checked={isClinicOpen} onCheckedChange={setIsClinicOpen} />
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-xl bg-muted/40 border border-border">
+                  <div className="space-y-0.5">
+                    <Label className="text-xs font-bold text-foreground">{t('show_prices_to_patients', 'أسعار الكشوفات')}</Label>
+                    <p className="text-[10px] text-muted-foreground">{showPrices ? t('prices_visible', 'الأسعار ظاهرة للمرضى') : t('prices_hidden', 'الأسعار مخفية')}</p>
+                  </div>
+                  <Switch checked={showPrices} onCheckedChange={setShowPrices} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Preview Side (7 cols) */}
+          <div className="lg:col-span-7 space-y-4">
+            <div className="yalla-card overflow-hidden bg-slate-100/70 dark:bg-slate-900/40 relative flex flex-col border border-border shadow-sm min-h-[640px]">
               <div className="p-3 border-b border-border bg-card flex items-center justify-between shadow-xs z-10 gap-2 flex-wrap">
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-amber-500" />
                   <h3 className="font-bold text-xs sm:text-sm text-foreground">
-                    {t('patient_live_preview', 'معاينة حية لصفحة المريض')}
+                    {t('patient_live_preview', 'معاينة حية لصفحة حجز المريض')}
                   </h3>
                 </div>
                 
@@ -1529,7 +1646,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                       key={`preview-single-${iframeKey}`}
                       src={`/clinic/${slug}?preview=1`}
                       className={`w-full border-0 bg-white dark:bg-slate-950 transition-all duration-300 ${
-                        previewDevice === 'mobile' ? 'h-[720px]' : 'h-[820px]'
+                        previewDevice === 'mobile' ? 'h-[620px]' : 'h-[720px]'
                       }`}
                       title="معاينة حجز المريض الحية"
                     />
