@@ -472,7 +472,7 @@ export function formatInClinicBookingWhatsAppMessage({
   patientPortalUrl?: string
 }): string {
   const resolvedWebsite = clinicWebsiteUrl || clinicHomepageUrl
-  const websiteLine = resolvedWebsite ? `\n\nرابط موقع العيادة والحجز:\n${resolvedWebsite}` : ''
+  const websiteLine = resolvedWebsite ? `\n\nموقع العيادة والحجز:\n${resolvedWebsite}` : ''
   const portalLine = patientPortalUrl ? `\n\nللدخول إلى ملفك الطبي والروشتات:\n${patientPortalUrl}` : ''
 
   return `أهلًا بحضرتك، تم تسجيل حجزك في ${clinicName}.
@@ -482,7 +482,7 @@ export function formatInClinicBookingWhatsAppMessage({
 التاريخ: ${bookingDate}
 رقم تذكرة الدور: #${queueNumber}
 
-لمتابعة دورك المباشر ووقت الانتظار:
+لمتابعة دورك المباشر:
 ${trackUrl}${websiteLine}${portalLine}
 
 ترتيب الدخول ووقت الانتظار يتحدثان حسب حركة العيادة.`
