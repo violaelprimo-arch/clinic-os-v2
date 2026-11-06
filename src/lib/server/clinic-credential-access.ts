@@ -21,11 +21,31 @@ export async function getClinicDoctorAccount(
   slug: string,
 ): Promise<DoctorAccount | Denied> {
   const origin = req.headers.get('origin')
-  if (origin && origin !== req.nextUrl.origin) {
-    return { ok: false, status: 403, error: 'طلب غير مصرح به' }
+  if (origin) {
+    try {
+      const originUrl = new URL(origin)
+      const nextUrl = req.nextUrl
+      const isAllowed =
+        origin === nextUrl.origin ||
+        originUrl.hostname === nextUrl.hostname ||
+        originUrl.hostname === 'localhost' ||
+        originUrl.hostname.endsWith('.localhost') ||
+        ['yalla-clinic.com', 'yalaa-clinic.com'].some(
+          (domain) =>
+            originUrl.hostname === domain ||
+            originUrl.hostname.endsWith('.' + domain),
+        )
+      if (!isAllowed) {
+        return { ok: false, status: 403, error: 'طلب غير مصرح به' }
+      }
+    } catch {
+      return { ok: false, status: 403, error: 'طلب غير مصرح به' }
+    }
   }
 
-  const token = req.cookies.get('clinic_session')?.value
+  const authHeader = req.headers.get('authorization')
+  const bearerToken = authHeader ? authHeader.replace(/^Bearer\s+/i, '').trim() : ''
+  const token = bearerToken || req.cookies.get('clinic_session')?.value
   if (!token) {
     return { ok: false, status: 401, error: 'يرجى تسجيل الدخول إلى حساب الطبيب' }
   }

@@ -5,6 +5,7 @@ import {
   isCurrentClinicDoctor,
   pickNormalClinicSettings,
 } from '../src/lib/clinic-credential-policy.ts'
+import { normalizeBookingPageConfig, displayDoctorName } from '../src/lib/booking-page-config.ts'
 import { createSessionToken, verifySessionToken } from '../src/lib/auth-crypto.ts'
 
 const clinicId = 'clinic-123'
@@ -75,4 +76,30 @@ test('Production clinic sessions must use a non-default secret', async () => {
       else process.env[key] = value
     }
   }
+})
+
+test('Booking page customization is bounded and never exposes credential keys', () => {
+  const updated = pickNormalClinicSettings({
+    bookingPageConfig: {
+      headlineAr: '  عنوان مميز  ', showLocation: false, showServices: 'false',
+      doctorPassword: 'should-never-persist',
+      trustAr: ['وقت مناسب', 42, 'تقييمات حقيقية', 'أمان'],
+      heroLayout: 'copy_first', unknown: { isAdmin: true },
+    },
+  })
+  const cfg = updated.bookingPageConfig
+  assert.equal(cfg.headlineAr, 'عنوان مميز')
+  assert.equal(cfg.showLocation, false)
+  assert.equal(cfg.showServices, true)
+  assert.equal(cfg.heroLayout, 'copy_first')
+  assert.equal(cfg.trustAr[1], 'تقييمات حقيقية')
+  assert.equal(Object.hasOwn(cfg, 'doctorPassword'), false)
+  assert.equal(Object.hasOwn(cfg, 'unknown'), false)
+  assert.deepEqual(normalizeBookingPageConfig(undefined), normalizeBookingPageConfig({}))
+})
+
+test('Doctor title does not repeat with legacy prefixed doctor names', () => {
+  assert.equal(displayDoctorName('د. أحمد السعيد', 'د.'), 'د. أحمد السعيد')
+  assert.equal(displayDoctorName('أحمد السعيد', 'د.'), 'د. أحمد السعيد')
+  assert.equal(displayDoctorName('Dr. Ahmed', 'Dr.'), 'Dr. Ahmed')
 })

@@ -204,17 +204,21 @@ export async function getClinicBranches(clinicId: string, slug?: string): Promis
     }
 
     const branchesRef = collection(db, 'branches')
-    const [snap1, snap2] = await Promise.all([
+    const queries = [
       getDocs(query(branchesRef, where('clinicId', '==', clinicId))),
       getDocs(query(branchesRef, where('clinic_id', '==', clinicId)))
-    ])
+    ]
+    if (slug && slug !== clinicId) {
+      queries.push(getDocs(query(branchesRef, where('clinicId', '==', slug))))
+      queries.push(getDocs(query(branchesRef, where('clinic_id', '==', slug))))
+    }
+    const snaps = await Promise.all(queries)
 
     const map = new Map<string, Branch>()
-    snap1.docs.forEach((d) => {
-      map.set(d.id, { id: d.id, ...(d.data() as any) })
-    })
-    snap2.docs.forEach((d) => {
-      map.set(d.id, { id: d.id, ...(d.data() as any) })
+    snaps.forEach((snap) => {
+      snap.docs.forEach((d) => {
+        map.set(d.id, { id: d.id, ...(d.data() as any) })
+      })
     })
 
     const result = Array.from(map.values()).filter((b) => !b.isArchived)

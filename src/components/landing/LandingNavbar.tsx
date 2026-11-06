@@ -78,7 +78,7 @@ export function LandingNavbar({ config, onOpenTrial }: LandingNavbarProps) {
 
           {/* Clinic Login button */}
           <Link
-            href={config.loginUrl || '/clinic/zizo/login'}
+            href={config.loginUrl || '/clinic/yalla-demo/login'}
             className="landing-btn-press px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200 font-bold text-xs transition-colors"
           >
             {isRtl ? config.loginButtonText || 'دخول العيادة' : config.english.loginButtonText || 'Clinic Login'}

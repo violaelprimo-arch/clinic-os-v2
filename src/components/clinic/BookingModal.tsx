@@ -75,7 +75,7 @@ export function BookingModal({
 }) {
   const router = useRouter()
   const clinicId = clinic?.id || clinic?.slug || 'demo'
-  const slug = clinic?.slug || 'zizo'
+  const slug = clinic?.slug || 'yalla-demo'
 
   // Price visibility setting
   const showPrices = clinic?.showPrices !== false && clinic?.hidePrices !== true

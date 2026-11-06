@@ -40,7 +40,7 @@ export function PatientLiveTurn({
   onClose?: () => void
 }) {
   const resolvedClinicId = clinic?.id || propClinicId || clinic?.slug || 'demo'
-  const slug = (propSlug || clinic?.slug || 'zizo').toLowerCase()
+  const slug = (propSlug || clinic?.slug || 'yalla-demo').toLowerCase()
 
   // Fresh search state: Always start empty on fresh search unless explicitly passed as a prop!
   const [activePhone, setActivePhone] = useState<string>(() => {

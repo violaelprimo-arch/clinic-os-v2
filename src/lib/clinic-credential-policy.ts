@@ -1,3 +1,5 @@
+import { normalizeBookingPageConfig } from './booking-page-config'
+
 /** Rules shared by doctor credential endpoints and their unit tests. */
 export function normalizeDoctorEmail(value: unknown): string | null {
   if (typeof value !== 'string') return null
@@ -45,14 +47,17 @@ const allowedSettings = new Set([
   'clinicPhones', 'onlinePaymentEnabled', 'walletNumber',
   'instapayHandle', 'isCashEnabled', 'isClinicOpen', 'showPrices',
   'isWalletEnabled', 'isInstapayEnabled', 'queueNormal', 'queueConsult',
-  'queueUrgent', 'queuePattern', 'assistants',
+  'queueUrgent', 'queuePattern', 'assistants', 'bookingPageConfig',
 ])
 
 export function pickNormalClinicSettings(body: unknown): Record<string, unknown> {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return {}
   return Object.fromEntries(
-    Object.entries(body).filter(([key, value]) =>
-      allowedSettings.has(key) && value !== undefined,
-    ),
+    Object.entries(body)
+      .filter(([key, value]) => allowedSettings.has(key) && value !== undefined)
+      .map(([key, value]) => [
+        key,
+        key === 'bookingPageConfig' ? normalizeBookingPageConfig(value) : value,
+      ]),
   )
 }

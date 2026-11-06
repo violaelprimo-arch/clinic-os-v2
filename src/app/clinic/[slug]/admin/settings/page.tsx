@@ -14,20 +14,22 @@ import {
   Wallet, Users, Clock, Printer, ShieldCheck, Settings, Lock,
   CheckCircle2, Bell, Sparkles, Building2, Copy, ExternalLink,
   Monitor, Tablet, Smartphone, User, RefreshCw,
-  ArrowUp, ArrowDown, Zap, Banknote, CreditCard, AlertCircle
+  ArrowUp, ArrowDown, Zap, Banknote, CreditCard, AlertCircle,
+  RotateCcw, LayoutTemplate, MessageCircle
 } from 'lucide-react'
 import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 import { db } from '@/lib/firebase'
 import { collection, query, where, getDocs, updateDoc, doc, addDoc } from 'firebase/firestore'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { MessageCircle } from 'lucide-react'
 import { useLanguage } from '@/context/LanguageContext'
 import { extractCoordsFromLink, safeImageUrl } from '@/lib/mapsHelper'
 import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import { cleanPhoneForWhatsApp } from '@/lib/countryPhoneHelper'
 import { formatWeeklyScheduleSummary, syncClinicScheduleToMainBranch } from '@/lib/branchService'
 import { getClinicWebsiteUrl } from '@/lib/clinicUrls'
+import { BookingPageEditor } from '@/components/clinic/BookingPageEditor'
+import { DEFAULT_BOOKING_PAGE_CONFIG, normalizeBookingPageConfig, BookingPageConfig } from '@/lib/booking-page-config'
 
 export default function ClinicSettings({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -35,7 +37,8 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const publicClinicUrl = getClinicWebsiteUrl(slug)
   const { t, tDynamic, dir, isRtl, language } = useLanguage()
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'branding' | 'queue' | 'services' | 'payment' | 'staff' | 'print' | 'ai' | 'security'>('profile')
+  const [activeTab, setActiveTab] = useState<'profile' | 'booking' | 'branding' | 'queue' | 'services' | 'payment' | 'staff' | 'print' | 'ai' | 'security'>('profile')
+  const [bookingPageConfig, setBookingPageConfig] = useState<BookingPageConfig>(DEFAULT_BOOKING_PAGE_CONFIG)
   const [logoUrl, setLogoUrl] = useState('')
   const [thermalMonoLogoUrl, setThermalMonoLogoUrl] = useState('')
   const [slogan, setSlogan] = useState('')
@@ -69,7 +72,27 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const [doctorRating, setDoctorRating] = useState('4.9')
   const [previewDevice, setPreviewDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop')
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const previewCanvasRef = useRef<HTMLDivElement>(null)
+  const [previewAreaWidth, setPreviewAreaWidth] = useState(760)
   const [iframeKey, setIframeKey] = useState(0)
+
+  useEffect(() => {
+    if (activeTab !== 'profile' && activeTab !== 'booking') return
+    const container = previewCanvasRef.current
+    if (!container) return
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry?.contentRect.width) setPreviewAreaWidth(entry.contentRect.width)
+    })
+    observer.observe(container)
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches) {
+      setPreviewDevice('mobile')
+    }
+    return () => observer.disconnect()
+  }, [activeTab])
+
+  const previewViewportWidth = previewDevice === 'desktop' ? 1080 : previewDevice === 'tablet' ? 768 : 390
+  const previewViewportHeight = previewDevice === 'mobile' ? 740 : 840
+  const previewScale = Math.min(1, Math.max(0.1, (previewAreaWidth - 4) / previewViewportWidth))
   
   useEffect(() => {
     setCurrentRole(localStorage.getItem('clinic_role') || 'doctor');
@@ -120,6 +143,8 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   ])
   const [newServiceName, setNewServiceName] = useState('')
   const [newServicePrice, setNewServicePrice] = useState<number>(200)
+  const [newServiceDuration, setNewServiceDuration] = useState('15 دقيقة')
+  const [newServiceDesc, setNewServiceDesc] = useState('')
 
   // Payment
   const [isCashEnabled, setIsCashEnabled] = useState(true)
@@ -172,6 +197,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           setDoctorTitle(data.doctorTitle || 'د.')
           setSpecialty(data.specialty || '')
           setHeroSubtitle(data.heroSubtitle || '')
+          setBookingPageConfig(normalizeBookingPageConfig(data.bookingPageConfig || (data.heroBadge ? { badgeAr: data.heroBadge } : undefined)))
           setCertificationTitle(data.certificationTitle || '')
           setCertificationEntity(data.certificationEntity || '')
           setExperienceYears(data.experienceYears !== undefined ? data.experienceYears : 10)
@@ -292,6 +318,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         doctorTitle: doctorTitle || 'د.',
         specialty: specialty || '',
         heroSubtitle: heroSubtitle || '',
+        bookingPageConfig,
         certificationTitle: certificationTitle || '',
         certificationEntity: certificationEntity || '',
         heroImage: photoUrl || '',
@@ -360,9 +387,14 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       }
 
       // Save via authenticated server API endpoint.
+      const token = typeof window !== 'undefined' ? localStorage.getItem('clinic_session_token') : null
       const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/settings`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        credentials: 'include',
         body: JSON.stringify(payload)
       })
 
@@ -394,16 +426,35 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   }
 
   const addService = () => {
-    if (!newServiceName.trim()) return toast.error('يرجى كتابة اسم الخدمة')
+    if (!newServiceName.trim()) return toast.error(isRtl ? 'يرجى كتابة اسم الخدمة' : 'Please enter service name')
     const newS = {
       id: String(Date.now()),
-      name: newServiceName,
-      price: Number(newServicePrice) || 0
+      name: newServiceName.trim(),
+      price: Number(newServicePrice) || 0,
+      duration: newServiceDuration.trim() || '15 دقيقة',
+      desc: newServiceDesc.trim() || '',
+      isActive: true
     }
     setServices([...services, newS])
     setNewServiceName('')
     setNewServicePrice(200)
-    toast.success('تمت إضافة الخدمة')
+    setNewServiceDuration('15 دقيقة')
+    setNewServiceDesc('')
+    toast.success(isRtl ? 'تمت إضافة الخدمة بنجاح' : 'Service added successfully')
+  }
+
+  const updateService = (id: string, patch: Partial<{ name: string; price: number; duration: string; desc: string; isActive: boolean }>) => {
+    setServices(prev => prev.map(s => s.id === id ? { ...s, ...patch } : s))
+  }
+
+  const moveService = (index: number, direction: -1 | 1) => {
+    const targetIndex = index + direction
+    if (targetIndex < 0 || targetIndex >= services.length) return
+    const updated = [...services]
+    const temp = updated[index]
+    updated[index] = updated[targetIndex]
+    updated[targetIndex] = temp
+    setServices(updated)
   }
 
   const removeService = (id: string) => {
@@ -446,6 +497,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const baseTabs = [
     { id: 'security', label: t('tab_security', 'الأمان والحساب'), icon: Lock },
     { id: 'profile', label: t('tab_profile', 'الهوية والبيانات'), icon: Building2 },
+    { id: 'booking', label: t('tab_booking', 'تصميم صفحة الحجز'), icon: LayoutTemplate },
     ...(canEditBranding ? [{ id: 'branding', label: t('tab_branding', 'هوية العيادة والطباعة'), icon: Palette }] : []),
     { id: 'queue', label: t('tab_queue', 'المواعيد والدور'), icon: Clock },
     { id: 'services', label: t('tab_services', 'الخدمات والأسعار'), icon: ShieldCheck },
@@ -466,6 +518,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       doctorTitle: doctorTitle || 'د.',
       specialty: specialty || (isRtl ? 'استشاري الطب التخصصي' : 'Consultant Physician'),
       heroSubtitle: heroSubtitle || '',
+      bookingPageConfig,
       certificationTitle: certificationTitle || '',
       certificationEntity: certificationEntity || '',
       experienceYears: Number(experienceYears) || 10,
@@ -497,6 +550,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
     doctorTitle,
     specialty,
     heroSubtitle,
+    bookingPageConfig,
     certificationTitle,
     certificationEntity,
     experienceYears,
@@ -590,6 +644,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
     setClinicName(clinic.clinicName || '')
     setSpecialty(clinic.specialty || '')
     setHeroSubtitle(clinic.heroSubtitle || '')
+    setBookingPageConfig(normalizeBookingPageConfig(clinic.bookingPageConfig || (clinic.heroBadge ? { badgeAr: clinic.heroBadge } : undefined)))
     setCertificationTitle(clinic.certificationTitle || '')
     setCertificationEntity(clinic.certificationEntity || '')
     setExperienceYears(clinic.experienceYears ?? 10)
@@ -735,9 +790,14 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
                   setIsChangingPassword(true)
                   try {
+                    const token = typeof window !== 'undefined' ? localStorage.getItem('clinic_session_token') : null
                     const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/change-password`, {
                       method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
+                      headers: {
+                        'Content-Type': 'application/json',
+                        ...(token ? { Authorization: `Bearer ${token}` } : {})
+                      },
+                      credentials: 'include',
                       body: JSON.stringify({
                         currentPassword: currentDoctorPassword,
                         newPassword: newDoctorPassword
@@ -801,9 +861,14 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                   }
                   setIsUpdatingEmail(true)
                   try {
+                    const token = typeof window !== 'undefined' ? localStorage.getItem('clinic_session_token') : null
                     const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/change-email`, {
                       method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
+                      headers: {
+                        'Content-Type': 'application/json',
+                        ...(token ? { Authorization: `Bearer ${token}` } : {})
+                      },
+                      credentials: 'include',
                       body: JSON.stringify({
                         newEmail: newDoctorEmail.trim().toLowerCase(),
                         currentPassword: currentDoctorEmailPassword
@@ -1076,11 +1141,12 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       )}
 
 
-      {/* TAB 1: Profile & Visual Identity */}
-      {activeTab === 'profile' && (
+      {/* TAB 1 & TAB 2: Profile & Booking Page Editor with Live Preview */}
+      {(activeTab === 'profile' || activeTab === 'booking') && (
         <div className="space-y-6">
           <div className="grid lg:grid-cols-2 gap-6 items-start">
-            {/* Form Side */}
+            {/* Form Side - Profile */}
+            {activeTab === 'profile' && (
             <div className="yalla-card p-6 space-y-5">
               <div className="pb-3 border-b border-border">
                 <h3 className="font-bold text-sm text-foreground">{t('general_clinic_data', 'البيانات العامة للعيادة')}</h3>
@@ -1429,9 +1495,65 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                 </div>
               </div>
             </div>
+            )}
+
+            {/* Booking Page Editor Form Side */}
+            {activeTab === 'booking' && (
+              <div className="yalla-card p-6 space-y-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-border">
+                  <div>
+                    <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
+                      <LayoutTemplate className="w-4 h-4 text-primary" />
+                      {t('booking_page_builder_title', 'محرر ومخصص صفحة حجز المريض')}
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {t('booking_page_builder_desc', 'خصص ألوان، نصوص، شارات الثقة، وتصميم صفحة الحجز العامة التي يراها المرضى مع معاينة لحظية')}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setBookingPageConfig(DEFAULT_BOOKING_PAGE_CONFIG)
+                        toast.info(isRtl ? 'تمت استعادة الإعدادات الافتراضية للمظهر' : 'Appearance reset to defaults')
+                      }}
+                      className="h-8 text-xs font-bold rounded-xl"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5 mr-1" />
+                      {isRtl ? 'استعادة الافتراضي' : 'Reset'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={handleDiscardChanges}
+                      className="h-8 text-xs font-bold rounded-xl"
+                    >
+                      {isRtl ? 'تراجع' : 'Discard'}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleSave}
+                      disabled={isSaving}
+                      className="h-8 px-4 text-xs font-bold yalla-gradient-btn text-white rounded-xl shadow-xs"
+                    >
+                      {isSaving ? (isRtl ? 'جاري الحفظ...' : 'Saving...') : (isRtl ? 'حفظ التعديلات' : 'Save')}
+                    </Button>
+                  </div>
+                </div>
+
+                <BookingPageEditor
+                  value={bookingPageConfig}
+                  onChange={setBookingPageConfig}
+                />
+              </div>
+            )}
 
             {/* Preview Side */}
-            <div className="yalla-card overflow-hidden bg-slate-100/70 dark:bg-slate-900/40 relative flex flex-col hidden lg:flex border border-border sticky top-20 h-[calc(100vh-120px)] min-h-[700px] shadow-sm">
+            <div className="yalla-card overflow-hidden bg-slate-100/70 dark:bg-slate-900/40 relative flex flex-col border border-border sticky top-20 h-[calc(100vh-120px)] min-h-[640px] shadow-sm">
               <div className="p-3 border-b border-border bg-card flex items-center justify-between shadow-xs z-10 gap-2 flex-wrap">
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-amber-500" />
@@ -1509,15 +1631,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               
               {/* Scrollable Preview Area */}
               <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar bg-slate-100/80 dark:bg-slate-950 p-3 sm:p-4 flex flex-col items-center justify-start">
-                <div
-                  className={`transition-all duration-300 ease-in-out flex flex-col items-center w-full my-auto ${
-                    previewDevice === 'desktop'
-                      ? 'max-w-[860px]'
-                      : previewDevice === 'tablet'
-                      ? 'max-w-[580px]'
-                      : 'max-w-[390px]'
-                  }`}
-                >
+                <div className="transition-all duration-300 ease-in-out flex flex-col items-center w-full my-auto">
                   {/* Browser Bar / Window Shell */}
                   <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-t-2xl px-3 py-2 flex items-center gap-2 border border-border border-b-0 shadow-xs">
                     <div className="flex items-center gap-1.5 shrink-0">
@@ -1538,17 +1652,33 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                     </button>
                   </div>
 
-                  {/* Single Persistent Iframe Wrapper */}
-                  <div className="w-full overflow-hidden flex justify-center rounded-b-2xl border border-border bg-white dark:bg-slate-950 shadow-2xl">
-                    <iframe
-                      ref={iframeRef}
-                      key={`preview-single-${iframeKey}`}
-                      src={`/clinic/${slug}?preview=1`}
-                      className={`w-full border-0 bg-white dark:bg-slate-950 transition-all duration-300 ${
-                        previewDevice === 'mobile' ? 'h-[720px]' : 'h-[820px]'
-                      }`}
-                      title="معاينة حجز المريض الحية"
-                    />
+                  {/* Single Persistent Iframe Wrapper with True Pixel Viewport Scaling */}
+                  <div
+                    ref={previewCanvasRef}
+                    className="w-full overflow-hidden flex justify-center items-start rounded-b-2xl border border-border bg-white dark:bg-slate-950 shadow-2xl"
+                    style={{ height: `${Math.round(previewViewportHeight * previewScale)}px` }}
+                  >
+                    <div
+                      style={{
+                        width: `${previewViewportWidth}px`,
+                        height: `${previewViewportHeight}px`,
+                        transform: `scale(${previewScale})`,
+                        transformOrigin: 'top center',
+                        pointerEvents: 'auto'
+                      }}
+                    >
+                      <iframe
+                        ref={iframeRef}
+                        key={`preview-single-${iframeKey}`}
+                        src={`/clinic/${slug}?preview=1`}
+                        style={{
+                          width: `${previewViewportWidth}px`,
+                          height: `${previewViewportHeight}px`
+                        }}
+                        className="w-full h-full border-0 bg-white dark:bg-slate-950"
+                        title="معاينة حجز المريض الحية"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1986,52 +2116,171 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           </div>
 
           {/* Add New Service Form */}
-          <div className="p-4 rounded-xl bg-muted/40 border border-border flex flex-col sm:flex-row gap-3 items-end">
-            <div className="flex-1 space-y-1 w-full">
-              <Label className="text-xs font-bold text-muted-foreground">{t('service_name', 'اسم الخدمة')}</Label>
-              <Input
-                value={newServiceName}
-                onChange={e => setNewServiceName(e.target.value)}
-                placeholder={t('service_name_placeholder', 'مثال: رسم قلب، متابعة سكر')}
-                className="h-10 text-xs rounded-xl bg-background"
-              />
+          <div className="p-4 rounded-xl bg-muted/40 border border-border space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+              <div className="sm:col-span-5 space-y-1">
+                <Label className="text-xs font-bold text-muted-foreground">{t('service_name', 'اسم الخدمة')}</Label>
+                <Input
+                  value={newServiceName}
+                  onChange={e => setNewServiceName(e.target.value)}
+                  placeholder={t('service_name_placeholder', 'مثال: كشف عام، متابعة سكر، استشارة')}
+                  className="h-10 text-xs rounded-xl bg-background"
+                />
+              </div>
+              <div className="sm:col-span-3 space-y-1">
+                <Label className="text-xs font-bold text-muted-foreground">{t('service_price_egp', 'السعر (ج.م)')}</Label>
+                <Input
+                  type="number"
+                  value={newServicePrice}
+                  onChange={e => setNewServicePrice(Number(e.target.value))}
+                  className="h-10 text-xs rounded-xl bg-background"
+                />
+              </div>
+              <div className="sm:col-span-4 space-y-1">
+                <Label className="text-xs font-bold text-muted-foreground">{isRtl ? 'مدة الكشف التقديرية' : 'Estimated Duration'}</Label>
+                <Input
+                  value={newServiceDuration}
+                  onChange={e => setNewServiceDuration(e.target.value)}
+                  placeholder="15 دقيقة"
+                  className="h-10 text-xs rounded-xl bg-background"
+                />
+              </div>
             </div>
-            <div className="w-full sm:w-40 space-y-1">
-              <Label className="text-xs font-bold text-muted-foreground">{t('service_price_egp', 'السعر (ج.م)')}</Label>
-              <Input
-                type="number"
-                value={newServicePrice}
-                onChange={e => setNewServicePrice(Number(e.target.value))}
-                className="h-10 text-xs rounded-xl bg-background"
-              />
+            <div className="flex flex-col sm:flex-row gap-3 items-end">
+              <div className="flex-1 space-y-1 w-full">
+                <Label className="text-xs font-bold text-muted-foreground">{isRtl ? 'وصف مختصر للخدمة (اختياري)' : 'Description (optional)'}</Label>
+                <Input
+                  value={newServiceDesc}
+                  onChange={e => setNewServiceDesc(e.target.value)}
+                  placeholder={isRtl ? 'تفاصيل الخدمة أو ما تشمله...' : 'What this medical service includes...'}
+                  className="h-10 text-xs rounded-xl bg-background"
+                />
+              </div>
+              <Button
+                onClick={addService}
+                className="h-10 px-5 text-xs font-bold yalla-gradient-btn text-white rounded-xl shadow-xs shrink-0 cursor-pointer"
+              >
+                <Plus className={`w-4 h-4 ${isRtl ? 'ml-1' : 'mr-1'}`} />
+                {t('add_service', 'إضافة خدمة')}
+              </Button>
             </div>
-            <Button
-              onClick={addService}
-              className="h-10 px-5 text-xs font-bold yalla-gradient-btn text-white rounded-xl shadow-xs"
-            >
-              <Plus className={`w-4 h-4 ${isRtl ? 'ml-1' : 'mr-1'}`} />
-              {t('add_service', 'إضافة خدمة')}
-            </Button>
           </div>
 
           {/* Existing Services List */}
-          <div className="divide-y divide-border">
-            {services.map((service) => (
-              <div key={service.id} className="py-3.5 flex items-center justify-between">
-                <div>
-                  <h4 className="font-bold text-xs text-foreground">{tDynamic(service.name)}</h4>
-                  <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">{service.price} {t('currency_egp', 'ج.م')}</span>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-xs font-bold text-muted-foreground px-2">
+              <span>{isRtl ? `الخدمات المسجلة (${services.length})` : `Registered Services (${services.length})`}</span>
+              <span className="text-[11px]">{isRtl ? 'استخدم الأسهم لإعادة ترتيب ظهور الخدمات' : 'Use arrows to reorder services'}</span>
+            </div>
+            <div className="divide-y divide-border rounded-xl border border-border bg-card overflow-hidden">
+              {services.map((service, idx) => (
+                <div key={service.id} className="p-3.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 hover:bg-muted/30 transition-colors">
+                  {/* Left / Order & Reorder Controls */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex flex-col gap-0.5">
+                      <button
+                        type="button"
+                        disabled={idx === 0}
+                        onClick={() => moveService(idx, -1)}
+                        className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
+                        title={isRtl ? 'تحريك لأعلى' : 'Move up'}
+                      >
+                        <ArrowUp className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={idx === services.length - 1}
+                        onClick={() => moveService(idx, 1)}
+                        className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
+                        title={isRtl ? 'تحريك لأسفل' : 'Move down'}
+                      >
+                        <ArrowDown className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <span className="text-xs font-mono font-bold text-muted-foreground w-5 text-center">
+                      {idx + 1}
+                    </span>
+                  </div>
+
+                  {/* Service Inputs */}
+                  <div className="flex-1 grid grid-cols-1 sm:grid-cols-12 gap-2 w-full">
+                    <div className="sm:col-span-5">
+                      <Input
+                        value={service.name}
+                        onChange={e => updateService(service.id, { name: e.target.value })}
+                        className="h-9 text-xs rounded-lg font-bold"
+                        placeholder="اسم الخدمة"
+                      />
+                    </div>
+                    <div className="sm:col-span-3">
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          value={service.price}
+                          onChange={e => updateService(service.id, { price: Number(e.target.value) || 0 })}
+                          className="h-9 text-xs rounded-lg font-black text-emerald-600 dark:text-emerald-400 pl-8"
+                          placeholder="السعر"
+                        />
+                        <span className="absolute left-2 top-2 text-[10px] text-muted-foreground font-bold pointer-events-none">ج.م</span>
+                      </div>
+                    </div>
+                    <div className="sm:col-span-4">
+                      <Input
+                        value={service.duration || '15 دقيقة'}
+                        onChange={e => updateService(service.id, { duration: e.target.value })}
+                        className="h-9 text-xs rounded-lg"
+                        placeholder="المدة (مثال: 15 دقيقة)"
+                      />
+                    </div>
+                    {service.desc !== undefined && (
+                      <div className="sm:col-span-12">
+                        <Input
+                          value={service.desc || ''}
+                          onChange={e => updateService(service.id, { desc: e.target.value })}
+                          className="h-8 text-[11px] rounded-lg text-muted-foreground"
+                          placeholder={isRtl ? 'وصف تفصيلي للخدمة يظهر للمريض...' : 'Service description...'}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions / Toggle & Delete */}
+                  <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+                    <div className="flex items-center gap-1.5 px-2 py-1 bg-muted/60 rounded-lg">
+                      <Switch
+                        checked={service.isActive !== false}
+                        onCheckedChange={checked => updateService(service.id, { isActive: checked })}
+                        className="scale-75"
+                      />
+                      <span className="text-[10px] font-bold text-muted-foreground">
+                        {service.isActive !== false ? (isRtl ? 'مفعلة' : 'Active') : (isRtl ? 'معطلة' : 'Disabled')}
+                      </span>
+                    </div>
+
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => removeService(service.id)}
+                      className="text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 cursor-pointer h-8 w-8"
+                      title={isRtl ? 'حذف الخدمة' : 'Delete service'}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => removeService(service.id)}
-                  className="text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
-            ))}
+              ))}
+            </div>
+
+            <div className="pt-3 flex justify-end">
+              <Button
+                type="button"
+                onClick={handleSave}
+                disabled={isSaving}
+                className="h-9 px-5 text-xs font-bold yalla-gradient-btn text-white rounded-xl shadow-xs cursor-pointer"
+              >
+                {isSaving ? (isRtl ? 'جاري الحفظ...' : 'Saving...') : (isRtl ? 'حفظ تعديلات الخدمات' : 'Save Services')}
+              </Button>
+            </div>
           </div>
         </div>
       )}

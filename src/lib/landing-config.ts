@@ -25,7 +25,7 @@ const link = z
   .string()
   .max(500)
   .refine((v) => !v || /^\/(?!\/)/.test(v) || /^https?:\/\//.test(v), 'الرابط غير صالح')
-  .default('/clinic/zizo/login')
+  .default('/clinic/yalla-demo/login')
 
 // 0. 3D Orbit Interactive Pillars Schema
 const orbitCard = z.object({
@@ -194,7 +194,7 @@ export const DEFAULT_ENGLISH_TEXTS = {
   loginButtonText: 'Clinic Login',
   footerText: '© 2026 Yalla Clinic — Developed by YallaCodeX. All rights reserved.',
   demoSectionTitle: 'Real System Screenshots',
-  demoSectionSubtitle: 'Explore authentic interfaces of Yalla Clinic OS used by medical doctors every day.',
+  demoSectionSubtitle: 'Explore authentic interfaces of Yalla Clinic used by medical doctors every day.',
 }
 
 // English Localization Schema
@@ -423,7 +423,7 @@ export const DEFAULT_ORBIT_CARDS: OrbitCardItem[] = [
     textColor: '#ffffff',
     buttonText: 'عرض الشاشة',
     buttonTextEn: 'View TV Screen',
-    buttonLink: '/clinic/zizo/tv',
+    buttonLink: '/clinic/yalla-demo/tv',
     order: 1,
     visible: true,
     isDefaultActive: false,
@@ -867,9 +867,9 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
   demoButtonText: 'طلب ديمو مجاني',
   patientPortalButtonText: 'تواصل مع الدعم الفني',
   loginButtonText: 'دخول العيادة',
-  loginUrl: '/clinic/zizo/login',
-  demoUrl: '/clinic/zizo',
-  patientUrl: '/clinic/zizo/patient',
+  loginUrl: '/clinic/yalla-demo/login',
+  demoUrl: '/clinic/yalla-demo',
+  patientUrl: '/clinic/yalla-demo/patient',
   primaryWhatsapp: '201551007018',
   footerText: 'جميع الحقوق محفوظة لمنصة Yalla Clinic — تشغيل وتطوير YallaCodeX © 2026',
   demoSectionTitle: 'معرض واجهات يلا كلينيك الحقيقية',
