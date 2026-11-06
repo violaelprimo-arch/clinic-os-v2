@@ -71,17 +71,11 @@ export function isPlaceholderAddress(address?: string | null): boolean {
  */
 export function extractCoordsFromLink(url?: string | null): LocationCoords | null {
   if (!url) return null
-  const decoded = decodeURIComponent(url)
+  let decoded: string
+  try { decoded = decodeURIComponent(url) } catch { decoded = url }
 
-  // 1. @lat,lng format: e.g. /@30.1294522,31.2485622,17z
-  const atMatch = decoded.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)
-  if (atMatch) {
-    const lat = parseFloat(atMatch[1])
-    const lng = parseFloat(atMatch[2])
-    if (isValidCoords(lat, lng)) return { lat, lng }
-  }
-
-  // 2. Protocol buffer format: !3dlat!4dlng
+  // Place pin coordinates must take priority over the @camera-center, which
+  // can be several streets away from the place actually selected on Maps.
   const protoMatch = decoded.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/)
   if (protoMatch) {
     const lat = parseFloat(protoMatch[1])
@@ -94,6 +88,14 @@ export function extractCoordsFromLink(url?: string | null): LocationCoords | nul
   if (qMatch) {
     const lat = parseFloat(qMatch[1])
     const lng = parseFloat(qMatch[2])
+    if (isValidCoords(lat, lng)) return { lat, lng }
+  }
+
+  // Viewport coordinates are only a last resort for URLs without a place pin.
+  const atMatch = decoded.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)
+  if (atMatch) {
+    const lat = parseFloat(atMatch[1])
+    const lng = parseFloat(atMatch[2])
     if (isValidCoords(lat, lng)) return { lat, lng }
   }
 
@@ -130,8 +132,17 @@ export function resolveEffectiveLocation(
   let lat: number | null = null
   let lng: number | null = null
 
+  // The doctor's saved Maps link is authoritative; coordinates entered for
+  // an older link must not override its precise pin.
+  const selectedLink = currentBranch?.mapsLink || clinic?.mapsLink
+  const linkedCoords = extractCoordsFromLink(selectedLink)
+  if (linkedCoords) {
+    lat = linkedCoords.lat
+    lng = linkedCoords.lng
+  }
+
   // Priority 1: Branch direct latitude & longitude
-  if (currentBranch?.latitude && currentBranch?.longitude) {
+  if (lat === null && currentBranch?.latitude != null && currentBranch?.longitude != null) {
     const bLat = parseFloat(currentBranch.latitude)
     const bLng = parseFloat(currentBranch.longitude)
     if (isValidCoords(bLat, bLng)) {

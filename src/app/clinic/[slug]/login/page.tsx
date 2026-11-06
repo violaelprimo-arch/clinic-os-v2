@@ -3,7 +3,7 @@
 import { use, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { auth, db } from '@/lib/firebase'
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'
+import { signInWithEmailAndPassword, signInWithPopup, signOut, GoogleAuthProvider } from 'firebase/auth'
 import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,12 +25,6 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
   const { t, dir, isRtl } = useLanguage()
   const [email, setEmail] = useState('')
   
-  useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search)
-    if (searchParams.get('error') === 'subscription_ended') {
-      setError(isRtl ? 'تم انتهاء الاشتراك. يرجى التواصل مع الإدارة.' : 'Subscription has expired. Please contact administration.');
-    }
-  }, [isRtl])
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -41,7 +35,36 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
   const [newPassword, setNewPassword] = useState('')
   const [newPasswordConfirm, setNewPasswordConfirm] = useState('')
   const [clinicHero, setClinicHero] = useState('https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=1000&auto=format&fit=crop')
+  const [isGoogleRedirect, setIsGoogleRedirect] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    // Check if token returned in hash (e.g. from centralized login on main domain)
+    if (typeof window !== 'undefined' && window.location.hash) {
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+      const hashToken = hashParams.get('session_token')
+      const hashRole = hashParams.get('role') || 'doctor'
+      const hashName = hashParams.get('name')
+      if (hashToken) {
+        localStorage.setItem('clinic_session_token', hashToken)
+        localStorage.setItem('clinic_role', hashRole)
+        localStorage.removeItem('clinic_locked_branch')
+        localStorage.removeItem('clinic_locked_branch_name')
+        window.history.replaceState(null, '', window.location.pathname)
+        toast.success(isRtl ? (hashName ? `مرحباً ${hashName}، تم تسجيل الدخول عبر Google` : 'تم تسجيل الدخول بنجاح عبر Google') : 'Logged in successfully via Google')
+        router.push(`/clinic/${slug}/admin`)
+        return
+      }
+    }
+
+    const searchParams = new URLSearchParams(window.location.search)
+    if (searchParams.get('google_auth_redirect') === '1') {
+      setIsGoogleRedirect(true)
+    }
+    if (searchParams.get('error') === 'subscription_ended') {
+      setError(isRtl ? 'تم انتهاء الاشتراك. يرجى التواصل مع الإدارة.' : 'Subscription has expired. Please contact administration.');
+    }
+  }, [slug, isRtl, router])
 
   useEffect(() => {
     const fetchClinic = async () => {
@@ -175,6 +198,68 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
       setError(data.error || (isRtl ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' : 'Incorrect email or password.'))
     } catch (err: any) {
       setError(err.message || (isRtl ? 'فشل الاتصال بالخادم.' : 'Connection to server failed.'))
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleGoogleLogin = async () => {
+    setError(null)
+    setIsLoading(true)
+    try {
+      const provider = new GoogleAuthProvider()
+      provider.setCustomParameters({ prompt: 'select_account' })
+      const account = await signInWithPopup(auth, provider)
+      const idToken = await account.user.getIdToken()
+      const response = await fetch('/api/auth/google-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, idToken }),
+      })
+      const data = await response.json()
+      if (!response.ok || !data.success) {
+        await signOut(auth).catch(() => {})
+        throw new Error(data.error || 'حساب Google غير مصرح له بالدخول لهذه العيادة')
+      }
+      localStorage.setItem('clinic_session_token', data.token)
+      localStorage.setItem('clinic_role', data.user.role)
+      localStorage.removeItem('clinic_locked_branch')
+      localStorage.removeItem('clinic_locked_branch_name')
+      toast.success(isRtl ? `مرحباً ${data.user.name}` : `Welcome, ${data.user.name}`)
+
+      // If redirected from a subdomain, forward session securely via hash back to subdomain
+      const searchParams = new URLSearchParams(window.location.search)
+      const returnUrl = searchParams.get('return_url')
+      if (returnUrl) {
+        try {
+          const parsed = new URL(returnUrl)
+          if (parsed.protocol === 'https:' && (parsed.hostname === 'yalla-clinic.com' || parsed.hostname.endsWith('.yalla-clinic.com') || parsed.hostname === 'localhost')) {
+            window.location.href = `${parsed.origin}${parsed.pathname}#session_token=${encodeURIComponent(data.token)}&role=${encodeURIComponent(data.user.role)}&name=${encodeURIComponent(data.user.name || '')}`
+            return
+          }
+        } catch {}
+      }
+
+      router.push(`/clinic/${slug}/admin`)
+    } catch (error: any) {
+      const code = error?.code || ''
+      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return
+      if (code === 'auth/unauthorized-domain' || code === 'auth/operation-not-allowed') {
+        const isSubdomainOfYalla = typeof window !== 'undefined' &&
+          window.location.hostname.endsWith('yalla-clinic.com') &&
+          window.location.hostname !== 'yalla-clinic.com'
+        if (isSubdomainOfYalla) {
+          toast.info(isRtl ? 'جاري توجيهك إلى بوابة الدخول الرئيسية المصرح بها عبر Google...' : 'Redirecting to authorized main domain for Google login...')
+          const returnUrl = encodeURIComponent(window.location.origin + window.location.pathname)
+          window.location.href = `https://yalla-clinic.com/clinic/${slug}/login?google_auth_redirect=1&return_url=${returnUrl}`
+          return
+        }
+        setError(isRtl
+          ? `النطاق الحالي (${typeof window !== 'undefined' ? window.location.hostname : ''}) يحتاج إضافة في Authorized Domains داخل Firebase Authentication، أو يمكنك تسجيل الدخول بالبريد وكلمة المرور.`
+          : `Current domain (${typeof window !== 'undefined' ? window.location.hostname : ''}) must be added to Firebase Authorized Domains, or sign in using email and password.`)
+      } else {
+        setError(error?.message || (isRtl ? 'تعذر تسجيل الدخول عبر Google' : 'Google sign-in failed'))
+      }
     } finally {
       setIsLoading(false)
     }
@@ -342,6 +427,13 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
             </div>
             ) : (
             <>
+              {isGoogleRedirect && (
+                <div className="p-3 bg-primary/10 border border-primary/20 rounded-xl text-xs text-primary font-medium flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 shrink-0 text-primary" />
+                  <span>{isRtl ? 'تم تحويلك إلى البوابة الموثقة. اضغط على زر تسجيل الدخول عبر Google بالأسفل للمتابعة والعودة لعيادتك تلقائياً.' : 'Redirected to authorized portal. Click the Google Sign-in button below to continue and return to your clinic.'}</span>
+                </div>
+              )}
+
               {error && (
               <Alert variant="destructive" className="bg-rose-500/10 border-rose-500/20 text-rose-700 dark:text-rose-400 rounded-xl text-xs">
                 <AlertCircle className="h-4 w-4 text-rose-600 dark:text-rose-400" />
@@ -419,11 +511,12 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
               </span>
             </div>
 
-            {/* Mock Google Login Button */}
+            {/* Verified Google sign-in for the registered doctor of this clinic */}
             <Button
               type="button"
               variant="outline"
-              onClick={() => toast.info(isRtl ? 'تسجيل الدخول عبر Google متاح لحسابات المؤسسات الطبية' : 'Google sign-in is available for healthcare organization accounts')}
+              onClick={handleGoogleLogin}
+              disabled={isLoading}
               className="w-full h-11 text-xs font-bold text-foreground border-border hover:bg-muted/40 rounded-xl flex items-center justify-center gap-2"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24">

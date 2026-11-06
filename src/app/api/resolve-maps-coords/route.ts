@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { extractCoordsFromLink } from '@/lib/mapsHelper'
 
+const GOOGLE_MAPS_HOSTS = new Set([
+  'maps.app.goo.gl', 'goo.gl', 'maps.google.com', 'www.google.com',
+  'google.com', 'maps.google.co.uk', 'www.google.co.uk',
+])
+
+function approvedMapsUrl(raw: string): URL | null {
+  try {
+    const url = new URL(raw)
+    if (url.protocol !== 'https:' || url.username || url.password || url.port ||
+        !GOOGLE_MAPS_HOSTS.has(url.hostname.toLowerCase())) return null
+    return url
+  } catch { return null }
+}
+
 export async function GET(req: NextRequest) {
   const urlParam = req.nextUrl.searchParams.get('url')
   const addressParam = req.nextUrl.searchParams.get('address')
@@ -14,6 +28,9 @@ export async function GET(req: NextRequest) {
 
   // 1. Try direct coordinate extraction from urlParam
   if (urlParam) {
+    if (!approvedMapsUrl(urlParam)) {
+      return NextResponse.json({ success: false, error: 'Only HTTPS Google Maps links are supported' }, { status: 400 })
+    }
     const directCoords = extractCoordsFromLink(urlParam)
     if (directCoords) {
       return NextResponse.json({
@@ -24,18 +41,23 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    // 2. If it's a short link (e.g. maps.app.goo.gl, goo.gl), follow redirect
+    // 2. Follow redirects without allowing arbitrary external/localhost targets.
     try {
-      const response = await fetch(urlParam, {
-        method: 'GET',
-        redirect: 'follow',
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        }
-      })
-
-      const finalUrl = response.url
+      let target = approvedMapsUrl(urlParam)!
+      for (let i = 0; i < 6; i++) {
+        const response = await fetch(target.toString(), {
+          method: 'GET',
+          redirect: 'manual',
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; YallaClinicMapResolver/1.0)' },
+          signal: AbortSignal.timeout(5000),
+        })
+        const redirect = response.headers.get('location')
+        if (!redirect || response.status < 300 || response.status >= 400) break
+        const next = approvedMapsUrl(new URL(redirect, target).toString())
+        if (!next) break
+        target = next
+      }
+      const finalUrl = target.toString()
       const finalCoords = extractCoordsFromLink(finalUrl)
       if (finalCoords) {
         return NextResponse.json({

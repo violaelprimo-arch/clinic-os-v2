@@ -250,6 +250,31 @@ export async function deleteDocument(path: string) {
   if (!response.ok && response.status !== 404)
     throw new Error('FIRESTORE_DELETE_FAILED')
 }
+
+/** Server-only exact field query, used for tenant-scoped authentication. */
+export async function findDocumentsByField(collection: string, field: string, value: string, limit = 2) {
+  const url = documentUrl('') + ':runQuery'
+  const response = await request(url.replace('/documents/:', '/documents:'), {
+    method: 'POST',
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: collection }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath: field },
+            op: 'EQUAL',
+            value: { stringValue: value },
+          },
+        },
+        limit,
+      },
+    }),
+  })
+  if (!response.ok) throw new Error('FIRESTORE_QUERY_FAILED')
+  const rows = (await response.json()) as { document?: FirestoreDocument }[]
+  return rows.flatMap(row => row.document ? [unpack(row.document)] : [])
+}
+
 export async function queryDocuments(collection: string, approvedOnly = false) {
   // 1. Attempt structured runQuery (without remote composite orderBy to avoid missing-index errors)
   try {

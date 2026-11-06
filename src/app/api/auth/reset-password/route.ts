@@ -1,27 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
-import { hashPassword, verifyPassword, createSessionToken } from '@/lib/auth-crypto'
-import { recordAuditLog } from '@/lib/audit-logger'
+import { hashPassword, verifyPassword } from '@/lib/auth-crypto'
+import { createDocument, findDocumentsByField, writeDocument } from '@/lib/server/firebase-rest'
+import { otpMailProviderConfigured, sendPasswordResetOtp } from '@/lib/server/otp-mailer'
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}))
-    const { action, email, slug, otp, newPassword, resetToken } = body
+    const { action, email, slug, otp, newPassword } = body
 
     if (!slug) {
       return NextResponse.json({ error: 'معرف العيادة مطلوب' }, { status: 400 })
     }
 
-    const q = query(collection(db, 'clinics'), where('slug', '==', slug))
-    const snap = await getDocs(q)
-    if (snap.empty) {
+    const clinics = await findDocumentsByField('clinics', 'slug', String(slug))
+    if (clinics.length !== 1) {
       return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404 })
     }
-
-    const cDoc = snap.docs[0]
-    const clinic = cDoc.data()
-    const clinicId = cDoc.id
+    const clinic = clinics[0]
+    const clinicId = String(clinic.id)
 
     // ACTION 1: Request OTP
     if (action === 'request') {
@@ -30,7 +26,7 @@ export async function POST(req: NextRequest) {
       }
 
       const cleanInputEmail = String(email).trim().toLowerCase()
-      const registeredEmail = (clinic.doctorEmail || '').trim().toLowerCase()
+      const registeredEmail = String(clinic.doctorEmail || '').trim().toLowerCase()
 
       // If email does not match registered email, do not disclose details
       if (!registeredEmail || cleanInputEmail !== registeredEmail) {
@@ -40,8 +36,15 @@ export async function POST(req: NextRequest) {
         })
       }
 
+      if (!(await otpMailProviderConfigured())) {
+        return NextResponse.json({
+          error: 'خدمة إرسال رموز التحقق غير مُفعّلة. تواصل مع إدارة المنصة لتفعيل خدمة البريد.',
+          code: 'EMAIL_PROVIDER_NOT_CONFIGURED',
+        }, { status: 503 })
+      }
+
       // 60-Second Cooldown between OTP requests
-      const lastRequestedAt = clinic.resetPasswordRequestedAt ? new Date(clinic.resetPasswordRequestedAt).getTime() : 0
+      const lastRequestedAt = clinic.resetPasswordRequestedAt ? new Date(String(clinic.resetPasswordRequestedAt)).getTime() : 0
       const cooldownRemaining = Math.ceil((lastRequestedAt + 60000 - Date.now()) / 1000)
       if (cooldownRemaining > 0) {
         return NextResponse.json(
@@ -60,45 +63,34 @@ export async function POST(req: NextRequest) {
       const expiresAt = Date.now() + 10 * 60 * 1000 // 10 minutes validity
 
       // Update Firestore document with new hashed OTP, resetting attempts
-      await updateDoc(doc(db, 'clinics', clinicId), {
+      await writeDocument(`clinics/${clinicId}`, {
         resetPasswordOtpHashed: hashedOtp,
         resetPasswordOtp: null, // Clear legacy plaintext
         resetPasswordExpiresAt: expiresAt,
         resetPasswordAttempts: 0,
         resetPasswordRequestedAt: new Date().toISOString()
-      })
+      }, true)
 
       // Send OTP via email delivery engine
       try {
-        const url = new URL('/api/send-otp', req.url)
-        const sendOtpRes = await fetch(url.toString(), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: cleanInputEmail,
-            otp: generatedOtp,
-            doctorName: clinic.doctorName,
-            clinicName: clinic.clinicName
-          })
+        await sendPasswordResetOtp({
+          email: cleanInputEmail,
+          otp: generatedOtp,
+          doctorName: String(clinic.doctorName || ''),
+          clinicName: String(clinic.clinicName || ''),
         })
-
-        const sendData = await sendOtpRes.json().catch(() => ({}))
-        if (!sendOtpRes.ok || sendData.success === false) {
-          console.error('[reset-password] send-otp returned error:', sendData)
-          return NextResponse.json(
-            {
-              success: false,
-              error: sendData.error || 'تعذر إرسال رمز التحقق إلى بريدك الإلكتروني عبر مزود الخدمة.',
-              code: sendData.code || 'DELIVERY_FAILED'
-            },
-            { status: 502 }
-          )
-        }
-      } catch (err: any) {
-        console.error('[reset-password] Error invoking send-otp:', err)
+      } catch (err) {
+        // A failed email must not leave a seemingly valid reset challenge.
+        await writeDocument(`clinics/${clinicId}`, {
+          resetPasswordOtpHashed: null,
+          resetPasswordExpiresAt: null,
+          resetPasswordRequestedAt: null,
+          resetPasswordAttempts: null,
+        }, true).catch(() => {})
+        console.error('[reset-password] OTP email delivery failed:', err instanceof Error ? err.message : 'UNKNOWN')
         return NextResponse.json(
-          { error: 'تعذر الاتصال بخدمة إرسال البريد: ' + (err?.message || 'خطأ غير معروف') },
-          { status: 500 }
+          { error: 'تعذر إرسال رمز التحقق. راجع إعدادات مزود البريد وصلاحية الدومين مع الدعم الفني.', code: 'EMAIL_DELIVERY_FAILED' },
+          { status: 502 }
         )
       }
 
@@ -125,7 +117,7 @@ export async function POST(req: NextRequest) {
       }
 
       const cleanInputEmail = String(email).trim().toLowerCase()
-      const registeredEmail = (clinic.doctorEmail || '').trim().toLowerCase()
+      const registeredEmail = String(clinic.doctorEmail || '').trim().toLowerCase()
 
       if (cleanInputEmail !== registeredEmail) {
         return NextResponse.json(
@@ -159,13 +151,13 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      const isOtpValid = await verifyPassword(String(otp).trim(), storedOtpHash)
+      const isOtpValid = await verifyPassword(String(otp).trim(), String(storedOtpHash))
 
       // Increment failed attempts on mismatch
       if (!isOtpValid) {
-        await updateDoc(doc(db, 'clinics', clinicId), {
+        await writeDocument(`clinics/${clinicId}`, {
           resetPasswordAttempts: attempts + 1
-        })
+        }, true)
         const remainingAttempts = Math.max(0, 4 - attempts)
         return NextResponse.json(
           { error: `رمز التحقق (OTP) غير صحيح. متبقي لديك ${remainingAttempts} محاولات.` },
@@ -176,7 +168,7 @@ export async function POST(req: NextRequest) {
       // Update password securely and revoke OTP (Single-Use consumption)
       const newPasswordHash = await hashPassword(String(newPassword))
 
-      await updateDoc(doc(db, 'clinics', clinicId), {
+      await writeDocument(`clinics/${clinicId}`, {
         doctorPasswordHash: newPasswordHash,
         doctorPassword: null, // Wipe any plaintext password
         mustChangePassword: false, // Validated doctor is changing their own password
@@ -186,15 +178,13 @@ export async function POST(req: NextRequest) {
         resetPasswordAttempts: null,
         resetPasswordRequestedAt: null,
         passwordLastChangedAt: new Date().toISOString()
-      })
+      }, true)
 
-      await recordAuditLog({
-        action: 'PASSWORD_RESET',
-        actorName: clinic.doctorName || 'طبيب العيادة',
-        actorRole: 'doctor',
-        clinicId,
-        details: { email: cleanInputEmail, method: 'OTP_GMAIL' }
-      })
+      await createDocument('audit_logs', {
+        action: 'PASSWORD_RESET', actorName: String(clinic.doctorName || 'طبيب العيادة'),
+        actorRole: 'doctor', clinicId, details: { email: cleanInputEmail, method: 'OTP_EMAIL' },
+        createdAt: new Date().toISOString(),
+      }).catch(() => {})
 
       return NextResponse.json({
         success: true,
@@ -204,9 +194,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ error: 'إجراء غير معروف' }, { status: 400 })
   } catch (error: any) {
-    console.error('Password reset API error:', error)
+    console.error('Password reset API error:', error instanceof Error ? error.message : 'UNKNOWN')
     return NextResponse.json(
-      { error: 'حدث خطأ في الخادم أثناء معالجة الطلب' },
+      { error: 'تعذر الاتصال بخدمة الحسابات. حاول مرة أخرى أو تواصل مع الدعم الفني.' },
       { status: 500 }
     )
   }

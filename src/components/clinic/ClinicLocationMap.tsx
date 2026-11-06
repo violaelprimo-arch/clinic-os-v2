@@ -23,7 +23,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { getClinicBranches, formatWeeklyScheduleSummary, isClinicOpenNow, DEFAULT_WEEKLY_SCHEDULE } from '@/lib/branchService'
-import { resolveEffectiveLocation, isPlaceholderAddress, sanitizeAddress } from '@/lib/mapsHelper'
+import { resolveEffectiveLocation, extractCoordsFromLink, isPlaceholderAddress, sanitizeAddress } from '@/lib/mapsHelper'
 
 export interface ClinicLocationMapProps {
   clinic: any
@@ -48,9 +48,9 @@ export function ClinicLocationMap({
       id: 'main',
       name: 'الفرع الرئيسي',
       address: clinic?.clinicAddress || 'شارع النصر - مدينة نصر - القاهرة',
-      latitude: clinic?.latitude || 30.0521,
-      longitude: clinic?.longitude || 31.3422,
-      mapsLink: clinic?.mapsLink || 'https://maps.google.com/?q=Nasr+City+Cairo',
+      latitude: clinic?.latitude ?? null,
+      longitude: clinic?.longitude ?? null,
+      mapsLink: clinic?.mapsLink || '',
       phone: clinic?.clinicPhone || '01012345678',
       whatsapp: clinic?.whatsappNumber || clinic?.clinicPhone || '01012345678',
       workingHours: clinic?.workingHours || formatWeeklyScheduleSummary(clinic?.weeklySchedule, true) || 'السبت - الخميس: 9:00 ص - 10:00 م',
@@ -75,7 +75,7 @@ export function ClinicLocationMap({
     return initialList[0]
   })
   const [isCopied, setIsCopied] = useState<boolean>(false)
-  const [asyncResolvedCoords, setAsyncResolvedCoords] = useState<{ lat: number; lng: number } | null>(null)
+  const [asyncResolvedCoords, setAsyncResolvedCoords] = useState<{ lat: number; lng: number; source: string } | null>(null)
 
   // Load branches from Firestore if not provided as prop
   useEffect(() => {
@@ -102,9 +102,9 @@ export function ClinicLocationMap({
             return {
               ...b,
               address: addr,
-              latitude: b.latitude || clinic?.latitude,
-              longitude: b.longitude || clinic?.longitude,
-              mapsLink: b.mapsLink || clinic?.mapsLink || `https://maps.google.com/?q=${encodeURIComponent(addr)}`,
+              latitude: b.latitude ?? clinic?.latitude,
+              longitude: b.longitude ?? clinic?.longitude,
+              mapsLink: b.mapsLink || clinic?.mapsLink || '',
               phone: b.phone || clinic?.clinicPhone || '01012345678',
               whatsapp: b.whatsapp || clinic?.whatsappNumber || b.phone || clinic?.clinicPhone || '01012345678',
               workingHours: b.workingHours || clinic?.workingHours || formatWeeklyScheduleSummary(b.weeklySchedule || clinic?.weeklySchedule, true),
@@ -149,15 +149,23 @@ export function ClinicLocationMap({
 
   // Resolve location using multi-tier hierarchy
   const effective = resolveEffectiveLocation(current, clinic)
-  const effectiveLat = asyncResolvedCoords?.lat ?? effective.lat ?? 30.1294522
-  const effectiveLng = asyncResolvedCoords?.lng ?? effective.lng ?? 31.2485622
+  const selectedMapsLink = current?.mapsLink || clinic?.mapsLink || ''
+  const linkHasExactCoordinates = !!extractCoordsFromLink(selectedMapsLink)
+  const resolutionSource = selectedMapsLink || effective.address
+  const resolvedForCurrent = asyncResolvedCoords?.source === resolutionSource ? asyncResolvedCoords : null
+  const effectiveLat = resolvedForCurrent?.lat ?? (!selectedMapsLink || linkHasExactCoordinates ? effective.lat : null)
+  const effectiveLng = resolvedForCurrent?.lng ?? (!selectedMapsLink || linkHasExactCoordinates ? effective.lng : null)
   const effectiveAddress = effective.address
-  const effectiveDirectionsUrl = effective.directionsUrl
+  const effectiveDirectionsUrl = selectedMapsLink && !effectiveLat
+    ? effective.mapsLink
+    : effectiveLat != null && effectiveLng != null
+      ? `https://www.google.com/maps/dir/?api=1&destination=${effectiveLat},${effectiveLng}`
+      : effective.directionsUrl
   const effectiveMapsLink = effective.mapsLink
 
   // Attempt async resolution if coordinates are completely missing
   useEffect(() => {
-    if (effective.lat !== null && effective.lng !== null) {
+    if (linkHasExactCoordinates || (!selectedMapsLink && effective.lat !== null && effective.lng !== null)) {
       setAsyncResolvedCoords(null)
       return
     }
@@ -165,14 +173,14 @@ export function ClinicLocationMap({
     let isMounted = true
     const resolveAsync = async () => {
       try {
-        const queryParam = current?.mapsLink || clinic?.mapsLink
+        const queryParam = selectedMapsLink
         const addrParam = effectiveAddress
         const res = await fetch(
           `/api/resolve-maps-coords?${queryParam ? `url=${encodeURIComponent(queryParam)}` : `address=${encodeURIComponent(addrParam)}`}`
         )
         const data = await res.json()
         if (data.success && typeof data.lat === 'number' && typeof data.lng === 'number' && isMounted) {
-          setAsyncResolvedCoords({ lat: data.lat, lng: data.lng })
+          setAsyncResolvedCoords({ lat: data.lat, lng: data.lng, source: resolutionSource })
         }
       } catch (e) {}
     }
@@ -181,12 +189,12 @@ export function ClinicLocationMap({
     return () => {
       isMounted = false
     }
-  }, [current?.mapsLink, clinic?.mapsLink, effectiveAddress, effective.lat, effective.lng])
+  }, [selectedMapsLink, linkHasExactCoordinates, effectiveAddress, effective.lat, effective.lng, resolutionSource])
 
   // Official Google Maps Embed Query
-  const iframeEmbedUrl = (effectiveLat && effectiveLng)
+  const iframeEmbedUrl = (effectiveLat != null && effectiveLng != null)
     ? `https://maps.google.com/maps?q=${effectiveLat},${effectiveLng}&t=&z=16&ie=UTF8&iwloc=&output=embed`
-    : `https://maps.google.com/maps?q=${encodeURIComponent(effectiveAddress || clinic?.clinicName || 'Cairo')}&t=&z=16&ie=UTF8&iwloc=&output=embed`
+    : ''
 
   const handleCopyAddress = () => {
     if (!effectiveAddress) return
@@ -336,17 +344,25 @@ export function ClinicLocationMap({
 
         {/* Google Maps Viewport */}
         <div className="relative w-full h-72 sm:h-80 md:h-96 bg-slate-950">
-          <iframe
-            title={`خريطة موقع ${current?.name || clinic?.clinicName || 'العيادة'}`}
-            src={iframeEmbedUrl}
-            width="100%"
-            height="100%"
-            style={{ border: 0 }}
-            allowFullScreen
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-            className="w-full h-full"
-          />
+          {iframeEmbedUrl ? (
+            <iframe
+              title={`خريطة موقع ${current?.name || clinic?.clinicName || 'العيادة'}`}
+              src={iframeEmbedUrl}
+              width="100%"
+              height="100%"
+              style={{ border: 0 }}
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              className="w-full h-full"
+            />
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center gap-3 p-6 text-center text-slate-100">
+              <MapPin className="w-8 h-8" />
+              <p className="text-sm font-bold">لم نتمكن من تأكيد دبوس الموقع بدقة؛ افتح الرابط الأصلي في Google Maps.</p>
+              {selectedMapsLink && <a href={effectiveMapsLink} target="_blank" rel="noreferrer" className="underline text-sky-300">فتح الموقع الأصلي</a>}
+            </div>
+          )}
         </div>
       </div>
 
