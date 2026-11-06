@@ -498,7 +498,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
     { id: 'security', label: t('tab_security', 'الأمان والحساب'), icon: Lock },
     { id: 'profile', label: t('tab_profile', 'الهوية والبيانات'), icon: Building2 },
     { id: 'booking', label: t('tab_booking', 'تصميم صفحة الحجز'), icon: LayoutTemplate },
-    ...(canEditBranding ? [{ id: 'branding', label: t('tab_branding', 'هوية العيادة والطباعة'), icon: Palette }] : []),
+    ...(canEditBranding ? [{ id: 'branding', label: t('tab_branding', 'الهوية والألوان واللوجو'), icon: Palette }] : []),
     { id: 'queue', label: t('tab_queue', 'المواعيد والدور'), icon: Clock },
     { id: 'services', label: t('tab_services', 'الخدمات والأسعار'), icon: ShieldCheck },
     { id: 'payment', label: t('tab_payment', 'طرق الدفع'), icon: Wallet },
@@ -904,10 +904,10 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
             <div className="pb-3 border-b border-border">
               <h3 className="font-bold text-base text-foreground flex items-center gap-2">
                 <Palette className="w-5 h-5 text-primary" />
-                {t('branding_settings_title', 'إعدادات هوية العيادة والطباعة الحرارية')}
+                {t('branding_settings_title', 'الهوية البصرية الموحدة للعيادة')}
               </h3>
               <p className="text-xs text-muted-foreground mt-1">
-                {t('branding_settings_desc', 'تخصيص الشعار الملون، شعار الفواتير الحرارية 80mm أحادي اللون، ألوان الهوية، ونصوص التذييل')}
+                {t('branding_settings_desc', 'مكان واحد لتغيير ألوان ولوجو العيادة؛ تُطبّق الهوية على صفحة الحجز ولوحة الدكتور والروشتة والفواتير')}
               </p>
             </div>
 
@@ -1296,15 +1296,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-muted-foreground">{t('certification_entity_label', 'الجهة المانحة (النقابة / الزمالة)')}</Label>
-                  <Input
-                    value={certificationEntity}
-                    onChange={e => setCertificationEntity(e.target.value)}
-                    placeholder="Egyptian Medical Syndicate"
-                    className="h-10 text-xs rounded-xl"
-                  />
-                </div>
+
               </div>
 
               <div className="grid sm:grid-cols-2 gap-4">
@@ -1342,23 +1334,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-muted-foreground">{t('system_primary_color', 'اللون الرئيسي للنظام')}</Label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="color"
-                    value={primaryColor}
-                    onChange={e => setPrimaryColor(e.target.value)}
-                    className="w-10 h-10 rounded-xl cursor-pointer border border-border p-0.5 bg-background shrink-0"
-                  />
-                  <Input
-                    value={primaryColor}
-                    onChange={e => setPrimaryColor(e.target.value)}
-                    className="h-10 w-32 font-mono text-xs rounded-xl text-left"
-                    dir="ltr"
-                  />
-                </div>
-              </div>
+
 
               <div className="grid sm:grid-cols-2 gap-4 pt-1">
                 <div className="space-y-1.5 p-3 rounded-xl bg-muted/30 border border-border">
