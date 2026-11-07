@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import { useLanguage } from '@/context/LanguageContext'
 import { BookingModal } from '@/components/clinic/BookingModal'
@@ -49,37 +50,46 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
   const [liveTurnOpen, setLiveTurnOpen] = useState(false)
   const [selectedService, setSelectedService] = useState<any>(null)
   const [loadedBranches, setLoadedBranches] = useState<any[]>([])
-  const [selectedBranch, setSelectedBranch] = useState<any>(
-    clinic?.branches?.[0] || { id: 'main', name: clinic?.clinicName || 'الفرع الرئيسي', address: clinic?.clinicAddress || '' }
-  )
+  const [branchesResolved, setBranchesResolved] = useState<boolean>(isPreview)
+  const [selectedBranch, setSelectedBranch] = useState<any>(null)
   const [dark, setDark] = useState(false)
 
-  // Fetch real branches from Firestore on mount
+  // Read authoritative branch statuses, including PAUSED branches, from the server.
+  // Never show a virtual open branch once the server has reported no available branches.
   useEffect(() => {
-    if (!clinic?.id && !clinic?.slug) return
-    const clinicId = clinic.id || clinic.slug
-    let isMounted = true
-    getClinicBranches(clinicId)
-      .then((list) => {
-        const active = list.filter((b: any) => !b.isArchived)
-        if (active.length > 0 && isMounted) {
-          const mapped = active.map((b: any) => ({
-            ...b,
-            image: b.image || b.imageUrl || clinic?.branchImage || 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=800&auto=format&fit=crop'
-          }))
-          setLoadedBranches(mapped)
-          setSelectedBranch((prev: any) => {
-            if (!prev || prev.id === 'main') return mapped[0]
-            const found = mapped.find((b: any) => b.id === prev.id)
-            return found || mapped[0]
-          })
-        }
-      })
-      .catch((e) => console.warn('Could not load branches in PremiumLanding:', e))
-    return () => {
-      isMounted = false
+    if (isPreview) {
+      const list = (Array.isArray(clinic?.branches) ? clinic.branches : [])
+        .filter((b: any) => b.isArchived !== true && b.isOpen !== false)
+      setLoadedBranches(list)
+      setSelectedBranch(list[0] || null)
+      setBranchesResolved(true)
+      return
     }
-  }, [clinic?.id, clinic?.slug, clinic?.branchImage])
+    if (!slug) return
+    let active = true
+    setBranchesResolved(false)
+    fetch(`/api/clinic/${encodeURIComponent(slug)}/branches`, { cache: 'no-store' })
+      .then(async (res) => {
+        if (!res.ok) throw new Error('Failed to load branch statuses')
+        const data = await res.json()
+        if (!Array.isArray(data.branches)) throw new Error('Invalid branch list')
+        return data.branches
+      })
+      .then((items: any[]) => {
+        if (!active) return
+        const open = items.filter((b: any) => b.isArchived !== true && b.isOpen !== false)
+        setLoadedBranches(open)
+        setSelectedBranch((previous: any) => open.find((b: any) => b.id === previous?.id) || open[0] || null)
+        setBranchesResolved(true)
+      })
+      .catch(() => {
+        if (!active) return
+        setLoadedBranches([])
+        setSelectedBranch(null)
+        setBranchesResolved(true)
+      })
+    return () => { active = false }
+  }, [slug, isPreview, clinic?.branches])
 
   const handleToggleDark = () => {
     setDark(!dark)
@@ -87,31 +97,23 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
   }
 
   const handleOpenBooking = (service?: any, branch?: any) => {
+    if (!branchesResolved) {
+      toast.error('جارٍ التأكد من الفروع المتاحة؛ أعد المحاولة بعد لحظات')
+      return
+    }
+    if (branches.length === 0 || (branch && !branches.some((b: any) => b.id === branch.id))) {
+      toast.error('لا يوجد فرع مفتوح لاستقبال الحجوزات حالياً')
+      return
+    }
     if (service) setSelectedService(service)
-    if (branch) setSelectedBranch(branch)
+    setSelectedBranch(branch || selectedBranch || branches[0])
     setBookingOpen(true)
   }
 
-  const branches = loadedBranches.length > 0
+  const branches = branchesResolved
     ? loadedBranches
-    : clinic?.branches?.length
-    ? clinic.branches.map((b: any) => ({
-        ...b,
-        image: b.image || b.imageUrl || clinic?.branchImage || 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=800&auto=format&fit=crop'
-      }))
-    : [
-        {
-          id: 'main',
-          name: isRtl ? 'الفرع الرئيسي' : 'Main Branch',
-          address: sanitizeAddress(clinic?.clinicAddress) || '',
-          latitude: clinic?.latitude,
-          longitude: clinic?.longitude,
-          mapsLink: clinic?.mapsLink,
-          phone: clinic?.clinicPhone || '',
-          image: clinic?.branchImage || 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=800&auto=format&fit=crop',
-          isOpen: clinic?.isClinicOpen !== false
-        }
-      ]
+    : (Array.isArray(clinic?.branches) ? clinic.branches : [])
+        .filter((b: any) => b.isArchived !== true && b.isOpen !== false)
 
   // Doctor portrait strictly from doctor/hero photo
   const rawDoctorImage = clinic?.heroImage || clinic?.doctorPhoto || ''
@@ -500,12 +502,12 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
                         {isRtl ? 'معلومات التواصل' : 'Clinic Information'}
                       </h2>
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                        clinic?.isClinicOpen !== false && isClinicOpenNow(selectedBranch?.weeklySchedule || clinic?.weeklySchedule)
+                        clinic?.isClinicOpen !== false && selectedBranch?.isOpen !== false && isClinicOpenNow(selectedBranch?.weeklySchedule || clinic?.weeklySchedule)
                           ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
                           : 'bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
                       }`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${clinic?.isClinicOpen !== false && isClinicOpenNow(selectedBranch?.weeklySchedule || clinic?.weeklySchedule) ? 'bg-emerald-500 animate-ping' : 'bg-rose-500'}`} />
-                        <span>{clinic?.isClinicOpen !== false && isClinicOpenNow(selectedBranch?.weeklySchedule || clinic?.weeklySchedule) ? (isRtl ? 'مفتوح الآن' : 'Open Now') : (isRtl ? 'مغلق حالياً' : 'Closed Now')}</span>
+                        <span className={`w-1.5 h-1.5 rounded-full ${clinic?.isClinicOpen !== false && selectedBranch?.isOpen !== false && isClinicOpenNow(selectedBranch?.weeklySchedule || clinic?.weeklySchedule) ? 'bg-emerald-500 animate-ping' : 'bg-rose-500'}`} />
+                        <span>{clinic?.isClinicOpen !== false && selectedBranch?.isOpen !== false && isClinicOpenNow(selectedBranch?.weeklySchedule || clinic?.weeklySchedule) ? (isRtl ? 'مفتوح الآن' : 'Open Now') : (isRtl ? 'مغلق حالياً' : 'Closed Now')}</span>
                       </span>
                     </div>
 
