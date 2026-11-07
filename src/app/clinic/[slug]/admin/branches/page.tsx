@@ -272,6 +272,23 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
     }
   }
 
+  const handleSetMainBranch = async (branchId: string) => {
+    try {
+      const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/branches`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ id: branchId, isMain: true }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.success) throw new Error(data.error || 'فشل تحديد الفرع الرئيسي')
+      await fetchClinicAndBranches()
+      toast.success('تم تحديد الفرع الرئيسي للعيادة')
+    } catch (error: any) {
+      toast.error(error?.message || 'تعذر تغيير الفرع الرئيسي')
+    }
+  }
+
   const handleArchiveBranch = async (branchId: string, isMain?: boolean) => {
     if (isMain) {
       return toast.error('لا يمكن أرشفة الفرع الرئيسي للعيادة')
@@ -519,12 +536,12 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                   {!b.isMain && (
                     <Button
                       size="sm"
-                      variant="ghost"
-                      onClick={() => handleArchiveBranch(b.id, b.isMain)}
-                      className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 rounded-xl"
-                      title={language === 'en' ? 'Archive Branch' : 'أرشفة الفرع'}
+                      variant="outline"
+                      onClick={() => handleSetMainBranch(b.id)}
+                      className="h-8 px-2.5 text-[11px] font-bold rounded-xl border-primary/30 text-primary hover:bg-primary/10"
                     >
-                      <Archive className="w-3.5 h-3.5" />
+                      <Building2 className="w-3.5 h-3.5" />
+                      تعيين كرئيسي
                     </Button>
                   )}
                 </div>
