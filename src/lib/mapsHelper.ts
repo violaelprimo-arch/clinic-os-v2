@@ -77,15 +77,8 @@ export function isPlaceholderAddress(address?: string | null): boolean {
  */
 export function extractCoordsFromLink(url?: string | null): LocationCoords | null {
   if (!url) return null
-  const decoded = decodeURIComponent(url)
-
-  // 1. @lat,lng format: e.g. /@30.1294522,31.2485622,17z
-  const atMatch = decoded.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)
-  if (atMatch) {
-    const lat = parseFloat(atMatch[1])
-    const lng = parseFloat(atMatch[2])
-    if (isValidCoords(lat, lng)) return { lat, lng }
-  }
+  let decoded = url
+  try { decoded = decodeURIComponent(url) } catch { /* preserve malformed URL for validation elsewhere */ }
 
   // 2. Protocol buffer format: !3dlat!4dlng (Google Maps Place marker)
   const protoMatch = decoded.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/)
@@ -117,6 +110,17 @@ export function extractCoordsFromLink(url?: string | null): LocationCoords | nul
     const lat = parseFloat(rawMatch[1])
     const lng = parseFloat(rawMatch[2])
     if (isValidCoords(lat, lng)) return { lat, lng }
+  }
+
+  // Map camera coordinates after @ are NOT necessarily the destination pin.
+  // Never treat the viewport of a /maps/place/ URL as a verified clinic location.
+  if (!/\/maps\/place\//i.test(decoded)) {
+    const viewport = decoded.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)
+    if (viewport) {
+      const lat = parseFloat(viewport[1])
+      const lng = parseFloat(viewport[2])
+      if (isValidCoords(lat, lng)) return { lat, lng }
+    }
   }
 
   return null
