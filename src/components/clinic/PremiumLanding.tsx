@@ -514,12 +514,12 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
                         {isRtl ? 'معلومات التواصل' : 'Clinic Information'}
                       </h2>
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                        clinic?.isClinicOpen !== false && selectedBranch?.isOpen !== false && isClinicOpenNow(selectedBranch?.weeklySchedule || clinic?.weeklySchedule)
+                        Boolean(selectedBranch) && selectedBranch?.isOpen !== false && isClinicOpenNow(selectedBranch?.weeklySchedule || clinic?.weeklySchedule)
                           ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
                           : 'bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
                       }`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${clinic?.isClinicOpen !== false && selectedBranch?.isOpen !== false && isClinicOpenNow(selectedBranch?.weeklySchedule || clinic?.weeklySchedule) ? 'bg-emerald-500 animate-ping' : 'bg-rose-500'}`} />
-                        <span>{clinic?.isClinicOpen !== false && selectedBranch?.isOpen !== false && isClinicOpenNow(selectedBranch?.weeklySchedule || clinic?.weeklySchedule) ? (isRtl ? 'مفتوح الآن' : 'Open Now') : (isRtl ? 'مغلق حالياً' : 'Closed Now')}</span>
+                        <span className={`w-1.5 h-1.5 rounded-full ${Boolean(selectedBranch) && selectedBranch?.isOpen !== false && isClinicOpenNow(selectedBranch?.weeklySchedule || clinic?.weeklySchedule) ? 'bg-emerald-500 animate-ping' : 'bg-rose-500'}`} />
+                        <span>{Boolean(selectedBranch) && selectedBranch?.isOpen !== false && isClinicOpenNow(selectedBranch?.weeklySchedule || clinic?.weeklySchedule) ? (isRtl ? 'مفتوح الآن' : 'Open Now') : (isRtl ? 'مغلق حالياً' : 'Closed Now')}</span>
                       </span>
                     </div>
 
