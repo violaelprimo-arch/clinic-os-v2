@@ -5,7 +5,7 @@ import { canonicalizeBranches } from '@/lib/branchCanonical'
 import { db } from '@/lib/firebase'
 import { createClinicNotification } from '@/lib/notificationService'
 import { dispatchPatientPushNotification } from '@/lib/pushDispatcher'
-import { createAtomicAppointment } from '@/lib/queueService'
+import { createAtomicAppointmentServer } from '@/lib/server/firebase-rest'
 import { calculatePatientLivePosition } from '@/lib/queueCalculations'
 import {
   resolveEffectiveDailyLimit,
@@ -237,7 +237,8 @@ export async function POST(req: NextRequest) {
     let queueNumber: number
 
     try {
-      const atomicRes = await createAtomicAppointment(newAppt, effectiveLimit)
+      const observedMaxQueue = Math.max(0, ...apptSnap.docs.filter((d) => !branchId || (d.data().branch_id || d.data().branchId) === branchId).map((d) => Number(d.data().queue_number) || 0))
+      const atomicRes = await createAtomicAppointmentServer(newAppt, effectiveLimit, activeScoped.length, observedMaxQueue)
       newApptId = atomicRes.id
       queueNumber = atomicRes.queueNumber
     } catch (atomicErr: any) {
