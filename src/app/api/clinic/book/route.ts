@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { collection, query, where, getDocs, addDoc, doc, getDoc } from 'firebase/firestore'
+import { collection, query, where, getDocs, addDoc } from 'firebase/firestore'
+import { readDocument, queryDocuments } from '@/lib/server/firebase-rest'
+import { canonicalizeBranches } from '@/lib/branchCanonical'
 import { db } from '@/lib/firebase'
 import { createClinicNotification } from '@/lib/notificationService'
 import { dispatchPatientPushNotification } from '@/lib/pushDispatcher'
@@ -80,31 +82,24 @@ export async function POST(req: NextRequest) {
     const todayCairo = getCairoDateString()
     const bookingDate = date || todayCairo
 
-    // Resolve branch details if branchId provided
-    let bData: any = null
-    if (branchId) {
-      try {
-        const bDoc = await getDoc(doc(db, 'branches', String(branchId)))
-        if (bDoc.exists()) {
-          bData = bDoc.data()
-          // Enforce: Do not allow booking at a manually disabled or archived branch
-          if (bData.isOpen === false || bData.isArchived === true) {
-            return NextResponse.json(
-              { error: 'عذراً، هذا الفرع متوقف حالياً عن استقبال الحجوزات' },
-              { status: 400 }
-            )
-          }
-          // Enforce: Branch must belong to this clinic
-          if (bData.clinicId && bData.clinicId !== clinicId && bData.clinic_id !== clinicId) {
-            return NextResponse.json(
-              { error: 'الفرع المحدد لا يتبع هذه العيادة' },
-              { status: 400 }
-            )
-          }
-        }
-      } catch (e) {
-        // Fallback
-      }
+    // Fail closed on unregistered, paused or duplicate branches.
+    // A forged POST must never bypass restrictions shown in the patient UI.
+    if (typeof branchId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(branchId)) {
+      return NextResponse.json({ error: 'يرجى اختيار فرع مسجل ومتاح للحجز' }, { status: 400 })
+    }
+    const bData = await readDocument(`branches/${branchId}`)
+    if (!bData || bData.isArchived === true || bData.isOpen === false) {
+      return NextResponse.json({ error: 'الفرع مغلق أو غير متاح للحجز' }, { status: 409 })
+    }
+    if (![bData.clinicId, bData.clinic_id].includes(clinicId)) {
+      return NextResponse.json({ error: 'الفرع المحدد لا يتبع هذه العيادة' }, { status: 403 })
+    }
+    const allRegistered = await queryDocuments('branches')
+    const publishedBranches = canonicalizeBranches(
+      allRegistered.filter((b: any) => (b.clinicId === clinicId || b.clinic_id === clinicId))
+    )
+    if (!publishedBranches.some((b) => b.id === branchId && b.isOpen !== false)) {
+      return NextResponse.json({ error: 'يوجد سجل مكرر أو موقوف لهذا الفرع؛ يرجى تحديث الصفحة أو التواصل مع إدارة العيادة' }, { status: 409 })
     }
 
     // Unified resolution: clinic limit takes precedence for single clinic, sub-branch limit respected in multi-branch
