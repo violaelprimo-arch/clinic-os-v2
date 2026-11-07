@@ -6,20 +6,29 @@ import { verifyClinicGoogleIdToken } from '@/lib/server/firebase-clinic-auth'
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}))
-    const slug = typeof body.slug === 'string' ? body.slug.trim().toLowerCase() : ''
-    if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(slug)) {
+    const requestedSlug = typeof body.slug === 'string' ? body.slug.trim().toLowerCase() : ''
+    if (requestedSlug && !/^[a-z0-9][a-z0-9-]{0,62}$/.test(requestedSlug)) {
       return NextResponse.json({ error: 'رابط العيادة غير صحيح' }, { status: 400 })
     }
     const { uid, email } = await verifyClinicGoogleIdToken(body.idToken)
-    // Always bind a Google login to the exact clinic host the user signed in
-    // from. Never infer privileges from a generic Google account alone.
+    // A verified Google account is not enough: only the explicitly assigned
+    // doctor email (and Firebase UID if pinned) may enter a tenant.
     const candidates = await queryDocuments('clinics')
-    const clinic = candidates.find((item) => item.slug === slug)
-    if (!clinic ||
-        String(clinic.doctorEmail || '').trim().toLowerCase() !== email ||
-        (clinic.doctorFirebaseUid && clinic.doctorFirebaseUid !== uid)) {
+    const matching = candidates.filter((item) =>
+      String(item.doctorEmail || '').trim().toLowerCase() === email &&
+      (!item.doctorFirebaseUid || item.doctorFirebaseUid === uid) &&
+      (!requestedSlug || item.slug === requestedSlug)
+    )
+    if (matching.length > 1) {
+      return NextResponse.json({
+        error: 'هذا البريد مرتبط بأكثر من عيادة. افتح رابط العيادة المطلوبة وسجل الدخول منه.'
+      }, { status: 409 })
+    }
+    const clinic = matching[0]
+    if (!clinic) {
       return NextResponse.json({ error: 'حساب Google غير مرتبط بدكتور هذه العيادة' }, { status: 403 })
     }
+    const slug = String(clinic.slug || requestedSlug)
     const token = await createSessionToken({
       role: 'doctor',
       email,
@@ -38,6 +47,7 @@ export async function POST(req: NextRequest) {
     response.cookies.set('clinic_session', token, {
       httpOnly: true, secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax', path: '/', maxAge: 7 * 24 * 60 * 60,
+      domain: process.env.NODE_ENV === 'production' ? '.yalla-clinic.com' : undefined,
     })
     return response
   } catch (err: unknown) {
