@@ -50,6 +50,7 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
   const [liveTurnOpen, setLiveTurnOpen] = useState(false)
   const [selectedService, setSelectedService] = useState<any>(null)
   const [loadedBranches, setLoadedBranches] = useState<any[]>([])
+  const [allRegisteredBranches, setAllRegisteredBranches] = useState<any[]>([])
   const [branchesResolved, setBranchesResolved] = useState<boolean>(isPreview)
   const [selectedBranch, setSelectedBranch] = useState<any>(null)
   const [dark, setDark] = useState(false)
@@ -58,8 +59,10 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
   // Never show a virtual open branch once the server has reported no available branches.
   useEffect(() => {
     if (isPreview) {
-      const list = (Array.isArray(clinic?.branches) ? clinic.branches : [])
-        .filter((b: any) => b.isArchived !== true && b.isOpen !== false)
+      const registered = (Array.isArray(clinic?.branches) ? clinic.branches : [])
+        .filter((b: any) => b.isArchived !== true)
+      const list = registered.filter((b: any) => b.isOpen !== false)
+      setAllRegisteredBranches(registered)
       setLoadedBranches(list)
       setSelectedBranch(list[0] || null)
       setBranchesResolved(true)
@@ -77,7 +80,9 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
       })
       .then((items: any[]) => {
         if (!active) return
-        const open = items.filter((b: any) => b.isArchived !== true && b.isOpen !== false)
+        const registered = items.filter((b: any) => b.isArchived !== true)
+        const open = registered.filter((b: any) => b.isOpen !== false)
+        setAllRegisteredBranches(registered)
         setLoadedBranches(open)
         setSelectedBranch((previous: any) => open.find((b: any) => b.id === previous?.id) || open[0] || null)
         setBranchesResolved(true)
@@ -85,6 +90,7 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
       .catch(() => {
         if (!active) return
         setLoadedBranches([])
+        setAllRegisteredBranches([])
         setSelectedBranch(null)
         setBranchesResolved(true)
       })
@@ -478,11 +484,17 @@ export function PremiumLanding({ clinic, services = [], isPreview = false }: { c
               </div>
             </div>
 
-            <ClinicLocationMap
-              clinic={clinic}
-              branches={branches}
-              className="shadow-xl"
-            />
+            {allRegisteredBranches.length > 0 ? (
+              <ClinicLocationMap
+                clinic={clinic}
+                branches={allRegisteredBranches}
+                className="shadow-xl"
+              />
+            ) : (
+              <p className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center text-sm font-bold text-amber-800">
+                لم تُسجل فروع للعيادة بعد، أو تعذر تحميلها. يرجى التواصل مع الإدارة للتأكد من عنوان الفرع.
+              </p>
+            )}
           </motion.div>
         </section>
       )}
