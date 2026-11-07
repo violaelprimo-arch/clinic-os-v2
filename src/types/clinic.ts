@@ -25,6 +25,8 @@ export interface Branch {
   mapsLink?: string
   latitude?: number
   longitude?: number
+  locationVerified?: boolean
+  verifiedMapsLink?: string
   phone: string
   whatsapp?: string
   image?: string
