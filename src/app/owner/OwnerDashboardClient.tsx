@@ -41,6 +41,7 @@ import {
 } from '@/components/ui/dialog'
 import Link from 'next/link'
 import { SYSTEM_FEATURES } from '@/lib/featurePermissions'
+import { OWNER_CONTROLLED_SECTIONS } from '@/lib/clinicAccessPolicy'
 import { useLanguage } from '@/context/LanguageContext'
 import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import { cleanPhoneForWhatsApp } from '@/lib/countryPhoneHelper'
@@ -320,6 +321,7 @@ function OwnerDashboard() {
   const [allowTvScreen, setAllowTvScreen] = useState(true)
   const [allowAnalytics, setAllowAnalytics] = useState(true)
   const [clinicHiddenTabs, setClinicHiddenTabs] = useState<string[]>([])
+  const [clinicHiddenSections, setClinicHiddenSections] = useState<string[]>([])
 
   // Edit mode
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -1311,6 +1313,7 @@ function OwnerDashboard() {
 
         allowAnalytics: allowAnalytics !== false,
         hiddenTabs: clinicHiddenTabs,
+        hiddenSections: clinicHiddenSections,
         heroImage,
         heroTitle,
         heroSubtitle,
@@ -1504,6 +1507,7 @@ function OwnerDashboard() {
     setAllowTvScreen(c.allowTvScreen !== false && c.tvLockedByOwner !== true)
     setAllowAnalytics(c.allowAnalytics !== false)
     setClinicHiddenTabs(Array.isArray(c.hiddenTabs) ? c.hiddenTabs : [])
+    setClinicHiddenSections(Array.isArray(c.hiddenSections) ? c.hiddenSections : [])
     setLogoUrl(c.logoUrl || '')
     setThermalMonoLogoUrl(c.thermalMonoLogoUrl || '')
     setPrimaryColor(c.primaryColor || '#087CF4')
@@ -1556,6 +1560,8 @@ function OwnerDashboard() {
     setAiResponsesLimit(100)
     setAiResponsesCount(0)
     setIsPaid(true)
+    setClinicHiddenTabs([])
+    setClinicHiddenSections([])
     setActiveTab('clinics')
     toast.info('تم إلغاء التعديل')
   }
@@ -4002,7 +4008,7 @@ function OwnerDashboard() {
           transition={{ duration: 0.3 }}
           className="space-y-6"
         >
-          <div className="yalla-card border border-border rounded-3xl p-6 sm:p-8 shadow-md">
+          <div className="yalla-card border border-border rounded-3xl p-5 sm:p-7 shadow-md">
             
             <div className="flex items-center justify-between pb-5 border-b border-border mb-6">
               <div>
@@ -4011,7 +4017,7 @@ function OwnerDashboard() {
                   {editingId ? 'تعديل بيانات العيادة وإعداداتها' : 'إضافة وتكوين عيادة طبية جديدة'}
                 </h2>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  تحكم كامل في هوية العيادة، أرقام التواصل، رفع تصميم الروشتة، وتفعيل الذكاء الاصطناعي
+                  محرر العيادة: الهوية، الصلاحيات، المحتوى، الباقات، والفروع — مع معاينة مباشرة للتعديلات قبل الحفظ
                 </p>
               </div>
 
@@ -4027,7 +4033,8 @@ function OwnerDashboard() {
               )}
             </div>
 
-            <form onSubmit={handleAddOrUpdateClinic} className="space-y-8">
+            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(285px,330px)] gap-6 items-start">
+            <form onSubmit={handleAddOrUpdateClinic} className="space-y-8 min-w-0">
               {!editingId && allTrialRequests.filter(r => r.status !== 'clinic_created' && r.status !== 'rejected').length > 0 && (
                 <div className="p-4 rounded-2xl bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 space-y-2">
                   <div className="flex items-center justify-between">
@@ -4907,6 +4914,39 @@ function OwnerDashboard() {
                       </div>
                     </div>
 
+                    {/* Owner controlled sections inside settings tabs */}
+                    <div className="p-4 rounded-2xl bg-white border border-slate-200 sm:col-span-2 md:col-span-3 space-y-4">
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-primary" />
+                        <div>
+                          <h4 className="text-sm font-black text-slate-900">إظهار وإخفاء أقسام الإعدادات من حساب الدكتور</h4>
+                          <p className="text-[11px] text-slate-500">
+                            تقدر تخفي قسم كامل أو حقل داخله بشكل مستقل لكل عيادة. إخفاء القسم الأب يخفي العناصر التابعة له.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {OWNER_CONTROLLED_SECTIONS.map((section) => {
+                          const isHidden = clinicHiddenSections.includes(section.id)
+                          const isNested = section.id.split('.').length > 2
+                          return (
+                            <div key={section.id} className={`flex items-center justify-between gap-3 rounded-xl border p-3 transition-colors ${isHidden ? 'bg-rose-50 border-rose-200' : 'bg-sky-50/50 border-sky-100 hover:border-primary/30'}`}>
+                              <span className="min-w-0">
+                                <span className="block text-xs font-bold text-slate-800">{section.label}</span>
+                                <span className="text-[10px] font-mono text-slate-400">{isNested ? 'عنصر داخل القسم' : 'تبويب إعدادات كامل'}</span>
+                              </span>
+                              <Switch
+                                checked={!isHidden}
+                                onCheckedChange={(visible) => setClinicHiddenSections((prev) =>
+                                  visible ? prev.filter((x) => x !== section.id) : [...new Set([...prev, section.id])]
+                                )}
+                              />
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+
                     {/* Booking Availability (Today Only vs Today + Future Days) */}
                     <div className="p-4 rounded-xl bg-white border border-slate-200 sm:col-span-2 md:col-span-3 space-y-3">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -4990,6 +5030,55 @@ function OwnerDashboard() {
               </div>
 
             </form>
+            <aside className="lg:sticky lg:top-5 space-y-4 min-w-0" aria-label="معاينة العيادة">
+              <div className="rounded-3xl border border-border overflow-hidden bg-card shadow-lg">
+                <div className="px-4 py-3 bg-muted/50 flex justify-between items-center">
+                  <div>
+                    <h3 className="font-black text-sm text-foreground">معاينة حية لهوية العيادة</h3>
+                    <p className="text-[10px] text-muted-foreground">تتحدث تلقائيًا مع كتابة البيانات — قبل الحفظ</p>
+                  </div>
+                  <Eye className="w-5 h-5 text-primary" />
+                </div>
+                <div className="p-4 space-y-4" style={{ borderTop: `4px solid ${primaryColor || '#087CF4'}` }}>
+                  <div className="flex items-center justify-between gap-2">
+                    {logoUrl ? (
+                      <img src={logoUrl} alt="شعار العيادة" className="w-20 h-12 object-contain" />
+                    ) : (
+                      <span className="text-base font-black" style={{ color: primaryColor }}>Yalla Clinic</span>
+                    )}
+                    <span className="text-[10px] font-bold rounded-full bg-muted px-2 py-1 text-muted-foreground">
+                      {isActive ? 'نشطة' : 'موقوفة'}
+                    </span>
+                  </div>
+                  <div className="overflow-hidden rounded-2xl bg-gradient-to-bl from-slate-50 to-white border border-border">
+                    {heroImage && <img src={heroImage} alt="صورة العيادة التجريبية" className="w-full h-32 object-cover" />}
+                    <div className="p-4 space-y-2 text-right" dir="rtl">
+                      <h4 className="font-black text-lg text-[#092145]">{clinicName || 'اسم العيادة'}</h4>
+                      <p className="font-bold text-xs" style={{ color: primaryColor }}>{doctorName || 'اسم الطبيب'}</p>
+                      <p className="text-xs text-slate-500">{specialty || 'التخصص الطبي'}</p>
+                      <p className="text-[11px] text-slate-500 line-clamp-2">{heroSubtitle || 'نبذة عن العيادة'}</p>
+                      <div className="flex flex-wrap gap-1 text-[10px] font-bold">
+                        <span className="rounded-lg bg-slate-100 px-2 py-1">{badge1Title}: {badge1Value}</span>
+                        <span className="rounded-lg bg-slate-100 px-2 py-1">{badge2Title}: {badge2Value}</span>
+                      </div>
+                      <div className="w-full text-center rounded-xl py-2 font-bold text-white text-xs" style={{ background: primaryColor || '#087CF4' }}>
+                        احجز موعدك
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <div>الرابط: <span className="font-mono">{slug || 'clinic-slug'}.yalla-clinic.com</span></div>
+                    <div>التبويبات المخفية: <b>{clinicHiddenTabs.length}</b></div>
+                    <div>أقسام الإعدادات المخفية: <b>{clinicHiddenSections.length}</b></div>
+                    <div>عدد الفروع المسموح: <b>{maxBranches}</b></div>
+                  </div>
+                  <p className="text-[10px] leading-5 text-muted-foreground">
+                    هذه معاينة للهوية والمحتوى وليست نسخة تشغيلية من الحجز. التغييرات لا تُنشر إلا بعد الحفظ.
+                  </p>
+                </div>
+              </div>
+            </aside>
+            </div>
           </div>
         </motion.div>
       )}
