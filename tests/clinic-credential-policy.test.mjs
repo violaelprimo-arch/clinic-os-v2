@@ -42,6 +42,20 @@ test('Normal settings cannot update credentials, tenant IDs or platform roles', 
   assert.deepEqual(pickNormalClinicSettings(null), {})
 })
 
+test('Owner-hidden fields cannot be saved through doctor settings API', () => {
+  const configured = { hiddenSections: ['settings.branding.colors', 'settings.queue'] }
+  const changes = pickNormalClinicSettings({
+    primaryColor: '#ff0000',
+    clinicName: 'Allowed Name',
+    weeklySchedule: [],
+    maxDailyBookings: 500,
+    showPrices: false,
+    doctorEmail: 'attacker@example.com',
+    isActive: true,
+  }, configured)
+  assert.deepEqual(changes, { clinicName: 'Allowed Name', showPrices: false })
+})
+
 test('Doctor email normalization rejects invalid addresses', () => {
   assert.equal(normalizeDoctorEmail(' Doctor@Example.Com '), 'doctor@example.com')
   assert.equal(normalizeDoctorEmail('not-an-email'), null)
