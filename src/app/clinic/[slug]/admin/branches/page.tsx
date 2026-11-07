@@ -137,7 +137,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
   const maxBranches = typeof clinic?.maxBranches === 'number' ? clinic.maxBranches : 1
   const activeBranches = branches.filter((b) => !b.isArchived)
   const isLimitReached = activeBranches.length >= maxBranches
-  const canAddBranch = (isOwner || allowDoctorCreateBranches) && branchesEnabled && !isLimitReached
+  const canAddBranch = false // New branch locations are registered by the platform owner only
 
   const openAddModal = () => {
     if (!isOwner && !allowDoctorCreateBranches) {
@@ -207,83 +207,39 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
 
   const handleSaveBranch = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!name.trim()) return toast.error('يرجى إدخال اسم الفرع')
-    if (!address.trim()) return toast.error('يرجى إدخال عنوان الفرع بالتفصيل')
-    if (!phone.trim()) return toast.error('يرجى إدخال رقم هاتف الفرع')
-
     if (!editingBranchId) {
-      if (!isOwner) {
-        setIsSaving(false)
-        return toast.error(language === 'en' ? 'Adding branches is restricted to Platform Owner only.' : 'إضافة فروع جديدة متاح حصرياً بواسطة مالك المنصة Super Admin.')
-      }
-      if (!branchesEnabled) {
-        return toast.error('ميزة تعدد الفروع غير مفعلة لاشتراك عيادتكم. يرجى التواصل مع إدارة Yalla Clinic.')
-      }
-      if (isLimitReached) {
-        return toast.error(`تم الوصول للحد الأقصى للفروع المسموح بها (${maxBranches} فروع). يرجى ترقية الباقة لإضافة فروع جديدة.`)
-      }
+      toast.error('إضافة الفروع تتم من لوحة مالك المنصة فقط')
+      return
     }
-
     if (conflicts.length > 0) {
-      const confirmSave = confirm(
-        'تنبيه: تم رصد تعارض في مواعيد عمل الطبيب بين الفروع:\n\n' +
-          conflicts.join('\n') +
-          '\n\nهل تريد المتابعة والحفظ بالرغم من ذلك؟'
-      )
-      if (!confirmSave) return
+      toast.error('يوجد تعارض بين مواعيد فروع الطبيب. يرجى تعديل المواعيد أولاً.')
+      return
     }
 
     setIsSaving(true)
-    const clinicId = clinic.id || clinic.slug
-
     try {
-      const payload: any = {
-        id: editingBranchId || undefined,
-        clinicId,
-        name,
-        governorate,
-        city,
-        area: sanitizeAddress(area) || city,
-        address,
-        mapsLink,
-        latitude: latitude ? parseFloat(latitude) : null,
-        longitude: longitude ? parseFloat(longitude) : null,
-        phone,
-        whatsapp: whatsapp || phone,
-        image,
-        slotDuration: Number(slotDuration) || 15,
-        maxDailyBookings: Number(maxDailyBookings) || 0,
-        isOpen,
-        weeklySchedule
-      }
-
-      const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/branches`, {
+      const response = await fetch(`/api/clinic/${encodeURIComponent(slug)}/branches`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          id: editingBranchId,
+          slotDuration: Number(slotDuration) || 15,
+          maxDailyBookings: Math.max(0, Number(maxDailyBookings) || 0),
+          isOpen,
+          weeklySchedule
+        })
       })
-
-      const data = await res.json()
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'فشل في حفظ بيانات الفرع')
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok || !data.success || !data.branch) {
+        throw new Error(data.error || 'فشل في حفظ إعدادات تشغيل الفرع')
       }
-
-      const savedBranch: Branch = data.branch
-      if (editingBranchId) {
-        // The server may replace the virtual legacy id "main" with a real Firestore ID.
-        setBranches((prev) =>
-          prev.map((b) => (b.id === editingBranchId ? savedBranch : b))
-        )
-        toast.success(`تم تحديث بيانات فرع "${name}" بنجاح!`)
-      } else {
-        setBranches((prev) => [...prev, savedBranch])
-        toast.success(`تمت إضافة فرع "${name}" بنجاح!`)
-      }
-
+      setBranches((prev) => prev.map((b) => b.id === editingBranchId ? data.branch : b))
+      await fetchClinicAndBranches()
       setIsModalOpen(false)
-    } catch (err: any) {
-      console.error('Error saving branch:', err)
-      toast.error('حدث خطأ أثناء حفظ الفرع: ' + err.message)
+      toast.success('تم حفظ مواعيد الفرع وإعدادات الحجز بنجاح')
+    } catch (error: any) {
+      toast.error(error?.message || 'تعذر حفظ إعدادات تشغيل الفرع')
     } finally {
       setIsSaving(false)
     }
@@ -385,7 +341,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
             {t('branches_management', 'إدارة فروع العيادة')}
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
-            {language === 'en' ? 'Manage multiple clinic locations, custom operating hours, and avoid physician scheduling conflicts' : 'إضافة فروع متعددة للعيادة، تخصيص مواعيد عمل وجدول أسبوعي مستقل لكل فرع، وتجنب تعارض مواعيد الطبيب'}
+            {language === 'en' ? 'Set branch working hours, visit duration, booking limits and open/close status' : 'المالك يضيف الفروع ومواقعها؛ أنت تتحكم في المواعيد ومدة الكشف والحد اليومي وفتح أو إيقاف الحجز'}
           </p>
         </div>
 
@@ -405,7 +361,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
               : (language === 'en' ? `Branch Plan: ${activeBranches.length} of ${maxBranches} branches` : `باقة الفروع: ${activeBranches.length} من ${maxBranches} فروع`)}
           </Badge>
 
-          {canAddBranch && (
+          {false && canAddBranch && (
             <Button
               onClick={openAddModal}
               className="h-10 px-4 yalla-gradient-btn text-white font-bold rounded-xl shadow-xs text-xs cursor-pointer gap-1.5"
@@ -415,10 +371,10 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
             </Button>
           )}
 
-          {!canAddBranch && !isOwner && !allowDoctorCreateBranches && (
+          {!canAddBranch && (
             <div className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-bold">
               <Lock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-              <span>{language === 'en' ? 'Platform Owner has restricted adding branches' : 'إضافة الفروع مقيدة بواسطة مالك المنصة'}</span>
+              <span>{language === 'en' ? 'New branches are registered by Platform Owner only' : 'المالك يضيف الفرع، والطبيب يحدد مواعيده ويفتح أو يوقف الحجوزات'}</span>
             </div>
           )}
         </div>
@@ -456,10 +412,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
         <div className="yalla-card p-12 text-center space-y-3">
           <Building2 className="w-12 h-12 text-muted-foreground/40 mx-auto" />
           <h3 className="font-bold text-base text-foreground">{language === 'en' ? 'No branches registered' : 'لا توجد فروع مسجلة'}</h3>
-          <p className="text-xs text-muted-foreground">{language === 'en' ? 'Add new branches so patients can book at their nearest clinic location.' : 'يمكنك إضافة فروع جديدة لتمكين المرضى من اختيار الفرع الأقرب إليهم.'}</p>
-          <Button onClick={openAddModal} size="sm" className="yalla-gradient-btn text-white rounded-xl">
-            {language === 'en' ? 'Add First Branch' : 'إضافة الفرع الأول'}
-          </Button>
+          <p className="text-xs text-muted-foreground">{language === 'en' ? 'Ask Platform Owner to register the first branch location' : 'تواصل مع مالك المنصة لإضافة موقع أول فرع، وبعدها يمكنك ضبط المواعيد وتشغيل الحجز.'}</p>
         </div>
       ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -546,7 +499,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                   className="h-8 px-3 text-xs font-bold text-primary border-primary/20 hover:bg-primary/5 rounded-xl gap-1"
                 >
                   <Edit className="w-3.5 h-3.5" />
-                  {t('edit', 'تعديل')}
+                  {language === 'en' ? 'Operating settings' : 'إعدادات التشغيل'}
                 </Button>
 
                 <div className="flex items-center gap-1.5">
@@ -590,7 +543,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
               <div className="flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-primary" />
                 <h3 className="font-black text-sm text-foreground">
-                  {editingBranchId ? (language === 'en' ? 'Edit Branch Details' : 'تعديل بيانات الفرع') : (language === 'en' ? 'Add New Clinic Branch' : 'إضافة فرع جديد للعيادة')}
+                  {language === 'en' ? 'Branch hours and booking settings' : 'إعدادات مواعيد الفرع والحجز'}
                 </h3>
               </div>
               <button
@@ -618,214 +571,31 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
                 </div>
               )}
 
-              {/* Section 1: Basic Info */}
+              {/* Only operational fields are editable by doctor. Branch
+                  identity/location/phones remain under Platform Owner control. */}
+              <div className="p-3 rounded-xl border border-border bg-muted/30 text-xs text-muted-foreground">
+                الفرع: <strong className="text-foreground">{name}</strong> — تعديل الاسم والعنوان والخريطة وأرقام التواصل من لوحة مالك المنصة.
+              </div>
               <div className="space-y-3">
-                <h4 className="text-xs font-black text-foreground">{language === 'en' ? 'Branch Details & Address' : 'بيانات الفرع والعنوان'}</h4>
-                <div className="grid sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs font-bold text-muted-foreground">{t('branch_name', 'اسم الفرع')} *</Label>
-                    <Input
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder={language === 'en' ? 'e.g., Downtown Branch' : 'مثال: فرع التجمع الخامس'}
-                      className="h-10 text-xs rounded-xl"
-                      required
-                    />
+                <div className="flex items-center justify-between rounded-xl border border-border p-3">
+                  <div>
+                    <h4 className="text-xs font-bold">استقبال الحجوزات بالفرع</h4>
+                    <p className="text-[11px] text-muted-foreground">{isOpen ? 'الفرع متاح للحجز بعد الحفظ' : 'الفرع سيختفي من خيارات الحجز الجديدة بعد الحفظ'}</p>
                   </div>
-
-                  <div className="space-y-1">
-                    <Label className="text-xs font-bold text-muted-foreground">{t('branch_city', 'المحافظة / المدينة')}</Label>
-                    <Input
-                      value={governorate}
-                      onChange={(e) => setGovernorate(e.target.value)}
-                      placeholder={language === 'en' ? 'Cairo / Giza' : 'القاهرة / الجيزة'}
-                      className="h-10 text-xs rounded-xl"
-                    />
-                  </div>
-
-                  <div className="space-y-1 sm:col-span-2">
-                    <Label className="text-xs font-bold text-muted-foreground">{t('branch_address', 'العنوان بالتفصيل')} *</Label>
-                    <Input
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      placeholder={language === 'en' ? 'Street, Building, Floor, Landmark' : 'الشارع، المبنى، الدور، علامة مميزة'}
-                      className="h-10 text-xs rounded-xl"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs font-bold text-muted-foreground">{language === 'en' ? 'Google Maps Link' : 'رابط Google Maps'}</Label>
-                      <span className="text-[10px] text-sky-500 font-bold">استخراج تلقائي للإحداثيات 📍</span>
-                    </div>
-                    <Input
-                      value={mapsLink}
-                      onChange={(e) => {
-                        const val = e.target.value
-                        setMapsLink(val)
-                        const coords = extractCoordsFromLink(val)
-                        if (coords) {
-                          setLatitude(String(coords.lat))
-                          setLongitude(String(coords.lng))
-                        } else if (val.includes('maps.app.goo.gl') || val.includes('goo.gl')) {
-                          fetch(`/api/resolve-maps-coords?url=${encodeURIComponent(val)}`)
-                            .then((res) => res.json())
-                            .then((data) => {
-                              if (data.success && data.lat && data.lng) {
-                                setLatitude(String(data.lat))
-                                setLongitude(String(data.lng))
-                                toast.success('تم استخراج إحداثيات الفرع تلقائياً من الرابط المختصر')
-                              }
-                            })
-                            .catch(() => {})
-                        }
-                      }}
-                      placeholder="https://maps.google.com/..."
-                      className="h-10 text-xs rounded-xl"
-                      dir="ltr"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <Label className="text-[11px] font-bold text-muted-foreground">Latitude (خط العرض)</Label>
-                      <Input
-                        value={latitude}
-                        onChange={(e) => setLatitude(e.target.value)}
-                        placeholder="30.0444"
-                        className="h-10 text-xs rounded-xl"
-                        dir="ltr"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-[11px] font-bold text-muted-foreground">Longitude (خط الطول)</Label>
-                      <Input
-                        value={longitude}
-                        onChange={(e) => setLongitude(e.target.value)}
-                        placeholder="31.2357"
-                        className="h-10 text-xs rounded-xl"
-                        dir="ltr"
-                      />
-                    </div>
-                  </div>
+                  <Switch checked={isOpen} onCheckedChange={setIsOpen} />
                 </div>
-              </div>
-
-              {/* Branch Facility Photo */}
-              <div className="space-y-3 pt-2 border-t border-border">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-black text-foreground flex items-center gap-1.5">
-                    <ImageIcon className="w-4 h-4 text-sky-500" />
-                    <span>{language === 'en' ? 'Branch Photo / Facility Image' : 'صورة واجهة الفرع / المركز الطبي'}</span>
-                  </h4>
-                  <span className="text-[10px] text-muted-foreground">
-                    {language === 'en' ? 'Displayed in booking modal & maps' : 'تظهر في شاشة حجز المريض والخرائط'}
-                  </span>
-                </div>
-
-                <div className="flex flex-col sm:flex-row items-center gap-4 p-3.5 rounded-2xl bg-muted/40 border border-border">
-                  <div className="relative w-28 h-20 rounded-xl overflow-hidden border-2 border-sky-400/40 bg-slate-900 shrink-0 shadow-sm">
-                    {image ? (
-                      <img src={image} alt="Branch Preview" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground p-2 text-center text-[10px]">
-                        <ImageIcon className="w-5 h-5 mb-1 opacity-50" />
-                        <span>{language === 'en' ? 'No photo' : 'بدون صورة'}</span>
-                      </div>
-                    )}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs font-bold">مدة الكشف بالدقائق</Label>
+                    <Input type="number" min={1} max={240} value={slotDuration}
+                      onChange={(e) => setSlotDuration(Math.max(1, Number(e.target.value) || 15))}
+                      className="mt-2 h-10 text-xs rounded-xl" />
                   </div>
-
-                  <div className="flex-1 w-full space-y-2">
-                    <div className="space-y-1">
-                      <Label className="text-[11px] font-bold text-muted-foreground">
-                        {language === 'en' ? 'Direct Image URL' : 'رابط مباشر لصورة الفرع (PNG / JPG / WebP)'}
-                      </Label>
-                      <Input
-                        value={image}
-                        onChange={(e) => setImage(e.target.value)}
-                        placeholder="https://images.unsplash.com/photo-..."
-                        className="h-9 text-xs rounded-xl font-mono"
-                        dir="ltr"
-                      />
-                    </div>
-
-                    {/* Quick Medical Presets */}
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-bold text-muted-foreground flex items-center gap-1">
-                        <Sparkles className="w-3 h-3 text-amber-500" />
-                        <span>{language === 'en' ? 'Quick preset clinic photos:' : 'أو اختر صورة جاهزة عالية الجودة:'}</span>
-                      </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {[
-                          { label: 'مستشفى حديث', url: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=800&auto=format&fit=crop' },
-                          { label: 'مركز تخصصي', url: 'https://images.unsplash.com/photo-1586773860418-d37222d8fce3?q=80&w=800&auto=format&fit=crop' },
-                          { label: 'عيادة خاصة', url: 'https://images.unsplash.com/photo-1538108149393-fbbd81895907?q=80&w=800&auto=format&fit=crop' },
-                          { label: 'استقبال راقي', url: 'https://images.unsplash.com/photo-1512678080530-7760d81faba6?q=80&w=800&auto=format&fit=crop' }
-                        ].map((preset) => (
-                          <button
-                            key={preset.label}
-                            type="button"
-                            onClick={() => setImage(preset.url)}
-                            className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900 border border-sky-200/60 dark:border-sky-800 transition-colors cursor-pointer"
-                          >
-                            {preset.label}
-                          </button>
-                        ))}
-                        {image && (
-                          <button
-                            type="button"
-                            onClick={() => setImage('')}
-                            className="px-2 py-1 text-[10px] font-bold rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-600 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer"
-                          >
-                            {language === 'en' ? 'Clear' : 'إزالة'}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Section 2: Contact & Operating Numbers */}
-              <div className="space-y-3 pt-2 border-t border-border">
-                <h4 className="text-xs font-black text-foreground">{language === 'en' ? 'Contact & Booking Configuration' : 'أرقام التواصل وإعدادات الكشف'}</h4>
-                <div className="grid sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs font-bold text-muted-foreground">{t('branch_phone', 'رقم هاتف الفرع')} *</Label>
-                    <PhoneInputWithCountry
-                      value={phone}
-                      onChange={(fullNumber) => setPhone(fullNumber)}
-                      required
-                      size="sm"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs font-bold text-muted-foreground">{language === 'en' ? 'Branch WhatsApp' : 'رقم واتساب الفرع'}</Label>
-                    <PhoneInputWithCountry
-                      value={whatsapp}
-                      onChange={(fullNumber) => setWhatsapp(fullNumber)}
-                      placeholder={phone || '01012345678'}
-                      size="sm"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs font-bold text-muted-foreground">{language === 'en' ? 'Average Slot Duration (mins)' : 'متوسط مدة الكشف (بالدقائق)'}</Label>
-                    <Input
-                      type="number"
-                      value={slotDuration}
-                      onChange={(e) => setSlotDuration(parseInt(e.target.value) || 15)}
-                      className="h-10 text-xs rounded-xl"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs font-bold text-muted-foreground">{language === 'en' ? 'Daily Max Bookings (0 = unlimited)' : 'الحد الأقصى للحجوزات اليومية (0 = غير محدود)'}</Label>
-                    <Input
-                      type="number"
-                      value={maxDailyBookings}
-                      onChange={(e) => setMaxDailyBookings(parseInt(e.target.value) || 0)}
-                      className="h-10 text-xs rounded-xl"
-                    />
+                  <div>
+                    <Label className="text-xs font-bold">الحد اليومي للحجوزات (0 = بلا حد)</Label>
+                    <Input type="number" min={0} value={maxDailyBookings}
+                      onChange={(e) => setMaxDailyBookings(Math.max(0, Number(e.target.value) || 0))}
+                      className="mt-2 h-10 text-xs rounded-xl" />
                   </div>
                 </div>
               </div>
