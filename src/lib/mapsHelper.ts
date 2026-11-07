@@ -203,10 +203,12 @@ export function resolveEffectiveLocation(
   const isPrecise = lat !== null && lng !== null
   const mapsLink =
     currentBranch?.mapsLink ||
-    clinic?.mapsLink ||
+    ((currentBranch?.isMain || !currentBranch) ? clinic?.mapsLink : '') ||
     (isPrecise
       ? `https://maps.google.com/?q=${lat},${lng}`
-      : `https://maps.google.com/?q=${encodeURIComponent(address)}`)
+      : (address && !isPlaceholderAddress(address)
+        ? `https://maps.google.com/?q=${encodeURIComponent(address)}`
+        : ''))
 
   const directionsUrl = isPrecise
     ? `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
