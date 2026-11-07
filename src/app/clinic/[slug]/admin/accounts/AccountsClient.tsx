@@ -17,6 +17,7 @@ import { toast } from 'sonner'
 import type { InvoiceData } from '@/components/clinic/InvoiceView'
 import { formatCairo12Hour } from '@/lib/queue-calculator'
 import { useLanguage } from '@/context/LanguageContext'
+import { useClinicReadOnly } from '@/context/ClinicAccessContext'
 
 const InvoiceView = dynamic(
   () => import('@/components/clinic/InvoiceView').then(mod => mod.InvoiceView),
@@ -25,6 +26,7 @@ const InvoiceView = dynamic(
 
 export default function AccountsClient({ slug }: { slug: string }) {
   const { t, tDynamic, language, dir, isRtl } = useLanguage()
+  const isReadOnly = useClinicReadOnly()
 
   const [clinic, setClinic] = useState<any>(null)
   const [appointments, setAppointments] = useState<any[]>([])
@@ -109,7 +111,7 @@ export default function AccountsClient({ slug }: { slug: string }) {
 
   // Confirm payment with audit trail
   const handleConfirmPayment = async (item: any) => {
-    if (!item.id || isProcessing) return
+    if (!item.id || isProcessing || isReadOnly) return
     setIsProcessing(true)
     try {
       const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/payments/confirm`, {
@@ -139,7 +141,7 @@ export default function AccountsClient({ slug }: { slug: string }) {
 
   // Record discount with previous price preserved
   const applyDiscount = async (item: any, discountAmount: number) => {
-    if (!item.id || isProcessing) return
+    if (!item.id || isProcessing || isReadOnly) return
     setIsProcessing(true)
     try {
       const currentPrice = Number(item.servicePrice) || 0
@@ -678,7 +680,7 @@ export default function AccountsClient({ slug }: { slug: string }) {
                             {language === 'en' ? 'Invoice' : 'فاتورة'}
                           </Button>
 
-                          {!isPaid && (
+                          {!isPaid && !isReadOnly && (
                             <>
                               <Button
                                 size="sm"
