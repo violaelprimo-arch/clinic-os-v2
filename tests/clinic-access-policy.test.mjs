@@ -7,6 +7,12 @@ import {
   OWNER_CONTROLLED_SECTIONS,
 } from '../src/lib/clinicAccessPolicy.ts'
 
+test('date-only expiration remains valid through Cairo calendar day', () => {
+  const clinic = { isActive: true, expirationDate: '2026-11-08' }
+  assert.equal(isClinicSuspended(clinic, new Date('2026-11-08T20:59:00Z')), false)
+  assert.equal(isClinicSuspended(clinic, new Date('2026-11-08T22:01:00Z')), true)
+})
+
 test('subscription disabled or past expiration is suspended', () => {
   assert.equal(isClinicSuspended({isActive:false}), true)
   assert.equal(isClinicSuspended({isActive:true,expirationDate:'2026-01-01T00:00:00Z'},new Date('2026-11-08T00:00:00Z')),true)
