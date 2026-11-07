@@ -16,6 +16,14 @@ export function isClinicSuspended(source: unknown, now: Date = new Date()): bool
   if (clinic.isActive === false) return true
   const expires = String(clinic.expirationDate || '').trim()
   if (!expires) return false
+  // Date-only subscriptions are valid through the end of the chosen Cairo day.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(expires)) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).formatToParts(now)
+    const d = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+    return expires < `${d.year}-${d.month}-${d.day}`
+  }
   const expiry = new Date(expires)
   return !Number.isNaN(expiry.valueOf()) && expiry.valueOf() <= now.valueOf()
 }
