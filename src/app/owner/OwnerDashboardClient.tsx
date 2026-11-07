@@ -393,21 +393,10 @@ function OwnerDashboard() {
       if (activeEmbedded.length > 0) return activeEmbedded
     }
 
-    // 3. Fallback to clinic's real main branch profile
-    return [{
-      id: 'main-' + (c.id || 'default'),
-      clinicId: c.id,
-      name: c.branchName || 'الفرع الرئيسي',
-      governorate: c.governorate || '',
-      city: c.city || c.governorate || 'القاهرة',
-      address: c.clinicAddress || c.address || 'العنوان الرئيسي للعيادة',
-      phone: c.clinicPhone || c.doctorPhone || '',
-      whatsapp: c.clinicPhone || c.doctorPhone || '',
-      mapsLink: c.mapsLink || '',
-      isMain: true,
-      isOpen: c.isClinicOpen !== false,
-      weeklySchedule: c.weeklySchedule || []
-    }]
+    // Do not invent a virtual branches/main-* record. It cannot be updated in
+    // Firestore and makes branch quotas/statuses disagree with patient booking.
+    // An unregistered clinic must explicitly create its first real branch.
+    return []
   }
 
   const loadClinics = async () => {
