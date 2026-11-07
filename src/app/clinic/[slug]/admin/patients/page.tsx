@@ -650,14 +650,21 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                       {t('service_type', 'نوع الخدمة')}
                     </Label>
                     <select
-                      value={newService}
+                      value={Array.isArray(clinic?.services) && clinic.services.length > 0 && !clinic.services.some((item: any) => item.name === newService) ? clinic.services[0].name : newService}
                       onChange={e => setNewService(e.target.value)}
                       className="w-full h-10 px-3 rounded-xl border border-border text-xs font-bold text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
                     >
-                      <option value="كشف عادي">{t('regular_exam', 'كشف عادي')}</option>
-                      <option value="استشارة">{t('consultation', 'استشارة')}</option>
-                      <option value="كشف مستعجل">{t('urgent_exam', 'كشف مستعجل')}</option>
-                      <option value="متابعة">{t('follow_up', 'متابعة')}</option>
+                      {Array.isArray(clinic?.services) && clinic.services.length > 0
+                        ? clinic.services.map((item: any) => (
+                            <option key={item.id || item.name} value={item.name}>{tDynamic(item.name)}</option>
+                          ))
+                        : <>
+                            <option value="كشف عادي">{t('regular_exam', 'كشف عادي')}</option>
+                            <option value="استشارة">{t('consultation', 'استشارة')}</option>
+                            <option value="كشف مستعجل">{t('urgent_exam', 'كشف مستعجل')}</option>
+                            <option value="متابعة">{t('follow_up', 'متابعة')}</option>
+                          </>
+                      }
                     </select>
                   </div>
                   <div className="space-y-1.5">
@@ -666,8 +673,12 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                     </Label>
                     <Input
                       type="number"
-                      value={newPrice}
+                      value={Array.isArray(clinic?.services) && clinic.services.length > 0
+                        ? Number((clinic.services.find((item: any) => item.name === newService) || clinic.services[0]).price) || 0
+                        : newPrice}
                       onChange={e => setNewPrice(Number(e.target.value))}
+                      readOnly={Array.isArray(clinic?.services) && clinic.services.length > 0}
+                      title="السعر يعتمد على الخدمة المحددة في إعدادات العيادة، ولا يتغير من سجل المرضى."
                       className="h-10 text-sm rounded-xl bg-background border-border text-foreground"
                     />
                   </div>
