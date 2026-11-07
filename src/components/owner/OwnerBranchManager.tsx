@@ -25,6 +25,7 @@ import {
   onSnapshot
 } from 'firebase/firestore'
 import { Branch } from '@/types/clinic'
+import { mainBranchDuplicateKey } from '@/lib/branchCanonical'
 
 import { sanitizeAddress, isPlaceholderAddress, extractCoordsFromLink } from '@/lib/mapsHelper'
 import {
@@ -97,63 +98,44 @@ export function OwnerBranchManager({
     )
   }, [selectedClinic])
 
-  // Real-time listener plus authoritative API read for accounts that cannot
-  // query branches directly under client Firestore security rules.
+  // Owner management shows real documents, including archived / duplicate main records.
+  // The authoritative API must not be overwritten by client Firestore listeners.
   useEffect(() => {
-    if (!selectedClinic?.id) return
-    setIsLoading(true)
-
-    let cancelled = false
-    const cId = selectedClinic.id
-    const cSlug = selectedClinic.slug
-    if (cSlug) {
-      fetch(`/api/clinic/${encodeURIComponent(cSlug)}/branches`, { cache: 'no-store', credentials: 'same-origin' })
-        .then(async (res) => {
-          if (!res.ok) throw new Error('Unable to load registered branches')
-          return res.json()
-        })
-        .then((data) => {
-          if (!cancelled && Array.isArray(data.branches)) {
-            setBranches(data.branches)
-            setIsLoading(false)
-          }
-        })
-        .catch(() => { if (!cancelled) setIsLoading(false) })
+    if (!selectedClinic?.slug) {
+      setBranches([])
+      setIsLoading(false)
+      return
     }
-
-    const q1 = query(collection(db, 'branches'), where('clinicId', '==', cId))
-    const q2 = query(collection(db, 'branches'), where('clinic_id', '==', cId))
-
-    const map = new Map<string, Branch>()
-
-    const unsub1 = onSnapshot(q1, (snap) => {
-      snap.docs.forEach((d) => {
-        map.set(d.id, { id: d.id, ...(d.data() as any) })
-      })
-      setBranches(Array.from(map.values()))
-      setIsLoading(false)
-    }, (err) => {
-      console.warn('Error in branches q1:', err)
-      setIsLoading(false)
-    })
-
-    const unsub2 = onSnapshot(q2, (snap) => {
-      snap.docs.forEach((d) => {
-        map.set(d.id, { id: d.id, ...(d.data() as any) })
-      })
-      setBranches(Array.from(map.values()))
-      setIsLoading(false)
-    }, (err) => {
-      console.warn('Error in branches q2:', err)
-      setIsLoading(false)
-    })
-
+    let cancelled = false
+    const load = async () => {
+      try {
+        const res = await fetch(
+          `/api/clinic/${encodeURIComponent(selectedClinic.slug)}/branches?view=management`,
+          { cache: 'no-store', credentials: 'same-origin' }
+        )
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok || !Array.isArray(data.branches)) throw new Error(data.error || 'فشل تحميل الفروع')
+        if (!cancelled) {
+          setBranches(data.branches)
+          setIsLoading(false)
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.warn('Owner branch list reload failed:', error)
+          setIsLoading(false)
+        }
+      }
+    }
+    setIsLoading(true)
+    void load()
+    const timer = window.setInterval(() => { void load() }, 20000)
+    window.addEventListener('focus', load)
     return () => {
       cancelled = true
-      unsub1()
-      unsub2()
+      window.clearInterval(timer)
+      window.removeEventListener('focus', load)
     }
-  }, [selectedClinic?.id, selectedClinic?.slug])
+  }, [selectedClinic?.slug])
 
   const activeBranches = useMemo(() => {
     return branches.filter((b) => !b.isArchived)
@@ -272,7 +254,7 @@ export function OwnerBranchManager({
     const isCurrentlyArchived = branch.isArchived === true
     const confirmMsg = isCurrentlyArchived
       ? `هل تريد استعادة فرع «${branch.name}» إلى قائمة الفروع النشطة؟`
-      : `هل تريد أرشفة فرع «${branch.name}»؟ لن يتمكن المرضى من حجزه ولكن ستبقى كافة المواعيد والتقارير المالية السابقة محفوظة تماماً.`
+      : `هل تريد إزالة فرع «${branch.name}» من الموقع والحجز؟ سيتم أرشفته وليس حذف سجلات المرضى أو الحجوزات السابقة.`
 
     if (!window.confirm(confirmMsg)) return
 
@@ -290,7 +272,7 @@ export function OwnerBranchManager({
         if (!res.ok || !data.success) throw new Error(data.error || 'فشل أرشفة الفرع')
         setBranches((prev) => prev.map((b) => b.id === branch.id ? { ...b, isArchived: true } : b))
       }
-      toast.success(isCurrentlyArchived ? 'تمت استعادة الفرع بنجاح' : 'تمت أرشفة الفرع بأمان مع الحفاظ على سجل المواعيد')
+      toast.success(isCurrentlyArchived ? 'تمت استعادة الفرع بنجاح' : 'تمت إزالة الفرع من الموقع مع الحفاظ على سجل المواعيد')
     } catch (e: any) {
       toast.error('فشل في تغيير أرشفة الفرع: ' + e.message)
     }
@@ -492,6 +474,8 @@ export function OwnerBranchManager({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {displayedBranches.map((b) => {
             const hasExactLocation = b.latitude !== undefined && b.latitude !== null && b.longitude !== undefined && b.longitude !== null
+            const duplicateKey = mainBranchDuplicateKey(b)
+            const isDuplicateMain = Boolean(duplicateKey && branches.filter((item) => !item.isArchived && mainBranchDuplicateKey(item) === duplicateKey).length > 1)
             return (
               <div
                 key={b.id}
@@ -512,6 +496,11 @@ export function OwnerBranchManager({
                         {b.isMain && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-primary/10 text-primary font-bold">
                             رئيسي
+                          </span>
+                        )}
+                        {isDuplicateMain && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-700 font-bold">
+                            فرع رئيسي مكرر
                           </span>
                         )}
                         {b.isArchived && (
@@ -614,7 +603,7 @@ export function OwnerBranchManager({
                     }`}
                   >
                     <Archive className="w-3.5 h-3.5 ml-1" />
-                    {b.isArchived ? 'استعادة' : 'أرشفة الفرع'}
+                    {b.isArchived ? 'استعادة الفرع' : 'حذف من الموقع'}
                   </Button>
                 </div>
               </div>
