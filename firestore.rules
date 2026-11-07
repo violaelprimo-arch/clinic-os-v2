@@ -17,8 +17,8 @@ service cloud.firestore {
     function isClinicTenant(clinicId) {
       return isAuthenticated() && (
         isPlatformOwner() ||
-        request.auth.token.clinic_id == clinicId ||
-        request.auth.token.clinicId == clinicId ||
+        request.auth.token.get('clinic_id', '') == clinicId ||
+        request.auth.token.get('clinicId', '') == clinicId ||
         request.auth.uid == clinicId
       );
     }
@@ -26,7 +26,7 @@ service cloud.firestore {
     function isClinicWritable(clinicId) {
       return isClinicTenant(clinicId)
         && exists(/databases/$(database)/documents/clinics/$(clinicId))
-        && get(/databases/$(database)/documents/clinics/$(clinicId)).data.isActive != false;
+        && get(/databases/$(database)/documents/clinics/$(clinicId)).data.get('isActive', true) != false;
     }
 
     // Platform Owner & Site Settings
@@ -44,11 +44,28 @@ service cloud.firestore {
     match /owners/{ownerId} { allow read, write: if isPlatformOwner(); }
     match /settings/{settingId} { allow read, write: if isPlatformOwner(); }
 
+    // Never allow a tenant to change owner-controlled subscription rights or
+    // visibility policy directly from the browser SDK.
+    function hasNoOwnerOnlyClinicChanges() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'isActive', 'expirationDate', 'activationDate', 'hiddenTabs', 'hiddenSections',
+        'packageName', 'packageId', 'packagePermissions', 'packagePrice', 'isPaid',
+        'paymentStatus', 'paidAmount', 'branchesEnabled', 'maxBranches',
+        'branchCreationAllowed', 'allowFinance', 'allowDrugs', 'allowPrescriptions',
+        'allowCustomTemplate', 'allowOnlineBooking', 'allowTvScreen',
+        'allowDoctorEditBranding', 'allowAnalytics', 'aiLockedByOwner',
+        'doctorEmail', 'doctorPassword', 'doctorPasswordHash',
+        'assistantEmail', 'assistantPassword', 'assistantPasswordHash',
+        'platformOwner', 'ownerUid', 'slug'
+      ]);
+    }
+
     // Clinics Collection
     match /clinics/{clinicId} {
       allow read: if true;
       allow create: if isPlatformOwner();
-      allow update: if isPlatformOwner() || isClinicWritable(clinicId);
+      allow update: if isPlatformOwner() ||
+        (isClinicWritable(clinicId) && hasNoOwnerOnlyClinicChanges());
       allow delete: if isPlatformOwner();
     }
 
@@ -56,7 +73,13 @@ service cloud.firestore {
     match /branches/{branchId} {
       allow read: if true;
       allow create: if isPlatformOwner();
-      allow update, delete: if isPlatformOwner() || isClinicWritable(resource.data.clinic_id);
+      allow update: if isPlatformOwner() ||
+        (isClinicWritable(resource.data.clinic_id)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'weeklySchedule', 'workingHours', 'isOpen', 'slotDuration',
+            'maxDailyBookings', 'updatedAt'
+          ]));
+      allow delete: if isPlatformOwner();
     }
 
     // Appointments Collection (A02 - Hardened)
@@ -113,7 +136,10 @@ service cloud.firestore {
     // Daily counters for atomic sequential turns
     match /clinic_daily_counters/{counterId} {
       allow read: if true;
-      allow write: if true;
+      allow create: if isPlatformOwner()
+        || isClinicWritable(request.resource.data.clinicId);
+      allow update, delete: if isPlatformOwner()
+        || isClinicWritable(resource.data.clinicId);
     }
 
     // System, Packages & Audit Logs
