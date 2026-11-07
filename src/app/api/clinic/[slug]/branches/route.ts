@@ -357,7 +357,7 @@ export async function POST(
       await writeDocument(`branches/${resolvedId}`, patch, true)
       return NextResponse.json({
         success: true,
-        branch: { id: resolvedId, ...oldBranch, ...patch, ...(body.isMain === true ? { isMain: true } : {}) }
+        branch: { ...oldBranch, ...patch, id: resolvedId, ...(body.isMain === true ? { isMain: true } : {}) }
       })
     } else {
       // Create new branch
@@ -432,7 +432,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'لا يمكن أرشفة آخر فرع مسجل بالعيادة' }, { status: 409 })
     }
     if (targetData.isMain) {
-      const mainKey = mainBranchDuplicateKey({ id: branchId, ...targetData })
+      const mainKey = mainBranchDuplicateKey({ ...targetData, id: branchId })
       const hasAnotherMain = !!mainKey && activeBranches.some(
         (b) => b.id !== branchId && mainBranchDuplicateKey(b) === mainKey
       )
