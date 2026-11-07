@@ -285,7 +285,7 @@ export async function POST(
               ...branchPayload,
               clinicId,
               clinic_id: clinicId,
-              name: String(name || clinic.clinicName || 'الفرع الرئيسي').trim(),
+              name: String(name || 'الفرع الرئيسي').trim(),
               address: sanitizeAddress(address || clinic.clinicAddress || clinic.address) || 'مقر العيادة',
               mapsLink: mapsLink || clinic.mapsLink || '',
               phone: phone || clinic.clinicPhone || '',
