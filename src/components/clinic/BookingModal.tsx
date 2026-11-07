@@ -992,13 +992,24 @@ export function BookingModal({
                 <div className={`grid ${branches.length === 1 ? 'grid-cols-1 max-w-[240px] mx-auto' : branches.length === 2 ? 'grid-cols-2 max-w-[360px] mx-auto' : 'grid-cols-3'} gap-2.5`}>
                   {branches.map((b: any) => {
                     const isSelected = selectedBranch?.id === b.id || selectedBranch?.name === b.name
+                    const isBranchOpen = b.isOpen !== false
                     return (
                       <div
                         key={b.id || b.name}
-                        onClick={() => setSelectedBranch(b)}
-                        className={`cursor-pointer rounded-2xl p-2 bg-white dark:bg-slate-800 border-2 ${
-                          isSelected ? 'border-sky-500 shadow-md ring-2 ring-sky-400/30' : 'border-slate-100 dark:border-slate-700'
-                        } flex flex-col items-center text-center relative transition-all hover:-translate-y-1`}
+                        onClick={() => {
+                          if (!isBranchOpen) {
+                            toast.error('عذراً، هذا الفرع مغلق حالياً ولا يستقبل حجوزات')
+                            return
+                          }
+                          setSelectedBranch(b)
+                        }}
+                        className={`rounded-2xl p-2 bg-white dark:bg-slate-800 border-2 ${
+                          !isBranchOpen
+                            ? 'opacity-60 cursor-not-allowed border-rose-200 dark:border-rose-900/50'
+                            : isSelected
+                            ? 'cursor-pointer border-sky-500 shadow-md ring-2 ring-sky-400/30 hover:-translate-y-1'
+                            : 'cursor-pointer border-slate-100 dark:border-slate-700 hover:-translate-y-1'
+                        } flex flex-col items-center text-center relative transition-all`}
                       >
                         <div className="w-full h-20 rounded-xl overflow-hidden mb-2 bg-sky-100 dark:bg-slate-700 relative">
                           {b.image ? (
@@ -1017,10 +1028,14 @@ export function BookingModal({
                         </div>
                         <div className="font-black text-slate-900 dark:text-white text-[11px] leading-tight">{b.name}</div>
                         <div className="text-[10px] text-slate-400 mt-0.5">{b.sub || b.address}</div>
-                        <span className="mt-2 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 text-[9px] font-extrabold border border-emerald-200 dark:border-emerald-800">
-                          متاح اليوم
+                        <span className={`mt-2 px-2 py-0.5 rounded-full text-[9px] font-extrabold border ${
+                          isBranchOpen
+                            ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                            : 'bg-rose-50 dark:bg-rose-950 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800'
+                        }`}>
+                          {isBranchOpen ? 'متاح للحجز' : 'مغلق مؤقتاً'}
                         </span>
-                        {isSelected && (
+                        {isSelected && isBranchOpen && (
                           <span className="absolute -bottom-2 -right-2 w-5 h-5 rounded-full bg-sky-600 text-white flex items-center justify-center text-[10px] shadow">
                             <Check className="w-3 h-3" />
                           </span>

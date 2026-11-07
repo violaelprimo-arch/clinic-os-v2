@@ -14,13 +14,6 @@ interface LandingFooterProps {
 export function LandingFooter({ config }: LandingFooterProps) {
   const { isRtl } = useLanguage()
 
-  const patientPortalUrl = React.useMemo(() => {
-    const raw = (config.patientUrl || '').trim()
-    if (!raw) return '/clinic/zizo/patient'
-    if (raw.endsWith('/patient') || raw.includes('/patient')) return raw
-    return `${raw.replace(/\/$/, '')}/patient`
-  }, [config.patientUrl])
-
   const activeContacts = React.useMemo(() => {
     const list = (config.contacts || []).filter((c) => c.visible !== false)
     if (list.length > 0) return list
@@ -45,8 +38,8 @@ export function LandingFooter({ config }: LandingFooterProps) {
   return (
     <footer className="border-t border-sky-100 dark:border-slate-800 bg-white/70 dark:bg-[#060e1c] text-slate-600 dark:text-slate-400 py-12 px-4 sm:px-6 lg:px-8 transition-colors">
       <div className="max-w-7xl mx-auto space-y-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8">
-          {/* Col 1: Brand Info */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          {/* Col 1: Brand Info (2 cols on lg) */}
           <div className="lg:col-span-2 space-y-3">
             <Link href="/" className="inline-block" dir="ltr">
               <ClinicLogo size="md" variant="auto" />
@@ -58,98 +51,46 @@ export function LandingFooter({ config }: LandingFooterProps) {
             </p>
           </div>
 
-          {/* Col 2: System Portals (بوابات النظام) */}
-          <div className="space-y-2 text-xs">
-            <h4 className="font-black text-slate-900 dark:text-white text-xs mb-3">
-              {isRtl ? 'بوابات النظام' : 'System Portals'}
-            </h4>
-            <ul className="space-y-2.5">
-              <li>
-                <Link
-                  href={config.loginUrl || '/login'}
-                  className="hover:text-sky-600 dark:hover:text-sky-400 transition-colors font-medium flex items-center gap-1.5"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-sky-500 shrink-0"></span>
-                  <span>{isRtl ? 'تسجيل دخول العيادة' : 'Clinic Login'}</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/clinic/zizo/tv"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-sky-600 dark:hover:text-sky-400 transition-colors font-medium flex items-center gap-1.5"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-                  <span>{isRtl ? 'شاشة غرفة الانتظار (TV)' : 'Waiting Room Screen (TV)'}</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href={patientPortalUrl}
-                  className="hover:text-sky-600 dark:hover:text-sky-400 transition-colors font-medium flex items-center gap-1.5"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 shrink-0"></span>
-                  <span>{isRtl ? 'بوابة المريض الذكية' : 'Smart Patient Portal'}</span>
-                </Link>
-              </li>
-              <li>
-                <a
-                  href="#contact"
-                  onClick={() => {
-                    if (typeof window !== 'undefined') {
-                      window.dispatchEvent(new CustomEvent('select-contact-type', { detail: 'complaint' }))
-                    }
-                  }}
-                  className="hover:text-sky-600 dark:hover:text-sky-400 transition-colors font-medium flex items-center gap-1.5"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
-                  <span>{isRtl ? 'الاقتراحات والشكاوى' : 'Suggestions & Complaints'}</span>
-                </a>
-              </li>
-            </ul>
-          </div>
-
-          {/* Col 3: Quick Links (روابط سريعة) */}
+          {/* Col 2: Quick Links (روابط سريعة) */}
           <div className="space-y-2 text-xs">
             <h4 className="font-black text-slate-900 dark:text-white text-xs mb-3">
               {isRtl ? 'روابط سريعة' : 'Quick Links'}
             </h4>
-            <ul className="grid grid-cols-2 gap-2">
+            <ul className="grid grid-cols-2 gap-2.5">
               <li>
-                <a href="#features" className="hover:text-sky-600 dark:hover:text-sky-400 transition-colors">
+                <a href="#features" className="hover:text-primary transition-colors font-medium">
                   {isRtl ? 'مميزات المنصة' : 'Features'}
                 </a>
               </li>
               <li>
-                <a href="#gallery" className="hover:text-sky-600 dark:hover:text-sky-400 transition-colors">
+                <a href="#gallery" className="hover:text-primary transition-colors font-medium">
                   {isRtl ? 'معرض الصور' : 'Screenshots'}
                 </a>
               </li>
               <li>
-                <a href="#steps" className="hover:text-sky-600 dark:hover:text-sky-400 transition-colors">
+                <a href="#steps" className="hover:text-primary transition-colors font-medium">
                   {isRtl ? 'خطوات البدء' : 'How It Works'}
                 </a>
               </li>
               <li>
-                <a href="#pricing" className="hover:text-sky-600 dark:hover:text-sky-400 transition-colors">
+                <a href="#pricing" className="hover:text-primary transition-colors font-medium">
                   {isRtl ? 'الباقات' : 'Pricing'}
                 </a>
               </li>
               <li>
-                <a href="#faq" className="hover:text-sky-600 dark:hover:text-sky-400 transition-colors">
-                  {isRtl ? 'الأسئلة' : 'FAQ'}
+                <a href="#faq" className="hover:text-primary transition-colors font-medium">
+                  {isRtl ? 'الأسئلة الشائعة' : 'FAQ'}
                 </a>
               </li>
               <li>
-                <a href="#contact" className="hover:text-sky-600 dark:hover:text-sky-400 transition-colors">
+                <a href="#contact" className="hover:text-primary transition-colors font-medium">
                   {isRtl ? 'تواصل معنا' : 'Contact'}
                 </a>
               </li>
             </ul>
           </div>
 
-          {/* Col 4: Contact Numbers (أرقام التواصل) */}
+          {/* Col 3: Contact Numbers (أرقام التواصل والمساندة) */}
           <div className="space-y-2 text-xs">
             <h4 className="font-black text-slate-900 dark:text-white text-xs mb-3">
               {isRtl ? 'أرقام التواصل والمساندة' : 'Contact & Support'}
@@ -170,7 +111,7 @@ export function LandingFooter({ config }: LandingFooterProps) {
                         {isRtl ? c.roleTitle : c.roleTitleEn || c.roleTitle}
                       </span>
                       {c.isPrimary && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 font-bold shrink-0">
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-100 dark:bg-sky-950 text-primary font-bold shrink-0">
                           {isRtl ? 'رئيسي' : 'Primary'}
                         </span>
                       )}
@@ -182,7 +123,7 @@ export function LandingFooter({ config }: LandingFooterProps) {
                       <div className="flex items-center gap-1 shrink-0">
                         <a
                           href={`tel:${cleanPhone.replace(/\s+/g, '')}`}
-                          className="p-1.5 rounded-lg bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 hover:bg-sky-100 transition-colors"
+                          className="p-1.5 rounded-lg bg-sky-50 dark:bg-sky-950/60 text-primary hover:bg-sky-100 transition-colors"
                           title={isRtl ? 'اتصال هاتفي' : 'Phone Call'}
                         >
                           <Phone className="w-3 h-3" />
@@ -209,7 +150,7 @@ export function LandingFooter({ config }: LandingFooterProps) {
 
         {/* Bottom Bar */}
         <div className="pt-6 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 font-bold">
-          <p>{isRtl ? config.footerText : config.english.footerText || config.footerText}</p>
+          <p>{isRtl ? config.footerText : config.english?.footerText || config.footerText}</p>
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-emerald-500" />
             <span>نظام سحابي آمن 100%</span>

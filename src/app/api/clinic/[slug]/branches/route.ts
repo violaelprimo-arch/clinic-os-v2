@@ -4,12 +4,14 @@ import {
   query,
   where,
   getDocs,
+  getDoc,
   addDoc,
   updateDoc,
   doc
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { verifySessionToken } from '@/lib/auth-crypto'
+import { OWNER_COOKIE, verifyOwnerSession } from '@/lib/owner-session'
 import { Branch, BranchScheduleDay } from '@/types/clinic'
 import { DEFAULT_WEEKLY_SCHEDULE, formatWeeklyScheduleSummary } from '@/lib/branchService'
 import { sanitizeAddress } from '@/lib/mapsHelper'
@@ -17,7 +19,7 @@ import { queryDocuments } from '@/lib/server/firebase-rest'
 
 /**
  * Helper to fetch all branches for a clinic doc ID.
- * Looks for both clinicId and clinic_id fields for complete backward and forward compatibility.
+ * Looks for both clinicId and clinic_id fields for complete compatibility.
  */
 async function fetchBranchesForClinic(clinicId: string, slug?: string): Promise<Branch[]> {
   const map = new Map<string, Branch>()
@@ -44,7 +46,11 @@ async function fetchBranchesForClinic(clinicId: string, slug?: string): Promise<
     try {
       const restBranches = await queryDocuments('branches')
       for (const b of restBranches) {
-        if (b.clinicId === clinicId || b.clinic_id === clinicId || (slug && (b.clinicId === slug || b.clinic_id === slug))) {
+        if (
+          b.clinicId === clinicId ||
+          b.clinic_id === clinicId ||
+          (slug && (b.clinicId === slug || b.clinic_id === slug))
+        ) {
           map.set(b.id, b as unknown as Branch)
         }
       }
@@ -57,8 +63,54 @@ async function fetchBranchesForClinic(clinicId: string, slug?: string): Promise<
 }
 
 /**
+ * Verify caller identity: Platform Owner OR Doctor/Assistant for this clinic.
+ */
+async function authenticateCaller(req: NextRequest, clinicSlug: string, clinicId: string) {
+  let isOwner = false
+  let isClinicStaff = false
+
+  // 1. Check Owner session cookie
+  const ownerCookie = req.cookies.get(OWNER_COOKIE)?.value
+  if (ownerCookie) {
+    const secret = process.env.OWNER_SESSION_SECRET || process.env.AUTH_SECRET || ''
+    if (secret.length >= 32) {
+      try {
+        const owner = await verifyOwnerSession(ownerCookie, secret)
+        if (owner && (!process.env.PLATFORM_OWNER_UID || owner.uid === process.env.PLATFORM_OWNER_UID)) {
+          isOwner = true
+        }
+      } catch {}
+    }
+  }
+
+  // 2. Check Clinic session token
+  const sessionToken =
+    req.cookies.get('clinic_session')?.value ||
+    req.headers.get('Authorization')?.replace('Bearer ', '')
+
+  if (sessionToken) {
+    try {
+      const session = await verifySessionToken(sessionToken)
+      if (session.valid && session.payload) {
+        if (session.payload.role === 'owner') {
+          isOwner = true
+        } else if (
+          session.payload.slug === clinicSlug ||
+          session.payload.clinicId === clinicId ||
+          session.payload.clinicId === clinicSlug
+        ) {
+          isClinicStaff = true
+        }
+      }
+    } catch {}
+  }
+
+  return { isOwner, isClinicStaff, isAuthorized: isOwner || isClinicStaff }
+}
+
+/**
  * GET: Retrieve all active branches for a clinic.
- * If none exist, automatically provisions the default main branch and returns it.
+ * Returns actual registered branches without phantom auto-creation.
  */
 export async function GET(
   req: NextRequest,
@@ -70,70 +122,18 @@ export async function GET(
       return NextResponse.json({ error: 'معرف العيادة مطلوب' }, { status: 400 })
     }
 
-    let clinic: any = null
     let clinicId = slug
-
     try {
       const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
       const cSnap = await getDocs(cQ)
       if (!cSnap.empty) {
-        clinic = cSnap.docs[0].data()
         clinicId = cSnap.docs[0].id
       }
     } catch (dbErr) {
       console.warn('Firestore clinics lookup failed, proceeding with fallback:', dbErr)
     }
 
-    let branches: Branch[] = []
-    try {
-      branches = await fetchBranchesForClinic(clinicId, slug)
-    } catch (bErr) {
-      console.warn('fetchBranchesForClinic failed:', bErr)
-    }
-
-    // Fallback: If no branches exist, return or provision the default Main Branch
-    if (branches.length === 0) {
-      const schedule: BranchScheduleDay[] =
-        Array.isArray(clinic?.weeklySchedule) && clinic.weeklySchedule.length > 0
-          ? clinic.weeklySchedule
-          : DEFAULT_WEEKLY_SCHEDULE
-
-      const defaultBranchData: any = {
-        clinicId,
-        clinic_id: clinicId,
-        name: 'الفرع الرئيسي',
-        governorate: 'القاهرة',
-        city: 'القاهرة',
-        area: '',
-        address: sanitizeAddress(clinic?.clinicAddress || clinic?.address) || 'مقر العيادة الرئيسي',
-        mapsLink: clinic?.mapsLink || '',
-        phone: clinic?.clinicPhone || (clinic?.clinicPhones?.[0] || '01012345678'),
-        whatsapp: clinic?.clinicPhone || '',
-        weeklySchedule: schedule,
-        workingHours: formatWeeklyScheduleSummary(schedule, true),
-        slotDuration: Number(clinic?.averageVisitTime) || 15,
-        maxDailyBookings: Number(clinic?.maxDailyBookings) || 0,
-        services: Array.isArray(clinic?.services) && clinic.services.length > 0
-          ? clinic.services
-          : [
-              { id: '1', name: 'كشف عادي', price: 250, duration: '15 دقيقة' },
-              { id: '2', name: 'استشارة', price: 150, duration: '10 دقائق' },
-              { id: '3', name: 'كشف مستعجل', price: 400, duration: 'فوري' }
-            ],
-        isOpen: clinic?.isClinicOpen !== false,
-        isArchived: false,
-        isMain: true,
-        createdAt: new Date().toISOString()
-      }
-
-      try {
-        const newDocRef = await addDoc(collection(db, 'branches'), defaultBranchData)
-        branches = [{ id: newDocRef.id, ...defaultBranchData }]
-      } catch (createErr) {
-        console.warn('Could not persist default branch to Firestore, returning in-memory branch:', createErr)
-        branches = [{ id: 'main-branch-' + slug, ...defaultBranchData }]
-      }
-    }
+    const branches = await fetchBranchesForClinic(clinicId, slug)
 
     return NextResponse.json({
       success: true,
@@ -150,7 +150,7 @@ export async function GET(
 
 /**
  * POST: Create or update a branch.
- * Requires authenticated doctor or assistant session.
+ * Enforces permissions: Owner can manage any branch, Doctor respects allowDoctorCreateBranches and quota.
  */
 export async function POST(
   req: NextRequest,
@@ -158,17 +158,8 @@ export async function POST(
 ) {
   try {
     const { slug } = await params
-    const sessionToken =
-      req.cookies.get('clinic_session')?.value ||
-      req.headers.get('Authorization')?.replace('Bearer ', '')
-
-    if (!sessionToken) {
-      return NextResponse.json({ error: 'غير مصرح بالوصول — يرجى تسجيل الدخول' }, { status: 401 })
-    }
-
-    const session = await verifySessionToken(sessionToken)
-    if (!session.valid || !session.payload) {
-      return NextResponse.json({ error: 'جلسة الدخول غير صالحة أو منتهية' }, { status: 401 })
+    if (!slug) {
+      return NextResponse.json({ error: 'معرف العيادة مطلوب' }, { status: 400 })
     }
 
     const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
@@ -180,6 +171,11 @@ export async function POST(
     const cDoc = cSnap.docs[0]
     const clinic = cDoc.data()
     const clinicId = cDoc.id
+
+    const auth = await authenticateCaller(req, slug, clinicId)
+    if (!auth.isAuthorized) {
+      return NextResponse.json({ error: 'غير مصرح بالوصول — يرجى تسجيل الدخول' }, { status: 401 })
+    }
 
     const body = await req.json().catch(() => ({}))
     const {
@@ -202,13 +198,61 @@ export async function POST(
       isMain
     } = body
 
+    const isCreating = !branchId || branchId === 'new'
+
+    // Doctor Permission & Quota Checks
+    if (!auth.isOwner) {
+      if (isCreating) {
+        if (clinic.allowDoctorCreateBranches === false) {
+          return NextResponse.json(
+            { error: 'إضافة الفروع مقيدة بواسطة إدارة المنصة.' },
+            { status: 403 }
+          )
+        }
+        if (clinic.branchesEnabled === false) {
+          return NextResponse.json(
+            { error: 'ميزة الفروع غير مفعلة لاشتراك العيادة. يرجى التواصل مع الدعم.' },
+            { status: 403 }
+          )
+        }
+
+        const maxBranches = typeof clinic.maxBranches === 'number' ? clinic.maxBranches : 1
+        const currentBranches = await fetchBranchesForClinic(clinicId, slug)
+        if (currentBranches.length >= maxBranches) {
+          return NextResponse.json(
+            {
+              error: `تم الوصول للحد الأقصى المسموح به من الفروع لهذه العيادة (${maxBranches} فرع). يرجى الترقية لإضافة فروع جديدة.`
+            },
+            { status: 403 }
+          )
+        }
+      } else {
+        // Verify branch ownership when updating
+        try {
+          const bDoc = await getDoc(doc(db, 'branches', branchId))
+          if (bDoc.exists()) {
+            const bData = bDoc.data()
+            if (bData.clinicId !== clinicId && bData.clinic_id !== clinicId) {
+              return NextResponse.json(
+                { error: 'لا تملك صلاحية تعديل هذا الفرع التابع لعيادة أخرى' },
+                { status: 403 }
+              )
+            }
+          }
+        } catch (vErr) {
+          console.warn('Branch ownership check warning:', vErr)
+        }
+      }
+    }
+
     if (!name || !String(name).trim()) {
       return NextResponse.json({ error: 'اسم الفرع مطلوب' }, { status: 400 })
     }
 
-    const schedule = Array.isArray(weeklySchedule) && weeklySchedule.length > 0
-      ? weeklySchedule
-      : DEFAULT_WEEKLY_SCHEDULE
+    const schedule =
+      Array.isArray(weeklySchedule) && weeklySchedule.length > 0
+        ? weeklySchedule
+        : DEFAULT_WEEKLY_SCHEDULE
 
     const branchPayload: any = {
       clinicId,
@@ -233,7 +277,7 @@ export async function POST(
       updatedAt: new Date().toISOString()
     }
 
-    if (branchId && typeof branchId === 'string' && branchId !== 'new') {
+    if (!isCreating) {
       // Update existing branch
       await updateDoc(doc(db, 'branches', branchId), branchPayload)
       return NextResponse.json({
@@ -260,7 +304,7 @@ export async function POST(
 }
 
 /**
- * DELETE: Soft-archive a branch.
+ * DELETE: Soft-archive a branch safely without deleting historical appointment or financial data.
  */
 export async function DELETE(
   req: NextRequest,
@@ -268,23 +312,46 @@ export async function DELETE(
 ) {
   try {
     const { slug } = await params
-    const sessionToken =
-      req.cookies.get('clinic_session')?.value ||
-      req.headers.get('Authorization')?.replace('Bearer ', '')
-
-    if (!sessionToken) {
-      return NextResponse.json({ error: 'غير مصرح بالوصول' }, { status: 401 })
+    if (!slug) {
+      return NextResponse.json({ error: 'معرف العيادة مطلوب' }, { status: 400 })
     }
 
-    const session = await verifySessionToken(sessionToken)
-    if (!session.valid || !session.payload) {
-      return NextResponse.json({ error: 'جلسة الدخول غير صالحة' }, { status: 401 })
+    const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
+    const cSnap = await getDocs(cQ)
+    if (cSnap.empty) {
+      return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404 })
+    }
+
+    const cDoc = cSnap.docs[0]
+    const clinicId = cDoc.id
+
+    const auth = await authenticateCaller(req, slug, clinicId)
+    if (!auth.isAuthorized) {
+      return NextResponse.json({ error: 'غير مصرح بالوصول' }, { status: 401 })
     }
 
     const { searchParams } = new URL(req.url)
     const branchId = searchParams.get('branchId')
     if (!branchId) {
       return NextResponse.json({ error: 'معرف الفرع مطلوب' }, { status: 400 })
+    }
+
+    // Verify ownership
+    if (!auth.isOwner) {
+      try {
+        const bDoc = await getDoc(doc(db, 'branches', branchId))
+        if (bDoc.exists()) {
+          const bData = bDoc.data()
+          if (bData.clinicId !== clinicId && bData.clinic_id !== clinicId) {
+            return NextResponse.json(
+              { error: 'لا تملك صلاحية أرشفة هذا الفرع' },
+              { status: 403 }
+            )
+          }
+        }
+      } catch (vErr) {
+        console.warn('Branch ownership check warning on delete:', vErr)
+      }
     }
 
     await updateDoc(doc(db, 'branches', branchId), {

@@ -87,6 +87,20 @@ export async function POST(req: NextRequest) {
         const bDoc = await getDoc(doc(db, 'branches', String(branchId)))
         if (bDoc.exists()) {
           bData = bDoc.data()
+          // Enforce: Do not allow booking at a manually disabled or archived branch
+          if (bData.isOpen === false || bData.isArchived === true) {
+            return NextResponse.json(
+              { error: 'عذراً، هذا الفرع متوقف حالياً عن استقبال الحجوزات' },
+              { status: 400 }
+            )
+          }
+          // Enforce: Branch must belong to this clinic
+          if (bData.clinicId && bData.clinicId !== clinicId && bData.clinic_id !== clinicId) {
+            return NextResponse.json(
+              { error: 'الفرع المحدد لا يتبع هذه العيادة' },
+              { status: 400 }
+            )
+          }
         }
       } catch (e) {
         // Fallback

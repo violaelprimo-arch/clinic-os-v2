@@ -771,8 +771,8 @@ export function InClinicBookingView({
                       className="w-full h-11 px-3 rounded-2xl bg-card border border-border text-xs font-bold text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
                     >
                       {branches.map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {b.name} {b.isMain ? (isRtl ? '(الرئيسي)' : '(Main)') : ''}
+                        <option key={b.id} value={b.id} disabled={b.isOpen === false}>
+                          {b.name} {b.isMain ? (isRtl ? '(الرئيسي)' : '(Main)') : ''} {b.isOpen === false ? (isRtl ? '(مغلق حالياً)' : '(Closed)') : ''}
                         </option>
                       ))}
                     </select>

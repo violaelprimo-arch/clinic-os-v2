@@ -134,14 +134,15 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
   }, [weeklySchedule, isOpen, name, editingBranchId, branches, isModalOpen])
 
   const branchesEnabled = clinic?.branchesEnabled !== false
+  const allowDoctorCreateBranches = clinic?.allowDoctorCreateBranches !== false
   const maxBranches = typeof clinic?.maxBranches === 'number' ? clinic.maxBranches : 1
   const activeBranches = branches.filter((b) => !b.isArchived)
   const isLimitReached = activeBranches.length >= maxBranches
-  const canAddBranch = isOwner && branchesEnabled && !isLimitReached
+  const canAddBranch = (isOwner || allowDoctorCreateBranches) && branchesEnabled && !isLimitReached
 
   const openAddModal = () => {
-    if (!isOwner) {
-      toast.error(language === 'en' ? 'Adding branches is restricted to Platform Super Admin.' : 'إضافة فروع جديدة متاح حصرياً بواسطة مالك المنصة Super Admin.')
+    if (!isOwner && !allowDoctorCreateBranches) {
+      toast.error(language === 'en' ? 'Adding branches is restricted by Platform Admin.' : 'إضافة الفروع مقيدة بواسطة إدارة المنصة.')
       return
     }
     if (!branchesEnabled) {
@@ -149,7 +150,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
       return
     }
     if (isLimitReached) {
-      toast.error(`لقد وصلت للحد الأقصى المسموح به من الفروع (${maxBranches} فروع). يرجى ترقية الباقة لإضافة فروع جديدة.`)
+      toast.error(`لقد وصلت للحد الأقصى المسموح به من الفروع (${maxBranches} فرع). يرجى ترقية الباقة لإضافة فروع جديدة.`)
       return
     }
     setEditingBranchId(null)

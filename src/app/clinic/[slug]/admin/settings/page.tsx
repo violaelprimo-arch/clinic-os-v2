@@ -14,8 +14,15 @@ import {
   Wallet, Users, Clock, Printer, ShieldCheck, Settings, Lock,
   CheckCircle2, Bell, Sparkles, Building2, Copy, ExternalLink,
   Monitor, Tablet, Smartphone, User, RefreshCw,
-  ArrowUp, ArrowDown, Zap, Banknote, CreditCard, AlertCircle, Check
+  ArrowUp, ArrowDown, Zap, Banknote, CreditCard, AlertCircle, Check,
+  Eye, EyeOff, X
 } from 'lucide-react'
+import {
+  BookingPageConfig,
+  DEFAULT_BOOKING_PAGE_CONFIG,
+  normalizeBookingPageConfig
+} from '@/lib/booking-page-config'
+import BookingPageEditor from '@/components/clinic/BookingPageEditor'
 import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 import { db } from '@/lib/firebase'
 import { collection, query, where, getDocs, updateDoc, doc, addDoc } from 'firebase/firestore'
@@ -77,8 +84,12 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const [certificationEntity, setCertificationEntity] = useState('')
   const [experienceYears, setExperienceYears] = useState<number | string>(10)
   const [doctorRating, setDoctorRating] = useState('4.9')
+  const [bookingPageConfig, setBookingPageConfig] = useState<BookingPageConfig>(DEFAULT_BOOKING_PAGE_CONFIG)
+  const [showLivePreview, setShowLivePreview] = useState(true)
+  const [isMobilePreviewOpen, setIsMobilePreviewOpen] = useState(false)
   const [previewDevice, setPreviewDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop')
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const mobileIframeRef = useRef<HTMLIFrameElement>(null)
   const [iframeKey, setIframeKey] = useState(0)
   
   useEffect(() => {
@@ -194,6 +205,19 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           setReportHeaderNote(data.reportHeaderNote || '')
           setSecondaryColor(data.secondaryColor || '#02CFF3')
           setPrimaryColor(data.primaryColor || '#087CF4')
+          if (data.bookingPageConfig) {
+            setBookingPageConfig(normalizeBookingPageConfig(data.bookingPageConfig))
+          } else {
+            setBookingPageConfig(normalizeBookingPageConfig({
+              heroHeadline: data.clinicName || '',
+              heroSubtitle: data.heroSubtitle || '',
+              primaryColor: data.primaryColor || '#087CF4',
+              secondaryColor: data.secondaryColor || '#02CFF3',
+              doctorTitle: data.doctorTitle || 'د.',
+              doctorName: data.doctorName || '',
+              specialty: data.specialty || '',
+            }))
+          }
           setAssistantPermissions(data.assistantPermissions || ['appointments'])
           setAverageVisitTime(data.averageVisitTime || 15)
           setMaxDailyBookings(data.maxDailyBookings || 0)
@@ -308,6 +332,11 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         branchImage: branchImage || '',
         experienceYears: Number(experienceYears) || 10,
         doctorRating: doctorRating || '4.9',
+        bookingPageConfig: {
+          ...bookingPageConfig,
+          primaryColor: primaryColor || bookingPageConfig.primaryColor,
+          secondaryColor: secondaryColor || bookingPageConfig.secondaryColor,
+        },
         ...(canEditBranding ? {
           logoUrl: logoUrl || '',
           thermalMonoLogoUrl: thermalMonoLogoUrl || '',
@@ -500,7 +529,14 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       weeklySchedule: weeklySchedule || [],
       averageVisitTime: averageVisitTime || 15,
       services: services || [],
-      aiEnabled: aiEnabled
+      aiEnabled: aiEnabled,
+      bookingPageConfig: {
+        ...bookingPageConfig,
+        primaryColor: primaryColor || bookingPageConfig.primaryColor,
+        secondaryColor: secondaryColor || bookingPageConfig.secondaryColor,
+        isClinicOpen: isClinicOpen !== false,
+        showPrices: showPrices !== false,
+      }
     }
   }, [
     clinicId,
@@ -530,6 +566,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
     averageVisitTime,
     services,
     aiEnabled,
+    bookingPageConfig,
     isRtl
   ])
 
@@ -540,28 +577,33 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       localStorage.setItem(`clinic_live_preview_${slug}`, JSON.stringify(previewClinicData))
     } catch (e) {}
 
+    const payload = {
+      type: 'CLINIC_PREVIEW_UPDATE',
+      data: previewClinicData
+    }
+
     if (iframeRef.current?.contentWindow) {
-      iframeRef.current.contentWindow.postMessage(
-        {
-          type: 'CLINIC_PREVIEW_UPDATE',
-          data: previewClinicData
-        },
-        '*'
-      )
+      iframeRef.current.contentWindow.postMessage(payload, '*')
+    }
+    if (mobileIframeRef.current?.contentWindow) {
+      mobileIframeRef.current.contentWindow.postMessage(payload, '*')
     }
   }, [previewClinicData, slug])
 
   // Respond immediately when preview iframe finishes loading or announces readiness
   useEffect(() => {
     const handlePreviewReady = (e: MessageEvent) => {
-      if (e.data?.type === 'CLINIC_PREVIEW_READY' && iframeRef.current?.contentWindow) {
-        iframeRef.current.contentWindow.postMessage(
-          {
-            type: 'CLINIC_PREVIEW_UPDATE',
-            data: previewClinicData
-          },
-          '*'
-        )
+      if (e.data?.type === 'CLINIC_PREVIEW_READY') {
+        const payload = {
+          type: 'CLINIC_PREVIEW_UPDATE',
+          data: previewClinicData
+        }
+        if (iframeRef.current?.contentWindow) {
+          iframeRef.current.contentWindow.postMessage(payload, '*')
+        }
+        if (mobileIframeRef.current?.contentWindow) {
+          mobileIframeRef.current.contentWindow.postMessage(payload, '*')
+        }
       }
     }
     window.addEventListener('message', handlePreviewReady)
@@ -569,14 +611,15 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   }, [previewClinicData])
 
   const handleIframeLoad = () => {
+    const payload = {
+      type: 'CLINIC_PREVIEW_UPDATE',
+      data: previewClinicData
+    }
     if (iframeRef.current?.contentWindow) {
-      iframeRef.current.contentWindow.postMessage(
-        {
-          type: 'CLINIC_PREVIEW_UPDATE',
-          data: previewClinicData
-        },
-        '*'
-      )
+      iframeRef.current.contentWindow.postMessage(payload, '*')
+    }
+    if (mobileIframeRef.current?.contentWindow) {
+      mobileIframeRef.current.contentWindow.postMessage(payload, '*')
     }
   }
 
@@ -596,6 +639,11 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
     setLogoUrl(clinic.logoUrl || '')
     setPrimaryColor(clinic.primaryColor || '#087CF4')
     setSecondaryColor(clinic.secondaryColor || '#02CFF3')
+    if (clinic.bookingPageConfig) {
+      setBookingPageConfig(normalizeBookingPageConfig(clinic.bookingPageConfig))
+    } else {
+      setBookingPageConfig(DEFAULT_BOOKING_PAGE_CONFIG)
+    }
     setAddress(clinic.clinicAddress || clinic.address || '')
     setClinicPhone(clinic.clinicPhone || (clinic.clinicPhones?.[0] || ''))
     setPhones(clinic.clinicPhones?.length ? clinic.clinicPhones : [clinic.clinicPhone || ''])
@@ -627,6 +675,17 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setShowLivePreview((prev) => !prev)}
+            className="h-10 px-4 font-bold border-border rounded-xl text-xs hover:bg-muted transition-colors cursor-pointer hidden lg:flex items-center gap-1.5"
+            title="إظهار أو إخفاء لوحة المعاينة الحية لصفحة الحجز"
+          >
+            {showLivePreview ? <EyeOff className="w-3.5 h-3.5 text-muted-foreground" /> : <Eye className="w-3.5 h-3.5 text-primary" />}
+            <span>{showLivePreview ? t('hide_live_preview', 'إخفاء المعاينة الحية') : t('show_live_preview', 'إظهار المعاينة الحية')}</span>
+          </Button>
+
           <Button
             type="button"
             variant="outline"
@@ -671,7 +730,11 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         })}
       </div>
 
-      {/* 3. Tab Contents */}
+      {/* 3. Main Responsive Workspace: Right Editor Column + Left Sticky Live Preview */}
+      <div className={`transition-all duration-300 ${showLivePreview ? 'grid lg:grid-cols-12 gap-6 items-start' : 'max-w-4xl mx-auto'}`}>
+        
+        {/* Editor Form Column */}
+        <div className={showLivePreview ? 'lg:col-span-7 space-y-6 min-w-0' : 'w-full space-y-6'}>
 
       {/* TAB SECURITY */}
       {activeTab === 'security' && currentRole === 'doctor' && (
@@ -830,9 +893,9 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       
       {/* TAB BRANDING: Clinic Branding & Thermal Printing */}
       {activeTab === 'branding' && (
-        <div className="grid lg:grid-cols-12 gap-6 items-start">
-          {/* Settings Form (7 cols) */}
-          <div className="lg:col-span-7 yalla-card p-6 space-y-6">
+        <div className="space-y-6">
+          {/* Settings Form */}
+          <div className="yalla-card p-6 space-y-6">
             <div className="pb-3 border-b border-border">
               <h3 className="font-bold text-base text-foreground flex items-center gap-2">
                 <Palette className="w-5 h-5 text-primary" />
@@ -970,8 +1033,8 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
             </fieldset>
           </div>
 
-          {/* Live Preview Side (5 cols) */}
-          <div className="lg:col-span-5 space-y-6">
+          {/* Live Preview Side (Thermal & Brand Card) */}
+          <div className="grid sm:grid-cols-2 gap-6 items-start">
             
             {/* Preview 1: Thermal Receipt 80mm Simulation */}
             <div className="yalla-card p-5 space-y-3 bg-muted/40 border border-border">
@@ -1406,257 +1469,24 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
             </div>
       )}
 
-      {/* TAB BOOKING DESIGN: Booking Page Designer & Live Simulation */}
+      {/* TAB BOOKING DESIGN: Advanced Booking Page Customization */}
       {activeTab === 'booking_design' && (
-        <div className="grid lg:grid-cols-12 gap-6 items-start">
-          {/* Controls Side (5 cols) */}
-          <div className="lg:col-span-5 space-y-6">
-            <div className="yalla-card p-6 space-y-6">
-              <div className="pb-3 border-b border-border">
-                <h3 className="font-bold text-base text-foreground flex items-center gap-2">
-                  <Palette className="w-5 h-5 text-primary" />
-                  {t('booking_appearance_title', 'مظهر وألوان صفحة الحجز')}
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {t('booking_appearance_desc', 'اختر باليت الألوان الطبية المناسبة لهوية عيادتك، وتحكم في خيارات العرض المباشرة.')}
-                </p>
-              </div>
-
-              {/* Color Presets */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-bold text-foreground">
-                    {t('color_presets_label', 'باليتات الألوان الطبية المعتمدة')}
-                  </Label>
-                  <span className="text-[10px] text-muted-foreground font-medium">{t('click_to_apply', 'اضغط للتطبيق الفوري')}</span>
-                </div>
-                <div className="grid grid-cols-1 gap-2">
-                  {COLOR_PRESETS.map((preset) => {
-                    const isSelected = primaryColor.toLowerCase() === preset.primary.toLowerCase()
-                    return (
-                      <button
-                        key={preset.primary}
-                        type="button"
-                        onClick={() => {
-                          setPrimaryColor(preset.primary)
-                          setSecondaryColor(preset.secondary)
-                        }}
-                        className={`flex items-center justify-between p-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                          isSelected
-                            ? 'border-primary bg-primary/5 text-primary shadow-2xs'
-                            : 'border-border bg-card hover:bg-muted/50 text-foreground'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <div className="flex items-center -space-x-1 rtl:space-x-reverse">
-                            <span
-                              style={{ backgroundColor: preset.primary }}
-                              className="w-5 h-5 rounded-full border-2 border-white dark:border-slate-800 shadow-2xs inline-block"
-                            />
-                            <span
-                              style={{ backgroundColor: preset.secondary }}
-                              className="w-4 h-4 rounded-full border-2 border-white dark:border-slate-800 shadow-2xs inline-block"
-                            />
-                          </div>
-                          <span>{isRtl ? preset.label : preset.labelEn}</span>
-                        </div>
-                        {isSelected && <Check className="w-4 h-4 text-primary" />}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-
-              {/* Custom Colors */}
-              <div className="space-y-4 pt-3 border-t border-border">
-                <h4 className="font-bold text-xs text-foreground">{t('custom_brand_colors', 'تخصيص يدوي دقيق للألوان')}</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-[11px] font-bold text-muted-foreground">{t('primary_color', 'اللون الأساسي')}</Label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={primaryColor}
-                        onChange={e => setPrimaryColor(e.target.value)}
-                        className="w-9 h-9 rounded-xl cursor-pointer border border-border p-0.5 bg-background shrink-0"
-                      />
-                      <Input
-                        value={primaryColor}
-                        onChange={e => setPrimaryColor(e.target.value)}
-                        className="h-9 text-xs rounded-xl font-mono text-left"
-                        dir="ltr"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-[11px] font-bold text-muted-foreground">{t('secondary_color', 'اللون الثانوي')}</Label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={secondaryColor}
-                        onChange={e => setSecondaryColor(e.target.value)}
-                        className="w-9 h-9 rounded-xl cursor-pointer border border-border p-0.5 bg-background shrink-0"
-                      />
-                      <Input
-                        value={secondaryColor}
-                        onChange={e => setSecondaryColor(e.target.value)}
-                        className="h-9 text-xs rounded-xl font-mono text-left"
-                        dir="ltr"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Toggles */}
-              <div className="space-y-3 pt-3 border-t border-border">
-                <div className="flex items-center justify-between p-3 rounded-xl bg-muted/40 border border-border">
-                  <div className="space-y-0.5">
-                    <Label className="text-xs font-bold text-foreground">{t('clinic_status_toggle', 'استقبال الحجوزات')}</Label>
-                    <p className="text-[10px] text-muted-foreground">{isClinicOpen ? t('clinic_open_accepting', 'العيادة متاحة للمرضى') : t('clinic_closed_now', 'العيادة مغلقة حالياً')}</p>
-                  </div>
-                  <Switch checked={isClinicOpen} onCheckedChange={setIsClinicOpen} />
-                </div>
-
-                <div className="flex items-center justify-between p-3 rounded-xl bg-muted/40 border border-border">
-                  <div className="space-y-0.5">
-                    <Label className="text-xs font-bold text-foreground">{t('show_prices_to_patients', 'أسعار الكشوفات')}</Label>
-                    <p className="text-[10px] text-muted-foreground">{showPrices ? t('prices_visible', 'الأسعار ظاهرة للمرضى') : t('prices_hidden', 'الأسعار مخفية')}</p>
-                  </div>
-                  <Switch checked={showPrices} onCheckedChange={setShowPrices} />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Preview Side (7 cols) */}
-          <div className="lg:col-span-7 space-y-4">
-            <div className="yalla-card overflow-hidden bg-slate-100/70 dark:bg-slate-900/40 relative flex flex-col border border-border shadow-sm min-h-[640px]">
-              <div className="p-3 border-b border-border bg-card flex items-center justify-between shadow-xs z-10 gap-2 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-500" />
-                  <h3 className="font-bold text-xs sm:text-sm text-foreground">
-                    {t('patient_live_preview', 'معاينة حية لصفحة حجز المريض')}
-                  </h3>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  {/* Device Switcher */}
-                  <div className="flex items-center bg-muted p-1 rounded-xl border border-border">
-                    <button
-                      type="button"
-                      onClick={() => setPreviewDevice('desktop')}
-                      className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        previewDevice === 'desktop'
-                          ? 'bg-background text-primary shadow-xs'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                      title="معاينة شاشة الكمبيوتر (1080px)"
-                    >
-                      <Monitor className="w-3.5 h-3.5" />
-                      <span>كمبيوتر</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPreviewDevice('tablet')}
-                      className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        previewDevice === 'tablet'
-                          ? 'bg-background text-primary shadow-xs'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                      title="معاينة شاشة التابلت / iPad (768px)"
-                    >
-                      <Tablet className="w-3.5 h-3.5" />
-                      <span>تابلت</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPreviewDevice('mobile')}
-                      className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        previewDevice === 'mobile'
-                          ? 'bg-background text-primary shadow-xs'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                      title="معاينة شاشة الموبايل / iPhone (390px)"
-                    >
-                      <Smartphone className="w-3.5 h-3.5" />
-                      <span>موبايل</span>
-                    </button>
-                  </div>
-
-                  {/* Refresh Preview */}
-                  <button
-                    type="button"
-                    onClick={() => setIframeKey((k) => k + 1)}
-                    className="p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-muted transition-colors flex items-center justify-center cursor-pointer"
-                    title={t('refresh_preview', 'إعادة تحميل المعاينة')}
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                  </button>
-
-                  {/* Open in new tab */}
-                  <a
-                    href={publicClinicUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-muted transition-colors flex items-center gap-1 text-xs font-bold cursor-pointer"
-                    title={t('open_live_page', 'فتح صفحة العيادة العامة')}
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
-                </div>
-              </div>
-              
-              {/* Scrollable Preview Area */}
-              <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar bg-slate-100/80 dark:bg-slate-950 p-3 sm:p-4 flex flex-col items-center justify-start">
-                <div
-                  className={`transition-all duration-300 ease-in-out flex flex-col items-center w-full my-auto ${
-                    previewDevice === 'desktop'
-                      ? 'max-w-[860px]'
-                      : previewDevice === 'tablet'
-                      ? 'max-w-[580px]'
-                      : 'max-w-[390px]'
-                  }`}
-                >
-                  {/* Browser Bar / Window Shell */}
-                  <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-t-2xl px-3 py-2 flex items-center gap-2 border border-border border-b-0 shadow-xs">
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="w-2.5 h-2.5 rounded-full bg-rose-400 inline-block" />
-                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block" />
-                    </div>
-                    <div className="flex-1 bg-white/80 dark:bg-slate-900/80 text-[11px] text-muted-foreground rounded-lg px-3 py-1 text-center truncate font-mono border border-border/50 shadow-xs select-all" dir="ltr">
-                      {publicClinicUrl}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setIframeKey(k => k + 1)}
-                      className="p-1 text-muted-foreground hover:text-foreground cursor-pointer rounded-md hover:bg-black/5 dark:hover:bg-white/5"
-                      title={t('refresh_preview', 'تحديث')}
-                    >
-                      <RefreshCw className="w-3 h-3" />
-                    </button>
-                  </div>
-
-                  {/* Single Persistent Iframe Wrapper */}
-                  <div className="w-full overflow-hidden flex justify-center rounded-b-2xl border border-border bg-white dark:bg-slate-950 shadow-2xl">
-                    <iframe
-                      ref={iframeRef}
-                      key={`preview-single-${iframeKey}`}
-                      src={`/clinic/${slug}?preview=1`}
-                      className={`w-full border-0 bg-white dark:bg-slate-950 transition-all duration-300 ${
-                        previewDevice === 'mobile' ? 'h-[620px]' : 'h-[720px]'
-                      }`}
-                      title="معاينة حجز المريض الحية"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+        <div className="space-y-6">
+          <BookingPageEditor
+            value={bookingPageConfig}
+            onChange={(newCfg: BookingPageConfig) => {
+              setBookingPageConfig(newCfg)
+              if (newCfg.primaryColor && newCfg.primaryColor !== primaryColor) {
+                setPrimaryColor(newCfg.primaryColor)
+              }
+              if (newCfg.secondaryColor && newCfg.secondaryColor !== secondaryColor) {
+                setSecondaryColor(newCfg.secondaryColor)
+              }
+            }}
+          />
         </div>
       )}
+
       {/* TAB 2: Queue & Visit Duration */}
       {activeTab === 'queue' && (
         <div className="yalla-card p-6 max-w-2xl space-y-5">
@@ -2405,6 +2235,207 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           </div>
         </div>
       )}
+
+        </div>
+
+        {/* Sticky Live Preview Column (Desktop, Left side in RTL) */}
+        {showLivePreview && (
+          <div className="hidden lg:flex lg:col-span-5 sticky top-6 max-h-[calc(100vh-3rem)] flex-col space-y-3 z-20">
+            <div className="yalla-card overflow-hidden bg-slate-100/70 dark:bg-slate-900/40 relative flex flex-col border border-border shadow-md rounded-2xl flex-1 max-h-[calc(100vh-3.5rem)]">
+              {/* Header Bar */}
+              <div className="p-2.5 sm:p-3 border-b border-border bg-card flex items-center justify-between shadow-xs z-10 gap-2 shrink-0">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
+                  <h3 className="font-bold text-xs text-foreground">
+                    {t('patient_live_preview', 'معاينة صفحة الحجز الحية')}
+                  </h3>
+                  <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/30 text-[9px] font-mono px-1.5 py-0">
+                    مباشر
+                  </Badge>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  {/* Device Switcher */}
+                  <div className="flex items-center bg-muted p-0.5 rounded-xl border border-border text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewDevice('desktop')}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                        previewDevice === 'desktop'
+                          ? 'bg-background text-primary shadow-xs'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                      title="كمبيوتر (1080px)"
+                    >
+                      <Monitor className="w-3 h-3" />
+                      <span className="hidden xl:inline">كمبيوتر</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewDevice('tablet')}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                        previewDevice === 'tablet'
+                          ? 'bg-background text-primary shadow-xs'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                      title="تابلت (768px)"
+                    >
+                      <Tablet className="w-3 h-3" />
+                      <span className="hidden xl:inline">تابلت</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewDevice('mobile')}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                        previewDevice === 'mobile'
+                          ? 'bg-background text-primary shadow-xs'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                      title="موبايل (390px)"
+                    >
+                      <Smartphone className="w-3 h-3" />
+                      <span className="hidden xl:inline">موبايل</span>
+                    </button>
+                  </div>
+
+                  {/* Refresh */}
+                  <button
+                    type="button"
+                    onClick={() => setIframeKey((k) => k + 1)}
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-muted transition-colors cursor-pointer"
+                    title={t('refresh_preview', 'تحديث المعاينة')}
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </button>
+
+                  {/* Open in full page */}
+                  <a
+                    href={publicClinicUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-muted transition-colors cursor-pointer"
+                    title={t('open_live_page', 'فتح صفحة العيادة العامة')}
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              </div>
+
+              {/* Browser Shell Address Bar */}
+              <div className="bg-slate-200/90 dark:bg-slate-800/90 px-3 py-1.5 flex items-center gap-2 border-b border-border/60 shrink-0 text-xs">
+                <div className="flex items-center gap-1 shrink-0">
+                  <span className="w-2 h-2 rounded-full bg-rose-400 inline-block" />
+                  <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
+                </div>
+                <div className="flex-1 bg-white/90 dark:bg-slate-900/90 text-[10.5px] text-muted-foreground rounded-md px-2 py-0.5 text-center truncate font-mono select-all border border-border/40" dir="ltr">
+                  {publicClinicUrl}
+                </div>
+              </div>
+
+              {/* Scrollable Iframe Viewport */}
+              <div className="flex-1 overflow-auto bg-slate-100/80 dark:bg-slate-950 p-2 sm:p-3 flex justify-center items-start">
+                <div
+                  className={`transition-all duration-300 ease-in-out w-full flex justify-center ${
+                    previewDevice === 'mobile'
+                      ? 'max-w-[390px]'
+                      : previewDevice === 'tablet'
+                      ? 'max-w-[540px]'
+                      : 'max-w-full'
+                  }`}
+                >
+                  <div className="w-full rounded-xl overflow-hidden border border-border shadow-lg bg-white dark:bg-slate-950">
+                    <iframe
+                      ref={iframeRef}
+                      key={`preview-sticky-${iframeKey}`}
+                      src={`/clinic/${slug}?preview=1`}
+                      onLoad={handleIframeLoad}
+                      className={`w-full border-0 bg-white dark:bg-slate-950 transition-all ${
+                        previewDevice === 'mobile'
+                          ? 'h-[580px]'
+                          : previewDevice === 'tablet'
+                          ? 'h-[620px]'
+                          : 'h-[660px]'
+                      }`}
+                      title="معاينة حجز المريض الحية"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Mobile Floating Action Button & Full-Screen Preview Drawer */}
+      <div className="lg:hidden">
+        <button
+          type="button"
+          onClick={() => setIsMobilePreviewOpen(true)}
+          className="fixed bottom-6 start-6 z-40 bg-gradient-to-r from-blue-600 to-sky-600 text-white font-black px-4 py-3 rounded-full shadow-2xl flex items-center gap-2 text-xs hover:scale-105 transition-all cursor-pointer border border-white/20"
+        >
+          <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+          <span>{t('preview_booking_page', 'معاينة صفحة الحجز')}</span>
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+        </button>
+
+        {isMobilePreviewOpen && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex flex-col justify-end sm:justify-center p-0 sm:p-4">
+            <div className="bg-background rounded-t-3xl sm:rounded-3xl border border-border shadow-2xl flex flex-col h-[90vh] sm:h-[85vh] max-w-xl w-full mx-auto overflow-hidden">
+              <div className="p-3 border-b border-border bg-card flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <span className="font-bold text-xs text-foreground">معاينة صفحة حجز المريض الحية</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="flex items-center bg-muted p-0.5 rounded-lg border border-border text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewDevice('mobile')}
+                      className={`px-2 py-1 rounded-md font-bold ${previewDevice === 'mobile' ? 'bg-background text-primary shadow-xs' : 'text-muted-foreground'}`}
+                    >
+                      موبايل
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewDevice('tablet')}
+                      className={`px-2 py-1 rounded-md font-bold ${previewDevice === 'tablet' ? 'bg-background text-primary shadow-xs' : 'text-muted-foreground'}`}
+                    >
+                      تابلت
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIframeKey(k => k + 1)}
+                    className="p-1.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsMobilePreviewOpen(false)}
+                    className="p-1.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-auto p-2 bg-slate-100 dark:bg-slate-950 flex justify-center">
+                <iframe
+                  ref={mobileIframeRef}
+                  key={`preview-mobile-drawer-${iframeKey}`}
+                  src={`/clinic/${slug}?preview=1`}
+                  onLoad={handleIframeLoad}
+                  className={`w-full border-0 bg-white dark:bg-slate-950 rounded-xl ${
+                    previewDevice === 'tablet' ? 'max-w-[540px]' : 'max-w-[390px]'
+                  } h-full`}
+                  title="معاينة حجز المريض الحية للموبايل"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
     </div>
   )
