@@ -6,13 +6,14 @@ import { OWNER_COOKIE, verifyOwnerSession } from '@/lib/owner-session'
 import { Branch, BranchScheduleDay } from '@/types/clinic'
 import { DEFAULT_WEEKLY_SCHEDULE, formatWeeklyScheduleSummary } from '@/lib/branchService'
 import { sanitizeAddress } from '@/lib/mapsHelper'
+import { canonicalizeBranches, mainBranchDuplicateKey } from '@/lib/branchCanonical'
 import { queryDocuments, readDocument, writeDocument, createDocument } from '@/lib/server/firebase-rest'
 
 /**
  * Helper to fetch all branches for a clinic doc ID.
  * Looks for both clinicId and clinic_id fields for complete compatibility.
  */
-async function fetchBranchesForClinic(clinicId: string, slug?: string): Promise<Branch[]> {
+async function fetchBranchesForClinic(clinicId: string, slug?: string, includeArchived = false): Promise<Branch[]> {
   const map = new Map<string, Branch>()
 
   try {
@@ -50,7 +51,7 @@ async function fetchBranchesForClinic(clinicId: string, slug?: string): Promise<
     }
   }
 
-  return Array.from(map.values()).filter((b) => !b.isArchived)
+  return Array.from(map.values()).filter((b) => includeArchived || !b.isArchived)
 }
 
 /**
@@ -127,7 +128,15 @@ export async function GET(
       console.warn('Firestore clinics lookup failed, proceeding with fallback:', dbErr)
     }
 
-    const branches = await fetchBranchesForClinic(clinicId, slug)
+    const management = req.nextUrl.searchParams.get('view') === 'management'
+    if (management) {
+      const auth = await authenticateCaller(req, slug, clinicId)
+      if (!auth.isOwner) {
+        return NextResponse.json({ error: 'إدارة الفروع المؤرشفة متاحة لمالك المنصة فقط' }, { status: 403 })
+      }
+    }
+    const registered = await fetchBranchesForClinic(clinicId, slug, management)
+    const branches = management ? registered : canonicalizeBranches(registered)
 
     return NextResponse.json({
       success: true,
@@ -274,36 +283,8 @@ export async function POST(
             break
           }
         }
-        if (!existing) {
-          // Create the missing main branch once using a deterministic, clinic-scoped ID.
-          // Do not create/update a shared global "main" document.
-          resolvedId = `main-${clinicId}`
-          existing = await readDocument(`branches/${resolvedId}`)
-          if (!existing) {
-            const seed = {
-              ...branchPayload,
-              clinicId,
-              clinic_id: clinicId,
-              name: String(name || 'الفرع الرئيسي').trim(),
-              address: sanitizeAddress(address || clinic.clinicAddress || clinic.address) || 'مقر العيادة',
-              mapsLink: mapsLink || clinic.mapsLink || '',
-              phone: phone || clinic.clinicPhone || '',
-              latitude: latitude !== undefined && latitude !== '' ? Number(latitude) : (clinic.latitude ?? null),
-              longitude: longitude !== undefined && longitude !== '' ? Number(longitude) : (clinic.longitude ?? null),
-              weeklySchedule: Array.isArray(weeklySchedule) && weeklySchedule.length > 0
-                ? weeklySchedule
-                : (clinic.weeklySchedule || DEFAULT_WEEKLY_SCHEDULE),
-              isMain: true,
-              isArchived: false,
-              createdAt: new Date().toISOString()
-            }
-            await createDocument('branches', {
-              ...seed,
-              workingHours: formatWeeklyScheduleSummary(seed.weeklySchedule, true)
-            }, resolvedId)
-            existing = await readDocument(`branches/${resolvedId}`)
-          }
-        }
+        // Never manufacture a second branch as a side effect of editing or toggling.
+        // The Platform Owner must explicitly register the missing main branch.
       }
 
       if (!existing) {
@@ -349,7 +330,7 @@ export async function POST(
       branchPayload.createdAt = new Date().toISOString()
       // Enforce owner-specified clinic quota for branch creation.
       const maxAllowed = Math.max(1, Number(clinic.maxBranches ?? clinic.branchQuota ?? 1))
-      const existingBranches = await fetchBranchesForClinic(clinicId, slug)
+      const existingBranches = canonicalizeBranches(await fetchBranchesForClinic(clinicId, slug))
       if (existingBranches.length >= maxAllowed) {
         return NextResponse.json({ error: `اكتمل الحد المسموح به من الفروع (${maxAllowed})` }, { status: 403 })
       }
@@ -391,8 +372,8 @@ export async function DELETE(
     const clinicId = cDoc.id
 
     const auth = await authenticateCaller(req, slug, clinicId)
-    if (!auth.isAuthorized) {
-      return NextResponse.json({ error: 'غير مصرح بالوصول' }, { status: 401 })
+    if (!auth.isOwner) {
+      return NextResponse.json({ error: 'أرشفة الفروع متاحة لمالك المنصة فقط' }, { status: 403 })
     }
 
     const { searchParams } = new URL(req.url)
@@ -408,8 +389,20 @@ export async function DELETE(
     if (![targetData.clinicId, targetData.clinic_id].includes(clinicId)) {
       return NextResponse.json({ error: 'الفرع لا يتبع العيادة المحددة' }, { status: 403 })
     }
+    const activeBranches = await fetchBranchesForClinic(clinicId, slug)
+    if (activeBranches.length <= 1) {
+      return NextResponse.json({ error: 'لا يمكن أرشفة آخر فرع مسجل بالعيادة' }, { status: 409 })
+    }
     if (targetData.isMain) {
-      return NextResponse.json({ error: 'لا يمكن أرشفة الفرع الرئيسي' }, { status: 409 })
+      const mainKey = mainBranchDuplicateKey({ id: branchId, ...targetData })
+      const hasAnotherMain = !!mainKey && activeBranches.some(
+        (b) => b.id !== branchId && mainBranchDuplicateKey(b) === mainKey
+      )
+      if (!hasAnotherMain) {
+        return NextResponse.json({
+          error: 'لا يمكن أرشفة الفرع الرئيسي الوحيد. يمكنك أرشفة النسخة المكررة فقط.'
+        }, { status: 409 })
+      }
     }
 
     await writeDocument(`branches/${branchId}`, {
