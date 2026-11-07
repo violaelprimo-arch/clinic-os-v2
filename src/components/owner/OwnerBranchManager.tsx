@@ -59,7 +59,6 @@ export function OwnerBranchManager({
   // Clinic Quota & Permission Controls state
   const [branchesEnabled, setBranchesEnabled] = useState<boolean>(true)
   const [maxBranches, setMaxBranches] = useState<number>(3)
-  const [allowDoctorCreateBranches, setAllowDoctorCreateBranches] = useState<boolean>(false)
   const [isUpdatingPermissions, setIsUpdatingPermissions] = useState<boolean>(false)
 
   // Modal State for Add / Edit
@@ -95,9 +94,6 @@ export function OwnerBranchManager({
         : typeof selectedClinic.branchQuota === 'number'
         ? selectedClinic.branchQuota
         : 3
-    )
-    setAllowDoctorCreateBranches(
-      false
     )
   }, [selectedClinic])
 
@@ -454,7 +450,7 @@ export function OwnerBranchManager({
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2">
           <h3 className="font-black text-sm text-foreground flex items-center gap-1.5">
-            <span>الفروع الفعلية المسجلة ({activeBranches.length} من {maxBranches})</span>
+            <span>الفروع المسجلة ({activeBranches.length} من {maxBranches})</span>
           </h3>
           {branches.length > activeBranches.length && (
             <button
@@ -571,18 +567,6 @@ export function OwnerBranchManager({
                           <ExternalLink className="w-3 h-3" />
                         </a>
                       )}
-                    </div>
-                  </div>
-
-                  {/* Schedule & Working Hours */}
-                  <div className="p-3 rounded-2xl bg-muted/40 border border-border/80 space-y-1 text-xs">
-                    <div className="flex items-center gap-2 text-muted-foreground font-semibold">
-                      <Clock className="w-3.5 h-3.5 text-sky-500 shrink-0" />
-                      <span className="text-foreground">{b.workingHours || 'السبت - الخميس: 09:00 ص - 10:00 م'}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t border-border/60">
-                      <span>مدة الكشف: {b.slotDuration || 15} دقيقة</span>
-                      <span>الحد اليومي: {b.maxDailyBookings ? `${b.maxDailyBookings} حجز` : 'مفتوح'}</span>
                     </div>
                   </div>
 
