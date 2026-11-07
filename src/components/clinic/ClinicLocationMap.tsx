@@ -114,14 +114,22 @@ export function ClinicLocationMap({
     current?.mapsLink || ((current?.isMain || !current) ? (clinic?.mapsLink || '') : '')
   const directLinkCoords = targetMapsLink ? extractCoordsFromLink(targetMapsLink) : null
   const resolvedForCurrentLink = resolvedLink?.url === targetMapsLink ? resolvedLink : null
+  // The owner can explicitly verify stored coordinates from their branch editor.
+  // Never use coordinates from an outdated link after the map URL changes.
+  const confirmedStoredCoords =
+    current?.locationVerified === true &&
+    String(current?.verifiedMapsLink || '') === String(targetMapsLink || '') &&
+    effective.isPreciseCoordinates
+      ? { lat: effective.lat!, lng: effective.lng! }
+      : null
 
   // Do not display outdated manually entered coordinates while a short Google
   // Maps URL points to an unverified destination. This was the wrong-pin bug.
   const effectiveLat = targetMapsLink
-    ? (directLinkCoords?.lat ?? resolvedForCurrentLink?.lat ?? null)
+    ? (directLinkCoords?.lat ?? resolvedForCurrentLink?.lat ?? confirmedStoredCoords?.lat ?? null)
     : effective.lat
   const effectiveLng = targetMapsLink
-    ? (directLinkCoords?.lng ?? resolvedForCurrentLink?.lng ?? null)
+    ? (directLinkCoords?.lng ?? resolvedForCurrentLink?.lng ?? confirmedStoredCoords?.lng ?? null)
     : effective.lng
   const effectiveAddress = effective.address
   const effectiveMapsLink = targetMapsLink || effective.mapsLink
@@ -156,10 +164,15 @@ export function ClinicLocationMap({
     return () => { alive = false }
   }, [targetMapsLink, directLinkCoords?.lat, directLinkCoords?.lng])
 
-  // Only render a pin when precise coordinates have actually been established.
+  // Show the exact pin when verified. Otherwise show a clearly labelled
+  // address-search map preview; never call the approximate result a verified pin.
+  const canSearchAddress = !!effectiveAddress &&
+    !isPlaceholderAddress(effectiveAddress)
   const iframeEmbedUrl = hasExactCoords
     ? `https://maps.google.com/maps?q=${effectiveLat},${effectiveLng}&t=&z=16&ie=UTF8&iwloc=&output=embed`
-    : null
+    : canSearchAddress
+      ? `https://maps.google.com/maps?q=${encodeURIComponent([effectiveAddress, current?.city || current?.governorate || 'مصر'].filter(Boolean).join('، '))}&output=embed`
+      : null
 
   const handleCopyAddress = () => {
     if (!effectiveAddress) return
@@ -278,6 +291,12 @@ export function ClinicLocationMap({
         {/* Left Column: Interactive Map Frame (7 cols) */}
         <div className="lg:col-span-7 rounded-[26px] overflow-hidden border border-border bg-card shadow-lg flex flex-col min-h-[360px] relative">
           {iframeEmbedUrl ? (
+            <>
+            {!hasExactCoords && (
+              <div className="p-2 bg-amber-50 text-amber-800 text-[11px] text-center border-b border-amber-200">
+                معاينة بحث بالعنوان فقط، وليست دبوساً مؤكداً. يرجى من المالك تأكيد إحداثيات الفرع.
+              </div>
+            )}
             <iframe
               src={iframeEmbedUrl}
               className="w-full flex-1 min-h-[360px] border-0"
@@ -285,6 +304,7 @@ export function ClinicLocationMap({
               referrerPolicy="no-referrer-when-downgrade"
               title={`موقع ${current?.name || clinic?.clinicName || 'العيادة'}`}
             />
+            </>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-3 bg-muted/30">
               <div className="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center">
