@@ -22,15 +22,16 @@ import { toast } from 'sonner'
 import { exportPatientsToExcel } from '@/lib/excelExport'
 import { printHtmlViaIframe, generatePatientsReportHtml } from '@/lib/printService'
 import { useLanguage } from '@/context/LanguageContext'
+import { useClinicReadOnly } from '@/context/ClinicAccessContext'
 import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import { cleanPhoneForWhatsApp, validatePhoneNumber, DEFAULT_COUNTRY, CountryInfo, getPhoneSearchVariants } from '@/lib/countryPhoneHelper'
 import { openManualWhatsAppChat } from '@/lib/whatsappShare'
-import { createAtomicAppointment } from '@/lib/queueService'
 
 export default function PatientsPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
   const { t, tDynamic, dir, isRtl } = useLanguage()
+  const isReadOnly = useClinicReadOnly()
   const [clinic, setClinic] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -243,7 +244,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
 
 
   const handleSavePatientResidence = async () => {
-    if (!editingPatientResidence) return
+    if (isReadOnly || !editingPatientResidence) return
     setIsSavingResidence(true)
     try {
       // Find appointments with this phone to update the latest snapshot and profile
@@ -293,6 +294,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
 
   const handleAddNewPatient = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isReadOnly) return
     if (!newName.trim() || !newPhone.trim()) {
       return toast.error('يرجى كتابة الاسم ورقم الهاتف')
     }
@@ -305,34 +307,38 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
     try {
       if (clinicId) {
         const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date())
-        await createAtomicAppointment({
-          clinic_id: clinicId,
-          patientName: newName,
-          phone: newPhone,
-          serviceName: newService,
-          servicePrice: Number(newPrice),
-          date: today,
-          status: 'waiting',
-          age: newAge || null,
-          dob: newDob || null,
-          address: newResidence?.areaNameAr || null,
-          city: newResidence?.cityNameAr || newResidence?.governorateNameAr || null,
-          patientResidenceSnapshot: newResidence?.governorateId ? {
-            governorateId: newResidence.governorateId,
-            governorateNameAr: newResidence.governorateNameAr || '',
-            governorateNameEn: newResidence.governorateNameEn || '',
-            cityId: newResidence.cityId || '',
-            cityNameAr: newResidence.cityNameAr || '',
-            cityNameEn: newResidence.cityNameEn || '',
-            areaId: newResidence.areaId || '',
-            areaNameAr: newResidence.areaNameAr || '',
-            areaNameEn: newResidence.areaNameEn || '',
-            customAreaName: newResidence.customAreaName || null,
-            source: 'staff_override',
-            recordedAt: new Date().toISOString()
-          } : null,
-          createdAt: new Date().toISOString()
+        const requestedService = Array.isArray(clinic?.services)
+          ? clinic.services.find((item: any) => String(item.name) === newService) || clinic.services[0]
+          : null
+        const branchRes = await fetch(`/api/clinic/${encodeURIComponent(slug)}/branches`, { cache: 'no-store' })
+        const branchData = await branchRes.json().catch(() => ({}))
+        const openBranches = Array.isArray(branchData.branches)
+          ? branchData.branches.filter((item: any) => item.isOpen !== false && item.isArchived !== true)
+          : []
+        const rememberedBranch = typeof window !== 'undefined' ? localStorage.getItem('clinic_selected_branch') : ''
+        const branch = openBranches.find((item: any) => item.id === rememberedBranch)
+          || openBranches.find((item: any) => item.isMain)
+          || openBranches[0]
+        if (!branch) throw new Error('لا توجد فروع مفتوحة للحجز؛ اضبط فرعًا من إدارة الفروع أولًا.')
+        const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/in-clinic-booking`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            patientName: newName.trim(),
+            phone: newPhone.trim(),
+            age: newAge || null,
+            birthDate: newDob || null,
+            serviceId: requestedService?.id || '1',
+            branchId: branch.id,
+            date: today,
+            paymentMethod: 'cash',
+            paymentStatus: 'unpaid',
+            residence: newResidence,
+          }),
         })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok || !data.success) throw new Error(data.error || 'تعذر إضافة المريض')
       }
 
       // Add to local state immediately
@@ -350,8 +356,8 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
       setNewPhone('')
       setNewResidence(null)
       toast.success('تمت إضافة المريض بنجاح إلى السجل')
-    } catch (err) {
-      toast.error('حدث خطأ أثناء إضافة المريض')
+    } catch (err: any) {
+      toast.error(err?.message || 'حدث خطأ أثناء إضافة المريض')
     } finally {
       setIsAdding(false)
     }
@@ -359,6 +365,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
 
   
   const handleDeleteAllPatients = async () => {
+    if (isReadOnly) return
     if (!confirm('هل أنت متأكد من حذف جميع المرضى من السجل بشكل نهائي؟ لا يمكن التراجع عن هذا الإجراء.')) return
     if (!confirm('تأكيد أخير: سيتم مسح جميع سجلات المرضى والروشتات وحسابات المرضى والزيارات بالكامل. هل تريد المتابعة؟')) return
 
@@ -404,6 +411,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
   }
 
   const handleDeletePatient = async (phone: string, name: string) => {
+    if (isReadOnly) return
     if (!confirm(`هل أنت متأكد من حذف المريض ${name} وجميع زياراته وروشتاته وحسابه نهائياً؟`)) return
     try {
       const targetClinicIds = Array.from(new Set([clinicId, slug].filter(Boolean) as string[]))
@@ -555,15 +563,16 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
           <Button 
             variant="destructive"
             onClick={handleDeleteAllPatients}
-            className="h-10 px-4 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 font-bold rounded-xl transition-all text-xs inline-flex items-center justify-center cursor-pointer"
+            disabled={isReadOnly}
+            className={`h-10 px-4 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 font-bold rounded-xl transition-all text-xs inline-flex items-center justify-center cursor-pointer ${isReadOnly ? 'hidden' : ''}`}
           >
             <Trash2 className="w-4 h-4 ml-1.5" />
             {t('clear_all_patients', 'مسح جميع المرضى')}
           </Button>
           
           {/* Add Patient Modal */}
-          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-            <DialogTrigger className="h-10 px-4 yalla-gradient-btn text-white font-bold rounded-xl shadow-md transition-all text-xs inline-flex items-center justify-center cursor-pointer">
+          <Dialog open={!isReadOnly && isAddOpen} onOpenChange={(next) => !isReadOnly && setIsAddOpen(next)}>
+            <DialogTrigger className={`h-10 px-4 yalla-gradient-btn text-white font-bold rounded-xl shadow-md transition-all text-xs inline-flex items-center justify-center cursor-pointer ${isReadOnly ? 'hidden' : ''}`}>
               <Plus className="w-4 h-4 ml-1.5" />
               {t('new_patient_file', 'إضافة مريض جديد +')}
             </DialogTrigger>
@@ -879,7 +888,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                                       setEditResidenceValue(patient.residence)
                                     }}
                                     className="inline-flex items-center gap-1 text-[10px] font-bold text-sky-600 dark:text-sky-400 bg-sky-500/10 hover:bg-sky-500/20 px-2 py-0.5 rounded-md border border-sky-500/20 cursor-pointer"
-                                    title="تعديل منطقة السكن"
+                                    title="تعديل منطقة السكن" disabled={isReadOnly}
                                   >
                                     <MapPin className="w-3 h-3 shrink-0" />
                                     <span>{patient.residence.governorateNameAr} - {patient.residence.areaNameAr || patient.residence.cityNameAr}</span>
@@ -894,7 +903,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                                       setEditResidenceValue(null)
                                     }}
                                     className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 px-2 py-0.5 rounded-md border border-amber-500/30 cursor-pointer"
-                                    title="استكمال منطقة السكن"
+                                    title="استكمال منطقة السكن" disabled={isReadOnly}
                                   >
                                     <AlertCircle className="w-3 h-3 shrink-0" />
                                     <span>منطقة السكن غير مكتملة</span>
@@ -961,7 +970,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                             size="icon"
                             variant="ghost"
                             className="h-8 w-8 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-xl"
-                            onClick={() => sendWhatsApp(patient.phone, patient.name)}
+                            onClick={() => sendWhatsApp(patient.phone, patient.name)} disabled={isReadOnly}
                             title={t('whatsapp_chat', 'مراسلة عبر واتساب')}
                           >
                             <MessageCircle className="w-4 h-4" />
@@ -970,7 +979,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                             size="icon"
                             variant="ghost"
                             className="h-8 w-8 text-rose-500 hover:bg-rose-500/10 rounded-xl transition-colors"
-                            onClick={() => handleDeletePatient(patient.phone, patient.name)}
+                            onClick={() => handleDeletePatient(patient.phone, patient.name)} disabled={isReadOnly}
                             title={t('delete_patient', 'حذف المريض')}
                           >
                             <Trash2 className="w-4 h-4" />
