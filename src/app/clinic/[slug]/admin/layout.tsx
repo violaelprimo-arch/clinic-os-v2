@@ -24,6 +24,7 @@ import { isClinicSuspended, isSuspendedReadOnlyPath } from '@/lib/clinicAccessPo
 import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { LanguageToggle } from '@/components/common/LanguageToggle'
 import { useLanguage } from '@/context/LanguageContext'
+import { ClinicAccessProvider } from '@/context/ClinicAccessContext'
 
 export default function AdminLayout({
   children,
@@ -851,7 +852,9 @@ export default function AdminLayout({
                   الاشتراك منتهي — عرض السجلات السابقة فقط، لا يُسمح بأي تعديل أو إضافة
                 </div>
               )}
-              {children}
+              <ClinicAccessProvider readOnly={subscriptionSuspended}>
+                {children}
+              </ClinicAccessProvider>
             </div>
           )}
         </main>
