@@ -83,6 +83,7 @@ export function OwnerBranchManager({
   // Interactive Coordinates Verification
   const [isResolvingCoords, setIsResolvingCoords] = useState(false)
   const [verifiedAddress, setVerifiedAddress] = useState<string | null>(null)
+  const [locationVerified, setLocationVerified] = useState<boolean>(false)
   const [isSavingBranch, setIsSavingBranch] = useState(false)
 
   // Synchronize permissions when clinic changes
@@ -186,8 +187,14 @@ export function OwnerBranchManager({
       if (data.success && typeof data.lat === 'number' && typeof data.lng === 'number') {
         setLatitude(String(data.lat))
         setLongitude(String(data.lng))
-        setVerifiedAddress(data.displayName || `إحداثيات مؤكدة (${data.lat.toFixed(5)}, ${data.lng.toFixed(5)})`)
-        toast.success('تم استخراج الإحداثيات الدقيقة للفرع بنجاح!')
+        if (mapsLink.trim() && data.source !== 'nominatim_geocoding') {
+          setLocationVerified(true)
+          setVerifiedAddress(data.displayName || `إحداثيات الرابط (${data.lat.toFixed(5)}, ${data.lng.toFixed(5)})`)
+        } else {
+          setLocationVerified(false)
+          setVerifiedAddress('نتيجة بحث تقريبية؛ راجع الدبوس بنفسك قبل تأكيد الموقع')
+        }
+        toast.success('تم استخراج الإحداثيات. راجع مكان الدبوس قبل الحفظ.')
       } else {
         toast.error(data.message || 'تعذر استخراج إحداثيات دقيقة من الرابط. يمكنك كتابة خطوط الطول والعرض يدوياً.')
       }
@@ -213,6 +220,7 @@ export function OwnerBranchManager({
     setImage('')
     setIsMain(activeBranches.length === 0)
     setVerifiedAddress(null)
+    setLocationVerified(false)
     setIsModalOpen(true)
   }
 
@@ -231,6 +239,7 @@ export function OwnerBranchManager({
     setImage(b.image || '')
     setIsMain(Boolean(b.isMain))
     setVerifiedAddress(null)
+    setLocationVerified(Boolean((b as any).locationVerified && String((b as any).verifiedMapsLink || '') === String(b.mapsLink || '')))
     setIsModalOpen(true)
   }
 
@@ -294,6 +303,9 @@ export function OwnerBranchManager({
     setIsSavingBranch(true)
     try {
       const clinicId = selectedClinic.id
+      if (locationVerified && (!Number.isFinite(Number(latitude)) || !Number.isFinite(Number(longitude)) || latitude.trim() === '' || longitude.trim() === '' || Math.abs(Number(latitude)) > 90 || Math.abs(Number(longitude)) > 180)) {
+        throw new Error('لا يمكن تأكيد الموقع بدون إحداثيات صحيحة لخط الطول والعرض')
+      }
       const branchPayload: any = {
         clinicId,
         clinic_id: clinicId,
@@ -305,6 +317,8 @@ export function OwnerBranchManager({
         mapsLink: mapsLink.trim(),
         latitude: latitude !== '' ? Number(latitude) : null,
         longitude: longitude !== '' ? Number(longitude) : null,
+        locationVerified,
+        verifiedMapsLink: locationVerified ? mapsLink.trim() : '',
         phone: phone.trim(),
         whatsapp: whatsapp.trim() || phone.trim(),
         image: image.trim(),
@@ -473,7 +487,7 @@ export function OwnerBranchManager({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {displayedBranches.map((b) => {
-            const hasExactLocation = b.latitude !== undefined && b.latitude !== null && b.longitude !== undefined && b.longitude !== null
+            const hasExactLocation = (b as any).locationVerified === true && b.latitude !== undefined && b.latitude !== null && b.longitude !== undefined && b.longitude !== null
             const duplicateKey = mainBranchDuplicateKey(b)
             const isDuplicateMain = Boolean(duplicateKey && branches.filter((item) => !item.isArchived && mainBranchDuplicateKey(item) === duplicateKey).length > 1)
             return (
@@ -692,7 +706,11 @@ export function OwnerBranchManager({
 
                 <Input
                   value={mapsLink}
-                  onChange={(e) => setMapsLink(e.target.value)}
+                  onChange={(e) => {
+                    setMapsLink(e.target.value)
+                    setLocationVerified(false)
+                    setVerifiedAddress(null)
+                  }}
                   placeholder="https://maps.app.goo.gl/... أو https://www.google.com/maps/..."
                   className="h-10 text-xs rounded-xl font-mono text-left"
                   dir="ltr"
@@ -710,7 +728,7 @@ export function OwnerBranchManager({
                     <Label className="text-[11px] font-bold text-muted-foreground">خط العرض (Latitude)</Label>
                     <Input
                       value={latitude}
-                      onChange={(e) => setLatitude(e.target.value)}
+                      onChange={(e) => { setLatitude(e.target.value); setLocationVerified(false) }}
                       placeholder="مثال: 30.05214"
                       className="h-9 text-xs rounded-xl font-mono text-left"
                       dir="ltr"
@@ -720,12 +738,19 @@ export function OwnerBranchManager({
                     <Label className="text-[11px] font-bold text-muted-foreground">خط الطول (Longitude)</Label>
                     <Input
                       value={longitude}
-                      onChange={(e) => setLongitude(e.target.value)}
+                      onChange={(e) => { setLongitude(e.target.value); setLocationVerified(false) }}
                       placeholder="مثال: 31.34215"
                       className="h-9 text-xs rounded-xl font-mono text-left"
                       dir="ltr"
                     />
                   </div>
+                </div>
+                <div className="flex items-start justify-between gap-3 p-3 rounded-xl bg-amber-50 border border-amber-200 text-slate-900">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold">أؤكد أن الدبوس في مكان الفرع بالضبط</Label>
+                    <p className="text-[11px] text-slate-600">بعد التأكد من الرابط والإحداثيات سيظهر الدبوس على صفحة المريض. لا تعتمد على البحث بالاسم وحده.</p>
+                  </div>
+                  <Switch checked={locationVerified} onCheckedChange={setLocationVerified} />
                 </div>
               </div>
 
