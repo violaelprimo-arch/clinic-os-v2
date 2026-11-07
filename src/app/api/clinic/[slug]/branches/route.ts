@@ -200,7 +200,9 @@ export async function POST(
       maxDailyBookings,
       isOpen,
       weeklySchedule,
-      isMain
+      isMain,
+      locationVerified,
+      verifiedMapsLink
     } = body
 
     if (branchId && (typeof branchId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(branchId))) {
@@ -233,6 +235,14 @@ export async function POST(
       return NextResponse.json({ error: 'اسم الفرع مطلوب' }, { status: 400 })
     }
 
+    if (auth.isOwner && locationVerified === true) {
+      const lat = Number(latitude)
+      const lng = Number(longitude)
+      if (latitude == null || longitude == null || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+        return NextResponse.json({ error: 'إحداثيات الفرع المؤكدة غير صالحة' }, { status: 400 })
+      }
+    }
+
     const schedule =
       Array.isArray(weeklySchedule) && weeklySchedule.length > 0
         ? weeklySchedule
@@ -249,6 +259,8 @@ export async function POST(
       mapsLink: mapsLink || '',
       latitude: latitude !== undefined && latitude !== '' ? Number(latitude) : null,
       longitude: longitude !== undefined && longitude !== '' ? Number(longitude) : null,
+      locationVerified: locationVerified === true,
+      verifiedMapsLink: locationVerified === true ? String(verifiedMapsLink || mapsLink || '').trim() : '',
       phone: phone || '',
       whatsapp: whatsapp || '',
       image: image || '',
@@ -305,7 +317,7 @@ export async function POST(
       // map coordinates, contacts, photo, or main-branch flag.
       const editableFields = auth.isOwner
         ? ['name', 'governorate', 'city', 'area', 'address', 'mapsLink',
-          'latitude', 'longitude', 'phone', 'whatsapp', 'image']
+          'latitude', 'longitude', 'locationVerified', 'verifiedMapsLink', 'phone', 'whatsapp', 'image']
         : ['slotDuration', 'maxDailyBookings', 'isOpen', 'weeklySchedule']
       const patch: Record<string, any> = { updatedAt: new Date().toISOString() }
       for (const key of editableFields) {
