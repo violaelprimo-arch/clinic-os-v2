@@ -16,7 +16,7 @@ import { OWNER_COOKIE, verifyOwnerSession } from '@/lib/owner-session'
 import { Branch, BranchScheduleDay } from '@/types/clinic'
 import { DEFAULT_WEEKLY_SCHEDULE, formatWeeklyScheduleSummary } from '@/lib/branchService'
 import { sanitizeAddress } from '@/lib/mapsHelper'
-import { queryDocuments } from '@/lib/server/firebase-rest'
+import { queryDocuments, readDocument, writeDocument, createDocument } from '@/lib/server/firebase-rest'
 
 /**
  * Helper to fetch all branches for a clinic doc ID.
@@ -268,27 +268,27 @@ export async function POST(
       const legacyMain = branchId === 'main' || String(branchId).startsWith('main-branch-')
       let resolvedId: string = branchId
       let branchRef = doc(db, 'branches', resolvedId)
-      let existing = await getDoc(branchRef)
+      let existing = await readDocument(`branches/${resolvedId}`)
 
-      if (!existing.exists() && legacyMain) {
+      if (!existing && legacyMain) {
         const registered = await fetchBranchesForClinic(clinicId, slug)
         for (const candidate of registered.filter((b) => b.isMain || b.name === 'الفرع الرئيسي')) {
           const candidateRef = doc(db, 'branches', candidate.id)
-          const candidateDoc = await getDoc(candidateRef)
-          if (candidateDoc.exists()) {
+          const candidateDoc = await readDocument(`branches/${candidate.id}`)
+          if (candidateDoc) {
             branchRef = candidateRef
             resolvedId = candidate.id
             existing = candidateDoc
             break
           }
         }
-        if (!existing.exists()) {
+        if (!existing) {
           // Create the missing main branch once using a deterministic, clinic-scoped ID.
           // Do not create/update a shared global "main" document.
           resolvedId = `main-${clinicId}`
           branchRef = doc(db, 'branches', resolvedId)
-          existing = await getDoc(branchRef)
-          if (!existing.exists()) {
+          existing = await readDocument(`branches/${resolvedId}`)
+          if (!existing) {
             const seed = {
               ...branchPayload,
               clinicId,
@@ -304,19 +304,19 @@ export async function POST(
               isArchived: false,
               createdAt: new Date().toISOString()
             }
-            await setDoc(branchRef, {
+            await createDocument('branches', {
               ...seed,
               workingHours: formatWeeklyScheduleSummary(seed.weeklySchedule, true)
-            })
-            existing = await getDoc(branchRef)
+            }, resolvedId)
+            existing = await readDocument(`branches/${resolvedId}`)
           }
         }
       }
 
-      if (!existing.exists()) {
+      if (!existing) {
         return NextResponse.json({ error: 'هذا الفرع غير موجود. حدّث قائمة الفروع ثم حاول مجددًا.' }, { status: 404 })
       }
-      const oldBranch = existing.data()
+      const oldBranch = existing
       // Ownership must be checked even for the platform owner to prevent
       // modifying a different clinic via a forged branch ID.
       if (![oldBranch.clinicId, oldBranch.clinic_id].includes(clinicId)) {
@@ -346,7 +346,7 @@ export async function POST(
       }
       if (restoreArchived) patch.isArchived = false
 
-      await updateDoc(branchRef, patch)
+      await writeDocument(`branches/${resolvedId}`, patch, true)
       return NextResponse.json({
         success: true,
         branch: { id: resolvedId, ...oldBranch, ...patch }
@@ -355,10 +355,10 @@ export async function POST(
       // Create new branch
       branchPayload.isArchived = false
       branchPayload.createdAt = new Date().toISOString()
-      const docRef = await addDoc(collection(db, 'branches'), branchPayload)
+      const newBranchId = await createDocument('branches', branchPayload)
       return NextResponse.json({
         success: true,
-        branch: { id: docRef.id, ...branchPayload }
+        branch: { id: newBranchId, ...branchPayload }
       })
     }
   } catch (err: any) {
@@ -404,9 +404,9 @@ export async function DELETE(
     }
 
     // Never allow archiving a branch of a different clinic, even as platform owner.
-    const targetBranch = await getDoc(doc(db, 'branches', branchId))
-    if (!targetBranch.exists()) return NextResponse.json({ error: 'الفرع غير موجود' }, { status: 404 })
-    const targetData = targetBranch.data()
+    const targetBranch = await readDocument(`branches/${branchId}`)
+    if (!targetBranch) return NextResponse.json({ error: 'الفرع غير موجود' }, { status: 404 })
+    const targetData = targetBranch
     if (![targetData.clinicId, targetData.clinic_id].includes(clinicId)) {
       return NextResponse.json({ error: 'الفرع لا يتبع العيادة المحددة' }, { status: 403 })
     }
@@ -414,10 +414,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'لا يمكن أرشفة الفرع الرئيسي' }, { status: 409 })
     }
 
-    await updateDoc(doc(db, 'branches', branchId), {
+    await writeDocument(`branches/${branchId}`, {
       isArchived: true,
       updatedAt: new Date().toISOString()
-    })
+    }, true)
 
     return NextResponse.json({ success: true, message: 'تم أرشفة الفرع بنجاح' })
   } catch (err: any) {
