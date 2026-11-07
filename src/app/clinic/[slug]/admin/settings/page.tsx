@@ -24,6 +24,7 @@ import {
 } from '@/lib/booking-page-config'
 import BookingPageEditor from '@/components/clinic/BookingPageEditor'
 import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
+import { isOwnerSectionVisible } from '@/lib/clinicAccessPolicy'
 import { db } from '@/lib/firebase'
 import { collection, query, where, getDocs, updateDoc, doc, addDoc } from 'firebase/firestore'
 import { Switch } from '@/components/ui/switch'
@@ -369,7 +370,6 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         walletNumber: walletNumber || '',
         instapayHandle: instapayHandle || '',
         isCashEnabled: Boolean(isCashEnabled),
-        isClinicOpen,
         showPrices,
         
         isWalletEnabled,
@@ -495,9 +495,18 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
     { id: 'staff', label: t('tab_staff', 'المساعدين والصلاحيات'), icon: Users }
   ]
   
-  const tabs = !canUseAi 
-    ? baseTabs 
+  const tabs = !canUseAi
+    ? baseTabs
     : [...baseTabs, { id: 'ai', label: t('tab_ai', 'المساعد الذكي (AI Chatbot)'), icon: Bot }]
+
+  useEffect(() => {
+    if (!clinic || isOwnerSectionVisible(clinic, `settings.${activeTab}`)) return
+    const firstVisible = tabs.find((item) =>
+      (item.id !== 'security' || currentRole === 'doctor') &&
+      isOwnerSectionVisible(clinic, `settings.${item.id}`)
+    )
+    if (firstVisible) setActiveTab(firstVisible.id as typeof activeTab)
+  }, [clinic?.hiddenSections, activeTab, currentRole, canUseAi, canEditBranding])
 
   const previewClinicData = useMemo(() => {
     return {
@@ -710,7 +719,10 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
       {/* 2. Structured Settings Tabs */}
       <div className="flex border-b border-border gap-2 overflow-x-auto no-scrollbar">
-        {tabs.filter(t => t.id !== 'security' || currentRole === 'doctor').map((tab) => {
+        {tabs.filter(tab =>
+          (tab.id !== 'security' || currentRole === 'doctor') &&
+          isOwnerSectionVisible(clinic, `settings.${tab.id}`)
+        ).map((tab) => {
           const Icon = tab.icon
           const isActive = activeTab === tab.id
           return (
@@ -737,7 +749,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         <div className={showLivePreview ? 'lg:col-span-7 space-y-6 min-w-0' : 'w-full space-y-6'}>
 
       {/* TAB SECURITY */}
-      {activeTab === 'security' && currentRole === 'doctor' && (
+      {activeTab === 'security' && currentRole === 'doctor' && isOwnerSectionVisible(clinic, 'settings.security') && (
         <div className="space-y-6 max-w-2xl">
           {/* Change Password Card */}
           <div className="yalla-card p-6 space-y-5 border border-border shadow-xs">
@@ -892,7 +904,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
       
       {/* TAB BRANDING: Clinic Branding & Thermal Printing */}
-      {activeTab === 'branding' && (
+      {activeTab === 'branding' && isOwnerSectionVisible(clinic, 'settings.branding') && (
         <div className="space-y-6">
           {/* Settings Form */}
           <div className="yalla-card p-6 space-y-6">
@@ -920,7 +932,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
             <fieldset disabled={!canEditBranding} className={`space-y-6 ${!canEditBranding ? 'opacity-60 pointer-events-none' : ''}`}>
               {/* Logos Section */}
-              <div className="space-y-4">
+              <div hidden={!isOwnerSectionVisible(clinic, 'settings.branding.logos')} className="space-y-4">
                 <h4 className="font-bold text-xs text-foreground pb-1 border-b border-border">{t('clinic_logos', 'شعارات العيادة')}</h4>
 
                 {/* Standard Colored Logo */}
@@ -953,7 +965,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               </div>
 
               {/* Colors Section */}
-              <div className="space-y-4 pt-2">
+              <div hidden={!isOwnerSectionVisible(clinic, 'settings.branding.colors')} className="space-y-4 pt-2">
                 <h4 className="font-bold text-xs text-foreground pb-1 border-b border-border">{t('brand_colors', 'ألوان الهوية البصرية')}</h4>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -996,7 +1008,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               </div>
 
               {/* Slogan & Notes Section */}
-              <div className="space-y-4 pt-2">
+              <div hidden={!isOwnerSectionVisible(clinic, 'settings.branding.texts')} className="space-y-4 pt-2">
                 <h4 className="font-bold text-xs text-foreground pb-1 border-b border-border">{t('texts_and_slogans', 'النصوص والشعارات')}</h4>
 
                 <div className="space-y-1.5">
@@ -1137,7 +1149,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
 
       {/* TAB 1: Profile & Visual Identity */}
-      {activeTab === 'profile' && (
+      {activeTab === 'profile' && isOwnerSectionVisible(clinic, 'settings.profile') && (
         <div className="yalla-card p-6 sm:p-8 max-w-4xl space-y-6">
           <div className="pb-3 border-b border-border">
             <h3 className="font-bold text-base text-foreground flex items-center gap-2">
@@ -1148,7 +1160,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
           </div>
 
               {/* Doctor Photo Section */}
-              <div className="p-4 rounded-2xl bg-muted/40 border border-border space-y-3">
+              <div hidden={!isOwnerSectionVisible(clinic, 'settings.profile.doctor')} className="p-4 rounded-2xl bg-muted/40 border border-border space-y-3">
                 <Label className="text-xs font-bold text-foreground flex items-center gap-2">
                   <User className="w-4 h-4 text-primary" />
                   {t('doctor_photo_label', 'صورة الطبيب (تظهر في الواجهة الرئيسية والمعاينة الحية)')}
@@ -1177,7 +1189,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               </div>
 
               {/* Clinic Facility / Main Branch Photo Section */}
-              <div className="p-4 rounded-2xl bg-muted/40 border border-border space-y-3">
+              <div hidden={!isOwnerSectionVisible(clinic, 'settings.profile.doctor')} className="p-4 rounded-2xl bg-muted/40 border border-border space-y-3">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-bold text-foreground flex items-center gap-2">
                     <Building2 className="w-4 h-4 text-primary" />
@@ -1332,15 +1344,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                 </div>
               </div>
 
-              <div className="grid sm:grid-cols-2 gap-4 pt-1">
-                <div className="space-y-1.5 p-3 rounded-xl bg-muted/30 border border-border">
-                  <Label className="text-xs font-bold text-muted-foreground">{t('clinic_status_toggle', 'حالة العيادة (مفتوحة / مغلقة)')}</Label>
-                  <div className="flex items-center gap-2 pt-1">
-                    <Switch checked={isClinicOpen} onCheckedChange={setIsClinicOpen} />
-                    <span className="text-xs text-foreground font-bold">{isClinicOpen ? t('clinic_open_accepting', 'العيادة تستقبل حجوزات') : t('clinic_closed_now', 'العيادة مغلقة حالياً')}</span>
-                  </div>
-                </div>
-
+              <div hidden={!isOwnerSectionVisible(clinic, 'settings.profile.prices')} className="grid sm:grid-cols-1 gap-4 pt-1">
                 <div className="space-y-1.5 p-3 rounded-xl bg-muted/30 border border-border">
                   <Label className="text-xs font-bold text-muted-foreground">{t('show_prices_to_patients', 'إظهار أسعار الكشوفات للمرضى')}</Label>
                   <div className="flex items-center gap-2 pt-1">
@@ -1470,7 +1474,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       )}
 
       {/* TAB BOOKING DESIGN: Advanced Booking Page Customization */}
-      {activeTab === 'booking_design' && (
+      {activeTab === 'booking_design' && isOwnerSectionVisible(clinic, 'settings.booking_design') && (
         <div className="space-y-6">
           <BookingPageEditor
             value={bookingPageConfig}
@@ -1488,7 +1492,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       )}
 
       {/* TAB 2: Queue & Visit Duration */}
-      {activeTab === 'queue' && (
+      {activeTab === 'queue' && isOwnerSectionVisible(clinic, 'settings.queue') && (
         <div className="yalla-card p-6 max-w-2xl space-y-5">
           <div className="flex items-center gap-2 pb-3 border-b border-border">
             <Clock className="w-5 h-5 text-primary" />
@@ -1591,7 +1595,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               </p>
             </div>
 
-            <div className="space-y-4 pt-4 border-t border-border">
+            <div hidden={!isOwnerSectionVisible(clinic, 'settings.queue.schedule')} className="space-y-4 pt-4 border-t border-border">
               <h4 className="font-bold text-sm text-foreground">{t('weekly_operating_hours', 'مواعيد العمل الأسبوعية')}</h4>
               <p className="text-xs text-muted-foreground">{t('weekly_operating_desc', 'تحديد أيام العمل ومواعيد استقبال المرضى')}</p>
               <div className="space-y-3">
@@ -1907,7 +1911,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       )}
 
       {/* TAB 3: Services & Pricing */}
-      {activeTab === 'services' && (
+      {activeTab === 'services' && isOwnerSectionVisible(clinic, 'settings.services') && (
         <div className="yalla-card p-6 space-y-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-border">
             <div>
@@ -1968,7 +1972,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       )}
 
       {/* TAB 4: Payment Methods */}
-      {activeTab === 'payment' && (
+      {activeTab === 'payment' && isOwnerSectionVisible(clinic, 'settings.payment') && (
         <div className="yalla-card p-6 max-w-2xl space-y-6">
           <div className="pb-3 border-b border-border">
             <h3 className="font-bold text-base text-foreground">{t('payment_methods_title', 'طرق الدفع المتاحة للمرضى')}</h3>
@@ -2072,7 +2076,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       )}
 
       {/* TAB 5: Staff & Permissions */}
-      {activeTab === 'staff' && (
+      {activeTab === 'staff' && isOwnerSectionVisible(clinic, 'settings.staff') && (
         <div className="yalla-card p-6 space-y-6">
           <div className="pb-3 border-b border-border">
             <h3 className="font-bold text-sm text-foreground">{t('staff_accounts_permissions', 'حسابات المساعدين والصلاحيات الممنوحة')}</h3>
@@ -2191,7 +2195,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       )}
 
       {/* TAB 6: Print Settings */}
-      {activeTab === 'print' && (
+      {activeTab === 'print' && isOwnerSectionVisible(clinic, 'settings.print') && (
         <div className="yalla-card p-6 max-w-2xl space-y-4">
           <div className="pb-3 border-b border-border">
             <h3 className="font-bold text-sm text-foreground">{t('print_settings_title', 'إعدادات ورقة الروشتة المطبوعة (A4)')}</h3>
@@ -2206,7 +2210,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       )}
 
       {/* TAB 7: AI Assistant */}
-      {activeTab === 'ai' && (
+      {activeTab === 'ai' && isOwnerSectionVisible(clinic, 'settings.ai') && (
         <div className="yalla-card p-6 max-w-3xl space-y-6 text-center">
           <div className="pb-3 border-b border-border">
             <h3 className="font-bold text-sm text-foreground flex items-center justify-center gap-2">
