@@ -117,10 +117,10 @@ export async function POST(req: NextRequest) {
         verifiedServicePrice = Number(matched.price) || 0
         verifiedServiceName = matched.name || verifiedServiceName
       } else {
-        verifiedServicePrice = Number(servicePrice) || 0
+        return NextResponse.json({ error: 'الخدمة المختارة غير مسجلة في العيادة' }, { status: 400 })
       }
     } else {
-      verifiedServicePrice = Number(servicePrice) || 0
+      return NextResponse.json({ error: 'لا توجد خدمات طبية متاحة للحجز حالياً' }, { status: 409 })
     }
 
     // 4. Calculate existing active appointments for this date
