@@ -295,6 +295,7 @@ export async function createAtomicAppointmentServer(
 
   for (let attempt = 0; attempt < 6; attempt++) {
     let transaction = ''
+    let committed = false
     try {
       const begin = await request(endpoint + ':beginTransaction', {
         method: 'POST',
@@ -342,7 +343,10 @@ export async function createAtomicAppointmentServer(
           ],
         }),
       })
-      if (commit.ok) return { id: apptId, queueNumber: nextQueue }
+      if (commit.ok) {
+        committed = true
+        return { id: apptId, queueNumber: nextQueue }
+      }
       // Firestore reports ABORTED for competing counter transactions.
       if (![409, 412, 429].includes(commit.status) || attempt === 5)
         throw new Error('FIRESTORE_BOOKING_COMMIT_FAILED')
@@ -350,9 +354,8 @@ export async function createAtomicAppointmentServer(
       if (err instanceof Error && err.message.startsWith('QUOTA_EXCEEDED')) throw err
       if (attempt === 5) throw err
     } finally {
-      // A successfully committed transaction is already closed; rollback is
-      // harmless if the backend reports that the transaction no longer exists.
-      if (transaction) {
+      // Do not roll back an already-committed booking: it adds needless latency.
+      if (transaction && !committed) {
         await request(endpoint + ':rollback', {
           method: 'POST',
           body: JSON.stringify({ transaction }),
