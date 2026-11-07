@@ -1,15 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  getDoc,
-  setDoc,
-  addDoc,
-  updateDoc,
-  doc
-} from 'firebase/firestore'
+import { collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { verifySessionToken } from '@/lib/auth-crypto'
 import { OWNER_COOKIE, verifyOwnerSession } from '@/lib/owner-session'
@@ -199,6 +189,9 @@ export async function POST(
       isMain
     } = body
 
+    if (branchId && (typeof branchId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(branchId))) {
+      return NextResponse.json({ error: 'معرف الفرع غير صالح' }, { status: 400 })
+    }
     const isCreating = !branchId || branchId === 'new'
 
     // Doctor Permission & Quota Checks
@@ -267,16 +260,13 @@ export async function POST(
       // Firestore has no document at branches/main. Resolve its real document ID.
       const legacyMain = branchId === 'main' || String(branchId).startsWith('main-branch-')
       let resolvedId: string = branchId
-      let branchRef = doc(db, 'branches', resolvedId)
       let existing = await readDocument(`branches/${resolvedId}`)
 
       if (!existing && legacyMain) {
         const registered = await fetchBranchesForClinic(clinicId, slug)
         for (const candidate of registered.filter((b) => b.isMain || b.name === 'الفرع الرئيسي')) {
-          const candidateRef = doc(db, 'branches', candidate.id)
           const candidateDoc = await readDocument(`branches/${candidate.id}`)
           if (candidateDoc) {
-            branchRef = candidateRef
             resolvedId = candidate.id
             existing = candidateDoc
             break
@@ -286,7 +276,6 @@ export async function POST(
           // Create the missing main branch once using a deterministic, clinic-scoped ID.
           // Do not create/update a shared global "main" document.
           resolvedId = `main-${clinicId}`
-          branchRef = doc(db, 'branches', resolvedId)
           existing = await readDocument(`branches/${resolvedId}`)
           if (!existing) {
             const seed = {
@@ -297,6 +286,8 @@ export async function POST(
               address: sanitizeAddress(address || clinic.clinicAddress || clinic.address) || 'مقر العيادة',
               mapsLink: mapsLink || clinic.mapsLink || '',
               phone: phone || clinic.clinicPhone || '',
+              latitude: latitude !== undefined && latitude !== '' ? Number(latitude) : (clinic.latitude ?? null),
+              longitude: longitude !== undefined && longitude !== '' ? Number(longitude) : (clinic.longitude ?? null),
               weeklySchedule: Array.isArray(weeklySchedule) && weeklySchedule.length > 0
                 ? weeklySchedule
                 : (clinic.weeklySchedule || DEFAULT_WEEKLY_SCHEDULE),
