@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Unified resolution: clinic limit takes precedence for single clinic, sub-branch limit respected in multi-branch
-    const effectiveLimit = resolveEffectiveDailyLimit(cData, bData, Boolean(cData.branchesEnabled))
+    const effectiveLimit = resolveEffectiveDailyLimit(cData, bData as { maxDailyBookings?: number | string; isMain?: boolean }, Boolean(cData.branchesEnabled))
 
     // 3. Enforce server-side service price and reject client tampering (A05 - P1 Protection)
     let verifiedServicePrice = 0
