@@ -108,13 +108,29 @@ export function OwnerBranchManager({
     )
   }, [selectedClinic])
 
-  // Real-time snapshot listener for the selected clinic's branches
+  // Real-time listener plus authoritative API read for accounts that cannot
+  // query branches directly under client Firestore security rules.
   useEffect(() => {
     if (!selectedClinic?.id) return
     setIsLoading(true)
 
+    let cancelled = false
     const cId = selectedClinic.id
     const cSlug = selectedClinic.slug
+    if (cSlug) {
+      fetch(`/api/clinic/${encodeURIComponent(cSlug)}/branches`, { cache: 'no-store', credentials: 'same-origin' })
+        .then(async (res) => {
+          if (!res.ok) throw new Error('Unable to load registered branches')
+          return res.json()
+        })
+        .then((data) => {
+          if (!cancelled && Array.isArray(data.branches)) {
+            setBranches(data.branches)
+            setIsLoading(false)
+          }
+        })
+        .catch(() => { if (!cancelled) setIsLoading(false) })
+    }
 
     const q1 = query(collection(db, 'branches'), where('clinicId', '==', cId))
     const q2 = query(collection(db, 'branches'), where('clinic_id', '==', cId))
@@ -144,6 +160,7 @@ export function OwnerBranchManager({
     })
 
     return () => {
+      cancelled = true
       unsub1()
       unsub2()
     }
@@ -212,9 +229,6 @@ export function OwnerBranchManager({
         setLatitude(String(data.lat))
         setLongitude(String(data.lng))
         setVerifiedAddress(data.displayName || `إحداثيات مؤكدة (${data.lat.toFixed(5)}, ${data.lng.toFixed(5)})`)
-        if (data.finalUrl && !mapsLink.includes('@')) {
-          setMapsLink(data.finalUrl)
-        }
         toast.success('تم استخراج الإحداثيات الدقيقة للفرع بنجاح!')
       } else {
         toast.error(data.message || 'تعذر استخراج إحداثيات دقيقة من الرابط. يمكنك كتابة خطوط الطول والعرض يدوياً.')
@@ -276,15 +290,26 @@ export function OwnerBranchManager({
     )
   }
 
-  // Toggle open/closed status directly from the card
+  // Owner operations must use the authenticated API: direct Firestore writes
+  // fail for virtual legacy IDs and may bypass server-side tenant checks.
+  const saveBranchViaApi = async (payload: Record<string, any>) => {
+    if (!selectedClinic?.slug) throw new Error('لم يتم تحديد رابط العيادة')
+    const res = await fetch(`/api/clinic/${encodeURIComponent(selectedClinic.slug)}/branches`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify(payload)
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok || !data.success) throw new Error(data.error || 'لم يتم حفظ بيانات الفرع')
+    return data.branch as Branch
+  }
+
   const handleToggleBranchStatus = async (branch: Branch) => {
     try {
-      const nextStatus = !branch.isOpen
-      await updateDoc(doc(db, 'branches', branch.id), {
-        isOpen: nextStatus,
-        updatedAt: new Date().toISOString()
-      })
-      toast.success(nextStatus ? `تم تفعيل استقبال الحجوزات في «${branch.name}»` : `تم إيقاف استقبال الحجوزات مؤقتاً في «${branch.name}»`)
+      const updated = await saveBranchViaApi({ id: branch.id, isOpen: branch.isOpen === false })
+      setBranches((prev) => prev.map((b) => b.id === branch.id ? updated : b))
+      toast.success(updated.isOpen ? `تم تفعيل استقبال الحجوزات في «${branch.name}»` : `تم إيقاف استقبال الحجوزات مؤقتاً في «${branch.name}»`)
     } catch (e: any) {
       toast.error('فشل في تعديل حالة الفرع: ' + e.message)
     }
@@ -300,10 +325,19 @@ export function OwnerBranchManager({
     if (!window.confirm(confirmMsg)) return
 
     try {
-      await updateDoc(doc(db, 'branches', branch.id), {
-        isArchived: !isCurrentlyArchived,
-        updatedAt: new Date().toISOString()
-      })
+      if (isCurrentlyArchived) {
+        const restored = await saveBranchViaApi({ id: branch.id, isArchived: false })
+        setBranches((prev) => prev.map((b) => b.id === branch.id ? restored : b))
+      } else {
+        if (!selectedClinic?.slug) throw new Error('لم يتم تحديد عيادة')
+        const res = await fetch(
+          `/api/clinic/${encodeURIComponent(selectedClinic.slug)}/branches?branchId=${encodeURIComponent(branch.id)}`,
+          { method: 'DELETE', credentials: 'same-origin' }
+        )
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok || !data.success) throw new Error(data.error || 'فشل أرشفة الفرع')
+        setBranches((prev) => prev.map((b) => b.id === branch.id ? { ...b, isArchived: true } : b))
+      }
       toast.success(isCurrentlyArchived ? 'تمت استعادة الفرع بنجاح' : 'تمت أرشفة الفرع بأمان مع الحفاظ على سجل المواعيد')
     } catch (e: any) {
       toast.error('فشل في تغيير أرشفة الفرع: ' + e.message)
@@ -352,19 +386,16 @@ export function OwnerBranchManager({
       }
 
       if (editingBranch?.id) {
-        // Update existing branch
-        await updateDoc(doc(db, 'branches', editingBranch.id), branchPayload)
+        const updated = await saveBranchViaApi({ ...branchPayload, id: editingBranch.id })
+        setBranches((prev) => prev.map((b) => b.id === editingBranch.id ? updated : b))
         toast.success(`تم تحديث بيانات «${name}» بنجاح`)
       } else {
-        // Enforce quota if creating new
         if (activeBranches.length >= maxBranches) {
           toast.error(`وصلت هذه العيادة للحد الأقصى المسموح (${maxBranches} فروع). يمكنك زيادة الكوتة أولاً من الأعلى.`)
-          setIsSavingBranch(false)
           return
         }
-        branchPayload.isArchived = false
-        branchPayload.createdAt = new Date().toISOString()
-        await addDoc(collection(db, 'branches'), branchPayload)
+        const created = await saveBranchViaApi(branchPayload)
+        setBranches((prev) => [...prev, created])
         toast.success(`تمت إضافة فرع «${name}» بنجاح`)
       }
 

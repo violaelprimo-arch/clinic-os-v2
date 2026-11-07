@@ -20,7 +20,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { getClinicBranches, formatWeeklyScheduleSummary, isClinicOpenNow, DEFAULT_WEEKLY_SCHEDULE } from '@/lib/branchService'
-import { resolveEffectiveLocation, isPlaceholderAddress, sanitizeAddress } from '@/lib/mapsHelper'
+import { resolveEffectiveLocation, isPlaceholderAddress, sanitizeAddress, extractCoordsFromLink } from '@/lib/mapsHelper'
 
 export interface ClinicLocationMapProps {
   clinic: any
@@ -42,7 +42,7 @@ export function ClinicLocationMap({
   const [branches, setBranches] = useState<any[]>(propBranches || [])
   const [selectedBranch, setSelectedBranch] = useState<any>(null)
   const [isCopied, setIsCopied] = useState<boolean>(false)
-  const [asyncResolvedCoords, setAsyncResolvedCoords] = useState<{ lat: number; lng: number } | null>(null)
+  const [resolvedLink, setResolvedLink] = useState<{ url: string; lat: number; lng: number } | null>(null)
   const [isResolving, setIsResolving] = useState<boolean>(false)
 
   // Load branches from Firestore or use props
@@ -107,49 +107,58 @@ export function ClinicLocationMap({
   // Current selected branch
   const current = selectedBranch || branches[0] || null
 
-  // Resolve location strictly without guessed defaults
+  // The selected branch's Google Maps link is the authority for the pin.
+  // A link for the main clinic must never be silently reused for another branch.
   const effective = resolveEffectiveLocation(current, clinic)
-  const effectiveLat = asyncResolvedCoords?.lat ?? effective.lat
-  const effectiveLng = asyncResolvedCoords?.lng ?? effective.lng
-  const effectiveAddress = effective.address
-  const effectiveDirectionsUrl = effective.directionsUrl
-  const effectiveMapsLink = effective.mapsLink
-  const hasExactCoords = effectiveLat !== null && effectiveLng !== null
+  const targetMapsLink: string =
+    current?.mapsLink || ((current?.isMain || !current) ? (clinic?.mapsLink || '') : '')
+  const directLinkCoords = targetMapsLink ? extractCoordsFromLink(targetMapsLink) : null
+  const resolvedForCurrentLink = resolvedLink?.url === targetMapsLink ? resolvedLink : null
 
-  // Safe async resolution only when mapsLink is present but coords not yet parsed
+  // Do not display outdated manually entered coordinates while a short Google
+  // Maps URL points to an unverified destination. This was the wrong-pin bug.
+  const effectiveLat = targetMapsLink
+    ? (directLinkCoords?.lat ?? resolvedForCurrentLink?.lat ?? null)
+    : effective.lat
+  const effectiveLng = targetMapsLink
+    ? (directLinkCoords?.lng ?? resolvedForCurrentLink?.lng ?? null)
+    : effective.lng
+  const effectiveAddress = effective.address
+  const effectiveMapsLink = targetMapsLink || effective.mapsLink
+  const hasExactCoords = effectiveLat !== null && effectiveLng !== null
+  const effectiveDirectionsUrl = targetMapsLink ||
+    (hasExactCoords
+      ? `https://www.google.com/maps/dir/?api=1&destination=${effectiveLat},${effectiveLng}`
+      : effective.directionsUrl)
+
   useEffect(() => {
-    if (effective.lat !== null && effective.lng !== null) {
-      setAsyncResolvedCoords(null)
+    if (!targetMapsLink || directLinkCoords) {
+      setResolvedLink(null)
+      setIsResolving(false)
       return
     }
 
-    const targetUrl = current?.mapsLink || clinic?.mapsLink
-    if (!targetUrl) return
-
-    let isMounted = true
+    let alive = true
+    setResolvedLink(null)
     setIsResolving(true)
-    fetch(`/api/resolve-maps-coords?url=${encodeURIComponent(targetUrl)}`)
-      .then((res) => res.json())
+    fetch(`/api/resolve-maps-coords?url=${encodeURIComponent(targetMapsLink)}`, { cache: 'no-store' })
+      .then(async (res) => {
+        if (!res.ok) throw new Error('Location not verified')
+        return res.json()
+      })
       .then((data) => {
-        if (data.success && typeof data.lat === 'number' && typeof data.lng === 'number' && isMounted) {
-          setAsyncResolvedCoords({ lat: data.lat, lng: data.lng })
+        if (alive && data.success && Number.isFinite(data.lat) && Number.isFinite(data.lng)) {
+          setResolvedLink({ url: targetMapsLink, lat: data.lat, lng: data.lng })
         }
       })
-      .catch(() => {})
-      .finally(() => {
-        if (isMounted) setIsResolving(false)
-      })
+      .catch(() => { /* No misleading guessed map pin on failure */ })
+      .finally(() => { if (alive) setIsResolving(false) })
+    return () => { alive = false }
+  }, [targetMapsLink, directLinkCoords?.lat, directLinkCoords?.lng])
 
-    return () => {
-      isMounted = false
-    }
-  }, [current?.mapsLink, clinic?.mapsLink, effective.lat, effective.lng])
-
-  // Google Maps Embed Query: strictly verified coordinates or exact address
+  // Only render a pin when precise coordinates have actually been established.
   const iframeEmbedUrl = hasExactCoords
     ? `https://maps.google.com/maps?q=${effectiveLat},${effectiveLng}&t=&z=16&ie=UTF8&iwloc=&output=embed`
-    : effectiveAddress && !isPlaceholderAddress(effectiveAddress)
-    ? `https://maps.google.com/maps?q=${encodeURIComponent(effectiveAddress)}&t=&z=15&ie=UTF8&iwloc=&output=embed`
     : null
 
   const handleCopyAddress = () => {
@@ -239,7 +248,7 @@ export function ClinicLocationMap({
                 type="button"
                 onClick={() => {
                   setSelectedBranch(b)
-                  setAsyncResolvedCoords(null)
+                  setResolvedLink(null)
                 }}
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
                   isSelected
@@ -282,7 +291,7 @@ export function ClinicLocationMap({
                 <MapPin className="w-7 h-7" />
               </div>
               <div className="space-y-1">
-                <h4 className="font-bold text-sm text-foreground">لم يتم تحديد إحداثيات الخريطة بدقة بعد</h4>
+                <h4 className="font-bold text-sm text-foreground">{isResolving ? 'جارٍ التحقق من رابط خرائط Google...' : 'لم يتم التأكد من موقع الدبوس بدقة'}</h4>
                 <p className="text-xs text-muted-foreground max-w-sm">
                   {effectiveAddress ? `العنوان المسجل: ${effectiveAddress}` : 'يمكنك التواصل مع العيادة للاستفسار عن العنوان الدقيق.'}
                 </p>
@@ -312,7 +321,7 @@ export function ClinicLocationMap({
             {hasExactCoords && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold text-[10px] shrink-0 border border-emerald-500/20">
                 <CheckCircle2 className="w-3 h-3" />
-                موقع دقيق ومؤكد
+                إحداثيات موقع محددة
               </span>
             )}
           </div>

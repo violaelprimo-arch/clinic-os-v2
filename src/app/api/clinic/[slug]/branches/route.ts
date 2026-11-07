@@ -1,21 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  getDoc,
-  addDoc,
-  updateDoc,
-  doc
-} from 'firebase/firestore'
+import { collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { verifySessionToken } from '@/lib/auth-crypto'
 import { OWNER_COOKIE, verifyOwnerSession } from '@/lib/owner-session'
 import { Branch, BranchScheduleDay } from '@/types/clinic'
 import { DEFAULT_WEEKLY_SCHEDULE, formatWeeklyScheduleSummary } from '@/lib/branchService'
 import { sanitizeAddress } from '@/lib/mapsHelper'
-import { queryDocuments } from '@/lib/server/firebase-rest'
+import { queryDocuments, readDocument, writeDocument, createDocument } from '@/lib/server/firebase-rest'
 
 /**
  * Helper to fetch all branches for a clinic doc ID.
@@ -92,12 +83,15 @@ async function authenticateCaller(req: NextRequest, clinicSlug: string, clinicId
     try {
       const session = await verifySessionToken(sessionToken)
       if (session.valid && session.payload) {
-        if (session.payload.role === 'owner') {
-          isOwner = true
-        } else if (
-          session.payload.slug === clinicSlug ||
-          session.payload.clinicId === clinicId ||
-          session.payload.clinicId === clinicSlug
+        // A clinic session is never sufficient to claim platform-owner privileges.
+        // Only a verified OWNER_COOKIE can authorize platform-wide operations.
+        if (
+          session.payload.role === 'doctor' &&
+          (
+            session.payload.slug === clinicSlug ||
+            session.payload.clinicId === clinicId ||
+            session.payload.clinicId === clinicSlug
+          )
         ) {
           isClinicStaff = true
         }
@@ -198,6 +192,9 @@ export async function POST(
       isMain
     } = body
 
+    if (branchId && (typeof branchId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(branchId))) {
+      return NextResponse.json({ error: 'معرف الفرع غير صالح' }, { status: 400 })
+    }
     const isCreating = !branchId || branchId === 'new'
 
     // Doctor Permission & Quota Checks
@@ -226,26 +223,10 @@ export async function POST(
             { status: 403 }
           )
         }
-      } else {
-        // Verify branch ownership when updating
-        try {
-          const bDoc = await getDoc(doc(db, 'branches', branchId))
-          if (bDoc.exists()) {
-            const bData = bDoc.data()
-            if (bData.clinicId !== clinicId && bData.clinic_id !== clinicId) {
-              return NextResponse.json(
-                { error: 'لا تملك صلاحية تعديل هذا الفرع التابع لعيادة أخرى' },
-                { status: 403 }
-              )
-            }
-          }
-        } catch (vErr) {
-          console.warn('Branch ownership check warning:', vErr)
-        }
       }
     }
 
-    if (!name || !String(name).trim()) {
+    if ((isCreating || Object.prototype.hasOwnProperty.call(body, 'name')) && (!name || !String(name).trim())) {
       return NextResponse.json({ error: 'اسم الفرع مطلوب' }, { status: 400 })
     }
 
@@ -278,20 +259,100 @@ export async function POST(
     }
 
     if (!isCreating) {
-      // Update existing branch
-      await updateDoc(doc(db, 'branches', branchId), branchPayload)
+      // Some legacy clinics displayed a virtual branch with id="main" even though
+      // Firestore has no document at branches/main. Resolve its real document ID.
+      const legacyMain = branchId === 'main' || String(branchId).startsWith('main-branch-')
+      let resolvedId: string = branchId
+      let existing = await readDocument(`branches/${resolvedId}`)
+
+      if (!existing && legacyMain) {
+        const registered = await fetchBranchesForClinic(clinicId, slug)
+        for (const candidate of registered.filter((b) => b.isMain || b.name === 'الفرع الرئيسي')) {
+          const candidateDoc = await readDocument(`branches/${candidate.id}`)
+          if (candidateDoc) {
+            resolvedId = candidate.id
+            existing = candidateDoc
+            break
+          }
+        }
+        if (!existing) {
+          // Create the missing main branch once using a deterministic, clinic-scoped ID.
+          // Do not create/update a shared global "main" document.
+          resolvedId = `main-${clinicId}`
+          existing = await readDocument(`branches/${resolvedId}`)
+          if (!existing) {
+            const seed = {
+              ...branchPayload,
+              clinicId,
+              clinic_id: clinicId,
+              name: String(name || 'الفرع الرئيسي').trim(),
+              address: sanitizeAddress(address || clinic.clinicAddress || clinic.address) || 'مقر العيادة',
+              mapsLink: mapsLink || clinic.mapsLink || '',
+              phone: phone || clinic.clinicPhone || '',
+              latitude: latitude !== undefined && latitude !== '' ? Number(latitude) : (clinic.latitude ?? null),
+              longitude: longitude !== undefined && longitude !== '' ? Number(longitude) : (clinic.longitude ?? null),
+              weeklySchedule: Array.isArray(weeklySchedule) && weeklySchedule.length > 0
+                ? weeklySchedule
+                : (clinic.weeklySchedule || DEFAULT_WEEKLY_SCHEDULE),
+              isMain: true,
+              isArchived: false,
+              createdAt: new Date().toISOString()
+            }
+            await createDocument('branches', {
+              ...seed,
+              workingHours: formatWeeklyScheduleSummary(seed.weeklySchedule, true)
+            }, resolvedId)
+            existing = await readDocument(`branches/${resolvedId}`)
+          }
+        }
+      }
+
+      if (!existing) {
+        return NextResponse.json({ error: 'هذا الفرع غير موجود. حدّث قائمة الفروع ثم حاول مجددًا.' }, { status: 404 })
+      }
+      const oldBranch = existing
+      // Ownership must be checked even for the platform owner to prevent
+      // modifying a different clinic via a forged branch ID.
+      if (![oldBranch.clinicId, oldBranch.clinic_id].includes(clinicId)) {
+        return NextResponse.json({ error: 'الفرع لا يتبع العيادة المحددة' }, { status: 403 })
+      }
+      const restoreArchived = auth.isOwner && body.isArchived === false
+      if (oldBranch.isArchived === true && !restoreArchived) {
+        return NextResponse.json({ error: 'الفرع مؤرشف ولا يقبل التعديل' }, { status: 409 })
+      }
+
+      // PATCH semantics: a status-only update must not wipe the schedule,
+      // map coordinates, contacts, photo, or main-branch flag.
+      const editableFields = [
+        'name', 'governorate', 'city', 'area', 'address', 'mapsLink',
+        'latitude', 'longitude', 'phone', 'whatsapp', 'image',
+        'slotDuration', 'maxDailyBookings', 'isOpen', 'weeklySchedule'
+      ]
+      const patch: Record<string, any> = { updatedAt: new Date().toISOString() }
+      for (const key of editableFields) {
+        if (Object.prototype.hasOwnProperty.call(body, key)) patch[key] = branchPayload[key]
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'weeklySchedule')) {
+        patch.workingHours = formatWeeklyScheduleSummary(patch.weeklySchedule, true)
+      }
+      if (auth.isOwner && Object.prototype.hasOwnProperty.call(body, 'isMain')) {
+        patch.isMain = Boolean(body.isMain)
+      }
+      if (restoreArchived) patch.isArchived = false
+
+      await writeDocument(`branches/${resolvedId}`, patch, true)
       return NextResponse.json({
         success: true,
-        branch: { id: branchId, ...branchPayload }
+        branch: { id: resolvedId, ...oldBranch, ...patch }
       })
     } else {
       // Create new branch
       branchPayload.isArchived = false
       branchPayload.createdAt = new Date().toISOString()
-      const docRef = await addDoc(collection(db, 'branches'), branchPayload)
+      const newBranchId = await createDocument('branches', branchPayload)
       return NextResponse.json({
         success: true,
-        branch: { id: docRef.id, ...branchPayload }
+        branch: { id: newBranchId, ...branchPayload }
       })
     }
   } catch (err: any) {
@@ -336,28 +397,21 @@ export async function DELETE(
       return NextResponse.json({ error: 'معرف الفرع مطلوب' }, { status: 400 })
     }
 
-    // Verify ownership
-    if (!auth.isOwner) {
-      try {
-        const bDoc = await getDoc(doc(db, 'branches', branchId))
-        if (bDoc.exists()) {
-          const bData = bDoc.data()
-          if (bData.clinicId !== clinicId && bData.clinic_id !== clinicId) {
-            return NextResponse.json(
-              { error: 'لا تملك صلاحية أرشفة هذا الفرع' },
-              { status: 403 }
-            )
-          }
-        }
-      } catch (vErr) {
-        console.warn('Branch ownership check warning on delete:', vErr)
-      }
+    // Never allow archiving a branch of a different clinic, even as platform owner.
+    const targetBranch = await readDocument(`branches/${branchId}`)
+    if (!targetBranch) return NextResponse.json({ error: 'الفرع غير موجود' }, { status: 404 })
+    const targetData = targetBranch
+    if (![targetData.clinicId, targetData.clinic_id].includes(clinicId)) {
+      return NextResponse.json({ error: 'الفرع لا يتبع العيادة المحددة' }, { status: 403 })
+    }
+    if (targetData.isMain) {
+      return NextResponse.json({ error: 'لا يمكن أرشفة الفرع الرئيسي' }, { status: 409 })
     }
 
-    await updateDoc(doc(db, 'branches', branchId), {
+    await writeDocument(`branches/${branchId}`, {
       isArchived: true,
       updatedAt: new Date().toISOString()
-    })
+    }, true)
 
     return NextResponse.json({ success: true, message: 'تم أرشفة الفرع بنجاح' })
   } catch (err: any) {

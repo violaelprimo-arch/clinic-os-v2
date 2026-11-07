@@ -88,92 +88,67 @@ export function BookingModal({
     clinic?.clinicPhoto ||
     'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=600&auto=format&fit=crop'
 
-  // Default fallback branch (Single main clinic branch - never inject fake dummy branches!)
-  const defaultMainBranch = {
-    id: 'main',
-    name: clinic?.clinicName || 'الفرع الرئيسي',
-    sub: 'المقر الرئيسي',
-    address: clinic?.clinicAddress || 'مقر العيادة الرئيسي',
-    image: fallbackMainImage,
-    available: true
-  }
+  // Only enabled, non-archived branches may be offered for NEW patient bookings.
+  // Admin screens still show closed branches for maintenance.
+  const bookableBranches = (items: any[]): any[] =>
+    items.filter((b: any) => b && b.isArchived !== true && b.isOpen !== false)
 
-  // Pre-calculate initial branches synchronously for instant 0ms rendering
-  const computeInitialBranches = () => {
-    if (propBranches && propBranches.length > 0) {
-      return propBranches.map((b: any) => ({
-        ...b,
-        image: b.image || b.imageUrl || fallbackMainImage
-      }))
-    }
-    if (clinic?.branches && clinic.branches.length > 0) {
-      return clinic.branches.map((b: any) => ({
-        ...b,
-        image: b.image || b.imageUrl || fallbackMainImage
-      }))
-    }
-    return [defaultMainBranch]
-  }
+  const initialCandidateBranches = bookableBranches(
+    Array.isArray(propBranches) && propBranches.length > 0
+      ? propBranches
+      : Array.isArray(clinic?.branches) ? clinic.branches : []
+  ).map((b: any) => ({ ...b, image: b.image || b.imageUrl || fallbackMainImage }))
 
-  const [branches, setBranches] = useState<any[]>(computeInitialBranches)
-  const [selectedBranch, setSelectedBranch] = useState<any>(() => {
-    if (initialBranch) return initialBranch
-    const list = computeInitialBranches()
-    return list[0]
-  })
+  const [branches, setBranches] = useState<any[]>(initialCandidateBranches)
+  const [selectedBranch, setSelectedBranch] = useState<any>(
+    initialCandidateBranches.find((b: any) => b.id === initialBranch?.id) ||
+    initialCandidateBranches[0] || null
+  )
+  const [branchCatalogStatus, setBranchCatalogStatus] = useState<'loading' | 'ready' | 'error'>(
+    isPreview ? 'ready' : 'loading'
+  )
 
-  // Synchronize or load in background without blocking modal interaction
   useEffect(() => {
-    if (propBranches && propBranches.length > 0) {
-      const mapped = propBranches.map((b: any) => ({
-        ...b,
-        image: b.image || b.imageUrl || fallbackMainImage
-      }))
-      setBranches(mapped)
-      if (!selectedBranch || selectedBranch.id === 'main') {
-        setSelectedBranch(initialBranch || mapped[0])
-      }
+    if (isPreview) {
+      const previewList = bookableBranches(
+        Array.isArray(propBranches) ? propBranches : (clinic?.branches || [])
+      ).map((b: any) => ({ ...b, image: b.image || b.imageUrl || fallbackMainImage }))
+      setBranches(previewList)
+      setSelectedBranch(previewList.find((b: any) => b.id === initialBranch?.id) || previewList[0] || null)
+      setBranchCatalogStatus('ready')
       return
     }
 
-    let isMounted = true
-    const loadBranches = async () => {
+    let alive = true
+    setBranchCatalogStatus('loading')
+    const load = async () => {
       try {
-        if (clinic?.id) {
-          const dbBranches = await getClinicBranches(clinic.id).catch(() => [])
-          const active = dbBranches.filter((b: any) => !b.isArchived)
-          if (active.length > 0 && isMounted) {
-            const mapped = active.map((b: any) => ({
-              ...b,
-              image: b.image || b.imageUrl || fallbackMainImage
-            }))
-            setBranches(mapped)
-            if (!selectedBranch || selectedBranch.id === 'main') {
-              setSelectedBranch(initialBranch || mapped[0])
-            }
-            return
-          }
-        }
-        if (clinic?.branches && clinic.branches.length > 0 && isMounted) {
-          const mapped = clinic.branches.map((b: any) => ({
-            ...b,
-            image: b.image || b.imageUrl || fallbackMainImage
-          }))
-          setBranches(mapped)
-          if (!selectedBranch) {
-            setSelectedBranch(initialBranch || mapped[0])
-          }
-        }
-      } catch (e) {
-        console.error('Error loading branches:', e)
+        // The canonical server API prevents cached clinic profile data from
+        // falsely advertising a paused branch as available.
+        const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/branches`, { cache: 'no-store' })
+        if (!res.ok) throw new Error('تعذر تحميل حالات الفروع')
+        const data = await res.json()
+        if (!Array.isArray(data.branches)) throw new Error('بيانات الفروع غير صالحة')
+        if (!alive) return
+        const list = bookableBranches(data.branches)
+          .map((b: any) => ({ ...b, image: b.image || b.imageUrl || fallbackMainImage }))
+        setBranches(list)
+        setSelectedBranch((previous: any) =>
+          list.find((b: any) => b.id === previous?.id) ||
+          list.find((b: any) => b.id === initialBranch?.id) ||
+          list[0] || null
+        )
+        setBranchCatalogStatus('ready')
+      } catch (err) {
+        if (!alive) return
+        setBranches([])
+        setSelectedBranch(null)
+        setBranchCatalogStatus('error')
       }
     }
-
-    loadBranches()
-    return () => {
-      isMounted = false
-    }
-  }, [clinic?.id, initialBranch, propBranches])
+    load()
+    return () => { alive = false }
+  }, [slug, isPreview, initialBranch?.id, propBranches, clinic?.branches])
 
   const defaultServices = services?.length
     ? services
@@ -439,8 +414,13 @@ export function BookingModal({
 
   const handleNext = async () => {
     if (step === 1) {
-      if (!selectedBranch && branches.length > 0) {
-        setSelectedBranch(branches[0])
+      if (branchCatalogStatus !== 'ready') {
+        toast.error('لم يتم التأكد من الفروع المتاحة. حاول تحديث الصفحة.')
+        return
+      }
+      if (!selectedBranch || !branches.some((b: any) => b.id === selectedBranch.id)) {
+        toast.error('لا يوجد فرع مفتوح للحجز حالياً')
+        return
       }
       setStep(2)
       return
@@ -513,6 +493,22 @@ export function BookingModal({
       const cleanPhone = patientPhone.trim().replace(/\s+/g, '')
       const branchId = selectedBranch?.id || null
       const branchName = selectedBranch?.name || 'الفرع الرئيسي'
+
+      // Re-check the canonical branch state immediately before booking.
+      // An old browser tab must not accept a branch that the doctor has just paused.
+      if (!isPreview) {
+        const branchRes = await fetch(`/api/clinic/${encodeURIComponent(slug)}/branches`, { cache: 'no-store' })
+        if (!branchRes.ok) throw new Error('تعذر التأكد من حالة الفرع؛ لم يتم الحجز')
+        const latest = await branchRes.json()
+        if (!Array.isArray(latest.branches) || !latest.branches.some(
+          (b: any) => b.id === branchId && b.isOpen !== false && b.isArchived !== true
+        )) {
+          setStep(1)
+          setSelectedBranch(null)
+          setBranches(bookableBranches(latest.branches || []))
+          throw new Error('هذا الفرع أُغلق أو أُوقف الحجز فيه. اختر فرعاً آخر.')
+        }
+      }
 
       // Check max daily bookings quota directly from DB
       const q = query(
@@ -989,6 +985,9 @@ export function BookingModal({
             {step === 1 && (
               <div className="space-y-4">
                 <h4 className="text-center font-extrabold text-slate-800 dark:text-slate-100 text-sm">اختر الفرع المناسب</h4>
+                {branchCatalogStatus === 'loading' && <p className="text-center text-xs text-slate-500">جارٍ التأكد من الفروع المتاحة...</p>}
+                {branchCatalogStatus === 'error' && <p className="text-center text-xs text-rose-600">تعذر التأكد من حالة الفروع. أغلق نافذة الحجز وأعد المحاولة.</p>}
+                {branchCatalogStatus === 'ready' && branches.length === 0 && <p className="text-center text-sm font-bold text-rose-600">لا توجد فروع متاحة للحجز حالياً. تواصل مع العيادة.</p>}
                 <div className={`grid ${branches.length === 1 ? 'grid-cols-1 max-w-[240px] mx-auto' : branches.length === 2 ? 'grid-cols-2 max-w-[360px] mx-auto' : 'grid-cols-3'} gap-2.5`}>
                   {branches.map((b: any) => {
                     const isSelected = selectedBranch?.id === b.id || selectedBranch?.name === b.name

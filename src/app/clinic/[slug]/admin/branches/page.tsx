@@ -103,10 +103,9 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
         }
       }
 
-      // Fallback: direct service
-      await ensureClinicHasMainBranch(cData)
-      const branchList = await getClinicBranches(cData.id, slug)
-      setBranches(branchList)
+      // A failed API read must not auto-create a phantom "main" branch.
+      // Explicitly report the failure and keep clinic data untouched.
+      throw new Error('تعذر استرجاع الفروع من الخادم؛ يرجى إعادة المحاولة')
     } catch (err: any) {
       console.error('Error loading branches:', err)
       setLoadError(err.message || 'حدث خطأ أثناء تحميل الفروع')
@@ -271,6 +270,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
 
       const savedBranch: Branch = data.branch
       if (editingBranchId) {
+        // The server may replace the virtual legacy id "main" with a real Firestore ID.
         setBranches((prev) =>
           prev.map((b) => (b.id === editingBranchId ? savedBranch : b))
         )
@@ -294,15 +294,25 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
       const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/branches`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: branchId, name: branches.find(b => b.id === branchId)?.name || 'الفرع', isOpen: !currentStatus })
+        body: JSON.stringify({
+          id: branchId,
+          isOpen: !currentStatus
+        })
       })
-      if (!res.ok) throw new Error('Failed to update status')
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.success || !data.branch) {
+        throw new Error(data.error || 'تعذر تحديث حالة الفرع')
+      }
+      // The API returns the actual persisted document ID, which may differ
+      // from a legacy virtual "main" branch ID.
       setBranches((prev) =>
-        prev.map((b) => (b.id === branchId ? { ...b, isOpen: !currentStatus } : b))
+        prev.map((b) => b.id === branchId ? data.branch : b)
       )
       toast.success(currentStatus ? 'تم إيقاف حجز الفرع مؤقتاً' : 'تم تفعيل حجز الفرع للعمل')
-    } catch (err) {
-      toast.error('حدث خطأ أثناء تعديل حالة الفرع')
+      // Confirm persistence and replace stale legacy records.
+      await fetchClinicAndBranches()
+    } catch (err: any) {
+      toast.error(err?.message || 'حدث خطأ أثناء تعديل حالة الفرع')
     }
   }
 
@@ -395,7 +405,7 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
               : (language === 'en' ? `Branch Plan: ${activeBranches.length} of ${maxBranches} branches` : `باقة الفروع: ${activeBranches.length} من ${maxBranches} فروع`)}
           </Badge>
 
-          {isOwner && canAddBranch && (
+          {canAddBranch && (
             <Button
               onClick={openAddModal}
               className="h-10 px-4 yalla-gradient-btn text-white font-bold rounded-xl shadow-xs text-xs cursor-pointer gap-1.5"
@@ -405,10 +415,10 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
             </Button>
           )}
 
-          {!isOwner && (
+          {!canAddBranch && !isOwner && !allowDoctorCreateBranches && (
             <div className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-bold">
               <Lock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-              <span>{language === 'en' ? 'Adding branches managed by Platform Owner only' : 'إضافة الفروع بواسطة مالك المنصة فقط'}</span>
+              <span>{language === 'en' ? 'Platform Owner has restricted adding branches' : 'إضافة الفروع مقيدة بواسطة مالك المنصة'}</span>
             </div>
           )}
         </div>
