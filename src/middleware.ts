@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifySessionToken } from '@/lib/auth-crypto'
+import { readDocument } from '@/lib/server/firebase-rest'
+import { isClinicSuspended, isSuspendedReadOnlyPath } from '@/lib/clinicAccessPolicy'
 
 export const BASE_PLATFORM_DOMAINS = ['yalla-clinic.com', 'yalaa-clinic.com']
 
 async function handleAdminAuth(req: NextRequest, targetClinicSlug: string, subdomain: string | null) {
   const sessionToken = req.cookies.get('clinic_session')?.value
   let isAuthorized = false
+  let clinicRecord: Record<string, unknown> | null = null
 
   if (sessionToken) {
     const verifyResult = await verifySessionToken(sessionToken)
@@ -13,9 +16,18 @@ async function handleAdminAuth(req: NextRequest, targetClinicSlug: string, subdo
       const { role, slug } = verifyResult.payload
       if (role === 'owner') {
         isAuthorized = true
-      } else if (role === 'doctor' || role === 'assistant') {
-        if (!slug || slug === targetClinicSlug) {
-          isAuthorized = true
+      } else if ((role === 'doctor' || role === 'assistant') && slug === targetClinicSlug) {
+        const clinicId = verifyResult.payload.clinicId
+        if (typeof clinicId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(clinicId)) {
+          try {
+            const record = await readDocument(`clinics/${clinicId}`)
+            if (record && record.slug === targetClinicSlug) {
+              isAuthorized = true
+              clinicRecord = record
+            }
+          } catch (e) {
+            console.error('Clinic status lookup unavailable', e)
+          }
         }
       }
     }
@@ -29,6 +41,18 @@ async function handleAdminAuth(req: NextRequest, targetClinicSlug: string, subdo
     const response = NextResponse.redirect(loginUrl, 307)
     response.cookies.delete('clinic_session')
     return response
+  }
+
+  if (clinicRecord && isClinicSuspended(clinicRecord)) {
+    const actualPath = req.nextUrl.pathname.startsWith('/clinic/')
+      ? req.nextUrl.pathname
+      : `/clinic/${targetClinicSlug}${req.nextUrl.pathname}`
+    if (!isSuspendedReadOnlyPath(actualPath, targetClinicSlug)) {
+      const redirectPath = subdomain
+        ? '/admin/accounts?subscription=ended'
+        : `/clinic/${targetClinicSlug}/admin/accounts?subscription=ended`
+      return NextResponse.redirect(new URL(redirectPath, req.url), 307)
+    }
   }
 
   if (subdomain) {
@@ -45,7 +69,7 @@ async function handleAdminAuth(req: NextRequest, targetClinicSlug: string, subdo
   return NextResponse.next()
 }
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const url = req.nextUrl
   const hostname = req.headers.get('host') || ''
   const pathname = url.pathname
@@ -68,6 +92,38 @@ export function middleware(req: NextRequest) {
         'Cache-Control': 'public, max-age=86400, s-maxage=86400',
       },
     })
+  }
+
+  // Signed-in clinic users may keep viewing historical GET data after
+  // suspension, but API mutations are rejected before reaching route handlers.
+  // Owner routes and the authentication/logout endpoints are independently
+  // authorized and remain available.
+  if (pathname.startsWith('/api/') &&
+      !['GET', 'HEAD', 'OPTIONS'].includes(req.method) &&
+      !pathname.startsWith('/api/auth/') &&
+      !pathname.startsWith('/api/owner/')) {
+    const token = req.cookies.get('clinic_session')?.value
+    if (token) {
+      const session = await verifySessionToken(token)
+      if (session.valid && session.payload &&
+          (session.payload.role === 'doctor' || session.payload.role === 'assistant')) {
+        const clinicId = session.payload.clinicId
+        if (typeof clinicId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(clinicId)) {
+          return NextResponse.json({ error: 'CLINIC_SESSION_INVALID' }, { status: 401 })
+        }
+        try {
+          const clinic = await readDocument(`clinics/${clinicId}`)
+          if (!clinic || isClinicSuspended(clinic)) {
+            return NextResponse.json({
+              error: 'SUBSCRIPTION_ENDED_READ_ONLY',
+              message: 'الاشتراك منتهي: السجلات القديمة متاحة للقراءة فقط'
+            }, { status: 403 })
+          }
+        } catch {
+          return NextResponse.json({ error: 'CLINIC_ACCESS_CHECK_UNAVAILABLE' }, { status: 503 })
+        }
+      }
+    }
   }
 
   // 1. Skip internal assets, static files, and API routes
