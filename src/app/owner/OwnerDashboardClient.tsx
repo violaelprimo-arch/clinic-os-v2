@@ -47,6 +47,8 @@ import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import { cleanPhoneForWhatsApp } from '@/lib/countryPhoneHelper'
 import { syncClinicScheduleToMainBranch, formatWeeklyScheduleSummary } from '@/lib/branchService'
 import OwnerBranchManager from '@/components/owner/OwnerBranchManager'
+import { BookingPageEditor } from '@/components/clinic/BookingPageEditor'
+import { type BookingPageConfig, DEFAULT_BOOKING_PAGE_CONFIG, normalizeBookingPageConfig } from '@/lib/booking-page-config'
 
 function formatTime12(timeStr?: string): string {
   if (!timeStr) return ''
@@ -322,6 +324,7 @@ function OwnerDashboard() {
   const [allowAnalytics, setAllowAnalytics] = useState(true)
   const [clinicHiddenTabs, setClinicHiddenTabs] = useState<string[]>([])
   const [clinicHiddenSections, setClinicHiddenSections] = useState<string[]>([])
+  const [ownerBookingPageConfig, setOwnerBookingPageConfig] = useState<BookingPageConfig>(DEFAULT_BOOKING_PAGE_CONFIG)
 
   // Edit mode
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -1316,6 +1319,7 @@ function OwnerDashboard() {
         allowAnalytics: allowAnalytics !== false,
         hiddenTabs: clinicHiddenTabs,
         hiddenSections: clinicHiddenSections,
+        bookingPageConfig: normalizeBookingPageConfig(ownerBookingPageConfig),
         heroImage,
         heroTitle,
         heroSubtitle,
@@ -1510,6 +1514,7 @@ function OwnerDashboard() {
     setAllowAnalytics(c.allowAnalytics !== false)
     setClinicHiddenTabs(Array.isArray(c.hiddenTabs) ? c.hiddenTabs : [])
     setClinicHiddenSections(Array.isArray(c.hiddenSections) ? c.hiddenSections : [])
+    setOwnerBookingPageConfig(normalizeBookingPageConfig(c.bookingPageConfig))
     setLogoUrl(c.logoUrl || '')
     setThermalMonoLogoUrl(c.thermalMonoLogoUrl || '')
     setPrimaryColor(c.primaryColor || '#087CF4')
@@ -1564,6 +1569,7 @@ function OwnerDashboard() {
     setIsPaid(true)
     setClinicHiddenTabs([])
     setClinicHiddenSections([])
+    setOwnerBookingPageConfig(DEFAULT_BOOKING_PAGE_CONFIG)
     setActiveTab('clinics')
     toast.info('تم إلغاء التعديل')
   }
@@ -5006,6 +5012,17 @@ function OwnerDashboard() {
                 </div>
               </div>
 
+              <section className="rounded-2xl border border-primary/15 bg-card p-3 sm:p-4 space-y-3">
+                <div className="flex gap-2 items-center px-2">
+                  <Palette className="w-5 h-5 text-primary" />
+                  <h3 className="text-sm font-black text-foreground">تصميم صفحة حجز المريض بواسطة المالك</h3>
+                </div>
+                <p className="text-xs text-muted-foreground px-2">
+                  غيّر الألوان والعناوين وأزرار الحجز والتتبع وترتيب الهيرو، واختر الأقسام الظاهرة للمريض. تُحفظ لكل عيادة مستقلة.
+                </p>
+                <BookingPageEditor value={ownerBookingPageConfig} onChange={setOwnerBookingPageConfig} />
+              </section>
+
               {/* Submit Buttons */}
               <div className="flex items-center gap-3 pt-3">
                 <Button
@@ -5059,12 +5076,13 @@ function OwnerDashboard() {
                       <p className="font-bold text-xs" style={{ color: primaryColor }}>{doctorName || 'اسم الطبيب'}</p>
                       <p className="text-xs text-slate-500">{specialty || 'التخصص الطبي'}</p>
                       <p className="text-[11px] text-slate-500 line-clamp-2">{heroSubtitle || 'نبذة عن العيادة'}</p>
+                      <p className="font-black text-sm" style={{ color: ownerBookingPageConfig.primaryColor || primaryColor }}>{ownerBookingPageConfig.headlineAr}</p>
                       <div className="flex flex-wrap gap-1 text-[10px] font-bold">
                         <span className="rounded-lg bg-slate-100 px-2 py-1">{badge1Title}: {badge1Value}</span>
                         <span className="rounded-lg bg-slate-100 px-2 py-1">{badge2Title}: {badge2Value}</span>
                       </div>
                       <div className="w-full text-center rounded-xl py-2 font-bold text-white text-xs" style={{ background: primaryColor || '#087CF4' }}>
-                        احجز موعدك
+                        {ownerBookingPageConfig.bookLabelAr || 'احجز موعدك'}
                       </div>
                     </div>
                   </div>
@@ -5073,6 +5091,8 @@ function OwnerDashboard() {
                     <div>التبويبات المخفية: <b>{clinicHiddenTabs.length}</b></div>
                     <div>أقسام الإعدادات المخفية: <b>{clinicHiddenSections.length}</b></div>
                     <div>عدد الفروع المسموح: <b>{maxBranches}</b></div>
+                    <div>الخدمات في صفحة المريض: <b>{ownerBookingPageConfig.showServices ? 'ظاهرة' : 'مخفية'}</b></div>
+                    <div>الخريطة في صفحة المريض: <b>{ownerBookingPageConfig.showLocation ? 'ظاهرة' : 'مخفية'}</b></div>
                   </div>
                   <p className="text-[10px] leading-5 text-muted-foreground">
                     هذه معاينة للهوية والمحتوى وليست نسخة تشغيلية من الحجز. التغييرات لا تُنشر إلا بعد الحفظ.
