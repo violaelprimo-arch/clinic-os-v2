@@ -14,6 +14,7 @@ import {
 } from '@/lib/bookingCapacity'
 import { createClinicNotification } from '@/lib/notificationService'
 import { cleanPhoneForWhatsApp } from '@/lib/countryPhoneHelper'
+import { isClinicSuspended } from '@/lib/clinicAccessPolicy'
 
 export async function POST(
   req: NextRequest,
@@ -52,6 +53,10 @@ export async function POST(
     const clinicDoc = cSnap.docs[0]
     const clinic = clinicDoc.data()
     const clinicId = clinicDoc.id
+
+    if (isClinicSuspended(clinic)) {
+      return NextResponse.json({ error: 'الاشتراك منتهي ولا يمكن إنشاء حجوزات جديدة' }, { status: 403 })
+    }
 
     // Verify session belongs to this clinic
     if (session.payload.clinicId && session.payload.clinicId !== clinicId && session.payload.clinicId !== slug) {
