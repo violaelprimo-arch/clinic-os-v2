@@ -24,8 +24,8 @@ import {
   doc,
   onSnapshot
 } from 'firebase/firestore'
-import { Branch, BranchScheduleDay } from '@/types/clinic'
-import { DEFAULT_WEEKLY_SCHEDULE, formatWeeklyScheduleSummary, checkScheduleConflicts } from '@/lib/branchService'
+import { Branch } from '@/types/clinic'
+
 import { sanitizeAddress, isPlaceholderAddress, extractCoordsFromLink } from '@/lib/mapsHelper'
 import {
   Dialog,
@@ -59,7 +59,7 @@ export function OwnerBranchManager({
   // Clinic Quota & Permission Controls state
   const [branchesEnabled, setBranchesEnabled] = useState<boolean>(true)
   const [maxBranches, setMaxBranches] = useState<number>(3)
-  const [allowDoctorCreateBranches, setAllowDoctorCreateBranches] = useState<boolean>(true)
+  const [allowDoctorCreateBranches, setAllowDoctorCreateBranches] = useState<boolean>(false)
   const [isUpdatingPermissions, setIsUpdatingPermissions] = useState<boolean>(false)
 
   // Modal State for Add / Edit
@@ -78,16 +78,11 @@ export function OwnerBranchManager({
   const [phone, setPhone] = useState('')
   const [whatsapp, setWhatsapp] = useState('')
   const [image, setImage] = useState('')
-  const [slotDuration, setSlotDuration] = useState<number>(15)
-  const [maxDailyBookings, setMaxDailyBookings] = useState<number>(0)
-  const [isOpen, setIsOpen] = useState<boolean>(true)
   const [isMain, setIsMain] = useState<boolean>(false)
-  const [weeklySchedule, setWeeklySchedule] = useState<BranchScheduleDay[]>(DEFAULT_WEEKLY_SCHEDULE)
 
   // Interactive Coordinates Verification
   const [isResolvingCoords, setIsResolvingCoords] = useState(false)
   const [verifiedAddress, setVerifiedAddress] = useState<string | null>(null)
-  const [conflicts, setConflicts] = useState<string[]>([])
   const [isSavingBranch, setIsSavingBranch] = useState(false)
 
   // Synchronize permissions when clinic changes
@@ -102,9 +97,7 @@ export function OwnerBranchManager({
         : 3
     )
     setAllowDoctorCreateBranches(
-      selectedClinic.allowDoctorCreateBranches !== undefined
-        ? Boolean(selectedClinic.allowDoctorCreateBranches)
-        : selectedClinic.branchCreationAllowed !== false
+      false
     )
   }, [selectedClinic])
 
@@ -166,19 +159,6 @@ export function OwnerBranchManager({
     }
   }, [selectedClinic?.id, selectedClinic?.slug])
 
-  // Conflict detection
-  useEffect(() => {
-    if (!isModalOpen) return
-    const candidate: Partial<Branch> = {
-      id: editingBranch?.id || 'new',
-      name: name || 'الفرع الجديد',
-      weeklySchedule,
-      isOpen
-    }
-    const detected = checkScheduleConflicts(branches, candidate)
-    setConflicts(detected)
-  }, [weeklySchedule, isOpen, name, editingBranch, branches, isModalOpen])
-
   const activeBranches = useMemo(() => {
     return branches.filter((b) => !b.isArchived)
   }, [branches])
@@ -196,8 +176,8 @@ export function OwnerBranchManager({
         branchesEnabled,
         maxBranches: Number(maxBranches) || 1,
         branchQuota: Number(maxBranches) || 1,
-        allowDoctorCreateBranches,
-        branchCreationAllowed: allowDoctorCreateBranches,
+        allowDoctorCreateBranches: false,
+        branchCreationAllowed: false,
         updatedAt: new Date().toISOString()
       })
       toast.success('تم تحديث صلاحيات وحدود فروع العيادة بنجاح')
@@ -253,11 +233,7 @@ export function OwnerBranchManager({
     setPhone(selectedClinic?.clinicPhone || '')
     setWhatsapp(selectedClinic?.clinicPhone || '')
     setImage('')
-    setSlotDuration(15)
-    setMaxDailyBookings(0)
-    setIsOpen(true)
     setIsMain(activeBranches.length === 0)
-    setWeeklySchedule(DEFAULT_WEEKLY_SCHEDULE)
     setVerifiedAddress(null)
     setIsModalOpen(true)
   }
@@ -275,19 +251,9 @@ export function OwnerBranchManager({
     setPhone(b.phone || '')
     setWhatsapp(b.whatsapp || '')
     setImage(b.image || '')
-    setSlotDuration(b.slotDuration || 15)
-    setMaxDailyBookings(b.maxDailyBookings || 0)
-    setIsOpen(b.isOpen !== false)
     setIsMain(Boolean(b.isMain))
-    setWeeklySchedule(b.weeklySchedule?.length ? b.weeklySchedule : DEFAULT_WEEKLY_SCHEDULE)
     setVerifiedAddress(null)
     setIsModalOpen(true)
-  }
-
-  const handleToggleScheduleDay = (index: number) => {
-    setWeeklySchedule((prev) =>
-      prev.map((d, i) => (i === index ? { ...d, isOpen: !d.isOpen } : d))
-    )
   }
 
   // Owner operations must use the authenticated API: direct Firestore writes
@@ -303,16 +269,6 @@ export function OwnerBranchManager({
     const data = await res.json().catch(() => ({}))
     if (!res.ok || !data.success) throw new Error(data.error || 'لم يتم حفظ بيانات الفرع')
     return data.branch as Branch
-  }
-
-  const handleToggleBranchStatus = async (branch: Branch) => {
-    try {
-      const updated = await saveBranchViaApi({ id: branch.id, isOpen: branch.isOpen === false })
-      setBranches((prev) => prev.map((b) => b.id === branch.id ? updated : b))
-      toast.success(updated.isOpen ? `تم تفعيل استقبال الحجوزات في «${branch.name}»` : `تم إيقاف استقبال الحجوزات مؤقتاً في «${branch.name}»`)
-    } catch (e: any) {
-      toast.error('فشل في تعديل حالة الفرع: ' + e.message)
-    }
   }
 
   // Archive branch safely without deleting historical appointments
@@ -360,8 +316,6 @@ export function OwnerBranchManager({
     setIsSavingBranch(true)
     try {
       const clinicId = selectedClinic.id
-      const schedule = weeklySchedule && weeklySchedule.length > 0 ? weeklySchedule : DEFAULT_WEEKLY_SCHEDULE
-
       const branchPayload: any = {
         clinicId,
         clinic_id: clinicId,
@@ -376,13 +330,9 @@ export function OwnerBranchManager({
         phone: phone.trim(),
         whatsapp: whatsapp.trim() || phone.trim(),
         image: image.trim(),
-        slotDuration: Number(slotDuration) || 15,
-        maxDailyBookings: Number(maxDailyBookings) || 0,
-        isOpen,
-        isMain,
-        weeklySchedule: schedule,
-        workingHours: formatWeeklyScheduleSummary(schedule, true),
-        updatedAt: new Date().toISOString()
+        // The Platform Owner only registers the physical location and contacts.
+        // Doctor manages booking state, schedules, daily limits, and visit duration.
+        isMain
       }
 
       if (editingBranch?.id) {
@@ -419,7 +369,7 @@ export function OwnerBranchManager({
             <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20">تحكم كامل</Badge>
           </div>
           <p className="text-xs text-muted-foreground">
-            إدارة فروع العيادات، صلاحيات الأطباء في إضافة فروع، تحديد الموقع الدقيق على Google Maps، والكوتة المشروطة بالاشتراك.
+            تسجيل مواقع الفروع وبياناتها وتحديد الحد المسموح به؛ الطبيب مسؤول عن التشغيل والمواعيد.
           </p>
         </div>
 
@@ -450,7 +400,7 @@ export function OwnerBranchManager({
                 صلاحيات وسياسة فروع العيادة: <span className="text-primary font-bold">{selectedClinic.clinicName}</span>
               </h3>
               <p className="text-[11px] text-muted-foreground">
-                تحكم في سماح الطبيب بإضافة فروع بنفسه من لوحة تحكمه والحد الأقصى لعدد الفروع المسموح بها في الباقة.
+                المالك ينشئ الفروع ويحدد حصتها وبيانات مواقعها؛ الطبيب يتحكم في تشغيل كل فرع.
               </p>
             </div>
 
@@ -492,15 +442,9 @@ export function OwnerBranchManager({
               />
             </div>
 
-            {/* Toggle allowDoctorCreateBranches */}
-            <div className="p-3.5 rounded-2xl bg-card border border-border flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-xs font-bold text-foreground cursor-pointer">سماح الطبيب بإنشاء فروع</Label>
-                <p className="text-[10px] text-muted-foreground">
-                  {allowDoctorCreateBranches ? 'مسموح للطبيب ضمن الكوتة' : 'مقيد للمالك فقط (Super Admin)'}
-                </p>
-              </div>
-              <Switch checked={allowDoctorCreateBranches} onCheckedChange={setAllowDoctorCreateBranches} />
+            <div className="p-3.5 rounded-2xl bg-card border border-border text-xs">
+              <p className="font-bold">إنشاء الفروع: مالك المنصة فقط</p>
+              <p className="mt-1 text-muted-foreground">الطبيب مسئول عن المواعيد ومدة الكشف والحد اليومي وفتح وإيقاف الحجوزات بعد إنشاء الفرع.</p>
             </div>
           </div>
         </div>
@@ -545,7 +489,7 @@ export function OwnerBranchManager({
           <Building2 className="w-10 h-10 text-muted-foreground/60 mx-auto" />
           <h4 className="font-bold text-sm text-foreground">لا توجد فروع مسجلة لهذه العيادة حتى الآن</h4>
           <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-            اضغط على «إضافة فرع جديد» لإضافة الفرع الرئيسي أو الفروع الإضافية للعيادة بمواقعها ومواعيد عملها.
+            أضف اسم الفرع وموقعه وبيانات التواصل فقط؛ الطبيب يحدد المواعيد ويفعّل استقبال الحجوزات من حسابه.
           </p>
         </div>
       ) : (
@@ -586,18 +530,16 @@ export function OwnerBranchManager({
                     </div>
 
                     {/* Status switch */}
-                    <button
-                      type="button"
-                      onClick={() => handleToggleBranchStatus(b)}
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all cursor-pointer ${
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                         b.isOpen !== false
-                          ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/20'
-                          : 'bg-rose-500/10 text-rose-600 border-rose-500/30 hover:bg-rose-500/20'
+                          ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30'
+                          : 'bg-rose-500/10 text-rose-600 border-rose-500/30'
                       }`}
-                      title="اضغط لتغيير حالة استقبال الحجوزات"
+                      title="الطبيب يتحكم في فتح وإغلاق الحجوزات من لوحة عيادته"
                     >
                       {b.isOpen !== false ? 'متاح للحجز' : 'مغلق مؤقتاً'}
-                    </button>
+                    </span>
                   </div>
 
                   {/* Address */}
@@ -707,24 +649,11 @@ export function OwnerBranchManager({
                 <span>{editingBranch ? `تعديل بيانات «${editingBranch.name}»` : 'إضافة فرع جديد للعيادة'}</span>
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">
-                عيادة: {selectedClinic?.clinicName} — تفعيل دقيق للموقع وساعات العمل واستقبال الحجوزات.
+                عيادة: {selectedClinic?.clinicName} — المالك يسجل بيانات المكان والتواصل، والطبيب يضبط المواعيد وحالة الفرع بعد ذلك.
               </DialogDescription>
             </DialogHeader>
 
             <form onSubmit={handleSaveBranch} className="space-y-5 pt-3 text-xs">
-              {/* Conflicts Warning */}
-              {conflicts.length > 0 && (
-                <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 space-y-1">
-                  <div className="flex items-center gap-1.5 font-bold">
-                    <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
-                    <span>تنبيه تعارض مواعيد بين فروع نفس الطبيب:</span>
-                  </div>
-                  {conflicts.map((c, idx) => (
-                    <p key={idx} className="text-[11px] pr-5">• {c}</p>
-                  ))}
-                </div>
-              )}
-
               {/* Basic Fields */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
@@ -851,104 +780,19 @@ export function OwnerBranchManager({
                 </div>
               </div>
 
-              {/* Image & Slot duration */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="sm:col-span-2 space-y-1.5">
-                  <Label className="text-xs font-bold text-foreground">رابط صورة مبنى الفرع (Photo URL)</Label>
-                  <Input
-                    value={image}
-                    onChange={(e) => setImage(e.target.value)}
-                    placeholder="https://images.unsplash.com/..."
-                    className="h-10 text-xs rounded-xl font-mono text-left"
-                    dir="ltr"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-foreground">مدة الكشف (بالدقائق)</Label>
-                  <Input
-                    type="number"
-                    min={5}
-                    max={120}
-                    value={slotDuration}
-                    onChange={(e) => setSlotDuration(parseInt(e.target.value) || 15)}
-                    className="h-10 text-xs rounded-xl font-bold text-center"
-                  />
-                </div>
+              {/* Owner edits location identity only. Operational branch settings belong to the doctor. */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-foreground">رابط صورة مبنى الفرع (Photo URL)</Label>
+                <Input
+                  value={image}
+                  onChange={(e) => setImage(e.target.value)}
+                  placeholder="https://images.unsplash.com/..."
+                  className="h-10 text-xs rounded-xl font-mono text-left"
+                  dir="ltr"
+                />
               </div>
-
-              {/* Toggles */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-                <div className="p-3.5 rounded-2xl bg-muted/40 border border-border flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-xs font-bold text-foreground cursor-pointer">استقبال الحجوزات بالفرع</Label>
-                    <p className="text-[10px] text-muted-foreground">{isOpen ? 'الفرع متاح حالياً للحجز' : 'الفرع مغلق مؤقتاً'}</p>
-                  </div>
-                  <Switch checked={isOpen} onCheckedChange={setIsOpen} />
-                </div>
-
-                <div className="p-3.5 rounded-2xl bg-muted/40 border border-border flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-xs font-bold text-foreground cursor-pointer">تعيين كفرع رئيسي</Label>
-                    <p className="text-[10px] text-muted-foreground">يظهر كأول خيار افتراضي</p>
-                  </div>
-                  <Switch checked={isMain} onCheckedChange={setIsMain} />
-                </div>
-              </div>
-
-              {/* 7-Day Weekly Schedule */}
-              <div className="space-y-3 pt-2 border-t border-border">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                    <Clock className="w-4 h-4 text-sky-500" />
-                    مواعيد وساعات العمل الأسبوعية للفرع
-                  </Label>
-                  <span className="text-[10px] text-muted-foreground">تحديد أيام الفتح والإغلاق لكل شيفت</span>
-                </div>
-
-                <div className="space-y-2">
-                  {weeklySchedule.map((day, idx) => (
-                    <div
-                      key={day.id || idx}
-                      className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 text-xs ${
-                        day.isOpen ? 'bg-card border-border' : 'bg-muted/30 border-dashed border-border/70 opacity-60'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 w-28">
-                        <Switch
-                          checked={day.isOpen}
-                          onCheckedChange={() => handleToggleScheduleDay(idx)}
-                        />
-                        <span className="font-bold text-foreground">{day.day}</span>
-                      </div>
-
-                      {day.isOpen ? (
-                        <div className="flex items-center gap-2" dir="ltr">
-                          <Input
-                            type="time"
-                            value={day.start}
-                            onChange={(e) => {
-                              const val = e.target.value
-                              setWeeklySchedule(prev => prev.map((d, i) => i === idx ? { ...d, start: val } : d))
-                            }}
-                            className="w-28 h-8 text-xs font-mono rounded-lg"
-                          />
-                          <span className="text-muted-foreground font-bold">-</span>
-                          <Input
-                            type="time"
-                            value={day.end}
-                            onChange={(e) => {
-                              const val = e.target.value
-                              setWeeklySchedule(prev => prev.map((d, i) => i === idx ? { ...d, end: val } : d))
-                            }}
-                            className="w-28 h-8 text-xs font-mono rounded-lg"
-                          />
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground font-bold text-[11px]">مغلق طوال اليوم</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
+              <div className="p-3 rounded-2xl border border-sky-200 bg-sky-50/60 text-slate-700 text-xs">
+                بعد حفظ اسم الفرع وعنوانه وصورته وأرقام التواصل، يدخل الطبيب إلى «إدارة الفروع» لتحديد أيام العمل ومدة الكشف والحد اليومي وفتح أو إيقاف الحجز.
               </div>
 
               {/* Submit / Cancel Buttons */}
