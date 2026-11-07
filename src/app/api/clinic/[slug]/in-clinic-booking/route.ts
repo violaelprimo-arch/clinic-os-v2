@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { collection, query, where, getDocs, doc, getDoc, addDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { verifySessionToken } from '@/lib/auth-crypto'
-import { createAtomicAppointment } from '@/lib/queueService'
+import { createAtomicAppointmentServer } from '@/lib/server/firebase-rest'
 import { calculatePatientLivePosition } from '@/lib/queueCalculations'
 import {
   resolveEffectiveDailyLimit,
@@ -269,7 +269,8 @@ export async function POST(
     let newApptId: string
     let queueNumber: number
     try {
-      const atomicRes = await createAtomicAppointment(newAppointmentData, effectiveLimit)
+      const observedMaxQueue = Math.max(0, ...apptSnap.docs.filter((d) => !effectiveBranchId || (d.data().branch_id || d.data().branchId) === effectiveBranchId).map((d) => Number(d.data().queue_number) || 0))
+      const atomicRes = await createAtomicAppointmentServer(newAppointmentData, effectiveLimit, activeScoped.length, observedMaxQueue)
       newApptId = atomicRes.id
       queueNumber = atomicRes.queueNumber
     } catch (atomicErr: any) {
