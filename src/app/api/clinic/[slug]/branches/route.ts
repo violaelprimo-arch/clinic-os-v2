@@ -86,9 +86,12 @@ async function authenticateCaller(req: NextRequest, clinicSlug: string, clinicId
         // A clinic session is never sufficient to claim platform-owner privileges.
         // Only a verified OWNER_COOKIE can authorize platform-wide operations.
         if (
-          session.payload.slug === clinicSlug ||
-          session.payload.clinicId === clinicId ||
-          session.payload.clinicId === clinicSlug
+          session.payload.role === 'doctor' &&
+          (
+            session.payload.slug === clinicSlug ||
+            session.payload.clinicId === clinicId ||
+            session.payload.clinicId === clinicSlug
+          )
         ) {
           isClinicStaff = true
         }
