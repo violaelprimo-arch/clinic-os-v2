@@ -47,7 +47,10 @@ async function handleAdminAuth(req: NextRequest, targetClinicSlug: string, subdo
     const actualPath = req.nextUrl.pathname.startsWith('/clinic/')
       ? req.nextUrl.pathname
       : `/clinic/${targetClinicSlug}${req.nextUrl.pathname}`
-    if (!isSuspendedReadOnlyPath(actualPath, targetClinicSlug)) {
+    // Opening لوحة اليوم must show the explicit subscription-ended screen
+    // from the admin layout, not silently send the doctor to a different page.
+    if (!isSuspendedReadOnlyPath(actualPath, targetClinicSlug) &&
+        actualPath !== `/clinic/${targetClinicSlug}/admin`) {
       const redirectPath = subdomain
         ? '/admin/accounts?subscription=ended'
         : `/clinic/${targetClinicSlug}/admin/accounts?subscription=ended`
