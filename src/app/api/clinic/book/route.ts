@@ -5,7 +5,8 @@ import { canonicalizeBranches } from '@/lib/branchCanonical'
 import { db } from '@/lib/firebase'
 import { createClinicNotification } from '@/lib/notificationService'
 import { dispatchPatientPushNotification } from '@/lib/pushDispatcher'
-import { createAtomicAppointment } from '@/lib/queueService'
+import { createAtomicAppointmentServer } from '@/lib/server/firebase-rest'
+import { isClinicSuspended } from '@/lib/clinicAccessPolicy'
 import { calculatePatientLivePosition } from '@/lib/queueCalculations'
 import {
   resolveEffectiveDailyLimit,
@@ -60,22 +61,12 @@ export async function POST(req: NextRequest) {
     const clinicId = clinicDoc.id
     const cData = clinicDoc.data()
 
-    // 2. Enforce clinic active status & subscription validity (A05 - P1 Protection)
-    if (cData.isActive === false) {
+    // 2. Check subscription consistently with doctor access and Cairo timezone.
+    if (isClinicSuspended(cData)) {
       return NextResponse.json(
-        { error: 'عذراً، هذه العيادة متوقفة حالياً عن استقبال الحجوزات' },
+        { error: 'عذراً، اشتراك العيادة منتهي أو تم إيقافها من إدارة المنصة' },
         { status: 403 }
       )
-    }
-
-    if (cData.expirationDate) {
-      const expDate = new Date(cData.expirationDate)
-      if (!isNaN(expDate.getTime()) && expDate < new Date()) {
-        return NextResponse.json(
-          { error: 'عذراً، اشتراك هذه العيادة منتهي حالياً، يرجى التواصل مع إدارة العيادة' },
-          { status: 403 }
-        )
-      }
     }
 
     // Resolve booking date in Cairo timezone
@@ -103,7 +94,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Unified resolution: clinic limit takes precedence for single clinic, sub-branch limit respected in multi-branch
-    const effectiveLimit = resolveEffectiveDailyLimit(cData, bData, Boolean(cData.branchesEnabled))
+    const effectiveLimit = resolveEffectiveDailyLimit(cData, bData as { maxDailyBookings?: number | string; isMain?: boolean }, Boolean(cData.branchesEnabled))
 
     // 3. Enforce server-side service price and reject client tampering (A05 - P1 Protection)
     let verifiedServicePrice = 0
@@ -117,10 +108,10 @@ export async function POST(req: NextRequest) {
         verifiedServicePrice = Number(matched.price) || 0
         verifiedServiceName = matched.name || verifiedServiceName
       } else {
-        verifiedServicePrice = Number(servicePrice) || 0
+        return NextResponse.json({ error: 'الخدمة المختارة غير مسجلة في العيادة' }, { status: 400 })
       }
     } else {
-      verifiedServicePrice = Number(servicePrice) || 0
+      return NextResponse.json({ error: 'لا توجد خدمات طبية متاحة للحجز حالياً' }, { status: 409 })
     }
 
     // 4. Calculate existing active appointments for this date
@@ -237,7 +228,8 @@ export async function POST(req: NextRequest) {
     let queueNumber: number
 
     try {
-      const atomicRes = await createAtomicAppointment(newAppt, effectiveLimit)
+      const observedMaxQueue = Math.max(0, ...apptSnap.docs.filter((d) => !branchId || (d.data().branch_id || d.data().branchId) === branchId).map((d) => Number(d.data().queue_number) || 0))
+      const atomicRes = await createAtomicAppointmentServer(newAppt, effectiveLimit, activeScoped.length, observedMaxQueue)
       newApptId = atomicRes.id
       queueNumber = atomicRes.queueNumber
     } catch (atomicErr: any) {

@@ -419,11 +419,18 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
               </span>
             </div>
 
-            {/* Mock Google Login Button */}
+            {/* Google OAuth is performed on the primary platform domain:
+                clinic subdomains cannot all be registered as Firebase authorized origins. */}
             <Button
               type="button"
               variant="outline"
-              onClick={() => toast.info(isRtl ? 'تسجيل الدخول عبر Google متاح لحسابات المؤسسات الطبية' : 'Google sign-in is available for healthcare organization accounts')}
+              onClick={() => {
+                const host = window.location.hostname
+                const base = host === 'localhost' || host.endsWith('.localhost')
+                  ? window.location.origin
+                  : 'https://yalla-clinic.com'
+                window.location.assign(`${base}/login?clinic=${encodeURIComponent(slug)}`)
+              }}
               className="w-full h-11 text-xs font-bold text-foreground border-border hover:bg-muted/40 rounded-xl flex items-center justify-center gap-2"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24">

@@ -640,11 +640,9 @@ export function BookingModal({
         if (serverErr.message && !serverErr.message.includes('fetch') && !serverErr.message.includes('Network')) {
           throw serverErr
         }
-        // Fallback to client-side atomic appointment
-        const cleanApptPayload = removeUndefinedFields(newAppt)
-        const atomicRes = await createAtomicAppointment(cleanApptPayload, maxLimit)
-        newApptId = atomicRes.id
-        myQueueNumber = atomicRes.queueNumber
+        // Never bypass server-side branch, subscription and quota validation.
+        // A network failure must be retried, not booked directly from the browser.
+        throw new Error('تعذر الاتصال بخدمة الحجز الآمنة. تأكد من الاتصال ثم حاول مرة أخرى.')
       }
 
       const docRef = { id: newApptId }

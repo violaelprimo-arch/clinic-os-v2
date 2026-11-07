@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { collection, query, where, getDocs, doc, getDoc, addDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { verifySessionToken } from '@/lib/auth-crypto'
-import { createAtomicAppointment } from '@/lib/queueService'
+import { createAtomicAppointmentServer } from '@/lib/server/firebase-rest'
 import { calculatePatientLivePosition } from '@/lib/queueCalculations'
 import {
   resolveEffectiveDailyLimit,
@@ -14,6 +14,7 @@ import {
 } from '@/lib/bookingCapacity'
 import { createClinicNotification } from '@/lib/notificationService'
 import { cleanPhoneForWhatsApp } from '@/lib/countryPhoneHelper'
+import { isClinicSuspended } from '@/lib/clinicAccessPolicy'
 
 export async function POST(
   req: NextRequest,
@@ -52,6 +53,10 @@ export async function POST(
     const clinicDoc = cSnap.docs[0]
     const clinic = clinicDoc.data()
     const clinicId = clinicDoc.id
+
+    if (isClinicSuspended(clinic)) {
+      return NextResponse.json({ error: 'الاشتراك منتهي ولا يمكن إنشاء حجوزات جديدة' }, { status: 403 })
+    }
 
     // Verify session belongs to this clinic
     if (session.payload.clinicId && session.payload.clinicId !== clinicId && session.payload.clinicId !== slug) {
@@ -269,7 +274,8 @@ export async function POST(
     let newApptId: string
     let queueNumber: number
     try {
-      const atomicRes = await createAtomicAppointment(newAppointmentData, effectiveLimit)
+      const observedMaxQueue = Math.max(0, ...apptSnap.docs.filter((d) => !effectiveBranchId || (d.data().branch_id || d.data().branchId) === effectiveBranchId).map((d) => Number(d.data().queue_number) || 0))
+      const atomicRes = await createAtomicAppointmentServer(newAppointmentData, effectiveLimit, activeScoped.length, observedMaxQueue)
       newApptId = atomicRes.id
       queueNumber = atomicRes.queueNumber
     } catch (atomicErr: any) {

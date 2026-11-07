@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth'
+import { auth } from '@/lib/firebase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -28,6 +30,42 @@ export default function UniversalClinicLogin() {
   const [resetOtp, setResetOtp] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [newPasswordConfirm, setNewPasswordConfirm] = useState('')
+
+  const handleGoogleClinicLogin = async () => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const provider = new GoogleAuthProvider()
+      provider.setCustomParameters({ prompt: 'select_account' })
+      const result = await signInWithPopup(auth, provider)
+      const idToken = await result.user.getIdToken(true)
+      const requestedClinic = new URLSearchParams(window.location.search).get('clinic') || ''
+      const res = await fetch('/api/auth/google-clinic-login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ idToken, slug: requestedClinic })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'تعذر تسجيل الدخول بحساب جوجل')
+      }
+      localStorage.setItem('clinic_session_token', data.token)
+      localStorage.setItem('clinic_role', 'doctor')
+      localStorage.removeItem('clinic_locked_branch')
+      localStorage.removeItem('clinic_locked_branch_name')
+      toast.success('تم تسجيل الدخول بجيميل الدكتور بنجاح')
+      // Remain on the main domain so Firebase OAuth never needs arbitrary
+      // doctor subdomains registered as authorized sign-in origins.
+      router.push(data.redirectUrl)
+    } catch (err: any) {
+      const reason = String(err?.code || '')
+      setError(reason.includes('popup-closed')
+        ? 'تم إغلاق نافذة Google قبل اكتمال تسجيل الدخول.'
+        : err?.message || 'تسجيل Google غير متاح؛ تحقق من إعدادات Firebase والدومين الأساسي.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handleForgotPassword = async () => {
     if (!email.trim()) {
@@ -380,6 +418,16 @@ export default function UniversalClinicLogin() {
               </Alert>
             )}
           </form>
+          {!isResetMode && (
+            <div className="pt-4 border-t border-border space-y-2">
+              <p className="text-center text-xs text-muted-foreground">أو سجل بجيميل الدكتور المسجل في العيادة</p>
+              <Button type="button" variant="outline" className="w-full h-11 rounded-xl font-bold text-sm"
+                onClick={handleGoogleClinicLogin} disabled={isLoading}>
+                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-white text-[#4285F4] font-black border border-slate-200">G</span>
+                {isLoading ? 'جاري التحقق من Google...' : 'تسجيل الدخول باستخدام Google'}
+              </Button>
+            </div>
+          )}
 
           {/* Footer note */}
           <div className="pt-4 border-t border-border flex items-center justify-between text-xs text-muted-foreground">

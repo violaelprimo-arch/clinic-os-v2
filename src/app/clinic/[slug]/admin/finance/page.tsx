@@ -23,11 +23,13 @@ import {
 import { exportComprehensiveFinancialReportExcel } from '@/lib/excelExport'
 import { ShiftClosingModal } from '@/components/clinic/ShiftClosingModal'
 import { useLanguage } from '@/context/LanguageContext'
+import { useClinicReadOnly } from '@/context/ClinicAccessContext'
 
 export default function FinancePage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
   const slug = resolvedParams.slug
   const { t, tDynamic, language, dir, isRtl } = useLanguage()
+  const isReadOnly = useClinicReadOnly()
 
   const [clinic, setClinic] = useState<any>(null)
   const [branches, setBranches] = useState<any[]>([])
@@ -1179,7 +1181,7 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
       )}
 
           {/* Shift Closing & Cash Reconciliation Modal */}
-      {isShiftClosingOpen && (
+      {!isReadOnly && isShiftClosingOpen && (
         <ShiftClosingModal
           isOpen={true}
           onClose={() => setIsShiftClosingOpen(false)}

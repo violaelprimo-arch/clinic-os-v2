@@ -20,9 +20,11 @@ import { TechnicalSupportButton } from '@/components/clinic/TechnicalSupportButt
 import { SubscriptionUpgradeModal } from '@/components/clinic/SubscriptionUpgradeModal'
 import { MustChangePasswordModal } from '@/components/clinic/MustChangePasswordModal'
 import { isClinicFeatureEnabled, LockedFeatureScreen, FeatureKey } from '@/lib/featurePermissions'
+import { isClinicSuspended, isSuspendedReadOnlyPath } from '@/lib/clinicAccessPolicy'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { LanguageToggle } from '@/components/common/LanguageToggle'
 import { useLanguage } from '@/context/LanguageContext'
+import { ClinicAccessProvider } from '@/context/ClinicAccessContext'
 
 export default function AdminLayout({
   children,
@@ -195,10 +197,8 @@ export default function AdminLayout({
       (snapshot) => {
         if (!snapshot.empty) {
           const clinicData = snapshot.docs[0].data();
-          if (clinicData.isActive === false || (clinicData.expirationDate && new Date(clinicData.expirationDate) < new Date())) {
-            window.location.href = `/clinic/${slug}/login?error=subscription_ended`;
-            return;
-          }
+          // Suspended clinics retain read-only access to historical reports.
+          // Do not redirect their staff to login, because the session remains valid.
           setClinic({ id: snapshot.docs[0].id, ...clinicData });
         } else if (slug === 'demo') {
           setClinic({
@@ -264,6 +264,8 @@ export default function AdminLayout({
 
   const assistantPermissions = clinic?.assistantPermissions || ['appointments']
   const primaryColor = clinic?.primaryColor || '#087CF4'
+  const subscriptionSuspended = isClinicSuspended(clinic)
+  const isHistoricalRoute = isSuspendedReadOnlyPath(pathname, slug)
 
   const navItems = [
     {
@@ -368,7 +370,7 @@ export default function AdminLayout({
 
   // Route-level lock detector
   const currentLockedFeature = useMemo<FeatureKey | null>(() => {
-    if (!clinic) return null
+    if (!clinic || subscriptionSuspended) return null
     if (pathname.includes('/admin/accounts') || pathname.includes('/admin/finance')) {
       if (!isFinanceEnabled) return 'finance'
     }
@@ -388,10 +390,11 @@ export default function AdminLayout({
       if (!isAnalyticsEnabled) return 'analytics'
     }
     return null
-  }, [pathname, clinic, isFinanceEnabled, isDrugsEnabled, isPrescriptionsEnabled, isBranchesEnabled, isAiEnabled, isAnalyticsEnabled])
+  }, [pathname, clinic, subscriptionSuspended, isFinanceEnabled, isDrugsEnabled, isPrescriptionsEnabled, isBranchesEnabled, isAiEnabled, isAnalyticsEnabled])
 
   // Filter based on role, assistant permissions, and package feature locks
   const filteredNav = navItems.filter(item => {
+    if (subscriptionSuspended) return ['patients', 'accounts', 'finance'].includes(item.id)
     if (clinic?.hiddenTabs && Array.isArray(clinic.hiddenTabs) && clinic.hiddenTabs.includes(item.id)) return false
     if (activePackage?.hiddenTabs && Array.isArray(activePackage.hiddenTabs) && activePackage.hiddenTabs.includes(item.id)) return false
     if (item.id === 'analytics' && !isAnalyticsEnabled) return false
@@ -417,7 +420,13 @@ export default function AdminLayout({
   })
 
   // Quick bottom nav shortcuts for mobile
-  const bottomNavItems = [
+  const bottomNavItems = subscriptionSuspended
+    ? [
+        { id: 'patients', name: 'سجل المرضى', href: `/clinic/${slug}/admin/patients`, icon: Users },
+        { id: 'accounts', name: 'الحسابات', href: `/clinic/${slug}/admin/accounts`, icon: Receipt },
+        { id: 'finance', name: 'التقارير المالية', href: `/clinic/${slug}/admin/finance`, icon: DollarSign }
+      ]
+    : [
     { id: 'dashboard', name: t('nav_queue', 'الرئيسية'), href: `/clinic/${slug}/admin`, icon: Calendar },
     ...(role === 'doctor' || assistantPermissions.includes('appointments') || assistantPermissions.includes('in-clinic-booking')
       ? [{ id: 'in-clinic-booking', name: t('nav_in_clinic_booking', 'الحجز'), href: `/clinic/${slug}/admin/booking`, icon: UserPlus }]
@@ -816,14 +825,37 @@ export default function AdminLayout({
 
         {/* Scrollable Page Body */}
         <main className="flex-1 overflow-y-auto bg-background pb-[calc(5rem+env(safe-area-inset-bottom,0px))] lg:pb-8 relative print:overflow-visible print:bg-white print:p-0">
-          {currentLockedFeature ? (
+          {subscriptionSuspended && !isHistoricalRoute ? (
+            <div className="max-w-xl mx-auto mt-12 p-8 rounded-3xl bg-card border border-amber-300 shadow-lg space-y-5 text-center" role="alert">
+              <div className="text-4xl">🔒</div>
+              <h2 className="text-2xl font-black text-foreground">الاشتراك منتهي أو العيادة موقوفة</h2>
+              <p className="text-sm leading-7 text-muted-foreground">
+                تم إيقاف العمليات الجديدة مؤقتًا. يمكنك مراجعة الحسابات والتقارير المالية وسجل المرضى السابق فقط،
+                دون تعديل أو إنشاء بيانات جديدة حتى إعادة التفعيل بواسطة مالك المنصة.
+              </p>
+              <div className="flex flex-wrap justify-center gap-3">
+                <Link href={`/clinic/${slug}/admin/accounts`} className="px-4 py-2 rounded-xl bg-primary text-primary-foreground font-bold text-sm">الحسابات</Link>
+                <Link href={`/clinic/${slug}/admin/finance`} className="px-4 py-2 rounded-xl border border-border font-bold text-sm">التقارير المالية</Link>
+                <Link href={`/clinic/${slug}/admin/patients`} className="px-4 py-2 rounded-xl border border-border font-bold text-sm">سجل المرضى</Link>
+              </div>
+            </div>
+          ) : currentLockedFeature ? (
             <LockedFeatureScreen
               featureKey={currentLockedFeature}
               clinic={clinic}
               onRequestUpgrade={showPackagesInClinics ? () => setShowUpgradeModal(true) : undefined}
             />
           ) : (
-            children
+            <div data-clinic-readonly={subscriptionSuspended ? 'true' : 'false'}>
+              {subscriptionSuspended && (
+                <div className="sticky top-0 z-10 border-b border-amber-300 bg-amber-50 px-4 py-3 text-center text-xs font-bold text-amber-900">
+                  الاشتراك منتهي — عرض السجلات السابقة فقط، لا يُسمح بأي تعديل أو إضافة
+                </div>
+              )}
+              <ClinicAccessProvider readOnly={subscriptionSuspended}>
+                {children}
+              </ClinicAccessProvider>
+            </div>
           )}
         </main>
 

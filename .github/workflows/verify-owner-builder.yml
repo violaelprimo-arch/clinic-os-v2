@@ -1,0 +1,30 @@
+name: Verify clinic owner builder & access policy
+on:
+  push:
+    branches:
+      - feature/owner-builder-access-20261108
+  pull_request:
+    branches:
+      - master
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: Policy unit tests
+        run: node --import ./scripts/register-test-loader.mjs --test tests/clinic-access-policy.test.mjs tests/clinic-credential-policy.test.mjs tests/branch-canonical.test.mjs tests/booking-capacity-enforcement.test.mjs tests/booking-capacity-comprehensive.test.mjs tests/in-clinic-booking.test.mjs
+      - name: Firestore access rules emulator (no deployment)
+        run: npx --yes firebase-tools@13.35.1 emulators:exec --only firestore --project demo-clinic-access --config firebase.landing.compat.json 'node --test tests/firestore-clinic-access.rules.test.mjs'
+      - name: Next production build (no deploy)
+        run: npm run build
+      - name: Cloudflare OpenNext bundle validation (no deploy)
+        run: npx @opennextjs/cloudflare build

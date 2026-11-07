@@ -482,7 +482,35 @@ export function BookingForm({
       }
 
       // Atomically allocate next sequential queue number with zero concurrency collisions
-      const { id: newApptId, queueNumber: allocatedQueueNumber } = await createAtomicAppointment(newAppt, maxLimit)
+      const bookingResponse = await fetch('/api/clinic/book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slug: clinic.slug,
+          patientName: name,
+          patientPhone: phone,
+          age: age || null,
+          birthDate: dob || null,
+          serviceId: selectedService.id,
+          serviceName: selectedService.name,
+          branchId: selectedBranch?.id,
+          branchName: selectedBranch?.name || 'الفرع الرئيسي',
+          date: selectedDate,
+          paymentMethod,
+          paymentStatus,
+          paymentDetails: {
+            transferNumber,
+            transferReference,
+            transferProofUrl,
+          },
+        }),
+      })
+      const bookingResult = await bookingResponse.json().catch(() => ({}))
+      if (!bookingResponse.ok || !bookingResult.success) {
+        throw new Error(bookingResult.error || 'تعذر تسجيل الحجز، حاول مرة أخرى.')
+      }
+      const newApptId = String(bookingResult.appointmentId || bookingResult.id)
+      const allocatedQueueNumber = Number(bookingResult.queueNumber) || 1
       const docRef = { id: newApptId }
       const myQueueNumber = allocatedQueueNumber
 

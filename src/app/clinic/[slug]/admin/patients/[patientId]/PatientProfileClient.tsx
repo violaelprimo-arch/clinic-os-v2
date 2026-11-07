@@ -18,6 +18,7 @@ import { generateCleanRxFileName, formatPrescriptionWhatsAppMessage, openManualW
 import { WhatsAppShareButton } from '@/components/common/WhatsAppShareButton'
 import { InvoiceView, type InvoiceData } from '@/components/clinic/InvoiceView'
 import { useLanguage } from '@/context/LanguageContext'
+import { useClinicReadOnly } from '@/context/ClinicAccessContext'
 import { getPhoneSearchVariants } from '@/lib/countryPhoneHelper'
 
 const A4Prescription = dynamic(
@@ -55,6 +56,7 @@ export default function PatientProfileClient({ slug, patientId }: { slug: string
   const rawDecodedId = safeDecodePatientId(patientId)
   const phone = rawDecodedId
   const { t, dir } = useLanguage()
+  const isReadOnly = useClinicReadOnly()
 
   const [sharingApptId, setSharingApptId] = useState<string | null>(null)
   const [downloadingApptId, setDownloadingApptId] = useState<string | null>(null)
@@ -219,6 +221,7 @@ export default function PatientProfileClient({ slug, patientId }: { slug: string
   }
 
   const handleOpenEditVitals = (appt: any) => {
+    if (isReadOnly) return
     setEditingVitalsFor(appt.id)
     setVitalsBpSys(appt.vitalSigns?.bloodPressureSystolic ? String(appt.vitalSigns.bloodPressureSystolic) : '')
     setVitalsBpDia(appt.vitalSigns?.bloodPressureDiastolic ? String(appt.vitalSigns.bloodPressureDiastolic) : '')
@@ -229,6 +232,7 @@ export default function PatientProfileClient({ slug, patientId }: { slug: string
   }
 
   const handleSaveVitals = async (apptId: string) => {
+    if (isReadOnly) return
     setIsSavingVitals(true)
     try {
       await updateDoc(doc(db, 'appointments', apptId), {
@@ -357,6 +361,7 @@ export default function PatientProfileClient({ slug, patientId }: { slug: string
 
 
   const handleSaveProfileResidence = async () => {
+    if (isReadOnly) return
     if (appointments.length === 0) return
     setIsSavingResidence(true)
     try {
@@ -396,6 +401,7 @@ export default function PatientProfileClient({ slug, patientId }: { slug: string
   }
 
   const handleSaveDiagnosis = async (apptId: string) => {
+    if (isReadOnly) return
     try {
       await updateDoc(doc(db, 'appointments', apptId), { diagnosis: tempDiagnosis })
       setEditingDiagnosisFor(null)
@@ -460,7 +466,7 @@ export default function PatientProfileClient({ slug, patientId }: { slug: string
                     size="sm"
                     onClick={() => {
                       setEditResidenceValue(patientData.residence)
-                      setIsEditResidenceOpen(true)
+                      if (!isReadOnly) setIsEditResidenceOpen(true)
                     }}
                     className="h-7 text-xs font-bold text-primary hover:bg-primary/10 rounded-lg px-2 cursor-pointer"
                   >
@@ -543,7 +549,7 @@ export default function PatientProfileClient({ slug, patientId }: { slug: string
                             <Activity className="w-4 h-4 text-rose-500" />
                             العلامات الحيوية (Vital Signs)
                           </h5>
-                          {editingVitalsFor !== appt.id && (
+                          {!isReadOnly && editingVitalsFor !== appt.id && (
                             <Button
                               variant="link"
                               onClick={() => handleOpenEditVitals(appt)}
@@ -687,7 +693,7 @@ export default function PatientProfileClient({ slug, patientId }: { slug: string
                             <Stethoscope className="w-4 h-4 text-primary" />
                             التشخيص والملاحظات
                           </h5>
-                          {editingDiagnosisFor !== appt.id && (
+                          {!isReadOnly && editingDiagnosisFor !== appt.id && (
                             <Button variant="link" onClick={() => { setEditingDiagnosisFor(appt.id); setTempDiagnosis(appt.diagnosis || ''); }} className="h-auto p-0 text-xs text-primary font-bold">
                               {appt.diagnosis ? 'تعديل التشخيص' : 'إضافة تشخيص'}
                             </Button>
@@ -714,8 +720,8 @@ export default function PatientProfileClient({ slug, patientId }: { slug: string
                         )}
                       </div>
 
-                      {/* 2. Prescription Section */}
-                      <div className="space-y-3">
+                      {/* 2. Prescription Section: disabled for expired subscriptions */}
+                      <div className={isReadOnly ? 'hidden' : 'space-y-3'}>
                         <div className="flex items-center justify-between">
                           <h5 className="font-bold text-sm text-foreground flex items-center gap-1.5">
                             <Pill className="w-4 h-4 text-primary" />
@@ -893,7 +899,7 @@ export default function PatientProfileClient({ slug, patientId }: { slug: string
       </div>
 
       {/* Quick Modal: Complete / Edit Patient Residence */}
-      <Dialog open={isEditResidenceOpen} onOpenChange={setIsEditResidenceOpen}>
+      <Dialog open={!isReadOnly && isEditResidenceOpen} onOpenChange={setIsEditResidenceOpen}>
         <DialogContent className="sm:max-w-lg bg-card border border-border" dir={dir}>
           <DialogHeader>
             <DialogTitle className="text-base font-black flex items-center gap-2">

@@ -245,6 +245,127 @@ export async function createDocument(
   if (!response.ok) throw new Error('FIRESTORE_WRITE_FAILED')
   return documentId
 }
+/**
+ * Atomic field-level updates; used to guarantee exactly one selected main
+ * branch. A failed precondition aborts the entire batch, not half the flags.
+ */
+export async function commitDocumentPatches(patches: Array<{ path: string; data: Fields }>): Promise<void> {
+  if (!patches.length) return
+  const writes = patches.map(({ path, data }) => ({
+    update: {
+      name: documentUrl(path).split('/v1/')[1],
+      fields: (encode(data).mapValue || {}).fields || {},
+    },
+    updateMask: { fieldPaths: Object.keys(data) },
+    currentDocument: { exists: true },
+  }))
+  const url = documentUrl('').replace(/\/$/, '') + ':commit'
+  const response = await request(url, { method: 'POST', body: JSON.stringify({ writes }) })
+  if (!response.ok) throw new Error('FIRESTORE_ATOMIC_COMMIT_FAILED')
+}
+
+
+/**
+ * Server-only atomic appointment write. Uses a Firestore service account
+ * transaction so public bookings never need anonymous Firestore write rules.
+ * The shared daily counter serializes concurrent bookings for one branch/date.
+ */
+export async function createAtomicAppointmentServer(
+  appointment: Record<string, unknown>,
+  maxLimit: number,
+  observedActiveCount: number,
+  observedMaxQueueNumber: number,
+): Promise<{ id: string; queueNumber: number }> {
+  const clinicId = String(appointment.clinic_id || '')
+  const date = String(appointment.date || '')
+  const branchId = typeof appointment.branch_id === 'string' ? appointment.branch_id : ''
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(clinicId) ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+      (branchId && !/^[a-zA-Z0-9_-]{1,128}$/.test(branchId))) {
+    throw new Error('INVALID_BOOKING_SCOPE')
+  }
+  const counterPath = `clinic_daily_counters/${clinicId}_${branchId ? branchId + '_' : ''}${date}`
+  const endpoint = documentUrl('').replace(/\/$/, '')
+  const counterUrl = documentUrl(counterPath)
+  const counterName = counterUrl.split('/v1/')[1]
+  const apptId = crypto.randomUUID()
+  const appointmentName = documentUrl(`appointments/${apptId}`).split('/v1/')[1]
+  const count = Math.max(0, Number(observedActiveCount) || 0)
+  const maxQueue = Math.max(0, Number(observedMaxQueueNumber) || 0)
+
+  for (let attempt = 0; attempt < 6; attempt++) {
+    let transaction = ''
+    let committed = false
+    try {
+      const begin = await request(endpoint + ':beginTransaction', {
+        method: 'POST',
+        body: JSON.stringify({ options: { readWrite: {} } }),
+      })
+      if (!begin.ok) throw new Error('FIRESTORE_TRANSACTION_BEGIN_FAILED')
+      const started = await begin.json() as { transaction?: string }
+      if (!started.transaction) throw new Error('FIRESTORE_TRANSACTION_MISSING')
+      transaction = started.transaction
+
+      const counterRes = await request(counterUrl + '?transaction=' + encodeURIComponent(transaction))
+      if (!counterRes.ok && counterRes.status !== 404)
+        throw new Error('FIRESTORE_COUNTER_READ_FAILED')
+      const counterDoc = counterRes.ok ? unpack(await counterRes.json() as FirestoreDocument) : null
+      const currentActive = Math.max(count, Number(counterDoc?.activeBookings) || 0)
+      if (maxLimit > 0 && currentActive >= maxLimit)
+        throw new Error(`QUOTA_EXCEEDED:${maxLimit}`)
+
+      const nextQueue = Math.max(maxQueue, Number(counterDoc?.lastQueueNumber) || 0) + 1
+      const timestamp = new Date().toISOString()
+      const counter = {
+        clinicId,
+        branchId: branchId || null,
+        date,
+        lastQueueNumber: nextQueue,
+        activeBookings: currentActive + 1,
+        updatedAt: timestamp,
+      }
+      const appt = {
+        ...appointment,
+        branch_id: branchId || null,
+        queue_number: nextQueue,
+        createdAt: appointment.createdAt || timestamp,
+      }
+      const commit = await request(endpoint + ':commit', {
+        method: 'POST',
+        body: JSON.stringify({
+          transaction,
+          writes: [
+            { update: { name: counterName, fields: (encode(counter).mapValue || {}).fields } },
+            {
+              update: { name: appointmentName, fields: (encode(appt).mapValue || {}).fields },
+              currentDocument: { exists: false },
+            },
+          ],
+        }),
+      })
+      if (commit.ok) {
+        committed = true
+        return { id: apptId, queueNumber: nextQueue }
+      }
+      // Firestore reports ABORTED for competing counter transactions.
+      if (![409, 412, 429].includes(commit.status) || attempt === 5)
+        throw new Error('FIRESTORE_BOOKING_COMMIT_FAILED')
+    } catch (err) {
+      if (err instanceof Error && err.message.startsWith('QUOTA_EXCEEDED')) throw err
+      if (attempt === 5) throw err
+    } finally {
+      // Do not roll back an already-committed booking: it adds needless latency.
+      if (transaction && !committed) {
+        await request(endpoint + ':rollback', {
+          method: 'POST',
+          body: JSON.stringify({ transaction }),
+        }).catch(() => {})
+      }
+    }
+  }
+  throw new Error('FIRESTORE_BOOKING_CONFLICT')
+}
+
 export async function deleteDocument(path: string) {
   const response = await request(documentUrl(path), { method: 'DELETE' })
   if (!response.ok && response.status !== 404)

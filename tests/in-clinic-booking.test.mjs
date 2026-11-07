@@ -42,9 +42,9 @@ test('1. WhatsApp In-Clinic Message Formatting & Arabic Digits Normalization', (
   assert.ok(message.includes(`الفرع: ${branchName}`), 'Must include branch name')
   assert.ok(message.includes(`التاريخ: ${bookingDate}`), 'Must include booking date')
   assert.ok(message.includes(`رقم تذكرة الدور: #${queueNumber}`), 'Must include queue ticket number')
-  assert.ok(message.includes('لمتابعة دورك المباشر:'), 'Must include title for Link 1')
+  assert.ok(message.includes('لمتابعة دورك المباشر ووقت الانتظار:'), 'Must include title for Link 1')
   assert.ok(message.includes(trackUrl), 'Must include track URL for Link 1')
-  assert.ok(message.includes('موقع العيادة والحجز:'), 'Must include title "موقع العيادة والحجز:" for Link 2')
+  assert.ok(message.includes('رابط موقع العيادة والحجز:'), 'Must include title "موقع العيادة والحجز:" for Link 2')
   assert.ok(message.includes(clinicHomepageUrl), 'Must include clinic homepage URL for Link 2')
   assert.ok(!message.includes('/patient'), 'Link 2 must NOT point to /patient')
   assert.ok(!message.includes('/admin'), 'Link 2 must NOT point to /admin')
@@ -65,7 +65,7 @@ test('1. WhatsApp In-Clinic Message Formatting & Arabic Digits Normalization', (
     trackUrl: 'https://zizo.yalla-clinic.com/track/appt_123',
     clinicHomepageUrl: 'https://zizo.yalla-clinic.com/',
   })
-  assert.ok(messageCustom.includes('موقع العيادة والحجز:\nhttps://zizo.yalla-clinic.com/'), 'Must include zizo homepage for Link 2')
+  assert.ok(messageCustom.includes('رابط موقع العيادة والحجز:\nhttps://zizo.yalla-clinic.com/'), 'Must include zizo homepage for Link 2')
   assert.ok(!messageCustom.includes('/patient'), 'Must not contain /patient')
 })
 

@@ -9,6 +9,19 @@ import {
   CAPACITY_FULL_MESSAGE
 } from '../src/lib/bookingCapacity.ts';
 
+// Use a future fixture Sunday so this suite never breaks when old dates pass.
+function nextFixtureSunday() {
+  const now = new Date()
+  const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+  date.setUTCDate(date.getUTCDate() + ((7 - date.getUTCDay()) % 7) + 7)
+  return date.toISOString().slice(0, 10)
+}
+function fixtureDateOffset(iso, days) {
+  const date = new Date(iso + 'T00:00:00.000Z')
+  date.setUTCDate(date.getUTCDate() + days)
+  return date.toISOString().slice(0, 10)
+}
+
 test('1. Cairo timezone formatting produces valid YYYY-MM-DD regardless of system offset', () => {
   const cairoToday = getCairoDateString();
   assert.match(cairoToday, /^\d{4}-\d{2}-\d{2}$/);
@@ -66,15 +79,14 @@ test('4. Active appointments counting: waiting, in_progress, and completed count
 });
 
 test('5. When day reaches limit (1 booking), it is completely excluded from availableDays and cannot be selected', () => {
-  const todayStr = '2026-11-01'; // Sunday
-  const dailyCounts = {
-    '2026-11-01': 1 // 1 booking recorded
-  };
+  const todayStr = nextFixtureSunday()
+  const monday = fixtureDateOffset(todayStr, 1)
+  const dailyCounts = { [todayStr]: 1 }
   const schedule = [
     { id: 'sunday', isOpen: true },
     { id: 'monday', isOpen: true },
     { id: 'tuesday', isOpen: true }
-  ];
+  ]
 
   const available = filterAvailableDays({
     startDateStr: todayStr,
@@ -84,28 +96,26 @@ test('5. When day reaches limit (1 booking), it is completely excluded from avai
     dailyCounts,
     schedule,
     isRtl: true
-  });
+  })
 
-  // 2026-11-01 is full (1/1), so availableDays MUST NOT contain 2026-11-01
-  const containsFullDay = available.some(d => d.iso === '2026-11-01');
-  assert.equal(containsFullDay, false, 'Full day must be completely excluded from available days list');
-  
-  // First available day should be Monday 2026-11-02
-  assert.equal(available[0].iso, '2026-11-02');
-});
+  assert.equal(available.some(d => d.iso === todayStr), false, 'Full day must be excluded')
+  assert.equal(available[0]?.iso, monday, 'Monday is the first available day')
+})
 
 test('6. Auto-advance: correctly skips multiple full days and weekly holidays to find nearest date', () => {
-  const todayStr = '2026-11-01'; // Sunday (full)
+  const todayStr = nextFixtureSunday()
+  const monday = fixtureDateOffset(todayStr, 1)
+  const wednesday = fixtureDateOffset(todayStr, 3)
   const dailyCounts = {
-    '2026-11-01': 1, // Sunday: full (limit 1)
-    '2026-11-02': 1  // Monday: full (limit 1)
-  };
+    [todayStr]: 1,
+    [monday]: 1,
+  }
   const schedule = [
     { id: 'sunday', isOpen: true },
     { id: 'monday', isOpen: true },
-    { id: 'tuesday', isOpen: false }, // Tuesday: closed / holiday
-    { id: 'wednesday', isOpen: true }  // Wednesday: OPEN and free
-  ];
+    { id: 'tuesday', isOpen: false },
+    { id: 'wednesday', isOpen: true }
+  ]
 
   const nearest = findNearestAvailableDate({
     startDateStr: todayStr,
@@ -113,14 +123,14 @@ test('6. Auto-advance: correctly skips multiple full days and weekly holidays to
     dailyCounts,
     limit: 1,
     isRtl: true
-  });
+  })
 
-  assert.ok(nearest, 'Should find nearest available date');
-  assert.equal(nearest.iso, '2026-11-04', 'Should skip Sun(full), Mon(full), Tue(closed) and land on Wed 2026-11-04');
-});
+  assert.ok(nearest, 'Should find nearest available date')
+  assert.equal(nearest.iso, wednesday, 'Skip Sun(full), Mon(full), Tue(closed) and land on Wednesday')
+})
 
 test('7. Empty horizon returns null / empty list when all days in range are full', () => {
-  const todayStr = '2026-11-01';
+  const todayStr = nextFixtureSunday();
   const dailyCounts = {};
   for (let i = 0; i < 21; i++) {
     const d = new Date(new Date(todayStr).getTime() + i * 86400000);

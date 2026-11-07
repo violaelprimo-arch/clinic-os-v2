@@ -862,70 +862,8 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto" dir={dir}>
       
-      {/* Clinic Status Toggle & Active Branch Pill */}
-      <div className={`yalla-card p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all duration-300 ${
-        clinic?.isClinicOpen !== false
-          ? 'bg-gradient-to-r from-emerald-500/10 via-card to-card dark:from-emerald-950/25 border-emerald-500/30'
-          : 'bg-gradient-to-r from-rose-500/10 via-card to-card dark:from-rose-950/25 border-rose-500/30'
-      }`}>
-        <div className="flex items-center gap-3.5">
-          <div className="relative flex items-center justify-center shrink-0">
-            <span className={`w-3.5 h-3.5 rounded-full ${clinic?.isClinicOpen !== false ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
-            {clinic?.isClinicOpen !== false && (
-              <span className="absolute w-6 h-6 rounded-full bg-emerald-500/30 animate-ping pointer-events-none" />
-            )}
-          </div>
-          <div className="text-start">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="font-black text-sm text-foreground">
-                {clinic?.isClinicOpen !== false ? t('clinic_online', 'العيادة مفتوحة حالياً (أونلاين)') : t('clinic_offline', 'العيادة مغلقة حالياً (أوفلاين)')}
-              </h3>
-              {selectedBranchId && selectedBranchId !== 'all' && (
-                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-lg bg-primary/10 text-primary border border-primary/20 flex items-center gap-1 shadow-2xs">
-                  <Building2 className="w-3 h-3" />
-                  {tDynamic(selectedBranchId)}
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {clinic?.isClinicOpen !== false ? t('clinic_online_desc', 'يمكن للمرضى الحجز والدخول في الدور الآن') : t('clinic_offline_desc', 'تم إيقاف الحجز من الموقع ولا يمكن استقبال حجوزات جديدة')}
-            </p>
-          </div>
-        </div>
-        <Button
-          onClick={async () => {
-            if (isProcessing) return
-            setIsProcessing(true)
-            try {
-              const nextIsOpen = clinic?.isClinicOpen === false ? true : false
-              await updateDoc(doc(db, 'clinics', clinic.id), {
-                isClinicOpen: nextIsOpen,
-                updatedAt: new Date().toISOString()
-              })
-
-              import('@/lib/patientNotificationHelper').then(({ triggerPatientEventPush }) => {
-                triggerPatientEventPush({
-                  type: nextIsOpen ? 'clinic_intake_resumed' : 'clinic_intake_paused',
-                  clinicId: clinic.id,
-                  clinicSlug: clinic?.slug,
-                  clinicName: clinic?.clinicName || 'العيادة',
-                  eventId: `push_intake_${clinic.id}_${Date.now()}`,
-                }).catch(() => {})
-              })
-              toast.success(clinic?.isClinicOpen === false ? t('open_clinic', 'تم فتح العيادة وتفعيل الحجوزات') : t('close_clinic', 'تم إغلاق العيادة وإيقاف الحجوزات'))
-            } catch (err) {
-              toast.error('حدث خطأ')
-            } finally {
-              setIsProcessing(false)
-            }
-          }}
-          variant={clinic?.isClinicOpen !== false ? 'destructive' : 'default'}
-          className={`font-bold text-xs h-10 px-5 rounded-xl w-full sm:w-auto shadow-sm transition-transform active:scale-95 ${clinic?.isClinicOpen !== false ? '' : 'yalla-gradient-btn text-white'}`}
-          disabled={isProcessing}
-        >
-          {clinic?.isClinicOpen !== false ? t('close_clinic', 'إغلاق العيادة (إيقاف الحجز)') : t('open_clinic', 'فتح العيادة (بدء الحجز)')}
-        </Button>
-      </div>
+      {/* Clinic-wide booking toggle removed: doctor manages open/closed per branch.
+          Platform Owner remains responsible for subscription suspension. */}
 
       {/* Date Filter & Dynamic Consultation Average Duration Bar */}
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between p-3.5 sm:p-4 bg-secondary/40 border border-border rounded-2xl gap-3 shadow-2xs">

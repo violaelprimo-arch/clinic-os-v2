@@ -7,7 +7,8 @@ import { Branch, BranchScheduleDay } from '@/types/clinic'
 import { DEFAULT_WEEKLY_SCHEDULE, formatWeeklyScheduleSummary } from '@/lib/branchService'
 import { sanitizeAddress } from '@/lib/mapsHelper'
 import { canonicalizeBranches, mainBranchDuplicateKey } from '@/lib/branchCanonical'
-import { queryDocuments, readDocument, writeDocument, createDocument } from '@/lib/server/firebase-rest'
+import { queryDocuments, readDocument, writeDocument, createDocument, commitDocumentPatches } from '@/lib/server/firebase-rest'
+import { isClinicSuspended } from '@/lib/clinicAccessPolicy'
 
 /**
  * Helper to fetch all branches for a clinic doc ID.
@@ -181,6 +182,9 @@ export async function POST(
     if (!auth.isAuthorized) {
       return NextResponse.json({ error: 'غير مصرح بالوصول — يرجى تسجيل الدخول' }, { status: 401 })
     }
+    if (!auth.isOwner && isClinicSuspended(clinic)) {
+      return NextResponse.json({ error: 'الاشتراك منتهي. يمكنك عرض الحسابات والتقارير وسجل المرضى فقط.' }, { status: 403 })
+    }
 
     const body = await req.json().catch(() => ({}))
     const {
@@ -220,7 +224,7 @@ export async function POST(
     // to replace the owner's branch identity, address, coordinates or map URL.
     if (!auth.isOwner && !isCreating) {
       const doctorAllowed = new Set([
-        'id', 'isOpen', 'weeklySchedule', 'slotDuration', 'maxDailyBookings'
+        'id', 'isOpen', 'weeklySchedule', 'slotDuration', 'maxDailyBookings', 'isMain'
       ])
       for (const key of Object.keys(body)) {
         if (!doctorAllowed.has(key)) {
@@ -326,15 +330,34 @@ export async function POST(
       if (Object.prototype.hasOwnProperty.call(body, 'weeklySchedule')) {
         patch.workingHours = formatWeeklyScheduleSummary(patch.weeklySchedule, true)
       }
-      if (auth.isOwner && Object.prototype.hasOwnProperty.call(body, 'isMain')) {
-        patch.isMain = Boolean(body.isMain)
-      }
       if (restoreArchived) patch.isArchived = false
+
+      // A single atomic batch prevents the old and new primary branches from
+      // both remaining primary. A plain isMain:false request is rejected.
+      if (Object.prototype.hasOwnProperty.call(body, 'isMain') && body.isMain === false) {
+        return NextResponse.json({
+          error: 'اختر الفرع الرئيسي البديل بدلاً من إلغاء الرئيسي بدون بديل.'
+        }, { status: 400 })
+      }
+      if (body.isMain === true) {
+        if (oldBranch.isArchived === true) {
+          return NextResponse.json({ error: 'لا يمكن تعيين فرع مؤرشف كرئيسي' }, { status: 409 })
+        }
+        const registered = await fetchBranchesForClinic(clinicId, slug)
+        if (!registered.some((item) => item.id === resolvedId)) {
+          return NextResponse.json({ error: 'الفرع المحدد غير موجود بالقائمة المسجلة' }, { status: 404 })
+        }
+        const timestamp = new Date().toISOString()
+        await commitDocumentPatches(registered.map((item) => ({
+          path: `branches/${item.id}`,
+          data: { isMain: item.id === resolvedId, updatedAt: timestamp }
+        })))
+      }
 
       await writeDocument(`branches/${resolvedId}`, patch, true)
       return NextResponse.json({
         success: true,
-        branch: { id: resolvedId, ...oldBranch, ...patch }
+        branch: { ...oldBranch, ...patch, id: resolvedId, ...(body.isMain === true ? { isMain: true } : {}) }
       })
     } else {
       // Create new branch
@@ -346,6 +369,9 @@ export async function POST(
       if (existingBranches.length >= maxAllowed) {
         return NextResponse.json({ error: `اكتمل الحد المسموح به من الفروع (${maxAllowed})` }, { status: 403 })
       }
+      // New branches cannot silently steal the primary designation. First
+      // created branch becomes primary; others are promoted via atomic update.
+      branchPayload.isMain = existingBranches.length === 0
       const newBranchId = await createDocument('branches', branchPayload)
       return NextResponse.json({
         success: true,
@@ -406,7 +432,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'لا يمكن أرشفة آخر فرع مسجل بالعيادة' }, { status: 409 })
     }
     if (targetData.isMain) {
-      const mainKey = mainBranchDuplicateKey({ id: branchId, ...targetData })
+      const mainKey = mainBranchDuplicateKey({ ...targetData, id: branchId })
       const hasAnotherMain = !!mainKey && activeBranches.some(
         (b) => b.id !== branchId && mainBranchDuplicateKey(b) === mainKey
       )
