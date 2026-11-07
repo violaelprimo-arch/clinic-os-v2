@@ -322,7 +322,8 @@ export async function POST(
       if (![oldBranch.clinicId, oldBranch.clinic_id].includes(clinicId)) {
         return NextResponse.json({ error: 'الفرع لا يتبع العيادة المحددة' }, { status: 403 })
       }
-      if (oldBranch.isArchived === true) {
+      const restoreArchived = auth.isOwner && body.isArchived === false
+      if (oldBranch.isArchived === true && !restoreArchived) {
         return NextResponse.json({ error: 'الفرع مؤرشف ولا يقبل التعديل' }, { status: 409 })
       }
 
@@ -343,6 +344,7 @@ export async function POST(
       if (auth.isOwner && Object.prototype.hasOwnProperty.call(body, 'isMain')) {
         patch.isMain = Boolean(body.isMain)
       }
+      if (restoreArchived) patch.isArchived = false
 
       await updateDoc(branchRef, patch)
       return NextResponse.json({
