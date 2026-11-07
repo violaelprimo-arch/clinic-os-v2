@@ -8,10 +8,10 @@ service cloud.firestore {
 
     function isPlatformOwner() {
       return request.auth != null
-        && request.auth.token.platformOwner == true
-        && request.auth.token.ownerEmail == 'yallacodex@gmail.com'
-        && request.auth.token.ownerUid == request.auth.uid
-        && request.auth.token.email_verified == true;
+        && request.auth.token.get('platformOwner', false) == true
+        && request.auth.token.get('ownerEmail', '') == 'yallacodex@gmail.com'
+        && request.auth.token.get('ownerUid', '') == request.auth.uid
+        && request.auth.token.get('email_verified', false) == true;
     }
 
     function isClinicTenant(clinicId) {
