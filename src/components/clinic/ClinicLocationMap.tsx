@@ -20,7 +20,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { getClinicBranches, formatWeeklyScheduleSummary, isClinicOpenNow, DEFAULT_WEEKLY_SCHEDULE } from '@/lib/branchService'
-import { resolveEffectiveLocation, isPlaceholderAddress, sanitizeAddress, extractCoordsFromLink } from '@/lib/mapsHelper'
+import { resolveEffectiveLocation, isPlaceholderAddress, sanitizeAddress, extractCoordsFromLink, isValidCoords } from '@/lib/mapsHelper'
 
 export interface ClinicLocationMapProps {
   clinic: any
@@ -47,7 +47,7 @@ export function ClinicLocationMap({
 
   // Load branches from Firestore or use props
   useEffect(() => {
-    if (propBranches && propBranches.length > 0) {
+    if (Array.isArray(propBranches)) {
       setBranches(propBranches)
       const match = propBranches.find(
         (b: any) =>
@@ -119,8 +119,8 @@ export function ClinicLocationMap({
   const confirmedStoredCoords =
     current?.locationVerified === true &&
     String(current?.verifiedMapsLink || '') === String(targetMapsLink || '') &&
-    effective.isPreciseCoordinates
-      ? { lat: effective.lat!, lng: effective.lng! }
+    isValidCoords(Number(current?.latitude), Number(current?.longitude))
+      ? { lat: Number(current.latitude), lng: Number(current.longitude) }
       : null
 
   // Do not display outdated manually entered coordinates while a short Google
