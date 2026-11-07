@@ -132,6 +132,8 @@ export async function GET(
     return NextResponse.json({
       success: true,
       branches
+    }, {
+      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0' }
     })
   } catch (err: any) {
     console.error('Error in branches GET:', err)
