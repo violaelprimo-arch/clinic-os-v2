@@ -108,13 +108,29 @@ export function OwnerBranchManager({
     )
   }, [selectedClinic])
 
-  // Real-time snapshot listener for the selected clinic's branches
+  // Real-time listener plus authoritative API read for accounts that cannot
+  // query branches directly under client Firestore security rules.
   useEffect(() => {
     if (!selectedClinic?.id) return
     setIsLoading(true)
 
+    let cancelled = false
     const cId = selectedClinic.id
     const cSlug = selectedClinic.slug
+    if (cSlug) {
+      fetch(`/api/clinic/${encodeURIComponent(cSlug)}/branches`, { cache: 'no-store', credentials: 'same-origin' })
+        .then(async (res) => {
+          if (!res.ok) throw new Error('Unable to load registered branches')
+          return res.json()
+        })
+        .then((data) => {
+          if (!cancelled && Array.isArray(data.branches)) {
+            setBranches(data.branches)
+            setIsLoading(false)
+          }
+        })
+        .catch(() => { if (!cancelled) setIsLoading(false) })
+    }
 
     const q1 = query(collection(db, 'branches'), where('clinicId', '==', cId))
     const q2 = query(collection(db, 'branches'), where('clinic_id', '==', cId))
@@ -144,6 +160,7 @@ export function OwnerBranchManager({
     })
 
     return () => {
+      cancelled = true
       unsub1()
       unsub2()
     }
