@@ -6,6 +6,7 @@ import { db } from '@/lib/firebase'
 import { createClinicNotification } from '@/lib/notificationService'
 import { dispatchPatientPushNotification } from '@/lib/pushDispatcher'
 import { createAtomicAppointmentServer } from '@/lib/server/firebase-rest'
+import { isClinicSuspended } from '@/lib/clinicAccessPolicy'
 import { calculatePatientLivePosition } from '@/lib/queueCalculations'
 import {
   resolveEffectiveDailyLimit,
@@ -60,22 +61,12 @@ export async function POST(req: NextRequest) {
     const clinicId = clinicDoc.id
     const cData = clinicDoc.data()
 
-    // 2. Enforce clinic active status & subscription validity (A05 - P1 Protection)
-    if (cData.isActive === false) {
+    // 2. Check subscription consistently with doctor access and Cairo timezone.
+    if (isClinicSuspended(cData)) {
       return NextResponse.json(
-        { error: 'عذراً، هذه العيادة متوقفة حالياً عن استقبال الحجوزات' },
+        { error: 'عذراً، اشتراك العيادة منتهي أو تم إيقافها من إدارة المنصة' },
         { status: 403 }
       )
-    }
-
-    if (cData.expirationDate) {
-      const expDate = new Date(cData.expirationDate)
-      if (!isNaN(expDate.getTime()) && expDate < new Date()) {
-        return NextResponse.json(
-          { error: 'عذراً، اشتراك هذه العيادة منتهي حالياً، يرجى التواصل مع إدارة العيادة' },
-          { status: 403 }
-        )
-      }
     }
 
     // Resolve booking date in Cairo timezone
