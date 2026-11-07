@@ -1247,9 +1247,14 @@ function OwnerDashboard() {
         return
       }
 
-      // 2. Hash passwords securely
+      // Preserve existing credential hashes when editing unrelated clinic
+      // settings. Leaving the password boxes empty must never reset login.
       const doctorPasswordHash = doctorPassword ? await hashPassword(doctorPassword) : ''
       const assistantPasswordHash = assistantPassword ? await hashPassword(assistantPassword) : ''
+      const accountChanges = {
+        ...(doctorPassword ? { doctorPasswordHash, doctorPassword: '' } : {}),
+        ...(assistantPassword ? { assistantPasswordHash, assistantPassword: '' } : {}),
+      }
 
       const clinicData = {
         clinicName,
@@ -1259,11 +1264,8 @@ function OwnerDashboard() {
         slug: finalSlug,
         mapsLink,
         doctorEmail,
-        doctorPassword,
-        doctorPasswordHash,
         assistantEmail,
-        assistantPassword,
-        assistantPasswordHash,
+        ...accountChanges,
         aiApiKey,
         prescriptionTemplateUrl,
         aiEnabled: aiEnabled !== false,
@@ -1488,9 +1490,9 @@ function OwnerDashboard() {
     setSlug(c.slug || '')
     setMapsLink(c.mapsLink || '')
     setDoctorEmail(c.doctorEmail || '')
-    setDoctorPassword(c.doctorPassword || '')
+    setDoctorPassword('') // Blank means keep existing password when editing
     setAssistantEmail(c.assistantEmail || '')
-    setAssistantPassword(c.assistantPassword || '')
+    setAssistantPassword('') // Blank means keep existing password when editing
     setAiApiKey(c.aiApiKey || '')
     setPrescriptionTemplateUrl(c.prescriptionTemplateUrl || '')
     setAiEnabled(c.aiEnabled !== false)
