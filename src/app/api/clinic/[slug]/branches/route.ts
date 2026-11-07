@@ -197,31 +197,23 @@ export async function POST(
     }
     const isCreating = !branchId || branchId === 'new'
 
-    // Doctor Permission & Quota Checks
-    if (!auth.isOwner) {
-      if (isCreating) {
-        if (clinic.allowDoctorCreateBranches === false) {
-          return NextResponse.json(
-            { error: 'إضافة الفروع مقيدة بواسطة إدارة المنصة.' },
-            { status: 403 }
-          )
-        }
-        if (clinic.branchesEnabled === false) {
-          return NextResponse.json(
-            { error: 'ميزة الفروع غير مفعلة لاشتراك العيادة. يرجى التواصل مع الدعم.' },
-            { status: 403 }
-          )
-        }
+    // The platform owner registers physical branch locations. Doctors operate
+    // already-registered branches but may not create new ones.
+    if (isCreating && !auth.isOwner) {
+      return NextResponse.json({ error: 'إضافة فروع جديدة متاحة فقط لمالك المنصة.' }, { status: 403 })
+    }
 
-        const maxBranches = typeof clinic.maxBranches === 'number' ? clinic.maxBranches : 1
-        const currentBranches = await fetchBranchesForClinic(clinicId, slug)
-        if (currentBranches.length >= maxBranches) {
-          return NextResponse.json(
-            {
-              error: `تم الوصول للحد الأقصى المسموح به من الفروع لهذه العيادة (${maxBranches} فرع). يرجى الترقية لإضافة فروع جديدة.`
-            },
-            { status: 403 }
-          )
+    // Doctors may update ONLY operation-specific fields. Never allow a doctor
+    // to replace the owner's branch identity, address, coordinates or map URL.
+    if (!auth.isOwner && !isCreating) {
+      const doctorAllowed = new Set([
+        'id', 'isOpen', 'weeklySchedule', 'slotDuration', 'maxDailyBookings'
+      ])
+      for (const key of Object.keys(body)) {
+        if (!doctorAllowed.has(key)) {
+          return NextResponse.json({
+            error: 'يمكن للطبيب تعديل مواعيد الفرع ومدة الكشف والحد اليومي وحالة الحجز فقط'
+          }, { status: 403 })
         }
       }
     }
@@ -238,7 +230,7 @@ export async function POST(
     const branchPayload: any = {
       clinicId,
       clinic_id: clinicId,
-      name: String(name).trim(),
+      name: typeof name === 'string' ? name.trim() : '',
       governorate: governorate || 'القاهرة',
       city: city || 'القاهرة',
       area: area || '',
@@ -251,9 +243,14 @@ export async function POST(
       image: image || '',
       slotDuration: Number(slotDuration) || 15,
       maxDailyBookings: Number(maxDailyBookings) || 0,
-      isOpen: isOpen !== false,
-      weeklySchedule: schedule,
-      workingHours: formatWeeklyScheduleSummary(schedule, true),
+      // Branches registered by the owner start closed until doctor configures them.
+      isOpen: isCreating && auth.isOwner ? false : isOpen !== false,
+      weeklySchedule: isCreating && auth.isOwner
+        ? DEFAULT_WEEKLY_SCHEDULE.map(day => ({ ...day, isOpen: false }))
+        : schedule,
+      workingHours: isCreating && auth.isOwner
+        ? 'لم يحدد الطبيب مواعيد هذا الفرع بعد'
+        : formatWeeklyScheduleSummary(schedule, true),
       isMain: Boolean(isMain),
       updatedAt: new Date().toISOString()
     }
@@ -323,11 +320,10 @@ export async function POST(
 
       // PATCH semantics: a status-only update must not wipe the schedule,
       // map coordinates, contacts, photo, or main-branch flag.
-      const editableFields = [
-        'name', 'governorate', 'city', 'area', 'address', 'mapsLink',
-        'latitude', 'longitude', 'phone', 'whatsapp', 'image',
-        'slotDuration', 'maxDailyBookings', 'isOpen', 'weeklySchedule'
-      ]
+      const editableFields = auth.isOwner
+        ? ['name', 'governorate', 'city', 'area', 'address', 'mapsLink',
+          'latitude', 'longitude', 'phone', 'whatsapp', 'image']
+        : ['slotDuration', 'maxDailyBookings', 'isOpen', 'weeklySchedule']
       const patch: Record<string, any> = { updatedAt: new Date().toISOString() }
       for (const key of editableFields) {
         if (Object.prototype.hasOwnProperty.call(body, key)) patch[key] = branchPayload[key]
@@ -349,6 +345,12 @@ export async function POST(
       // Create new branch
       branchPayload.isArchived = false
       branchPayload.createdAt = new Date().toISOString()
+      // Enforce owner-specified clinic quota for branch creation.
+      const maxAllowed = Math.max(1, Number(clinic.maxBranches ?? clinic.branchQuota ?? 1))
+      const existingBranches = await fetchBranchesForClinic(clinicId, slug)
+      if (existingBranches.length >= maxAllowed) {
+        return NextResponse.json({ error: `اكتمل الحد المسموح به من الفروع (${maxAllowed})` }, { status: 403 })
+      }
       const newBranchId = await createDocument('branches', branchPayload)
       return NextResponse.json({
         success: true,
