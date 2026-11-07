@@ -245,6 +245,25 @@ export async function createDocument(
   if (!response.ok) throw new Error('FIRESTORE_WRITE_FAILED')
   return documentId
 }
+/**
+ * Atomic field-level updates; used to guarantee exactly one selected main
+ * branch. A failed precondition aborts the entire batch, not half the flags.
+ */
+export async function commitDocumentPatches(patches: Array<{ path: string; data: Fields }>): Promise<void> {
+  if (!patches.length) return
+  const writes = patches.map(({ path, data }) => ({
+    update: {
+      name: documentUrl(path).split('/v1/')[1],
+      fields: (encode(data).mapValue || {}).fields || {},
+    },
+    updateMask: { fieldPaths: Object.keys(data) },
+    currentDocument: { exists: true },
+  }))
+  const url = documentUrl('').replace(/\/$/, '') + ':commit'
+  const response = await request(url, { method: 'POST', body: JSON.stringify({ writes }) })
+  if (!response.ok) throw new Error('FIRESTORE_ATOMIC_COMMIT_FAILED')
+}
+
 export async function deleteDocument(path: string) {
   const response = await request(documentUrl(path), { method: 'DELETE' })
   if (!response.ok && response.status !== 404)
