@@ -51,7 +51,16 @@ export async function GET(req: NextRequest) {
   if (urlParam) {
     const trimmedUrl = urlParam.trim()
 
-    // First: Direct coordinate extraction without making any network call
+    // Validate the hostname before treating any URL as a real Maps source.
+    // Raw coordinate pairs (without a URL) remain supported.
+    if (/^https?:\/\//i.test(trimmedUrl) && !isAllowedGoogleMapsUrl(trimmedUrl)) {
+      return NextResponse.json(
+        { success: false, error: 'رابط الخرائط ليس من نطاق Google Maps المعتمد.' },
+        { status: 400 }
+      )
+    }
+
+    // First: Direct destination coordinate extraction without a network call
     const directCoords = extractCoordsFromLink(trimmedUrl)
     if (directCoords) {
       return NextResponse.json({
@@ -74,34 +83,46 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // 2. Safely resolve short redirect URL (e.g. maps.app.goo.gl)
+    // Resolve redirects one hop at a time. Never follow an arbitrary redirect
+    // automatically, since it may point to an internal IP or an unrelated host.
     try {
-      const response = await fetch(trimmedUrl, {
-        method: 'GET',
-        redirect: 'follow',
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+      let nextUrl = trimmedUrl
+      for (let hop = 0; hop < 5; hop++) {
+        if (!isAllowedGoogleMapsUrl(nextUrl)) throw new Error('Untrusted Google Maps redirect')
+        const response = await fetch(nextUrl, {
+          method: 'GET',
+          redirect: 'manual',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; YallaClinicLocationVerifier/1.0)',
+            Accept: 'text/html'
+          }
+        })
+        const location = response.headers.get('location')
+        if (!location) {
+          const direct = extractCoordsFromLink(response.url)
+          if (direct) {
+            return NextResponse.json({
+              success: true, source: 'resolved_google_maps',
+              lat: direct.lat, lng: direct.lng,
+              finalUrl: response.url, mapsLink: trimmedUrl
+            })
+          }
+          break
         }
-      })
-
-      const finalUrl = response.url
-      if (finalUrl) {
-        const finalCoords = extractCoordsFromLink(finalUrl)
-        if (finalCoords) {
+        const target = new URL(location, nextUrl).href
+        if (!isAllowedGoogleMapsUrl(target)) throw new Error('Unexpected redirect host')
+        const coords = extractCoordsFromLink(target)
+        if (coords) {
           return NextResponse.json({
-            success: true,
-            source: 'redirect_url',
-            lat: finalCoords.lat,
-            lng: finalCoords.lng,
-            finalUrl,
-            mapsLink: trimmedUrl
+            success: true, source: 'redirect_url',
+            lat: coords.lat, lng: coords.lng,
+            finalUrl: target, mapsLink: trimmedUrl
           })
         }
+        nextUrl = target
       }
     } catch (e: any) {
-      console.warn('Failed to safely resolve redirect for maps URL:', e.message)
+      console.warn('Google Maps location resolution did not produce an exact pin:', e.message)
     }
   }
 
