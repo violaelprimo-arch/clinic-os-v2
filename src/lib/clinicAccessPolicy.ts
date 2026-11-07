@@ -10,8 +10,9 @@ export interface ClinicAccessRecord {
 }
 
 /** The subscription suspension state is different from daily branch open hours. */
-export function isClinicSuspended(clinic: ClinicAccessRecord | null | undefined, now: Date = new Date()): boolean {
-  if (!clinic) return false
+export function isClinicSuspended(source: unknown, now: Date = new Date()): boolean {
+  if (!source || typeof source !== 'object') return false
+  const clinic = source as ClinicAccessRecord
   if (clinic.isActive === false) return true
   const expires = String(clinic.expirationDate || '').trim()
   if (!expires) return false
@@ -56,8 +57,9 @@ export const OWNER_CONTROLLED_SECTIONS = [
   { id: 'settings.staff.permissions', label: 'صلاحيات المساعدين' }
 ] as const
 
-export function isOwnerSectionVisible(clinic: ClinicAccessRecord | null | undefined, sectionId: string): boolean {
-  if (!sectionId || !clinic) return true
+export function isOwnerSectionVisible(source: unknown, sectionId: string): boolean {
+  if (!sectionId || !source || typeof source !== 'object') return true
+  const clinic = source as ClinicAccessRecord
   const hidden = Array.isArray(clinic.hiddenSections) ? clinic.hiddenSections : []
   const parts = sectionId.split('.')
   return !parts.some((_, index) => hidden.includes(parts.slice(0, index + 1).join('.')))
