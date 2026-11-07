@@ -4,6 +4,7 @@ import { db } from '@/lib/firebase'
 import { getClinicDoctorAccount } from '@/lib/server/clinic-credential-access'
 import { writeDocument } from '@/lib/server/firebase-rest'
 import { pickNormalClinicSettings } from '@/lib/clinic-credential-policy'
+import { isClinicSuspended } from '@/lib/clinicAccessPolicy'
 import { syncClinicScheduleToMainBranch, formatWeeklyScheduleSummary } from '@/lib/branchService'
 
 /**
@@ -61,9 +62,15 @@ export async function POST(
       return NextResponse.json({ error: account.error }, { status: account.status })
     }
 
-    // Never accept doctorEmail or password fields via the ordinary settings API.
+    if (isClinicSuspended(account.clinic)) {
+      return NextResponse.json({
+        error: 'الاشتراك منتهي: يمكنك مشاهدة الحسابات والتقارير وسجل المرضى فقط.'
+      }, { status: 403 })
+    }
+
+    // Never accept account credentials, hidden sections, or subscription fields.
     const body = await req.json().catch(() => null)
-    const settings = pickNormalClinicSettings(body)
+    const settings = pickNormalClinicSettings(body, account.clinic)
     if (!Object.keys(settings).length) {
       return NextResponse.json({ error: 'لا توجد إعدادات مسموح بتعديلها' }, { status: 400 })
     }
