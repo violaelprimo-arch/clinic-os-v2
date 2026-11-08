@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { collection, query, where, getDocs, addDoc } from 'firebase/firestore'
-import { readDocument, queryDocuments } from '@/lib/server/firebase-rest'
+// firebase client SDK removed - all server operations use firebase-rest
+import { readDocument, queryDocuments, writeDocument } from '@/lib/server/firebase-rest'
 import { canonicalizeBranches } from '@/lib/branchCanonical'
-import { db } from '@/lib/firebase'
+
 import { createClinicNotification } from '@/lib/notificationService'
 import { dispatchPatientPushNotification } from '@/lib/pushDispatcher'
 import { createAtomicAppointmentServer } from '@/lib/server/firebase-rest'
@@ -62,11 +62,11 @@ export async function POST(req: NextRequest) {
     }
 
     if (!cData) {
-      const qClinic = query(collection(db, 'clinics'), where('slug', '==', slug))
-      const cSnap = await getDocs(qClinic)
-      if (!cSnap.empty) {
-        clinicId = cSnap.docs[0].id
-        cData = cSnap.docs[0].data()
+      const allClinics = await queryDocuments('clinics')
+      const found = allClinics.find((c: any) => c.slug === slug || c.id === slug)
+      if (found) {
+        clinicId = found.id
+        cData = found
       }
     }
 
@@ -127,17 +127,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'لا توجد خدمات طبية متاحة للحجز حالياً' }, { status: 409 })
     }
 
-    // 4. Calculate existing active appointments for this date
-    const qAppts = query(
-      collection(db, 'appointments'),
-      where('clinic_id', '==', clinicId),
-      where('date', '==', bookingDate)
+    // 4. Calculate existing active appointments for this date via secure server REST
+    const allAppts = await queryDocuments('appointments')
+    const activeAppts = allAppts.filter((d: any) =>
+      (d.clinic_id === clinicId || d.clinicId === clinicId) &&
+      d.date === bookingDate &&
+      isAppointmentActive(d.status)
     )
-    const apptSnap = await getDocs(qAppts)
-    const activeAppts = apptSnap.docs.filter((d) => isAppointmentActive(d.data().status))
 
     const activeScoped = branchId && effectiveLimit > 0
-      ? activeAppts.filter((d) => (d.data().branch_id || d.data().branchId || null) === branchId)
+      ? activeAppts.filter((d: any) => (d.branch_id || d.branchId || null) === branchId)
       : activeAppts
 
     // 5. Enforce full booking schedule, hours, and capacity availability
@@ -166,37 +165,35 @@ export async function POST(req: NextRequest) {
 
     // Duplicate booking protection (accidental double submit within active session)
     const cleanDigits = cleanPhone.replace(/[^0-9]/g, '')
-    const existingDuplicate = activeAppts.find((d) => {
-      const data = d.data()
-      const dPhone = String(data.phone || '').replace(/[^0-9]/g, '')
-      const dName = String(data.patientName || '').trim().toLowerCase()
-      const dService = String(data.serviceId || '')
+    const existingDuplicate: any = activeAppts.find((d: any) => {
+      const dPhone = String(d.phone || '').replace(/[^0-9]/g, '')
+      const dName = String(d.patientName || '').trim().toLowerCase()
+      const dService = String(d.serviceId || '')
       return (
         dPhone === cleanDigits &&
         dName === cleanName.toLowerCase() &&
         dService === String(serviceId) &&
-        (data.status === 'waiting' || data.status === 'in_progress')
+        (d.status === 'waiting' || d.status === 'in_progress')
       )
     })
 
     if (existingDuplicate) {
-      const dup = existingDuplicate.data()
       return NextResponse.json({
         success: true,
         isExisting: true,
         appointmentId: existingDuplicate.id,
-        queueNumber: dup.queue_number,
+        queueNumber: existingDuplicate.queue_number,
         aheadCount: 0,
-        date: dup.date,
-        time: dup.time,
-        branchName: dup.branchName || branchName || 'الفرع الرئيسي',
-        serviceName: dup.serviceName || verifiedServiceName,
-        servicePrice: dup.servicePrice || verifiedServicePrice
+        date: existingDuplicate.date,
+        time: existingDuplicate.time,
+        branchName: existingDuplicate.branchName || branchName || 'الفرع الرئيسي',
+        serviceName: existingDuplicate.serviceName || verifiedServiceName,
+        servicePrice: existingDuplicate.servicePrice || verifiedServicePrice
       })
     }
 
     const aheadCount = activeScoped.filter(
-      (d) => d.data().status === 'waiting' || !d.data().status
+      (d: any) => d.status === 'waiting' || !d.status
     ).length
 
     const isUrgent =
@@ -241,7 +238,13 @@ export async function POST(req: NextRequest) {
     let queueNumber: number
 
     try {
-      const observedMaxQueue = Math.max(0, ...apptSnap.docs.filter((d) => !branchId || (d.data().branch_id || d.data().branchId) === branchId).map((d) => Number(d.data().queue_number) || 0))
+      const observedMaxQueue = Math.max(
+        0,
+        ...allAppts
+          .filter((d: any) => (d.clinic_id === clinicId || d.clinicId === clinicId) && d.date === bookingDate)
+          .filter((d: any) => !branchId || (d.branch_id || d.branchId) === branchId)
+          .map((d: any) => Number(d.queue_number) || 0)
+      )
       const atomicRes = await createAtomicAppointmentServer(newAppt, effectiveLimit, activeScoped.length, observedMaxQueue)
       newApptId = atomicRes.id
       queueNumber = atomicRes.queueNumber
@@ -269,22 +272,22 @@ export async function POST(req: NextRequest) {
 
     const docRef = { id: newApptId }
 
-    // Auto-create patient account if missing
+    // Auto-create patient account if missing via server REST
     try {
-      const accQ = query(
-        collection(db, 'patient_accounts'),
-        where('clinic_id', '==', clinicId),
-        where('phone', '==', cleanPhone)
+      const existingAccs = await queryDocuments('patient_accounts')
+      const foundAcc = existingAccs.find((a: any) =>
+        (a.clinic_id === clinicId || a.clinicId === clinicId) &&
+        (a.phone === cleanPhone || a.phone === '+' + cleanPhone.replace(/^\+/, ''))
       )
-      const accSnap = await getDocs(accQ)
-      if (accSnap.empty) {
-        await addDoc(collection(db, 'patient_accounts'), {
+      if (!foundAcc) {
+        const accId = 'patient-' + cleanPhone.replace(/\+/g, '')
+        await writeDocument('patient_accounts/' + accId, {
           clinic_id: clinicId,
           name: cleanName,
           phone: cleanPhone,
           age: calculatedAge || '',
           createdAt: new Date().toISOString()
-        })
+        }, true)
       }
     } catch (e) {
       console.warn('Patient account auto creation notice:', e)
@@ -325,7 +328,7 @@ export async function POST(req: NextRequest) {
         status: 'waiting'
       },
       allTodayAppointments: [
-        ...activeScoped.map(d => ({ id: d.id, ...d.data() })),
+        ...activeScoped.map((d: any) => ({ id: d.id, ...d })),
         {
           id: docRef.id,
           queue_number: queueNumber,

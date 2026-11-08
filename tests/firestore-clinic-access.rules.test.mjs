@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import {
   initializeTestEnvironment, assertSucceeds, assertFails,
 } from '@firebase/rules-unit-testing'
-import { doc, getDoc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore'
+import { doc, getDoc, getDocs, collection, setDoc, updateDoc, deleteDoc } from 'firebase/firestore'
 
 let env
 before(async () => {
@@ -40,6 +40,9 @@ before(async () => {
     await setDoc(doc(db, 'appointments/apptStopped'), {
       clinic_id: 'clinicStopped', patientName: 'History', status: 'completed',
     })
+    await setDoc(doc(db, 'prescriptions/rxA'), {
+      clinic_id: 'clinicA', patientName: 'Test', date: '2026-11-09',
+    })
     await setDoc(doc(db, 'patient_accounts/stoppedPatient'), {
       clinic_id: 'clinicStopped', phone: '01000000000',
     })
@@ -56,8 +59,14 @@ const ownerDb = () =>
     ownerUid: 'real-owner', email_verified: true,
   }).firestore()
 
-test('public visitors cannot forge bookings, counters or branch locations', async () => {
+test('public visitors cannot read, list or write appointments, prescriptions or patient accounts', async () => {
   const db = env.unauthenticatedContext().firestore()
+  await assertFails(getDoc(doc(db, 'appointments/apptA')))
+  await assertFails(getDocs(collection(db, 'appointments')))
+  await assertFails(getDoc(doc(db, 'patient_accounts/stoppedPatient')))
+  await assertFails(getDocs(collection(db, 'patient_accounts')))
+  await assertFails(getDoc(doc(db, 'prescriptions/rxA')))
+  await assertFails(getDocs(collection(db, 'prescriptions')))
   await assertFails(setDoc(doc(db, 'appointments/forged'), {
     clinic_id: 'clinicA', patientName: 'Forged',
   }))
@@ -67,6 +76,12 @@ test('public visitors cannot forge bookings, counters or branch locations', asyn
   await assertFails(setDoc(doc(db, 'branches/forged'), {
     clinic_id: 'clinicA', name: 'Fake Branch',
   }))
+})
+
+test('active doctor can only read and write own clinic appointments', async () => {
+  const dbA = authDb('clinicA')
+  await assertSucceeds(getDoc(doc(dbA, 'appointments/apptA')))
+  await assertFails(getDoc(doc(dbA, 'appointments/apptStopped')))
 })
 
 test('active doctor can operate own branch, but cannot rewrite its identity or make another main', async () => {

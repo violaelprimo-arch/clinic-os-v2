@@ -33,69 +33,41 @@ export function TrackTurnWidget({ clinicId }: { clinicId: string }) {
     setResult(null)
     
     try {
-      const today = getCairoDateString()
-      const q = query(
-        collection(db, 'appointments'),
-        where('clinic_id', '==', clinicId),
-        where('date', '==', today)
-      )
-      
-      const snap = await getDocs(q)
-      const allAppts = snap.docs.map(d => ({ id: d.id, ...d.data() } as any))
-
-      // Clean search query
       const cleanSearch = searchTerm.trim()
-      const normalizedDigits = normalizePhoneDigits(cleanSearch).replace(/[^0-9]/g, '')
-      const variants = getPhoneSearchVariants(cleanSearch)
+      const res = await fetch(`/api/clinic/${clinicId}/queue?phone=${encodeURIComponent(cleanSearch)}`)
+      const data = await res.json().catch(() => ({}))
 
-      // Find target appointment
-      const myAppt = allAppts.find(a => {
-        if (!a.phone && !a.patientName) return false
-        const aPhoneDigits = normalizePhoneDigits(String(a.phone || '')).replace(/[^0-9]/g, '')
-        const matchesPhone = Boolean(
-          (normalizedDigits.length >= 7 && aPhoneDigits.endsWith(normalizedDigits.slice(-7))) ||
-          variants.includes(String(a.phone || '').trim())
-        )
-        const matchesName = String(a.patientName || '').toLowerCase().includes(cleanSearch.toLowerCase())
-        return matchesPhone || matchesName
-      })
-
-      if (!myAppt) {
+      if (!res.ok || !data.success || !data.matchingAppointments || data.matchingAppointments.length === 0) {
         setResult({
           found: false,
           message: isRtl ? 'لم يتم العثور على حجز بهذا الرقم أو الاسم اليوم.' : 'No appointment found with this phone or name today.'
         })
       } else {
-        const livePos = calculatePatientLivePosition({
-          targetAppointmentId: myAppt.id,
-          targetAppointment: myAppt,
-          allTodayAppointments: allAppts,
-          isRtl
-        })
+        const myAppt = data.matchingAppointments[0]
+        const livePos = myAppt.queueInfo || data.patientQueueInfo
 
-        if (livePos.status === 'completed') {
-          setResult({ 
-            found: true, 
-            status: 'completed', 
-            myTurn: Number(myAppt.queue_number) || 1,
-            message: isRtl ? 'تم الكشف بالفعل، شكراً لزيارتك!' : 'Exam completed already. Thank you for visiting!' 
+        if (myAppt.status === 'completed') {
+          setResult({
+            found: true,
+            status: 'completed',
+            myTurn: Number(myAppt.queueNumber || myAppt.queue_number) || 1,
+            message: isRtl ? 'تم الكشف بالفعل، شكراً لزيارتك!' : 'Exam completed already. Thank you for visiting!'
           })
         } else {
-          setResult({ 
-            found: true, 
-            status: livePos.isCurrentTurn ? 'in_progress' : 'waiting',
-            myTurn: Number(myAppt.queue_number) || 1,
-            currentTurn: Number(livePos.currentPatientExamining?.queueNumber) || 0,
-            remaining: livePos.aheadCount,
-            message: livePos.isCurrentTurn
+          setResult({
+            found: true,
+            status: livePos?.isCurrentTurn ? 'in_progress' : 'waiting',
+            myTurn: Number(myAppt.queueNumber || myAppt.queue_number) || 1,
+            currentTurn: Number(data.currentTurn) || 0,
+            remaining: livePos?.aheadCount ?? 0,
+            message: livePos?.isCurrentTurn
               ? (isRtl ? 'دورك الآن! تفضل بالدخول لغرفة الكشف' : 'It is your turn now! Please enter.')
               : (isRtl
-                ? `متبقي ${livePos.aheadCount} في قائمة الانتظار • موعد الدخول المتوقع: ${livePos.estimatedEntranceTime12H}`
-                : `${livePos.aheadCount} patients ahead • Expected entry: ${livePos.estimatedEntranceTime12H}`)
+                ? `متبقي ${livePos?.aheadCount ?? 0} في قائمة الانتظار • موعد الدخول المتوقع: ${livePos?.formattedWaitTime || "قريباً"}`
+                : `${livePos?.aheadCount ?? 0} patients ahead • Expected entry: ${livePos?.formattedWaitTime || "soon"}`)
           })
         }
       }
-
     } catch (err) {
       console.error(err)
       setResult({

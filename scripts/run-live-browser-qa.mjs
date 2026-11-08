@@ -1,7 +1,14 @@
 import assert from 'assert';
+import dns from 'node:dns';
 
-const BASE_URL = 'https://yalla-clinic.com';
+dns.setServers(['1.1.1.1', '8.8.8.8']);
+
+const BASE_URL = process.env.TEST_BASE_URL || 'https://yalla-clinic.com';
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+const TEST_DOCTOR_PASSWORD = process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#';
+const TEST_SECRETARY_PASSWORD = process.env.TEST_SECRETARY_PASSWORD || 'SecSecureRotated2026!#';
+const TEST_PATIENT_PASSWORD = process.env.TEST_PATIENT_PASSWORD || 'PatientSecureRotated2026!#';
 
 let passed = 0;
 let failed = 0;
@@ -122,7 +129,7 @@ async function main() {
       const res = await fetchJson(`${BASE_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: c.doctorEmail, password: 'password123' })
+        body: JSON.stringify({ email: c.doctorEmail, password: TEST_DOCTOR_PASSWORD })
       });
       assert.strictEqual(res.status, 200, `Expected 200, got ${res.status}: ${JSON.stringify(res.data || res.raw)}`);
       assert.strictEqual(res.data.success, true);
@@ -137,7 +144,7 @@ async function main() {
       const res = await fetchJson(`${BASE_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: c.assistantEmail, password: 'password123' })
+        body: JSON.stringify({ email: c.assistantEmail, password: TEST_SECRETARY_PASSWORD })
       });
       assert.strictEqual(res.status, 200);
       assert.strictEqual(res.data.success, true);
@@ -157,11 +164,20 @@ async function main() {
     assert(res.data.error, 'Must return error message');
   });
 
+  await test('Security: Old exposed credential (password123) is rejected with 401', async () => {
+    const res = await fetchJson(`${BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'dr.karim@gmail.com', password: 'password123' })
+    });
+    assert.strictEqual(res.status, 401, 'Old exposed password must be rejected');
+  });
+
   await test('Anti-enumeration: Unknown email returns 401', async () => {
     const res = await fetchJson(`${BASE_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'nonexistent-user-123@nowhere.com', password: 'password123' })
+      body: JSON.stringify({ email: 'nonexistent-user-123@nowhere.com', password: TEST_DOCTOR_PASSWORD })
     });
     assert.strictEqual(res.status, 401);
     assert(res.data.error, 'Must return error message');
@@ -176,7 +192,7 @@ async function main() {
     const res = await fetchJson(`${BASE_URL}/api/patient/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: '01011122233', password: 'patient123' })
+      body: JSON.stringify({ phone: '01011122233', password: TEST_PATIENT_PASSWORD })
     });
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.data.success, true);
@@ -188,7 +204,7 @@ async function main() {
     const res = await fetchJson(`${BASE_URL}/api/patient/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: '+201011122233', password: 'patient123' })
+      body: JSON.stringify({ phone: '+201011122233', password: TEST_PATIENT_PASSWORD })
     });
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.data.success, true);
@@ -203,7 +219,7 @@ async function main() {
       body: JSON.stringify({
         phone: testPhone,
         name: 'مريض تجريبي تلقائي',
-        password: 'password123',
+        password: TEST_PATIENT_PASSWORD,
         clinicSlug: 'karim'
       })
     });

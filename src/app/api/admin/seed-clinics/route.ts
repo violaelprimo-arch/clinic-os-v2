@@ -21,11 +21,11 @@ const CLINICS_DATA = [
     doctorName: 'د. كريم عبد الرحمن',
     doctorEmail: 'dr.karim@gmail.com',
     doctorPhone: '01066554433',
-    doctorPassword: 'password123',
+    doctorPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
     assistantName: 'أ. نهى إبراهيم (سكرتيرة رئيسية)',
     assistantEmail: 'sec.karim@gmail.com',
     assistantPhone: '01211223344',
-    assistantPassword: 'password123',
+    assistantPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
     maxDailyBookings: 25,
     primaryColor: '#087CF4',
     assistants: [
@@ -34,7 +34,7 @@ const CLINICS_DATA = [
         name: 'أ. شهد محمود (سكرتيرة فرع الشيخ زايد)',
         email: 'shahd.karim@gmail.com',
         phone: '01599887766',
-        password: 'password123',
+        password: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
         branchName: 'فرع الشيخ زايد'
       }
     ],
@@ -77,11 +77,11 @@ const CLINICS_DATA = [
     doctorName: 'د. أحمد عبد العزيز',
     doctorEmail: 'zizo@gmail.com',
     doctorPhone: '01121320507',
-    doctorPassword: 'password123',
+    doctorPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
     assistantName: 'أ. إيمان الشريف (سكرتيرة رئيسية)',
     assistantEmail: 'zizo2@gmail.com',
     assistantPhone: '01557540188',
-    assistantPassword: 'password123',
+    assistantPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
     maxDailyBookings: 25,
     primaryColor: '#0284C7',
     assistants: [
@@ -90,7 +90,7 @@ const CLINICS_DATA = [
         name: 'أ. فاطمة خليل (سكرتيرة فرع المهندسين)',
         email: 'fatma.zizo@gmail.com',
         phone: '01011223344',
-        password: 'password123',
+        password: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
         branchName: 'فرع المهندسين'
       }
     ],
@@ -133,11 +133,11 @@ const CLINICS_DATA = [
     doctorName: 'د. طارق علام',
     doctorEmail: 'dr.tarek@gmail.com',
     doctorPhone: '01099887766',
-    doctorPassword: 'password123',
+    doctorPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
     assistantName: 'أ. مروة كمال (سكرتيرة رئيسية)',
     assistantEmail: 'sec.tarek@gmail.com',
     assistantPhone: '01155443322',
-    assistantPassword: 'password123',
+    assistantPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
     maxDailyBookings: 25,
     primaryColor: '#0F766E',
     assistants: [
@@ -146,7 +146,7 @@ const CLINICS_DATA = [
         name: 'أ. نادية صبحي (سكرتيرة فرع التجمع)',
         email: 'nadia.tarek@gmail.com',
         phone: '01233445566',
-        password: 'password123',
+        password: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
         branchName: 'فرع التجمع الخامس'
       }
     ],
@@ -189,11 +189,11 @@ const CLINICS_DATA = [
     doctorName: 'د. سارة فؤاد',
     doctorEmail: 'dr.sara@gmail.com',
     doctorPhone: '01288776655',
-    doctorPassword: 'password123',
+    doctorPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
     assistantName: 'أ. ريهام عادل (سكرتيرة رئيسية)',
     assistantEmail: 'sec.sara@gmail.com',
     assistantPhone: '01022334455',
-    assistantPassword: 'password123',
+    assistantPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
     maxDailyBookings: 20,
     primaryColor: '#2563EB',
     assistants: [
@@ -202,7 +202,7 @@ const CLINICS_DATA = [
         name: 'أ. ياسمين صلاح (سكرتيرة فرع المعادي)',
         email: 'yasmin.sara@gmail.com',
         phone: '01188990011',
-        password: 'password123',
+        password: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
         branchName: 'فرع المعادي'
       }
     ],
@@ -245,11 +245,11 @@ const CLINICS_DATA = [
     doctorName: 'د. ندى الشريف',
     doctorEmail: 'dr.nada@gmail.com',
     doctorPhone: '01144332211',
-    doctorPassword: 'password123',
+    doctorPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
     assistantName: 'أ. سلمى سعيد (سكرتيرة رئيسية)',
     assistantEmail: 'sec.nada@gmail.com',
     assistantPhone: '01077889900',
-    assistantPassword: 'password123',
+    assistantPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
     maxDailyBookings: 20,
     primaryColor: '#7C3AED',
     assistants: [
@@ -258,7 +258,7 @@ const CLINICS_DATA = [
         name: 'أ. هاجر مصطفى (سكرتيرة مساعدة)',
         email: 'hagar.nada@gmail.com',
         phone: '01511223355',
-        password: 'password123',
+        password: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
         branchName: 'فرع الهرم'
       }
     ],
@@ -350,13 +350,11 @@ export async function POST(req: NextRequest) {
         doctorName: c.doctorName,
         doctorEmail: c.doctorEmail,
         doctorPhone: c.doctorPhone,
-        doctorPassword: c.doctorPassword,
-        doctorPasswordHash,
+                doctorPasswordHash,
         assistantName: c.assistantName,
         assistantEmail: c.assistantEmail,
         assistantPhone: c.assistantPhone,
-        assistantPassword: c.assistantPassword,
-        assistantPasswordHash,
+                assistantPasswordHash,
         assistants: hashedAssistants,
         services: c.services,
         queuePattern: c.queuePattern,
@@ -475,7 +473,7 @@ export async function POST(req: NextRequest) {
 
     // 4. Write Patient Accounts
     if (target === 'all' || target === 'patients') {
-      const patientPasswordHash = await hashPassword('patient123')
+      const patientPasswordHash = await hashPassword(process.env.TEST_PATIENT_PASSWORD || 'PatientSecureRotated2026!#')
       for (let i = 0; i < PATIENTS_SEED.length; i++) {
         const p = PATIENTS_SEED[i]
         const accId = `patient-acc-${i + 1}`
@@ -485,7 +483,7 @@ export async function POST(req: NextRequest) {
           phone: p.phone,
           age: p.age,
           gender: p.gender,
-          password: 'patient123',
+          password: process.env.TEST_PATIENT_PASSWORD || 'PatientSecureRotated2026!#',
           passwordHash: patientPasswordHash,
           createdAt: new Date().toISOString()
         }, true)

@@ -41,6 +41,26 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
 
   useEffect(() => {
     let unsubQueue: (() => void) | null = null
+    let isCancelled = false
+
+    // Fetch via secure server API
+    const loadFromServerApi = async () => {
+      try {
+        const res = await fetch(`/api/clinic/${slug}/queue?appointmentId=${encodeURIComponent(appointmentId)}`)
+        const data = await res.json().catch(() => ({}))
+        if (!isCancelled && res.ok && data.success) {
+          if (data.clinic) setClinic((prev: any) => ({ ...prev, ...data.clinic }))
+          if (data.matchingAppointments && data.matchingAppointments.length > 0) {
+            setAppointment((prev: any) => ({ ...prev, ...data.matchingAppointments[0] }))
+          }
+          setLoading(false)
+        }
+      } catch (err) {
+        console.warn('Queue server fetch error:', err)
+      }
+    }
+    loadFromServerApi()
+    const apiInterval = setInterval(loadFromServerApi, 7000)
 
     // 1. Fetch clinic data
     const qClinic = query(collection(db, 'clinics'), where('slug', '==', slug))
@@ -96,6 +116,8 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
     })
 
     return () => {
+      isCancelled = true
+      clearInterval(apiInterval)
       unsubClinic()
       unsubscribeAppt()
       if (unsubQueue) unsubQueue()

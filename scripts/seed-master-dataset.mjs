@@ -64,11 +64,11 @@ const CLINICS_DATA = [
     doctorName: 'د. أحمد عبد العزيز',
     doctorEmail: 'zizo@gmail.com',
     doctorPhone: '01121320507',
-    doctorPassword: 'password123',
+    doctorPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
     assistantName: 'أ. إيمان الشريف (سكرتيرة رئيسية)',
     assistantEmail: 'zizo2@gmail.com',
     assistantPhone: '01557540188',
-    assistantPassword: 'password123',
+    assistantPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
     maxDailyBookings: 25,
     assistants: [
       {
@@ -76,7 +76,7 @@ const CLINICS_DATA = [
         name: 'أ. فاطمة خليل (سكرتيرة فرع المهندسين)',
         email: 'fatma.zizo@gmail.com',
         phone: '01011223344',
-        password: 'password123',
+        password: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
         branchName: 'فرع المهندسين'
       }
     ],
@@ -119,11 +119,11 @@ const CLINICS_DATA = [
     doctorName: 'د. طارق علام',
     doctorEmail: 'dr.tarek@gmail.com',
     doctorPhone: '01099887766',
-    doctorPassword: 'password123',
+    doctorPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
     assistantName: 'أ. مروة كمال (سكرتيرة رئيسية)',
     assistantEmail: 'sec.tarek@gmail.com',
     assistantPhone: '01155443322',
-    assistantPassword: 'password123',
+    assistantPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
     maxDailyBookings: 25,
     assistants: [
       {
@@ -131,7 +131,7 @@ const CLINICS_DATA = [
         name: 'أ. نادية صبحي (سكرتيرة فرع التجمع)',
         email: 'nadia.tarek@gmail.com',
         phone: '01233445566',
-        password: 'password123',
+        password: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
         branchName: 'فرع التجمع الخامس'
       }
     ],
@@ -174,11 +174,11 @@ const CLINICS_DATA = [
     doctorName: 'د. سارة فؤاد',
     doctorEmail: 'dr.sara@gmail.com',
     doctorPhone: '01288776655',
-    doctorPassword: 'password123',
+    doctorPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
     assistantName: 'أ. ريهام عادل (سكرتيرة رئيسية)',
     assistantEmail: 'sec.sara@gmail.com',
     assistantPhone: '01022334455',
-    assistantPassword: 'password123',
+    assistantPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
     maxDailyBookings: 20,
     assistants: [
       {
@@ -186,7 +186,7 @@ const CLINICS_DATA = [
         name: 'أ. ياسمين صلاح (سكرتيرة فرع المعادي)',
         email: 'yasmin.sara@gmail.com',
         phone: '01188990011',
-        password: 'password123',
+        password: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
         branchName: 'فرع المعادي'
       }
     ],
@@ -229,11 +229,11 @@ const CLINICS_DATA = [
     doctorName: 'د. كريم عبد الرحمن',
     doctorEmail: 'dr.karim@gmail.com',
     doctorPhone: '01066554433',
-    doctorPassword: 'password123',
+    doctorPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
     assistantName: 'أ. نهى إبراهيم (سكرتيرة رئيسية)',
     assistantEmail: 'sec.karim@gmail.com',
     assistantPhone: '01211223344',
-    assistantPassword: 'password123',
+    assistantPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
     maxDailyBookings: 20,
     assistants: [
       {
@@ -241,7 +241,7 @@ const CLINICS_DATA = [
         name: 'أ. شهد محمود (سكرتيرة فرع الشيخ زايد)',
         email: 'shahd.karim@gmail.com',
         phone: '01599887766',
-        password: 'password123',
+        password: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
         branchName: 'فرع الشيخ زايد'
       }
     ],
@@ -284,11 +284,11 @@ const CLINICS_DATA = [
     doctorName: 'د. ندى الشريف',
     doctorEmail: 'dr.nada@gmail.com',
     doctorPhone: '01144332211',
-    doctorPassword: 'password123',
+    doctorPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
     assistantName: 'أ. سلمى سعيد (سكرتيرة رئيسية)',
     assistantEmail: 'sec.nada@gmail.com',
     assistantPhone: '01077889900',
-    assistantPassword: 'password123',
+    assistantPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
     maxDailyBookings: 20,
     assistants: [
       {
@@ -296,7 +296,7 @@ const CLINICS_DATA = [
         name: 'أ. هاجر مصطفى (سكرتيرة مساعدة)',
         email: 'hagar.nada@gmail.com',
         phone: '01511223355',
-        password: 'password123',
+        password: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
         branchName: 'فرع الهرم'
       }
     ],
@@ -507,12 +507,12 @@ async function seedMasterData() {
     const extraRef = doc(db, 'clinics', 'VLK4ow55RMkkwGer6LlY');
     const extraSnap = await getDoc(extraRef);
     if (extraSnap.exists()) {
-      const extraHash = await hashPwd('password123');
+      const extraHash = await hashPwd(process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#');
       await updateDoc(extraRef, {
-        doctorPassword: 'password123',
+        doctorPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
         doctorPasswordHash: extraHash
       });
-      console.log('   ✓ Updated extra clinic (clinic-mvved5s8) password to password123');
+      console.log('   ✓ Updated extra clinic (clinic-mvved5s8) to rotated secure credentials');
     }
   } catch (err) {
     console.warn('Could not update extra clinic:', err.message);
@@ -520,7 +520,7 @@ async function seedMasterData() {
 
   // 4. Seed & Normalize All Patient Portal Accounts (`patient_accounts`)
   console.log('\n👤 Seeding & Normalizing Patient Portal Accounts (for online patient login)...');
-  const patientPasswordHash = await hashPwd('patient123');
+  const patientPasswordHash = await hashPwd(process.env.TEST_PATIENT_PASSWORD || 'PatientSecureRotated2026!#');
 
   // Update any existing accounts that have no password or empty password
   const allAccountsSnap = await getDocs(collection(db, 'patient_accounts'));
@@ -528,7 +528,7 @@ async function seedMasterData() {
     const data = accDoc.data();
     if (!data.passwordHash && !data.password) {
       await updateDoc(doc(db, 'patient_accounts', accDoc.id), {
-        password: 'patient123',
+        password: process.env.TEST_PATIENT_PASSWORD || 'PatientSecureRotated2026!#',
         passwordHash: patientPasswordHash
       });
     }
@@ -548,14 +548,14 @@ async function seedMasterData() {
         phone: p.phone,
         age: p.age,
         gender: p.gender,
-        password: 'patient123',
+        password: process.env.TEST_PATIENT_PASSWORD || 'PatientSecureRotated2026!#',
         passwordHash: patientPasswordHash,
         createdAt: new Date().toISOString()
       });
       console.log(`   ✓ Patient account created: ${p.name} (${p.phone})`);
     } else {
       await updateDoc(doc(db, 'patient_accounts', snap.docs[0].id), {
-        password: 'patient123',
+        password: process.env.TEST_PATIENT_PASSWORD || 'PatientSecureRotated2026!#',
         passwordHash: patientPasswordHash
       });
       console.log(`   ✓ Patient account normalized: ${p.name} (${p.phone})`);

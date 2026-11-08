@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { collection, query, where, getDocs } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
-import { calculatePatientLivePosition, formatWaitDuration } from '@/lib/queueCalculations'
+import { readDocument, queryDocuments } from '@/lib/server/firebase-rest'
+import { calculatePatientLivePosition } from '@/lib/queueCalculations'
 import { getPhoneSearchVariants, normalizePhoneDigits } from '@/lib/countryPhoneHelper'
 
 export async function GET(
@@ -16,42 +15,25 @@ export async function GET(
     const branchId = searchParams.get('branchId')
     const appointmentId = searchParams.get('appointmentId')
 
-    // 1. Resolve clinic document
-    let clinicDoc = null
-    let clinicId = slug
-    let clinicData: any = null
-
-    try {
-      const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
-      const cSnap = await getDocs(cQ)
-      clinicDoc = cSnap.empty ? null : cSnap.docs[0]
-      clinicId = clinicDoc ? clinicDoc.id : slug
-      clinicData = clinicDoc ? clinicDoc.data() : null
-    } catch (e) {
-      console.warn('Firestore clinic lookup in queue failed:', e)
-    }
+    // 1. Resolve clinic document via secure server REST
+    const allClinics = await queryDocuments('clinics')
+    const clinicDoc = allClinics.find((c: any) => c.slug === slug || c.id === slug)
+    const clinicId = clinicDoc ? clinicDoc.id : slug
+    const clinicData: any = clinicDoc || null
 
     const datesParam = searchParams.get('dates')
     if (datesParam) {
       const dateList = datesParam.split(',').map((d) => d.trim()).filter(Boolean)
       const dailyCounts: Record<string, number> = {}
 
-      await Promise.all(
-        dateList.map(async (dStr) => {
-          try {
-            const dQ = query(
-              collection(db, 'appointments'),
-              where('clinic_id', '==', clinicId),
-              where('date', '==', dStr)
-            )
-            const dSnap = await getDocs(dQ)
-            const active = dSnap.docs.filter((d) => d.data().status !== 'cancelled').length
-            dailyCounts[dStr] = active
-          } catch {
-            dailyCounts[dStr] = 0
-          }
-        })
+      const allAppts = await queryDocuments('appointments')
+      const clinicAppts = allAppts.filter(
+        (a: any) => (a.clinic_id === clinicId || a.clinicId === clinicId) && a.status !== 'cancelled'
       )
+
+      for (const dStr of dateList) {
+        dailyCounts[dStr] = clinicAppts.filter((a: any) => a.date === dStr).length
+      }
 
       return NextResponse.json({
         success: true,
@@ -63,47 +45,41 @@ export async function GET(
     const nowCairo = new Date()
     const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(nowCairo)
 
-    // 2. Fetch today's appointments for this clinic
-    let allTodayAppts: any[] = []
-    try {
-      const todayApptQ = query(
-        collection(db, 'appointments'),
-        where('clinic_id', '==', clinicId),
-        where('date', '==', todayStr)
-      )
-      const todayApptSnap = await getDocs(todayApptQ)
-      allTodayAppts = todayApptSnap.docs
-        .map((d) => ({ id: d.id, ...d.data() } as any))
-        .filter((a) => !branchId || a.branch_id === branchId || a.branchName === branchId)
-    } catch (e) {
-      console.warn('Queue todayAppt query failed:', e)
-    }
+    // 2. Fetch appointments via secure server REST
+    const allAppts = await queryDocuments('appointments')
+    const clinicAppts = allAppts.filter((a: any) => a.clinic_id === clinicId || a.clinicId === clinicId)
 
-    const inProgressAppt = allTodayAppts.find((a) => a.status === 'in_progress')
-    const waitingAppts = allTodayAppts.filter((a) => a.status === 'waiting' || !a.status)
+    const allTodayAppts = clinicAppts
+      .filter((a: any) => a.date === todayStr)
+      .filter((a: any) => !branchId || a.branch_id === branchId || a.branchName === branchId)
+
+    const inProgressAppt = allTodayAppts.find((a: any) => a.status === 'in_progress')
+    const waitingAppts = allTodayAppts.filter((a: any) => a.status === 'waiting' || !a.status)
 
     // 3. Handle phone / appointment search
     let matchingAppointments: any[] = []
     let patientQueueInfo: any = null
 
-    if (phone) {
-      const cleanPhone = phone.trim().replace(/\s+/g, '')
-      const normalizedDigits = normalizePhoneDigits(cleanPhone).replace(/[^0-9]/g, '')
-      const variants = getPhoneSearchVariants(cleanPhone)
+    if (appointmentId || phone) {
+      let matchedDocs: any[] = []
 
-      // Query appointments for this phone within this clinic
-      const phoneApptQ = query(
-        collection(db, 'appointments'),
-        where('clinic_id', '==', clinicId)
-      )
-      const phoneApptSnap = await getDocs(phoneApptQ)
+      if (appointmentId) {
+        const directDoc: any = await readDocument(`appointments/${appointmentId}`)
+        if (directDoc && (directDoc.clinic_id === clinicId || directDoc.clinicId === clinicId)) {
+          matchedDocs.push({ id: appointmentId, ...directDoc })
+        }
+      }
 
-      const matchedDocs = phoneApptSnap.docs
-        .map((d) => ({ id: d.id, ...d.data() } as any))
-        .filter((a) => {
-          if (!a.phone) return false
-          const aPhoneDigits = normalizePhoneDigits(String(a.phone)).replace(/[^0-9]/g, '')
-          if (aPhoneDigits === normalizedDigits || variants.includes(String(a.phone).trim())) {
+      if (phone && matchedDocs.length === 0) {
+        const cleanPhone = phone.trim().replace(/\s+/g, '')
+        const normalizedDigits = normalizePhoneDigits(cleanPhone).replace(/[^0-9]/g, '')
+        const variants = getPhoneSearchVariants(cleanPhone)
+
+        matchedDocs = clinicAppts.filter((a: any) => {
+          if (!a.phone && !a.patientPhone) return false
+          const p = String(a.phone || a.patientPhone)
+          const aPhoneDigits = normalizePhoneDigits(p).replace(/[^0-9]/g, '')
+          if (aPhoneDigits === normalizedDigits || variants.includes(p.trim())) {
             return true
           }
           if (normalizedDigits.length >= 7 && aPhoneDigits.endsWith(normalizedDigits.slice(-7))) {
@@ -111,9 +87,10 @@ export async function GET(
           }
           return false
         })
+      }
 
       // Sort matching appointments: Today's active first, then future upcoming, then past
-      matchingAppointments = matchedDocs.map((appt) => {
+      matchingAppointments = matchedDocs.map((appt: any) => {
         const apptDate = appt.date || todayStr
         const isToday = apptDate === todayStr
         const isFuture = apptDate > todayStr
@@ -154,10 +131,10 @@ export async function GET(
         return {
           id: appt.id,
           patientName: appt.patientName,
-          phone: appt.phone,
+          phone: appt.phone || appt.patientPhone,
           serviceId: appt.serviceId,
           serviceName: appt.serviceName || 'كشف',
-          branchId: appt.branch_id,
+          branchId: appt.branch_id || appt.branchId,
           branchName: appt.branchName || 'الفرع الرئيسي',
           date: appt.date,
           time: appt.time || 'حسب الدور',
@@ -202,7 +179,31 @@ export async function GET(
       waitMinutes,
       totalWaiting: waitingAppts.length,
       isExamining: Boolean(inProgressAppt),
-      // Privacy Guard: Anonymize other patients entirely
+      clinic: clinicData ? {
+        id: clinicId,
+        name: clinicData.clinicName || clinicData.name,
+        doctorName: clinicData.doctorName,
+        specialty: clinicData.specialty,
+        logoUrl: clinicData.logoUrl,
+        primaryColor: clinicData.primaryColor,
+        secondaryColor: clinicData.secondaryColor
+      } : null,
+      tvQueue: {
+        currentPatient: inProgressAppt ? {
+          id: inProgressAppt.id,
+          queueNumber: inProgressAppt.queue_number,
+          patientName: inProgressAppt.patientName,
+          status: inProgressAppt.status,
+          calledAt: inProgressAppt.calledAt,
+          startedAt: inProgressAppt.startedAt
+        } : null,
+        nextWaitingPatients: waitingAppts.slice(0, 10).map((a: any) => ({
+          id: a.id,
+          queueNumber: a.queue_number,
+          patientName: a.patientName,
+          status: a.status
+        }))
+      },
       currentPatientExamining: inProgressAppt
         ? {
             queueNumber: inProgressAppt.queue_number,
@@ -210,6 +211,7 @@ export async function GET(
           }
         : null,
       patientQueueInfo,
+      patientAppointment: matchingAppointments[0] || null,
       matchingAppointments
     })
   } catch (error: any) {

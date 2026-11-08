@@ -640,8 +640,37 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
       }
     )
 
-    return () => unsubAppts()
-  }, [clinic?.id, slug, cairoTodayDate])
+    // Secure Server API Polling for TV Screen
+    const pollTvApi = async () => {
+      try {
+        const res = await fetch(`/api/clinic/${slug}/queue?branchId=${encodeURIComponent(selectedBranchId || '')}`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.tvQueue) {
+            const list: any[] = []
+            if (data.tvQueue.currentPatient) {
+              list.push({ ...data.tvQueue.currentPatient, queue_number: data.tvQueue.currentPatient.queueNumber })
+            }
+            if (Array.isArray(data.tvQueue.nextWaitingPatients)) {
+              data.tvQueue.nextWaitingPatients.forEach((p: any) => {
+                list.push({ ...p, queue_number: p.queueNumber })
+              })
+            }
+            if (list.length > 0) {
+              setAppointments(list)
+            }
+          }
+        }
+      } catch (e) {}
+    }
+    pollTvApi()
+    const tvInterval = setInterval(pollTvApi, 5000)
+
+    return () => {
+      clearInterval(tvInterval)
+      unsubAppts()
+    }
+  }, [clinic?.id, slug, cairoTodayDate, selectedBranchId])
 
   // Filter for Active Branch
   const branchAppointments = useMemo(() => {

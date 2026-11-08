@@ -33,6 +33,21 @@ export default function PublicInvoicePage({
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // 0. Fetch via secure server API
+        try {
+          const apiRes = await fetch(`/api/clinic/${slug}/invoice/${encodeURIComponent(invoiceId)}`)
+          if (apiRes.ok) {
+            const apiData = await apiRes.json()
+            if (apiData.success && apiData.invoice) {
+              setClinic(apiData.clinic)
+              setInvoice(apiData.invoice)
+              setLoading(false)
+              return
+            }
+          }
+        } catch (apiErr) {
+          console.warn('Server invoice API fallback:', apiErr)
+        }
         // 1. Fetch Clinic
         const qClinic = query(collection(db, 'clinics'), where('slug', '==', slug))
         const cSnap = await getDocs(qClinic)
