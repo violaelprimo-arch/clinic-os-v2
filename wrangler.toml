@@ -1,5 +1,5 @@
 name = "clinic-os-v2"
-main = ".open-next/worker.js"
+main = "custom-worker.ts"
 compatibility_date = "2026-09-01"
 compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 workers_dev = false
@@ -30,6 +30,11 @@ previews_enabled = false
 [assets]
 directory = ".open-next/assets"
 binding = "ASSETS"
+
+# Run hourly across Egypt's summer/winter UTC offsets; handler executes
+# only at 06:00–09:00 Africa/Cairo and skips once today's sync succeeds.
+[triggers]
+crons = ["0 3-7 * * *"]
 
 [observability]
 enabled = true
