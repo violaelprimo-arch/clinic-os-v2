@@ -50,16 +50,29 @@ export async function POST(req: NextRequest) {
     const cleanPhone = String(patientPhone).replace(/\s+/g, '')
     const cleanName = String(patientName).trim()
 
-    // 1. Resolve clinic by slug
-    const qClinic = query(collection(db, 'clinics'), where('slug', '==', slug))
-    const cSnap = await getDocs(qClinic)
-    if (cSnap.empty) {
-      return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404 })
+    // 1. Resolve clinic by clinicId or slug
+    let clinicId = body.clinicId
+    let cData: any = null
+
+    if (clinicId && typeof clinicId === 'string') {
+      const direct = await readDocument('clinics/' + clinicId)
+      if (direct) {
+        cData = direct
+      }
     }
 
-    const clinicDoc = cSnap.docs[0]
-    const clinicId = clinicDoc.id
-    const cData = clinicDoc.data()
+    if (!cData) {
+      const qClinic = query(collection(db, 'clinics'), where('slug', '==', slug))
+      const cSnap = await getDocs(qClinic)
+      if (!cSnap.empty) {
+        clinicId = cSnap.docs[0].id
+        cData = cSnap.docs[0].data()
+      }
+    }
+
+    if (!cData) {
+      return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404 })
+    }
 
     // 2. Check subscription consistently with doctor access and Cairo timezone.
     if (isClinicSuspended(cData)) {

@@ -231,6 +231,9 @@ async function main() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         clinicId: 'b2LvVyPnssx736ENZ7XI', // Karim clinic ID
+        slug: 'karim',
+        branchId: 'branch-karim-heliopolis',
+        branchName: 'فرع مصر الجديدة',
         patientName: 'مريض فحص تجريبي حي',
         patientPhone: '01099887766',
         patientAge: 32,
