@@ -126,7 +126,9 @@ service cloud.firestore {
           request.auth.uid == patientId ||
           request.auth.token.get('phone', '') == resource.data.phone
         ));
-      allow create: if true;
+      // All new patient identities are registered through verified server APIs.
+      // Anonymous Firestore creates allow impersonation and unaudited writes.
+      allow create: if isPlatformOwner();
       allow update: if isPlatformOwner()
         || (isAuthenticated() && request.auth.uid == patientId);
       allow delete: if isPlatformOwner();
