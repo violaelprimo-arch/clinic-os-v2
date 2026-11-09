@@ -120,7 +120,9 @@ test('clinic scope cannot be switched by claiming another clinic ID in the paylo
 
 test('stopped doctor can read existing records, but cannot perform any write', async () => {
   const db = authDb('clinicStopped', 'doctor-stopped')
-  await assertSucceeds(getDoc(doc(db, 'patient_accounts/stoppedPatient')))
+  // Patient account identities must not be readable by clinic staff through
+  // Firestore client rules. Appointment history stays readable in read-only mode.
+  await assertFails(getDoc(doc(db, 'patient_accounts/stoppedPatient')))
   await assertSucceeds(getDoc(doc(db, 'appointments/apptStopped')))
   await assertFails(updateDoc(doc(db, 'clinics/clinicStopped'), {
     clinicName: 'After Stop',
