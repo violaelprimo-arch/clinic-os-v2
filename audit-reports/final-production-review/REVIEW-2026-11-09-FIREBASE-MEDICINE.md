@@ -7,6 +7,7 @@
 - Real branch open/close controls, persisted operational fields, input validation, canonical tenant reads; closed and archived branches denied by booking service.
 - DawaaGate table dates and JSON-LD @graph parsing, correct 165 EGP Planchoren fixture, distinct package identities, price history, batched writes, resumable checkpoints, correct partial status and scheduled Cairo-time retries.
 - Targeted price refresh does not mark the daily update complete. Failures preserve last valid prices.
+- Unfinished batches retain their cursor across a date change; after finishing the older cycle, the newest pages are revisited before today's success marker is written.
 - Atomic conditional Firestore leases, tested against eight simultaneous contenders and expired-owner takeover. Legacy HTTP rules deployment retired.
 - Password recovery accepts the configured username/email, stores expiring one-use OTP hashes, and uses a server-only email sender. No recovery emails were sent during testing.
 - Assistant settings hash new passwords, preserve omitted private hashes, reject duplicate identities and refresh the current doctor's session after account revocation. The emulator covers a save/edit/login round trip.
@@ -16,7 +17,7 @@
 - 36 access, capacity, branch identity and in-clinic booking policy tests passed.
 - 10 source parser and Firebase credential tests passed.
 - 3 assistant-credential normalization tests passed.
-- 16 integration tests passed against a disposable Firestore emulator: tenant permissions, revocation, eight-way lease contention, real batch writes, username/email sign-in, cross-origin session recovery, partial medicine batches and fail-safe source failure.
+- 17 integration tests passed against a disposable Firestore emulator: tenant permissions, revocation, eight-way lease contention, real batch writes, username/email sign-in, cross-origin session recovery, partial medicine batches, midnight continuation and fail-safe source failure.
 - OpenNext production bundle and complete Wrangler dry-run passed before the final release upload; final GitHub checks and deployment are recorded on PR #7.
 - Public source inspected on 2026-11-09: Planchoren 30 capsules current price 165 EGP (old price 150 EGP); the bundled 27,606-item catalog contains 150 EGP and requires the live overlay.
 
@@ -33,5 +34,6 @@
 - Versioned Firestore rules published in project `clinic-os-d2d1b` at 21:57 Cairo. The staged editor text was compared exactly with the tested repository file before publishing.
 - Live HTTP checks passed: sanitized public clinic profile (200), anonymous staff profile/session denied (401), forged cron headers denied (401), raw private clinic document denied (403).
 - The first live manual sync persisted 71 additions and four price changes, then returned PARTIAL with cursor page 4. Full daily completion is not claimed for an unfinished batch.
+- The next live batch advanced to page 7. The persisted Planchoren 30 capsules document was verified at 165 EGP with source URL `https://www.dawaagate.com/medicine/planchoren-30-capsules`.
 - Demo branch close persisted after a full page reload; reopening succeeded and restored its original availability. No patient appointments or real account passwords were changed.
 - Owner dashboard loaded under the deployed rules and displayed localized names/dates. The doctor demo tab requested a new login; the account holder was asked to sign in personally for the remaining live doctor-session check.
