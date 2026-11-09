@@ -197,7 +197,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ favorite_drugs: newList, favoriteDrugs: newList })
       })
-      if (!response.ok) throw new Error('تعذر تحديث قائمة المفضلة')      })
+      if (!response.ok) throw new Error('تعذر تحديث قائمة المفضلة')
       toast.success(isFav ? 'تم الإزالة من المفضلة' : 'تمت الإضافة للمفضلة')
     } catch (err) {
       toast.error('حدث خطأ أثناء حفظ المفضلة')
@@ -238,7 +238,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ custom_drugs: updated })
         })
-        if (!response.ok) throw new Error('تعذر حفظ الدواء في قاعدة البيانات')        })
+        if (!response.ok) throw new Error('تعذر حفظ الدواء في قاعدة البيانات')
         toast.success('تم حفظ الدواء بنجاح في قاعدة بيانات العيادة الدائمة')
       } catch (err) {
         console.error('Error saving custom drug:', err)
