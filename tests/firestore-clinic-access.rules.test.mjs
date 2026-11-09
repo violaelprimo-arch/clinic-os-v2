@@ -80,6 +80,7 @@ test('public visitors cannot read, list or write appointments, prescriptions or 
 
 test('active doctor can only read and write own clinic appointments', async () => {
   const dbA = authDb('clinicA')
+  await assertFails(getDoc(doc(dbA, 'clinics/clinicA'))) // hashes must never reach the browser
   await assertSucceeds(getDoc(doc(dbA, 'appointments/apptA')))
   await assertFails(getDoc(doc(dbA, 'appointments/apptStopped')))
 })
