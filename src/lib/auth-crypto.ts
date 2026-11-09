@@ -146,6 +146,7 @@ export async function verifyPassword(providedPassword: string, storedHash: strin
 export async function createSessionToken(payload: {
   role: 'owner' | 'doctor' | 'assistant' | 'patient'
   email?: string
+  username?: string
   phone?: string
   name: string
   clinicId: string
