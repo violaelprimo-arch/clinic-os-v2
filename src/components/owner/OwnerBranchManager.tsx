@@ -85,6 +85,7 @@ export function OwnerBranchManager({
   const [verifiedAddress, setVerifiedAddress] = useState<string | null>(null)
   const [locationVerified, setLocationVerified] = useState<boolean>(false)
   const [isSavingBranch, setIsSavingBranch] = useState(false)
+  const [togglingBranchId, setTogglingBranchId] = useState<string | null>(null)
 
   // Synchronize permissions when clinic changes
   useEffect(() => {
@@ -256,6 +257,24 @@ export function OwnerBranchManager({
     const data = await res.json().catch(() => ({}))
     if (!res.ok || !data.success) throw new Error(data.error || 'لم يتم حفظ بيانات الفرع')
     return data.branch as Branch
+  }
+
+  // Owner can open or pause booking on any registered branch without
+  // changing its address, schedule or historical bookings.
+  const handleToggleBranchBooking = async (branch: Branch) => {
+    if (branch.isArchived || togglingBranchId) return
+    const nextOpen = branch.isOpen === false
+    setTogglingBranchId(branch.id)
+    try {
+      const updated = await saveBranchViaApi({ id: branch.id, isOpen: nextOpen })
+      if (updated.isOpen !== nextOpen) throw new Error('تعذر تأكيد حفظ حالة الفرع')
+      setBranches(prev => prev.map(b => b.id === branch.id ? updated : b))
+      toast.success(nextOpen ? 'تم فتح الحجز في الفرع' : 'تم إيقاف حجز الفرع مؤقتًا')
+    } catch (error: any) {
+      toast.error(error.message || 'تعذر تغيير حالة الفرع')
+    } finally {
+      setTogglingBranchId(null)
+    }
   }
 
   // Archive branch safely without deleting historical appointments
@@ -593,7 +612,20 @@ export function OwnerBranchManager({
                 </div>
 
                 {/* Actions bottom bar */}
-                <div className="pt-3 border-t border-border flex items-center justify-between gap-2">
+                <div className="pt-3 border-t border-border flex flex-wrap items-center justify-between gap-2">
+                  {!b.isArchived && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={b.isOpen === false ? 'default' : 'outline'}
+                      disabled={togglingBranchId !== null}
+                      onClick={() => handleToggleBranchBooking(b)}
+                      className="h-8 px-3 rounded-xl text-xs font-bold"
+                    >
+                      <Power className="w-3.5 h-3.5 ml-1" />
+                      {togglingBranchId === b.id ? 'جاري الحفظ...' : b.isOpen === false ? 'فتح الحجز' : 'إيقاف الحجز'}
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     size="sm"
