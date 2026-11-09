@@ -50,8 +50,8 @@ before(async () => {
 })
 after(async () => { await env?.cleanup() })
 
-const authDb = (clinicId, uid = 'doctor-1') =>
-  env.authenticatedContext(uid, { clinicId, clinic_id: clinicId }).firestore()
+const authDb = (clinicId, uid = 'doctor-1', clinicRole = 'doctor') =>
+  env.authenticatedContext(uid, { clinicId, clinic_id: clinicId, clinicRole }).firestore()
 
 const ownerDb = () =>
   env.authenticatedContext('real-owner', {
@@ -94,6 +94,15 @@ test('active doctor can operate own branch, but cannot rewrite its identity or m
   await assertFails(deleteDoc(doc(db, 'branches/branchA')))
   await assertFails(setDoc(doc(db, 'branches/forgedDoctor'), {
     clinic_id: 'clinicA', name: 'Unauthorized New Branch',
+  }))
+})
+
+test('assistant can access a tenant queue but cannot author or alter a prescription', async () => {
+  const db = authDb('clinicA', 'assistant-1', 'assistant')
+  await assertSucceeds(getDoc(doc(db, 'appointments/apptA')))
+  await assertFails(updateDoc(doc(db, 'prescriptions/rxA'), { patientName: 'Forged Rx' }))
+  await assertFails(setDoc(doc(db, 'prescriptions/forgedRx'), {
+    clinic_id: 'clinicA', patientName: 'Forged',
   }))
 })
 
