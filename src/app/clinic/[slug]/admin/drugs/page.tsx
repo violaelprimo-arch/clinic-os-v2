@@ -459,7 +459,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
           </div>
           <div>
             <div className="text-[11px] text-muted-foreground font-semibold">{t('price_tracking', 'تسعيرة الدواء')}</div>
-            <div className="text-base font-black text-emerald-600 dark:text-emerald-400">{t('daily_market_update', 'محدث يومياً')}</div>
+            <div className="text-base font-black text-emerald-600 dark:text-emerald-400">{lastSyncDate ? `آخر مزامنة ${lastSyncDate}` : 'لم يبدأ تحديث تلقائي ناجح بعد'}</div>
           </div>
         </div>
 
