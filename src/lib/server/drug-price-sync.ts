@@ -132,7 +132,7 @@ export async function runDrugPriceSync(options: {
   const query = (options.query || '').trim().slice(0, 80)
   const { date, hour } = cairoClock()
   const previous = await getDrugSyncStatus()
-  if (options.mode === 'scheduled' && previous.lastSuccessDate === date) {
+  if (options.mode === 'scheduled' && previous.lastFullSuccessDate === date) {
     return { success: true, skipped: true, message: 'تمت مزامنة أسعار اليوم مسبقًا', updated_count: 0, date }
   }
 
@@ -175,9 +175,12 @@ export async function runDrugPriceSync(options: {
     let saved = 0
     let failures = 0
     const updatedAt = new Date().toISOString()
-    // Sequential bounded persistence: no client-side Firestore SDK and no full-catalog deletion.
-    for (const item of valid) {
-      try {
+    // Bounded concurrency to stay within Cloudflare request duration limits.
+    // Retain existing records if a source page is blocked or parsing fails.
+    const batchSize = 8
+    for (let start = 0; start < valid.length; start += batchSize) {
+      const chunk = valid.slice(start, start + batchSize)
+      const writes = await Promise.allSettled(chunk.map(async (item) => {
         await writeDocument(`market_prices/${idFor(item)}`, {
           name: item.nameEn,
           commercial_name_en: item.nameEn,
@@ -192,17 +195,21 @@ export async function runDrugPriceSync(options: {
           source: 'dawaagate.com', sourceUrl: item.sourceUrl,
           last_updated: date, updatedAt,
         }, true)
-        saved++
-      } catch (error) {
-        failures++
-        console.error('[drug-sync] Firestore write failure', item.slug, error)
-      }
+      }))
+      writes.forEach((result, i) => {
+        if (result.status === 'fulfilled') saved++
+        else {
+          failures++
+          console.error('[drug-sync] Firestore write failure', chunk[i].slug, result.reason)
+        }
+      })
     }
     if (failures > 0 || saved === 0) throw new Error(`PARTIAL_SYNC_${saved}_SAVED_${failures}_FAILED`)
 
     await writeDocument(DRUG_SYNC_STATUS_PATH, {
       state: 'success', source: SOURCE,
       lastSuccessAt: updatedAt, lastSuccessDate: date,
+      ...(query ? {} : { lastFullSuccessDate: date }),
       lastCheckedCount: checked || valid.length,
       updated_count: saved, lastError: '',
       finishedAt: updatedAt, mode: options.mode,
