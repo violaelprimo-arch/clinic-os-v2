@@ -65,6 +65,9 @@ test('public visitors cannot read, list or write appointments, prescriptions or 
   await assertFails(getDocs(collection(db, 'appointments')))
   await assertFails(getDoc(doc(db, 'patient_accounts/stoppedPatient')))
   await assertFails(getDocs(collection(db, 'patient_accounts')))
+  await assertFails(setDoc(doc(db, 'patient_accounts/anonymousFake'), {
+    clinic_id: 'clinicA', phone: '01012345678', passwordHash: 'forged'
+  }))
   await assertFails(getDoc(doc(db, 'prescriptions/rxA')))
   await assertFails(getDocs(collection(db, 'prescriptions')))
   await assertFails(setDoc(doc(db, 'appointments/forged'), {
