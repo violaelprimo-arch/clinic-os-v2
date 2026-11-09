@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
 
       const token = await createSessionToken({
         role: 'patient',
-        name: patientData.name,
+        name: String(patientData.name || 'المريض'),
         phone: cleanPhone,
         clinicId,
         slug,
