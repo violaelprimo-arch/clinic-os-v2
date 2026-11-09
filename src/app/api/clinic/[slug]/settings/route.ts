@@ -68,6 +68,7 @@ const PUBLIC_CLINIC_FIELDS = [
   'vodafoneCashNumber',
   'prescriptionTemplateUrl',
   'aiEnabled',
+  'tvConfig',
   'isActive',
   'expirationDate',
 ] as const
@@ -117,6 +118,8 @@ export async function GET(
         doctorPassword,
         assistantPasswordHash,
         assistantPassword,
+        resetPasswordOtp, resetPasswordOtpHashed,
+        resetPasswordExpiresAt, resetPasswordAttempts,
         aiApiKey,
         brevoApiKey,
         resendApiKey,
