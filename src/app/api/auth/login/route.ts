@@ -13,8 +13,6 @@ export async function POST(req: NextRequest) {
         typeof password !== 'string' || password.length > 1024) {
       return NextResponse.json({ error: 'يرجى إدخال اسم المستخدم أو البريد الإلكتروني وكلمة المرور' }, { status: 400 })
     }
-    const slug = typeof rawSlug === 'string' && rawSlug.trim() ? rawSlug.trim() : null
-
     // Resolve the clinic on the trusted server. Client Firestore reads were
     // denied after hardening Firestore rules and caused valid logins to fail.
     // Username is an alias only; passwords remain salted hashes in Firestore.
