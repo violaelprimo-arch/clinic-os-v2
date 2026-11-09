@@ -501,6 +501,39 @@ export async function deleteDocument(path: string) {
   if (!response.ok && response.status !== 404)
     throw new Error('FIRESTORE_DELETE_FAILED')
 }
+/** Indexed single-field lookup avoids unsafe partial 200-record collection scans. */
+export async function queryDocumentsByField(
+  collection: string,
+  field: string,
+  value: string,
+  maxResults = 50,
+) {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(field) ||
+      !/^[A-Za-z_][A-Za-z0-9_]*$/.test(collection) ||
+      typeof value !== 'string' || !value.trim()) {
+    throw new Error('INVALID_FIRESTORE_LOOKUP')
+  }
+  const response = await request(documentUrl('').replace(/\/$/, '') + ':runQuery', {
+    method: 'POST',
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: collection }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath: field },
+            op: 'EQUAL',
+            value: encode(value),
+          },
+        },
+        limit: Math.max(1, Math.min(100, maxResults)),
+      },
+    }),
+  })
+  if (!response.ok) throw new Error('FIRESTORE_LOOKUP_FAILED')
+  const rows = (await response.json()) as Array<{ document?: FirestoreDocument }>
+  return rows.flatMap(row => row.document ? [unpack(row.document)] : [])
+}
+
 export async function queryDocuments(collection: string, approvedOnly = false) {
   // 1. Attempt structured runQuery (without remote composite orderBy to avoid missing-index errors)
   try {
