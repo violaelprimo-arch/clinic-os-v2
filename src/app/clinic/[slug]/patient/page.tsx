@@ -126,23 +126,22 @@ export default function PatientDashboardPage() {
       setAvatarUrl(authData.avatarUrl)
     }
 
-    // Subscribe to Clinic document
-    const qC = query(collection(db, 'clinics'), where('slug', '==', slug))
-    const unsubClinic = onSnapshot(qC, (snap) => {
-      if (!snap.empty) {
-        setClinic({ id: snap.docs[0].id, ...snap.docs[0].data() })
-      } else if (slug === 'demo') {
-        setClinic({
-          id: 'demo',
-          clinicName: 'العيادة التخصصية',
-          doctorName: 'الطبيب المعالج',
-          specialty: 'استشاري الطب المتخصص',
-          primaryColor: '#0066dc'
+    // Only read the public clinic profile: private Firestore documents carry
+    // account hashes and are intentionally inaccessible from patient browsers.
+    let cancelled = false
+    const loadClinicProfile = async () => {
+      try {
+        const response = await fetch(`/api/clinic/${encodeURIComponent(slug)}/settings`, {
+          cache: 'no-store',
         })
+        const result = await response.json().catch(() => ({}))
+        if (!cancelled && response.ok && result.clinic) setClinic(result.clinic)
+      } catch (err) {
+        console.warn('Could not load clinic information:', err)
       }
-    })
-
-    return () => unsubClinic()
+    }
+    void loadClinicProfile()
+    return () => { cancelled = true }
   }, [slug, router])
 
   // 2. Load Patient Data (Appointments, Prescriptions, Account)
