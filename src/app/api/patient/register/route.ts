@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { collection, query, where, getDocs } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
 import { hashPassword, createSessionToken } from '@/lib/auth-crypto'
-import { queryDocuments, writeDocument } from '@/lib/server/firebase-rest'
+import { queryDocumentsByField, writeDocument } from '@/lib/server/firebase-rest'
 
 function normalizePhone(p: string): string {
   return String(p || '').replace(/\D/g, '').replace(/^20/, '0')
@@ -32,32 +30,30 @@ export async function POST(req: NextRequest) {
     const cleanAge = String(age || '').trim()
     const normalizedInputPhone = normalizePhone(cleanPhone)
 
-    // Resolve clinic
-    let clinicId = slug
-    try {
-      const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
-      const cSnap = await getDocs(cQ)
-      if (!cSnap.empty) {
-        clinicId = cSnap.docs[0].id
-      }
-    } catch (e) {
-      console.warn('Clinic query error:', e)
+    // Resolve a real clinic on the trusted server. Never create patient
+    // identities against an unverified slug or after a failed database query.
+    const matchingClinics = await queryDocumentsByField('clinics', 'slug', String(slug))
+    if (matchingClinics.length !== 1) {
+      return NextResponse.json({ error: 'العيادة غير موجودة أو غير متاحة' }, { status: 404 })
     }
+    const clinicId = String(matchingClinics[0].id)
 
-    // Check if phone already exists in this clinic via server REST
-    let allAccounts: any[] = []
-    try {
-      allAccounts = await queryDocuments('patient_accounts')
-    } catch (e) {
-      console.warn('queryDocuments patient_accounts error:', e)
-    }
-
-    const existing = allAccounts.find((acc: any) => {
-      const pNorm = normalizePhone(acc.phone)
-      const phoneMatches = pNorm === normalizedInputPhone || acc.phone === cleanPhone
-      const clinicMatches = !acc.clinic_id || acc.clinic_id === clinicId || acc.clinicId === clinicId
-      return phoneMatches && clinicMatches
-    })
+    // Look up this exact phone using server-side indexed equality filters.
+    // Scanning only the first 200 accounts could silently create duplicates.
+    const variants = [...new Set([
+      cleanPhone,
+      normalizedInputPhone,
+      normalizedInputPhone.startsWith('0') ? '20' + normalizedInputPhone.slice(1) : '',
+      normalizedInputPhone.startsWith('0') ? '+20' + normalizedInputPhone.slice(1) : '',
+    ].filter(Boolean))]
+    const lookups = await Promise.all([
+      queryDocumentsByField('patient_accounts', 'phoneNormalized', normalizedInputPhone),
+      ...variants.map(p => queryDocumentsByField('patient_accounts', 'phone', p)),
+    ])
+    const existing = lookups.flat().find(acc => (
+      (acc.clinic_id === clinicId || acc.clinicId === clinicId) &&
+      normalizePhone(String(acc.phone || '')) === normalizedInputPhone
+    ))
 
     if (existing) {
       return NextResponse.json(
@@ -74,6 +70,7 @@ export async function POST(req: NextRequest) {
       clinic_id: clinicId,
       name: cleanName,
       phone: cleanPhone,
+      phoneNormalized: normalizedInputPhone,
       age: cleanAge,
       passwordHash,
       createdAt: new Date().toISOString()
@@ -115,7 +112,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Patient registration API error:', error)
     return NextResponse.json(
-      { error: 'حدث خطأ في الخادم أثناء إنشاء الحساب: ' + (error.message || '') },
+      { error: 'تعذر إنشاء الحساب حاليًا. حاول مرة أخرى.' },
       { status: 500 }
     )
   }
