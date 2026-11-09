@@ -62,12 +62,14 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
   useEffect(() => {
     const fetchClinicData = async () => {
       try {
-        const q = query(collection(db, 'clinics'), where('slug', '==', slug))
-        const snap = await getDocs(q)
-        if (!snap.empty) {
-          const cId = snap.docs[0].id
-          setClinicId(cId)
-          const data = snap.docs[0].data()
+        const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/private-settings`, {
+          cache: 'no-store', credentials: 'same-origin'
+        })
+        const payload = await res.json().catch(() => ({}))
+        if (!res.ok || !payload.clinic) throw new Error(payload.error || 'تعذر تحميل أدوية العيادة')
+        const data = payload.clinic
+        {
+          setClinicId(data.id)
           if (Array.isArray(data.favorite_drugs)) {
             setFavoriteList(data.favorite_drugs)
           } else if (Array.isArray(data.favoriteDrugs)) {
@@ -192,10 +194,12 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
     setFavoriteList(newList)
     try {
       // Direct Firestore SDK update with server fallback
-      await updateDoc(doc(db, 'clinics', clinicId), {
-        favorite_drugs: newList,
-        favoriteDrugs: newList
-      }).catch(async () => {
+      const response = await fetch(`/api/clinic/${encodeURIComponent(slug)}/settings`, {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ favorite_drugs: newList, favoriteDrugs: newList })
+      })
+      if (!response.ok) throw new Error('تعذر تحديث قائمة المفضلة').catch(async () => {
         await fetch(`/api/clinic/${encodeURIComponent(slug)}/settings`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -237,9 +241,12 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
 
     if (clinicId) {
       try {
-        await updateDoc(doc(db, 'clinics', clinicId), {
-          custom_drugs: updated
-        }).catch(async () => {
+        const response = await fetch(`/api/clinic/${encodeURIComponent(slug)}/settings`, {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ custom_drugs: updated })
+        })
+        if (!response.ok) throw new Error('تعذر حفظ الدواء في قاعدة البيانات').catch(async () => {
           await fetch(`/api/clinic/${encodeURIComponent(slug)}/settings`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -304,7 +311,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
             </p>
             <span className="text-[11px] font-bold text-primary bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-full flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-cyan-500" />
-              {lastSyncDate ? `${t('last_updated_on', 'تم التحديث بتاريخ')}: ${lastSyncDate}` : t('updated_today', 'محدث بتاريخ اليوم')}
+              {lastSyncDate ? `${t('last_updated_on', 'تم التحديث بتاريخ')}: ${lastSyncDate}` : 'لم يتم التحقق من آخر تحديث بعد'}
             </span>
             {syncStats && (
               <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
