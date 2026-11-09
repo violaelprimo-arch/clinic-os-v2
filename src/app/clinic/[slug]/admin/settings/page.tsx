@@ -180,13 +180,15 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const q = query(collection(db, 'clinics'), where('slug', '==', slug))
-        const snapshot = await getDocs(q)
-        if (!snapshot.empty) {
-          const cDoc = snapshot.docs[0]
-          setClinicId(cDoc.id)
-          const data = cDoc.data()
-          setClinic({ id: cDoc.id, ...data })
+        const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/private-settings`, {
+          cache: 'no-store', credentials: 'same-origin',
+        })
+        const result = await res.json().catch(() => ({}))
+        if (!res.ok || !result.clinic) throw new Error(result.error || 'تعذر تحميل إعدادات العيادة')
+        {
+          const data = result.clinic
+          setClinicId(data.id)
+          setClinic(data)
           setPhotoUrl(data.heroImage || '')
           setBranchImage(data.branchImage || '')
           setClinicName(data.clinicName || '')
@@ -289,7 +291,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
           // Fetch clinic branches for assistant assignment
           try {
-            const bQ = query(collection(db, 'branches'), where('clinicId', '==', cDoc.id))
+            const bQ = query(collection(db, 'branches'), where('clinicId', '==', data.id))
             const bSnap = await getDocs(bQ)
             const bList = bSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter((b: any) => !b.isArchived)
             setBranches(bList)
