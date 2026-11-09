@@ -307,13 +307,7 @@ export async function runMedicineSync(options: SyncOptions = {}): Promise<SyncRe
     }
   }
 
-  await writeDocument(metadataPath, {
-    lastAttemptDate: cairoDate,
-    lastAttemptTimestamp: attemptTimestamp,
-    lastAttemptTriggeredBy: triggeredBy,
-    lastAttemptStatus: 'IN_PROGRESS',
-    lastRunId: runId
-  }, true)
+
 
   let addedCount = 0
   let priceChangedCount = 0
@@ -322,6 +316,14 @@ export async function runMedicineSync(options: SyncOptions = {}): Promise<SyncRe
   let latestSourceDateText = ''
 
   try {
+    await writeDocument(metadataPath, {
+        lastAttemptDate: cairoDate,
+        lastAttemptTimestamp: attemptTimestamp,
+        lastAttemptTriggeredBy: triggeredBy,
+        lastAttemptStatus: 'IN_PROGRESS',
+        lastRunId: runId
+      }, true)
+
     // 2. Collect drugs from DawaaGate
     let scrapedDrugs: ScrapedDrug[] = []
 
