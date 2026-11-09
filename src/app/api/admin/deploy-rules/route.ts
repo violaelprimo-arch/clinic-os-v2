@@ -59,8 +59,8 @@ service cloud.firestore {
         'branchCreationAllowed', 'allowFinance', 'allowDrugs', 'allowPrescriptions',
         'allowCustomTemplate', 'allowOnlineBooking', 'allowTvScreen',
         'allowDoctorEditBranding', 'allowAnalytics', 'aiLockedByOwner',
-        'doctorEmail', 'doctorPassword', 'doctorPasswordHash',
-        'assistantEmail', 'assistantPassword', 'assistantPasswordHash',
+        'doctorEmail', 'doctorUsername', 'doctorPassword', 'doctorPasswordHash',
+        'assistantEmail', 'assistantUsername', 'assistantPassword', 'assistantPasswordHash',
         'platformOwner', 'ownerUid', 'slug'
       ]);
     }
