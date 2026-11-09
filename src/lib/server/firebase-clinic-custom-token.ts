@@ -39,6 +39,6 @@ export async function createClinicFirebaseCustomToken(args: {
     iat: now,
     exp: now + 3600,
     uid,
-    claims: { clinicRole: args.role }
+    claims: { clinicRole: args.role, clinic_id: args.clinicId }
   })
 }
