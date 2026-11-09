@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { queryDocuments, writeDocument } from '@/lib/server/firebase-rest'
 import { verifyPassword, hashPassword, createSessionToken } from '@/lib/auth-crypto'
 import { recordAuditLog } from '@/lib/audit-logger'
+import { createClinicFirebaseCustomToken } from '@/lib/server/firebase-clinic-custom-token'
 import { SINGLE_CLINIC_SLUG } from '@/lib/single-clinic'
 
 export async function POST(req: NextRequest) {
@@ -102,6 +103,22 @@ export async function POST(req: NextRequest) {
       mustChangePassword: isMustChangePassword
     })
 
+    // Custom tokens are generated only after the server verified the password.
+    let firebaseCustomToken: string | null = null
+    try {
+      firebaseCustomToken = await createClinicFirebaseCustomToken({
+        clinicId,
+        role,
+        accountKey: isDoctorMatch ? 'doctor' : (
+          matchedSecondaryAss
+            ? String(matchedSecondaryAss.id || matchedSecondaryAss.email || matchedSecondaryAss.username)
+            : 'primary-assistant'
+        )
+      })
+    } catch (error) {
+      console.error('[clinic-login] Firebase custom token unavailable:', error instanceof Error ? error.message : 'UNKNOWN')
+    }
+
     // Record audit log
     await recordAuditLog({
       action: 'AUTH_LOGIN',
@@ -116,6 +133,7 @@ export async function POST(req: NextRequest) {
     const response = NextResponse.json({
       success: true,
       token,
+      firebaseCustomToken,
       redirectUrl: canonicalDashboardUrl,
       user: {
         role,
