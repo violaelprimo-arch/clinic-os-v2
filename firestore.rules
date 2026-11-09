@@ -62,8 +62,10 @@ service cloud.firestore {
 
     // Clinics Collection (STRICT MULTI-TENANT ISOLATION - NO PUBLIC CREDENTIAL EXPOSURE)
     match /clinics/{clinicId} {
-      allow read: if isPlatformOwner()
-        || (isAuthenticated() && isClinicTenant(clinicId));
+      // Firestore does not support field-level redaction: this legacy document
+      // contains password hashes. Staff must use authenticated, sanitized API
+      // responses instead of reading the entire document through the SDK.
+      allow read: if isPlatformOwner();
       allow create: if isPlatformOwner();
       allow update: if isPlatformOwner() ||
         (isClinicWritable(clinicId) && hasNoOwnerOnlyClinicChanges());
