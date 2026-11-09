@@ -12,8 +12,6 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { db } from '@/lib/firebase'
-import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore'
 import type { DrugItem } from '@/lib/egyptian-drugs'
 import { useEgyptianDrugs } from '@/hooks/useEgyptianDrugs'
 import { canonicalDrugIdentifier, matchesDrugSearch, normalizeDrugKey } from '@/lib/drugUtils'
