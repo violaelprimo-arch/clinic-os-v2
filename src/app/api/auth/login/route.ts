@@ -99,6 +99,7 @@ export async function POST(req: NextRequest) {
     const token = await createSessionToken({
       role,
       email: isDoctorMatch ? clinic.doctorEmail : (matchedSecondaryAss?.email || clinic.assistantEmail || ''),
+      username: isDoctorMatch ? (clinic.doctorUsername || undefined) : (matchedSecondaryAss?.username || clinic.assistantUsername || undefined),
       name: userName,
       clinicId,
       slug: effectiveSlug,
