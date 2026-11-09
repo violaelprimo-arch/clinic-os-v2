@@ -345,9 +345,16 @@ export function useEgyptianDrugs() {
     async (query: string): Promise<EgyptianDrug[]> => {
       if (!query || !query.trim()) return []
       try {
-        const res = await fetch(`/api/sync-daily-prices?q=${encodeURIComponent(query.trim())}`)
+        // GET is status-only; actual price lookup requires the authenticated
+        // POST endpoint. Never confuse metadata with a completed update.
+        const res = await fetch('/api/sync-daily-prices', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: query.trim() })
+        })
         const data = await res.json()
-        if (res.ok && data.success && Array.isArray(data.records) && data.records.length > 0) {
+        if (res.ok && data.status === 'COMPLETED' && data.totalProcessed > 0) {
           // Refresh catalog to incorporate newly synced items
           const refreshed = await loadDrugs(true)
           return refreshed.filter((d) => matchesDrugSearch(d, query))
