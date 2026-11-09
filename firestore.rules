@@ -18,9 +18,13 @@ service cloud.firestore {
       return isAuthenticated() && (
         isPlatformOwner() ||
         request.auth.token.get('clinic_id', '') == clinicId ||
-        request.auth.token.get('clinicId', '') == clinicId ||
-        request.auth.uid == clinicId
+        request.auth.token.get('clinicId', '') == clinicId
       );
+    }
+
+    function isClinicDoctor(clinicId) {
+      return isClinicTenant(clinicId)
+        && request.auth.token.get('clinicRole', 'doctor') == 'doctor';
     }
 
     function isClinicWritable(clinicId) {
@@ -100,9 +104,11 @@ service cloud.firestore {
       allow read: if isPlatformOwner()
         || (isAuthenticated() && isClinicTenant(resource.data.clinic_id));
       allow create: if isPlatformOwner()
-        || isClinicWritable(request.resource.data.clinic_id);
+        || (isClinicWritable(request.resource.data.clinic_id)
+            && isClinicDoctor(request.resource.data.clinic_id));
       allow update, delete: if isPlatformOwner()
-        || isClinicWritable(resource.data.clinic_id);
+        || (isClinicWritable(resource.data.clinic_id)
+            && isClinicDoctor(resource.data.clinic_id));
     }
 
     // Invoices Collection (الفواتير - NO PUBLIC ACCESS)
