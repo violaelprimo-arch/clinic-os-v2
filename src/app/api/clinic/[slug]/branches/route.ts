@@ -20,7 +20,7 @@ async function fetchBranchesForClinic(clinicId: string, slug?: string, includeAr
     b.clinicId === clinicId || b.clinic_id === clinicId ||
     (slug && (b.clinicId === slug || b.clinic_id === slug))
   )
-  return matches.filter((b: any) => includeArchived || b.isArchived !== true) as Branch[]
+  return matches.filter((b: any) => includeArchived || b.isArchived !== true) as unknown as Branch[]
 }
 
 async function findClinicBySlug(slug: string): Promise<any | null> {
