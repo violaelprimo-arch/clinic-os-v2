@@ -120,7 +120,7 @@ function idFor(item: MedicinePrice) {
   return normalizeDrugKey(item.nameEn) || normalizeDrugKey(item.slug.replace(/-/g, ' '))
 }
 
-export async function getDrugSyncStatus() {
+export async function getDrugSyncStatus(): Promise<Record<string, unknown>> {
   const existing = await readDocument(DRUG_SYNC_STATUS_PATH)
   return existing || { state: 'never', source: SOURCE, lastSuccessAt: null, updated_count: 0 }
 }
