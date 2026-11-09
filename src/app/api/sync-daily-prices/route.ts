@@ -1,174 +1,139 @@
-import { NextResponse } from 'next/server'
-import { db } from '@/lib/firebase'
-import { doc, setDoc } from 'firebase/firestore'
-import { normalizeDrugKey, normalizeArabicDrugKey } from '@/lib/drugUtils'
+import { NextRequest, NextResponse } from 'next/server'
+import { runMedicineSync, getCairoDateString } from '@/lib/server/medicine-sync-service'
+import { verifySessionToken } from '@/lib/auth-crypto'
+import { OWNER_COOKIE, verifyOwnerSession } from '@/lib/owner-session'
+import { queryDocuments, readDocument } from '@/lib/server/firebase-rest'
 
 export const dynamic = 'force-dynamic'
 
-// Extract drug cards from DawaaGate search page HTML (e.g. /search?q=flumox)
-function parseDawaaSearchCards(html: string) {
-  const cards: any[] = []
-  const cardBlockRegex = /<[^>]*\bdata-slug=["']([^"']+)["'][^>]*>/gi
-  let match: RegExpExecArray | null
-  while ((match = cardBlockRegex.exec(html)) !== null) {
-    const fullTag = match[0]
-    const getAttr = (attrName: string) => {
-      const m = fullTag.match(new RegExp(`\\b${attrName}=["']([^"']*)["']`, 'i'))
-      return m ? m[1] : ''
-    }
-    const slug = match[1]
-    const nameAr = getAttr('data-ar')
-    const nameEn = getAttr('data-en') || slug.replace(/-/g, ' ')
-    const activeIngredient = getAttr('data-ing')
-    const company = getAttr('data-company')
-    const priceStr = getAttr('data-price')
-    const price = parseFloat(priceStr) || 0
+/**
+ * Authorize caller for medicine sync:
+ * 1. Platform Owner (OWNER_COOKIE or Bearer ID Token)
+ * 2. Clinic Doctor (clinic_session cookie or Bearer token)
+ * 3. Cloudflare Cron Trigger (x-cron-secret or cron=1 query parameter with internal check)
+ */
+async function authorizeSyncRequest(req: NextRequest): Promise<{
+  authorized: boolean
+  role?: 'owner' | 'doctor' | 'cron'
+  error?: string
+}> {
+  // 1. Cron Trigger check
+  const cronHeader = req.headers.get('x-cron-secret')
+  const cronSecret = process.env.CRON_SECRET || process.env.AUTH_SECRET || 'clinic-os-cron-key-2026'
+  if (cronHeader && cronHeader === cronSecret) {
+    return { authorized: true, role: 'cron' }
+  }
 
-    // Extract old price from card if available
-    let oldPrice = 0
-    const cardEndIdx = html.indexOf('</div>', match.index + fullTag.length)
-    if (cardEndIdx !== -1) {
-      const cardSub = html.slice(match.index, Math.min(html.length, cardEndIdx + 300))
-      const oldPriceMatch = cardSub.match(/class=["'][^"']*ph-price-old[^"']*["']>([^<]+)<\/span>/i)
-      if (oldPriceMatch) {
-        oldPrice = parseFloat(oldPriceMatch[1].replace(/[^0-9.]/g, '')) || 0
+  // Cloudflare internal scheduled call check
+  if (req.headers.get('cf-worker') || req.headers.get('x-cloudflare-cron')) {
+    return { authorized: true, role: 'cron' }
+  }
+
+  // 2. Owner Session check
+  const ownerCookie = req.cookies.get(OWNER_COOKIE)?.value
+  if (ownerCookie) {
+    const secret = process.env.OWNER_SESSION_SECRET || process.env.AUTH_SECRET || ''
+    if (secret.length >= 32) {
+      const owner = await verifyOwnerSession(ownerCookie, secret).catch(() => null)
+      if (owner && process.env.PLATFORM_OWNER_UID && owner.uid === process.env.PLATFORM_OWNER_UID) {
+        return { authorized: true, role: 'owner' }
       }
     }
+  }
 
-    if (price > 0 && (nameEn || nameAr)) {
-      cards.push({
-        slug,
-        nameAr,
-        nameEn,
-        activeIngredient,
-        company,
-        price,
-        oldPrice: oldPrice || null,
-        source: 'dawaagate_search'
-      })
+  // 3. Clinic Doctor session check
+  const clinicCookie = req.cookies.get('clinic_session')?.value
+  const authHeader = req.headers.get('Authorization')
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7).trim() : null
+  const candidateToken = clinicCookie || bearerToken
+
+  if (candidateToken) {
+    const session: any = await verifySessionToken(candidateToken).catch(() => ({ valid: false, payload: undefined }))
+    if (session.valid && session.payload) {
+      if (session.payload.role === 'doctor' || session.payload.role === 'owner') {
+        return { authorized: true, role: session.payload.role as any }
+      }
     }
   }
-  return cards
+
+  return { authorized: false, error: 'غير مصرح لك بتشغيل مزامنة دليل الأدوية. يرجى تسجيل الدخول كطبيب عيادة أو مالك المنصة.' }
 }
 
-// Extract updated drugs from DawaaGate /price-updates table
-function parseDawaaPriceUpdates(html: string) {
-  const items: any[] = []
-  const rowRegex = /<tr[\s\S]*?<td class=["']name["']><a\s+[^>]*href=["'](?:https:\/\/www\.dawaagate\.com)?\/medicine\/([^"']+)["'][^>]*>([\s\S]*?)<\/a><\/td>[\s\S]*?<td class=["']num old["']>([\s\S]*?)<\/td>[\s\S]*?<td class=["']num["']><strong>([\s\S]*?)<\/strong>/gi
-  let m: RegExpExecArray | null
-  while ((m = rowRegex.exec(html)) !== null) {
-    const slug = m[1]
-    const nameAr = m[2].replace(/<[^>]+>/g, '').trim()
-    const oldPriceStr = m[3].replace(/[^0-9.]/g, '')
-    const newPriceStr = m[4].replace(/[^0-9.]/g, '')
-    const nameEn = slug.replace(/-/g, ' ')
-    const price = parseFloat(newPriceStr) || 0
-    if (price > 0) {
-      items.push({
-        slug,
-        nameAr,
-        nameEn,
-        oldPrice: parseFloat(oldPriceStr) || 0,
-        price,
-        source: 'dawaagate_updates'
-      })
-    }
-  }
-  return items
-}
-
-export async function GET(request: Request) {
+/**
+ * GET: Get the latest sync status and sync history logs.
+ * If ?cron=1 is supplied with valid secret, execute sync.
+ */
+export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const q = searchParams.get('q')?.trim() || ''
+    const { searchParams } = req.nextUrl
+    const isCron = searchParams.get('cron') === '1'
 
-    const headers = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8'
-    }
-
-    const collectedDrugs: any[] = []
-
-    // 1. If a specific search query is given (e.g. "flumox", "panadol", "augmentin"), query DawaaGate search
-    if (q) {
-      try {
-        const searchUrl = `https://www.dawaagate.com/search?q=${encodeURIComponent(q)}`
-        const res = await fetch(searchUrl, { headers, next: { revalidate: 0 } })
-        if (res.ok) {
-          const html = await res.text()
-          const searchCards = parseDawaaSearchCards(html)
-          collectedDrugs.push(...searchCards)
-        }
-      } catch (err) {
-        console.error(`Error querying DawaaGate search for "${q}":`, err)
+    if (isCron) {
+      const auth = await authorizeSyncRequest(req)
+      if (!auth.authorized) {
+        return NextResponse.json({ error: auth.error }, { status: 401 })
       }
+      const syncResult = await runMedicineSync({
+        triggeredBy: 'cron',
+        force: searchParams.get('force') === '1'
+      })
+      return NextResponse.json({ success: syncResult.status !== 'FAILED', ...syncResult })
     }
 
-    // 2. Also scrape the recent price-updates from DawaaGate
-    for (let page = 1; page <= 2; page++) {
-      try {
-        const updateUrl = `https://www.dawaagate.com/price-updates${page > 1 ? '?page=' + page : ''}`
-        const res = await fetch(updateUrl, { headers, next: { revalidate: 0 } })
-        if (res.ok) {
-          const html = await res.text()
-          const updateItems = parseDawaaPriceUpdates(html)
-          collectedDrugs.push(...updateItems)
-        }
-      } catch (err) {
-        console.error(`Error scraping price-updates page ${page}:`, err)
-      }
-    }
+    // Return sync logs and current status
+    const logs = await queryDocuments('market_prices_sync_logs').catch(() => [])
+    const sortedLogs = logs.sort((a: any, b: any) =>
+      new Date(String(b.timestamp || 0)).getTime() - new Date(String(a.timestamp || 0)).getTime()
+    )
+    const latestLog = sortedLogs[0] || null
 
-    // Deduplicate by normalized key
-    const uniqueMap = new Map<string, any>()
-    for (const item of collectedDrugs) {
-      const normKey = normalizeDrugKey(item.nameEn) || normalizeDrugKey(item.slug?.replace(/-/g, ' '))
-      if (normKey && !uniqueMap.has(normKey)) {
-        uniqueMap.set(normKey, { ...item, normalizedKey: normKey })
-      }
-    }
-
-    const uniqueDrugs = Array.from(uniqueMap.values())
-    const savedRecords: any[] = []
-
-    // Save to Firestore market_prices collection
-    for (const drug of uniqueDrugs) {
-      try {
-        const docId = drug.normalizedKey
-        const record = {
-          name: drug.nameEn,
-          commercial_name_en: drug.nameEn,
-          nameAr: drug.nameAr || '',
-          commercial_name_ar: drug.nameAr || '',
-          slug: drug.slug || '',
-          normalizedKey: drug.normalizedKey,
-          normalizedAr: normalizeArabicDrugKey(drug.nameAr || ''),
-          price: drug.price,
-          oldPrice: drug.oldPrice || null,
-          company: drug.company || '',
-          activeIngredient: drug.activeIngredient || '',
-          source: 'dawaagate.com',
-          last_updated: new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date()),
-          updatedAt: new Date().toISOString()
-        }
-
-        await setDoc(doc(db, 'market_prices', docId), record, { merge: true })
-        savedRecords.push(record)
-      } catch (err) {
-        console.error(`Failed to save drug to market_prices: ${drug.nameEn}`, err)
-      }
-    }
+    // Check lock status
+    const lock = (await readDocument('sync_locks/market_prices').catch(() => null)) as any
+    const isCurrentlyRunning = lock && lock.lockedAt && (Date.now() - new Date(String(lock.lockedAt)).getTime() < 15 * 60 * 1000)
 
     return NextResponse.json({
       success: true,
-      query: q || null,
-      message: `تم تحديث أسعار ${savedRecords.length} دواء بنجاح بتاريخ ${new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date())}`,
-      updated_count: savedRecords.length,
-      records: savedRecords
+      currentCairoDate: getCairoDateString(),
+      isRunning: Boolean(isCurrentlyRunning),
+      latestSync: latestLog,
+      recentLogs: sortedLogs.slice(0, 10)
     })
   } catch (error: any) {
-    console.error('Error in sync-daily-prices:', error)
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+    console.error('Error in sync-daily-prices GET:', error)
+    return NextResponse.json({ error: error.message || 'Error fetching sync status' }, { status: 500 })
+  }
+}
+
+/**
+ * POST: Trigger an on-demand sync of medicine prices from DawaaGate.
+ */
+export async function POST(req: NextRequest) {
+  try {
+    const auth = await authorizeSyncRequest(req)
+    if (!auth.authorized) {
+      return NextResponse.json({ error: auth.error || 'غير مصرح' }, { status: 401 })
+    }
+
+    const body = await req.json().catch(() => ({}))
+    const query = body.query || req.nextUrl.searchParams.get('q') || undefined
+    const pages = Number(body.pages || req.nextUrl.searchParams.get('pages')) || 2
+    const force = Boolean(body.force || req.nextUrl.searchParams.get('force') === '1')
+
+    const triggeredBy = auth.role === 'owner' ? 'manual_owner' : auth.role === 'doctor' ? 'manual_doctor' : 'cron'
+
+    const syncResult = await runMedicineSync({
+      triggeredBy,
+      query,
+      pages,
+      force
+    })
+
+    return NextResponse.json({
+      success: syncResult.status !== 'FAILED',
+      ...syncResult
+    })
+  } catch (error: any) {
+    console.error('Error in sync-daily-prices POST:', error)
+    return NextResponse.json({ error: error.message || 'Error executing sync' }, { status: 500 })
   }
 }

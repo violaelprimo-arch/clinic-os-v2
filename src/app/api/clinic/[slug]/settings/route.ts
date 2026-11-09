@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { collection, query, where, getDocs } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
 import { getClinicDoctorAccount } from '@/lib/server/clinic-credential-access'
-import { writeDocument } from '@/lib/server/firebase-rest'
+import { writeDocument, queryDocuments } from '@/lib/server/firebase-rest'
 import { pickNormalClinicSettings } from '@/lib/clinic-credential-policy'
 import { isClinicSuspended } from '@/lib/clinicAccessPolicy'
 import { syncClinicScheduleToMainBranch, formatWeeklyScheduleSummary } from '@/lib/branchService'
 
 /**
- * GET: Retrieve clinic settings safely.
+ * GET: Retrieve clinic settings safely via server REST.
+ * Strips all passwords, password hashes, and sensitive administrative fields.
  */
 export async function GET(
   req: NextRequest,
@@ -20,22 +19,39 @@ export async function GET(
       return NextResponse.json({ error: 'معرف العيادة مطلوب' }, { status: 400 })
     }
 
-    const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
-    const cSnap = await getDocs(cQ)
-    if (cSnap.empty) {
+    const allClinics = await queryDocuments('clinics')
+    const cDoc = allClinics.find((c: any) => c.slug === slug)
+    if (!cDoc) {
       return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404 })
     }
 
-    const cDoc = cSnap.docs[0]
-    const data = cDoc.data()
     const clinicId = cDoc.id
 
-    // Return safe data (strip sensitive hashes)
-    const { doctorPasswordHash, doctorPassword, assistantPasswordHash, assistantPassword, ...safeClinic } = data
+    // Return safe data (strip sensitive credentials and password hashes)
+    const {
+      doctorPasswordHash,
+      doctorPassword,
+      assistantPasswordHash,
+      assistantPassword,
+      ...rawSafe
+    } = cDoc
+
+    const safeAssistants = Array.isArray(rawSafe.assistants)
+      ? rawSafe.assistants.map((a: any) => {
+          const { password, passwordHash, ...cleanA } = a
+          return cleanA
+        })
+      : []
+
+    const safeClinic = {
+      ...rawSafe,
+      id: clinicId,
+      assistants: safeAssistants
+    }
 
     return NextResponse.json({
       success: true,
-      clinic: { id: clinicId, ...safeClinic }
+      clinic: safeClinic
     })
   } catch (err: any) {
     console.error('Error in settings GET:', err)

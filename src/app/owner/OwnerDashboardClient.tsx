@@ -21,6 +21,7 @@ import {
   Inbox, Palette, Pill, Receipt, Bell, CreditCard, BarChart3, DollarSign, Settings, FileText
 } from 'lucide-react'
 import { ClinicRequestsManager, type ClinicRegistrationRequest } from '@/components/owner/ClinicRequestsManager'
+import { MedicineSyncMonitorWidget } from '@/components/owner/MedicineSyncMonitorWidget'
 import { OwnerNotificationsDropdown } from '@/components/owner/OwnerNotificationsDropdown'
 import { db } from '@/lib/firebase'
 import { collection, addDoc, getDocs, deleteDoc, updateDoc, doc, setDoc, onSnapshot, query, where } from 'firebase/firestore'
@@ -5113,6 +5114,8 @@ function OwnerDashboard() {
           transition={{ duration: 0.3 }}
           className="space-y-6 max-w-3xl"
         >
+          {/* Medicine Directory & Daily Price Sync Monitoring Widget */}
+          <MedicineSyncMonitorWidget />
           <div className="yalla-card border border-border rounded-3xl p-6 sm:p-8 space-y-6 shadow-md">
             <div className="pb-4 border-b border-border">
               <h2 className="text-xl font-black text-foreground flex items-center gap-2">

@@ -110,7 +110,7 @@ async function main() {
     for (const c of clinicDocs) {
       assert(c.doctorEmail, `Clinic ${c.slug} must have doctorEmail`);
       const storedHash = c.doctorPasswordHash || c.doctorPassword;
-      const isMatch = await verifyPassword(process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#', storedHash);
+      const isMatch = await verifyPassword(process.env.TEST_DOCTOR_PASSWORD || process.env.TEST_DOCTOR_PASSWORD || '', storedHash);
       assert.strictEqual(isMatch, true, `Doctor password verification failed for ${c.slug} (${c.doctorEmail})`);
     }
   });
@@ -119,7 +119,7 @@ async function main() {
     for (const c of clinicDocs) {
       assert(c.assistantEmail, `Clinic ${c.slug} must have assistantEmail`);
       const storedHash = c.assistantPasswordHash || c.assistantPassword;
-      const isMatch = await verifyPassword(process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#', storedHash);
+      const isMatch = await verifyPassword(process.env.TEST_DOCTOR_PASSWORD || process.env.TEST_DOCTOR_PASSWORD || '', storedHash);
       assert.strictEqual(isMatch, true, `Primary assistant password verification failed for ${c.slug} (${c.assistantEmail})`);
     }
   });
@@ -131,7 +131,7 @@ async function main() {
       for (const ass of c.assistants) {
         checkedCount++;
         const storedHash = ass.passwordHash || ass.password;
-        const isMatch = await verifyPassword(process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#', storedHash);
+        const isMatch = await verifyPassword(process.env.TEST_DOCTOR_PASSWORD || process.env.TEST_DOCTOR_PASSWORD || '', storedHash);
         assert.strictEqual(isMatch, true, `Secondary assistant password failed for ${ass.email}`);
         assert(ass.branchName, `Secondary assistant ${ass.name} must have assigned branchName`);
       }
@@ -185,7 +185,7 @@ async function main() {
   await runAsyncTest('PatientPortal', 'Verify Patient login password verification', async () => {
     const sample = verifiedPatientAccounts.find(p => p.phone === '+201011122233') || verifiedPatientAccounts[0];
     const storedHash = sample.passwordHash || sample.password;
-    const isMatch = await verifyPassword(process.env.TEST_PATIENT_PASSWORD || 'PatientSecureRotated2026!#', storedHash);
+    const isMatch = await verifyPassword(process.env.TEST_PATIENT_PASSWORD || process.env.TEST_PATIENT_PASSWORD || '', storedHash);
     assert.strictEqual(isMatch, true, `Patient password match failed for ${sample.phone}`);
 
     const badMatch = await verifyPassword('bad_password_99', storedHash);

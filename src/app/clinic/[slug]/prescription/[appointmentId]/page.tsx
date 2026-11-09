@@ -7,7 +7,8 @@ import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firesto
 import { Button } from '@/components/ui/button'
 import {
   FileText, Download, Printer, MessageCircle, ArrowRight,
-  ShieldCheck, AlertCircle, Loader2, Calendar, User, Pill, Image as ImageIcon
+  ShieldCheck, AlertCircle, Loader2, Calendar, User, Pill, Image as ImageIcon,
+  ShieldAlert, LogIn
 } from 'lucide-react'
 import Link from 'next/link'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
@@ -36,6 +37,8 @@ export default function PublicPrescriptionPage({
   const [prescription, setPrescription] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [isNotFound, setIsNotFound] = useState(false)
+  const [isUnauthorized, setIsUnauthorized] = useState(false)
+  const [authErrorMessage, setAuthErrorMessage] = useState('')
   const [isDownloading, setIsDownloading] = useState(false)
   const [isDownloadingImage, setIsDownloadingImage] = useState(false)
   const [isSharing, setIsSharing] = useState(false)
@@ -45,104 +48,56 @@ export default function PublicPrescriptionPage({
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // 0. Fetch via secure server API
-        try {
-          const apiRes = await fetch(`/api/clinic/${slug}/prescription/${encodeURIComponent(appointmentId)}`)
-          if (apiRes.ok) {
-            const apiData = await apiRes.json()
-            if (apiData.success && apiData.appointment) {
-              setClinic(apiData.clinic)
-              setAppointment(apiData.appointment)
-              setPrescription(apiData.prescription)
-              setLoading(false)
-              return
-            }
-          }
-        } catch (apiErr) {
-          console.warn('Server prescription API fallback:', apiErr)
-        }
-        // 1. Fetch Clinic
-        const qClinic = query(collection(db, 'clinics'), where('slug', '==', slug))
-        const cSnap = await getDocs(qClinic)
-        let clinicData: any = null
-        if (!cSnap.empty) {
-          clinicData = { id: cSnap.docs[0].id, ...cSnap.docs[0].data() }
-          setClinic(clinicData)
-        } else {
-          setIsNotFound(true)
-          notFound()
+        const decodedId = decodeURIComponent(appointmentId)
+        const searchParams = new URLSearchParams(window.location.search)
+        const token = searchParams.get('token') || ''
+        const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : ''
+
+        // 1. Fetch via authorized server API
+        const apiRes = await fetch(`/api/clinic/${slug}/prescription/${encodeURIComponent(decodedId)}${tokenQuery}`)
+        
+        if (apiRes.status === 401 || apiRes.status === 403) {
+          const errData = await apiRes.json().catch(() => ({}))
+          setIsUnauthorized(true)
+          setAuthErrorMessage(errData.error || (isRtl ? 'هذه الروشتة الطبية محمية. يرجى تسجيل الدخول أو استخدام رابط المشاركة المعتمد.' : 'This prescription is protected. Please log in or use an authorized share link.'))
+          setLoading(false)
           return
         }
 
-        // 2. Fetch Appointment
-        const apptDoc = await getDoc(doc(db, 'appointments', appointmentId))
-        let apptData: any = null
-        if (apptDoc.exists()) {
-          apptData = { id: apptDoc.id, ...apptDoc.data() }
-          // Strictly eliminate IDOR: verify apptData.clinic_id === clinicData.id
-          if (apptData.clinic_id !== clinicData.id) {
-            setIsNotFound(true)
-            notFound()
+        if (apiRes.status === 404) {
+          setIsNotFound(true)
+          setLoading(false)
+          return
+        }
+
+        if (apiRes.ok) {
+          const apiData = await apiRes.json()
+          if (apiData.success && apiData.appointment) {
+            setClinic(apiData.clinic)
+            setAppointment(apiData.appointment)
+            setPrescription(apiData.prescription || {
+              patientName: apiData.appointment.patientName,
+              age: apiData.appointment.age,
+              date: apiData.appointment.date,
+              diagnosis: apiData.appointment.diagnosis,
+              drugs: apiData.appointment.drugs || []
+            })
+            setLoading(false)
             return
           }
-          setAppointment(apptData)
-        } else {
-          // Fallback: check if appointmentId is actually a prescription ID
-          const directRxDoc = await getDoc(doc(db, 'prescriptions', appointmentId))
-          if (directRxDoc.exists()) {
-            const rxData = { id: directRxDoc.id, ...directRxDoc.data() } as any
-            if (rxData.clinic_id && rxData.clinic_id !== clinicData.id) {
-              setIsNotFound(true)
-              notFound()
-              return
-            }
-            setPrescription(rxData)
-            setAppointment({
-              id: rxData.appointment_id || directRxDoc.id,
-              clinic_id: rxData.clinic_id,
-              patientName: rxData.patientName,
-              phone: rxData.patientPhone,
-              age: rxData.age,
-              date: rxData.date,
-              diagnosis: rxData.diagnosis,
-              drugs: rxData.drugs
-            })
-          }
         }
 
-        // 3. Fetch Prescription if stored separately
-        if (apptData && clinicData) {
-          const qRx = query(
-            collection(db, 'prescriptions'),
-            where('appointment_id', '==', appointmentId),
-            where('clinic_id', '==', clinicData.id)
-          )
-          const rxSnap = await getDocs(qRx)
-          if (!rxSnap.empty) {
-            setPrescription({ id: rxSnap.docs[0].id, ...rxSnap.docs[0].data() })
-          } else if (apptData?.drugs && apptData.drugs.length > 0) {
-            setPrescription({
-              patientName: apptData.patientName,
-              age: apptData.age || apptData.dob,
-              date: apptData.date,
-              diagnosis: apptData.diagnosis,
-              drugs: apptData.drugs
-            })
-          }
-        }
+        setIsNotFound(true)
       } catch (err: any) {
-        if (err?.digest?.includes('NEXT_NOT_FOUND') || err?.message?.includes('NEXT_NOT_FOUND')) {
-          setIsNotFound(true)
-          return
-        }
         console.error('Error fetching prescription:', err)
+        setIsNotFound(true)
       } finally {
         setLoading(false)
       }
     }
 
     fetchData()
-  }, [slug, appointmentId])
+  }, [slug, appointmentId, isRtl])
 
   if (isNotFound) {
     notFound()
@@ -298,6 +253,38 @@ export default function PublicPrescriptionPage({
           <p className="text-xs font-bold text-muted-foreground">
             {t('loading_rx_data', isRtl ? 'جاري تحميل بيانات الروشتة الطبية...' : 'Loading medical prescription...')}
           </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (isUnauthorized) {
+    return (
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4" dir={dir}>
+        <div className="max-w-md w-full bg-card border border-border rounded-3xl p-6 text-center space-y-4 shadow-xl">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto">
+            <ShieldAlert className="w-6 h-6" />
+          </div>
+          <h2 className="text-base font-black">
+            {isRtl ? 'روشتة طبية محمية' : 'Protected Medical Prescription'}
+          </h2>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            {authErrorMessage}
+          </p>
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2">
+            <Link href={`/clinic/${slug}/login`} className="w-full sm:w-auto">
+              <Button className="w-full h-9 text-xs rounded-xl font-bold">
+                <LogIn className={`w-3.5 h-3.5 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
+                {isRtl ? 'دخول العيادة' : 'Clinic Login'}
+              </Button>
+            </Link>
+            <Link href={`/clinic/${slug}`} className="w-full sm:w-auto">
+              <Button variant="outline" className="w-full h-9 text-xs rounded-xl">
+                <ArrowRight className={`w-3.5 h-3.5 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
+                {t('back_to_clinic', isRtl ? 'العودة للعيادة' : 'Back to Clinic')}
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
     )

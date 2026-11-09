@@ -46,11 +46,10 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
   useEffect(() => {
     const fetchClinic = async () => {
       try {
-        const q = query(collection(db, 'clinics'), where('slug', '==', slug))
-        const snapshot = await getDocs(q)
-        if (!snapshot.empty) {
-          const cDoc = snapshot.docs[0].data()
-          if (cDoc.heroImage) setClinicHero(cDoc.heroImage)
+        const res = await fetch(`/api/clinic/${slug}/settings`)
+        if (res.ok) {
+          const json = await res.json()
+          if (json.clinic?.heroImage) setClinicHero(json.clinic.heroImage)
         }
       } catch (err) {}
     }

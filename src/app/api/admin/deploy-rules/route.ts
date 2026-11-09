@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getFirebaseServerCredentials, signServiceJwt } from '@/lib/server/firebase-rest'
+import { getFirebaseServerCredentials, signServiceJwt, createDocument } from '@/lib/server/firebase-rest'
+import { authenticateOwnerRequest } from '@/lib/server/owner-access'
 
 // Content of hardened production firestore.rules
 const FIRESTORE_RULES_SOURCE = `rules_version = '2';
@@ -64,9 +65,10 @@ service cloud.firestore {
       ]);
     }
 
-    // Clinics Collection
+    // Clinics Collection (STRICT MULTI-TENANT ISOLATION - NO PUBLIC CREDENTIAL EXPOSURE)
     match /clinics/{clinicId} {
-      allow read: if true;
+      allow read: if isPlatformOwner()
+        || (isAuthenticated() && isClinicTenant(clinicId));
       allow create: if isPlatformOwner();
       allow update: if isPlatformOwner() ||
         (isClinicWritable(clinicId) && hasNoOwnerOnlyClinicChanges());
@@ -106,96 +108,83 @@ service cloud.firestore {
         || isClinicWritable(resource.data.clinic_id);
     }
 
-    // Patient Accounts (حسابات وسجلات المرضى - NO PUBLIC ACCESS)
-    match /patient_accounts/{accId} {
+    // Invoices Collection (الفواتير - NO PUBLIC ACCESS)
+    match /invoices/{invoiceId} {
       allow read: if isPlatformOwner()
         || (isAuthenticated() && isClinicTenant(resource.data.clinic_id));
-      allow create: if isPlatformOwner()
-        || isClinicWritable(request.resource.data.clinic_id);
-      allow update, delete: if isPlatformOwner()
+      allow create, update, delete: if isPlatformOwner()
         || isClinicWritable(resource.data.clinic_id);
     }
 
-    // Notifications & Outbox (NO PUBLIC ACCESS)
-    match /notifications/{notifId} {
+    // Patient Accounts Collection
+    match /patient_accounts/{patientId} {
       allow read: if isPlatformOwner()
-        || (isAuthenticated() && isClinicTenant(resource.data.clinic_id));
+        || (isAuthenticated() && (
+          request.auth.uid == patientId ||
+          request.auth.token.get('phone', '') == resource.data.phone
+        ));
+      allow create: if true;
+      allow update: if isPlatformOwner()
+        || (isAuthenticated() && request.auth.uid == patientId);
+      allow delete: if isPlatformOwner();
+    }
+
+    // Services Catalog (خدمات الكشف)
+    match /services/{serviceId} {
+      allow read: if true;
       allow write: if isPlatformOwner()
-        || isClinicWritable(request.resource.data.clinic_id);
+        || (isAuthenticated() && isClinicTenant(resource.data.clinic_id));
     }
-    match /notification_outbox/{outboxId} {
+
+    // Market Prices (دليل الأدوية والأسعار الرسمية)
+    match /market_prices/{drugId} {
+      allow read: if true;
+      allow write: if isPlatformOwner();
+    }
+
+    // Sync Logs & Locks
+    match /market_prices_sync_logs/{logId} {
       allow read, write: if isPlatformOwner();
     }
-    match /pushSubscriptions/{subId} {
-      allow read: if isPlatformOwner();
-      allow write: if request.resource.data.endpoint != null;
-    }
-    match /push_subscriptions/{subId} {
-      allow read: if isPlatformOwner();
-      allow write: if request.resource.data.endpoint != null;
-    }
-    match /push_outbox/{outboxId} {
+    match /sync_locks/{lockId} {
       allow read, write: if isPlatformOwner();
     }
 
-    // Daily counters for atomic sequential turns (NO PUBLIC READ/WRITE)
-    match /clinic_daily_counters/{counterId} {
-      allow read: if isPlatformOwner()
-        || (isAuthenticated() && isClinicTenant(resource.data.clinicId));
-      allow create: if isPlatformOwner()
-        || isClinicWritable(request.resource.data.clinicId);
-      allow update, delete: if isPlatformOwner()
-        || isClinicWritable(resource.data.clinicId);
-    }
-
-    // System, Packages & Audit Logs
-    match /packages/{pkgId} {
-      allow read: if true;
-      allow write: if isPlatformOwner();
-    }
-    match /platformSettings/{settingId} {
-      allow read: if true;
-      allow write: if isPlatformOwner();
-    }
-    match /system/{sysId} {
-      allow read, write: if isPlatformOwner();
-    }
-    match /market_prices/{priceId} {
-      allow read: if true;
-      allow write: if isPlatformOwner();
-    }
+    // Audit Logs
     match /audit_logs/{logId} {
-      allow read: if isPlatformOwner();
-      allow create: if isAuthenticated() || isPlatformOwner();
-      allow update, delete: if false;
+      allow read, write: if isPlatformOwner();
+    }
+
+    // Default deny for all other collections
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
 `
 
-async function getFirebaseRulesAccessToken() {
+async function getFirebaseRulesAccessToken(): Promise<string> {
   const { email } = getFirebaseServerCredentials()
   const now = Math.floor(Date.now() / 1000)
-
-  const assertion = await signServiceJwt({
+  const payload = {
     iss: email,
-    scope: 'https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/firebase',
+    scope: 'https://www.googleapis.com/auth/firebase.rules',
     aud: 'https://oauth2.googleapis.com/token',
-    iat: now,
     exp: now + 3600,
-  })
+    iat: now
+  }
 
+  const jwt = await signServiceJwt(payload)
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-      assertion,
-    }),
-    cache: 'no-store',
+      assertion: jwt
+    })
   })
 
-  const tokenData = (await tokenRes.json()) as { access_token?: string; error?: string; error_description?: string }
+  const tokenData = (await tokenRes.json()) as any
   if (!tokenRes.ok || !tokenData.access_token) {
     throw new Error(`Failed to acquire Google OAuth token: ${JSON.stringify(tokenData)}`)
   }
@@ -204,11 +193,8 @@ async function getFirebaseRulesAccessToken() {
 
 export async function GET(req: NextRequest) {
   try {
-    const authHeader = req.headers.get('Authorization')
-    const secret = req.headers.get('x-admin-key')
-    if (secret !== 'yalla-secret-deploy-2026' && authHeader !== 'Bearer yalla-secret-deploy-2026') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    // Authenticate Platform Owner only
+    await authenticateOwnerRequest(req)
 
     const { project } = getFirebaseServerCredentials()
     const accessToken = await getFirebaseRulesAccessToken()
@@ -240,18 +226,14 @@ export async function GET(req: NextRequest) {
       ruleset: rulesetData
     })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Unknown error fetching rules' }, { status: 500 })
+    return NextResponse.json({ error: error.message || 'Unauthorized or error fetching rules' }, { status: error.status || 401 })
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const authHeader = req.headers.get('Authorization')
-    const secret = req.headers.get('x-admin-key')
-    // Safe validation
-    if (secret !== 'yalla-secret-deploy-2026' && authHeader !== 'Bearer yalla-secret-deploy-2026') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    // Authenticate Platform Owner only
+    const owner = await authenticateOwnerRequest(req)
 
     const { project } = getFirebaseServerCredentials()
     const accessToken = await getFirebaseRulesAccessToken()
@@ -310,6 +292,15 @@ export async function POST(req: NextRequest) {
       }, { status: 500 })
     }
 
+    // Record deployment in audit_logs
+    await createDocument('audit_logs', {
+      action: 'deploy_rules',
+      performedBy: owner.email || 'platform_owner',
+      ownerUid: owner.uid,
+      rulesetName,
+      timestamp: new Date().toISOString()
+    }).catch(() => {})
+
     return NextResponse.json({
       success: true,
       project,
@@ -318,7 +309,7 @@ export async function POST(req: NextRequest) {
     })
   } catch (error: any) {
     return NextResponse.json({
-      error: error.message || 'Unknown error deploying rules'
-    }, { status: 500 })
+      error: error.message || 'Unauthorized or error deploying rules'
+    }, { status: error.status || 401 })
   }
 }

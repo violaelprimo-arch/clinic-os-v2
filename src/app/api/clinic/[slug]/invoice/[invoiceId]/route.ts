@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readDocument, queryDocuments } from '@/lib/server/firebase-rest'
+import { authorizeRecordAccess, generateRecordShareToken } from '@/lib/server/record-access'
 
 export async function GET(
   req: NextRequest,
@@ -16,14 +17,50 @@ export async function GET(
       return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404 })
     }
 
-    // 2. Fetch appointment
-    const appt = await readDocument(`appointments/${decodedInvoiceId}`)
+    // 2. Fetch appointment / invoice record
+    let appt: any = await readDocument(`appointments/${decodedInvoiceId}`)
+    
+    // Fallback: If not found by direct ID, try querying by invoiceNumber
+    if (!appt) {
+      const clinicAppts = await queryDocuments('appointments')
+      appt = clinicAppts.find(
+        (a: any) =>
+          (a.clinic_id === clinic.id || a.clinicId === clinic.id) &&
+          (a.invoiceNumber === decodedInvoiceId || a.id === decodedInvoiceId)
+      )
+    }
+
     if (!appt || (appt.clinic_id !== clinic.id && appt.clinicId !== clinic.id)) {
       return NextResponse.json({ error: 'الفاتورة غير موجودة' }, { status: 404 })
     }
 
+    // 3. Strict Server-Side Authorization (Prevents IDOR & Public Access)
+    const authResult = await authorizeRecordAccess(req, {
+      clinicId: String(clinic.id),
+      clinicSlug: String(clinic.slug || slug),
+      recordId: decodedInvoiceId,
+      recordType: 'invoice',
+      recordPhone: appt.phone ? String(appt.phone) : undefined,
+      recordPatientId: (appt.patientId || appt.patient_id) ? String(appt.patientId || appt.patient_id) : undefined
+    })
+
+    if (!authResult.authorized) {
+      return NextResponse.json(
+        { error: authResult.error || 'غير مصرح لك بعرض هذه الفاتورة' },
+        { status: authResult.status || 401 }
+      )
+    }
+
+    // 4. Generate a share token if clinic staff or owner is fetching
+    let shareToken: string | undefined = undefined
+    if (authResult.accessorRole === 'doctor' || authResult.accessorRole === 'assistant' || authResult.accessorRole === 'owner') {
+      shareToken = await generateRecordShareToken(clinic.id, decodedInvoiceId, 'invoice')
+    }
+
     return NextResponse.json({
       success: true,
+      accessorRole: authResult.accessorRole,
+      shareToken,
       clinic: {
         id: clinic.id,
         slug: clinic.slug,

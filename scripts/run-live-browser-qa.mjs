@@ -6,9 +6,9 @@ dns.setServers(['1.1.1.1', '8.8.8.8']);
 const BASE_URL = process.env.TEST_BASE_URL || 'https://yalla-clinic.com';
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-const TEST_DOCTOR_PASSWORD = process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#';
-const TEST_SECRETARY_PASSWORD = process.env.TEST_SECRETARY_PASSWORD || 'SecSecureRotated2026!#';
-const TEST_PATIENT_PASSWORD = process.env.TEST_PATIENT_PASSWORD || 'PatientSecureRotated2026!#';
+const TEST_DOCTOR_PASSWORD = process.env.TEST_DOCTOR_PASSWORD || process.env.TEST_DOCTOR_PASSWORD || '';
+const TEST_SECRETARY_PASSWORD = process.env.TEST_SECRETARY_PASSWORD || process.env.TEST_SECRETARY_PASSWORD || '';
+const TEST_PATIENT_PASSWORD = process.env.TEST_PATIENT_PASSWORD || process.env.TEST_PATIENT_PASSWORD || '';
 
 let passed = 0;
 let failed = 0;

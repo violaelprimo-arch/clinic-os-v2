@@ -1,19 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readDocument, writeDocument, deleteDocument, queryDocuments } from '@/lib/server/firebase-rest'
+import { readDocument, writeDocument, deleteDocument, queryDocuments, createDocument } from '@/lib/server/firebase-rest'
 import { hashPassword } from '@/lib/auth-crypto'
+import { authenticateOwnerRequest } from '@/lib/server/owner-access'
+
+function generateSecureRandomPassword(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  return Array.from(bytes, b => b.toString(36).padStart(2, '0')).join('').slice(0, 16) + '!Aa1'
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const authHeader = req.headers.get('Authorization')
-    const secret = req.headers.get('x-admin-key')
-    if (secret !== 'yalla-secret-deploy-2026' && authHeader !== 'Bearer yalla-secret-deploy-2026') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    // Authenticate Platform Owner only
+    const owner = await authenticateOwnerRequest(req)
 
     const body = await req.json().catch(() => ({}))
-    const doctorPass = body.doctorPassword || process.env.ROTATED_DOCTOR_PASSWORD || 'DrSecureRotated2026!#'
-    const secretaryPass = body.secretaryPassword || process.env.ROTATED_SECRETARY_PASSWORD || 'SecSecureRotated2026!#'
-    const patientPass = body.patientPassword || process.env.ROTATED_PATIENT_PASSWORD || 'PatientSecureRotated2026!#'
+    const doctorPass = body.doctorPassword || process.env.ROTATED_DOCTOR_PASSWORD || generateSecureRandomPassword()
+    const secretaryPass = body.secretaryPassword || process.env.ROTATED_SECRETARY_PASSWORD || generateSecureRandomPassword()
+    const patientPass = body.patientPassword || process.env.ROTATED_PATIENT_PASSWORD || generateSecureRandomPassword()
 
     const doctorHash = await hashPassword(doctorPass)
     const assistantHash = await hashPassword(secretaryPass)
@@ -94,35 +97,40 @@ export async function POST(req: NextRequest) {
     }, true).catch(() => {})
 
     // 3. Clean up only confirmed disposable test appointments and prescriptions
-    const appts = await queryDocuments('appointments')
+    const appts = (await queryDocuments('appointments')) as any[]
     const deletedAppointments: string[] = []
     const TEST_PHONES = new Set(['01099887766', '01099998888', '01099999999', '01019998877'])
 
     for (const a of appts) {
-      const isSeed = a.id.startsWith('seed-')
-      const isTestPatient = a.patientName === 'مريض فحص تجريبي حي' ||
-                            a.patientName === 'مريض تجريبي معزول E2E' ||
-                            a.patientName === 'مريض تجريبي للاختبار' ||
-                            a.patientName === 'اختبار فحص الحجز' ||
-                            TEST_PHONES.has(String(a.phone))
-
-      if (isSeed || isTestPatient) {
+      // PRESERVE real patients like 'عمرو خالد مصطفى'
+      if (a.patientName && typeof a.patientName === 'string' && a.patientName.includes('عمرو خالد مصطفى')) continue
+      if (a.phone && typeof a.phone === 'string' && TEST_PHONES.has(a.phone)) {
         await deleteDocument(`appointments/${a.id}`).catch(() => {})
-        deletedAppointments.push(a.id)
-
-        // Delete associated test prescription
         await deleteDocument(`prescriptions/rx-${a.id}`).catch(() => {})
+        await deleteDocument(`prescriptions/${a.id}`).catch(() => {})
+        deletedAppointments.push(a.id)
       }
     }
 
+    // Record credential rotation in audit_logs
+    await createDocument('audit_logs', {
+      action: 'rotate_credentials',
+      performedBy: owner.email || 'platform_owner',
+      ownerUid: owner.uid,
+      clinicsUpdatedCount: clinicsUpdated.length,
+      timestamp: now
+    }).catch(() => {})
+
     return NextResponse.json({
       success: true,
-      clinicsUpdatedCount: clinicsUpdated.length,
+      timestamp: now,
+      clinicsUpdated,
       deletedAppointmentsCount: deletedAppointments.length,
-      rotatedAt: now,
-      note: 'All plaintext passwords removed, salted SHA-256 hashes applied, sessions invalidated'
+      note: 'Credentials rotated to secure hashes. Plaintext passwords removed.'
     })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Rotation failed' }, { status: 500 })
+    return NextResponse.json({
+      error: error.message || 'Unauthorized or failed to rotate credentials'
+    }, { status: error.status || 401 })
   }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { writeDocument } from '@/lib/server/firebase-rest'
+import { writeDocument, createDocument } from '@/lib/server/firebase-rest'
+import { authenticateOwnerRequest } from '@/lib/server/owner-access'
 import { hashPassword } from '@/lib/auth-crypto'
 
 const DEFAULT_SCHEDULE = [
@@ -21,11 +22,11 @@ const CLINICS_DATA = [
     doctorName: 'د. كريم عبد الرحمن',
     doctorEmail: 'dr.karim@gmail.com',
     doctorPhone: '01066554433',
-    doctorPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
+    doctorPassword: process.env.TEST_DOCTOR_PASSWORD || process.env.TEST_PASSWORD || '',
     assistantName: 'أ. نهى إبراهيم (سكرتيرة رئيسية)',
     assistantEmail: 'sec.karim@gmail.com',
     assistantPhone: '01211223344',
-    assistantPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
+    assistantPassword: process.env.TEST_DOCTOR_PASSWORD || process.env.TEST_PASSWORD || '',
     maxDailyBookings: 25,
     primaryColor: '#087CF4',
     assistants: [
@@ -34,7 +35,7 @@ const CLINICS_DATA = [
         name: 'أ. شهد محمود (سكرتيرة فرع الشيخ زايد)',
         email: 'shahd.karim@gmail.com',
         phone: '01599887766',
-        password: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
+        password: process.env.TEST_DOCTOR_PASSWORD || process.env.TEST_PASSWORD || '',
         branchName: 'فرع الشيخ زايد'
       }
     ],
@@ -77,11 +78,11 @@ const CLINICS_DATA = [
     doctorName: 'د. أحمد عبد العزيز',
     doctorEmail: 'zizo@gmail.com',
     doctorPhone: '01121320507',
-    doctorPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
+    doctorPassword: process.env.TEST_DOCTOR_PASSWORD || process.env.TEST_PASSWORD || '',
     assistantName: 'أ. إيمان الشريف (سكرتيرة رئيسية)',
     assistantEmail: 'zizo2@gmail.com',
     assistantPhone: '01557540188',
-    assistantPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
+    assistantPassword: process.env.TEST_DOCTOR_PASSWORD || process.env.TEST_PASSWORD || '',
     maxDailyBookings: 25,
     primaryColor: '#0284C7',
     assistants: [
@@ -90,7 +91,7 @@ const CLINICS_DATA = [
         name: 'أ. فاطمة خليل (سكرتيرة فرع المهندسين)',
         email: 'fatma.zizo@gmail.com',
         phone: '01011223344',
-        password: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
+        password: process.env.TEST_DOCTOR_PASSWORD || process.env.TEST_PASSWORD || '',
         branchName: 'فرع المهندسين'
       }
     ],
@@ -133,11 +134,11 @@ const CLINICS_DATA = [
     doctorName: 'د. طارق علام',
     doctorEmail: 'dr.tarek@gmail.com',
     doctorPhone: '01099887766',
-    doctorPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
+    doctorPassword: process.env.TEST_DOCTOR_PASSWORD || process.env.TEST_PASSWORD || '',
     assistantName: 'أ. مروة كمال (سكرتيرة رئيسية)',
     assistantEmail: 'sec.tarek@gmail.com',
     assistantPhone: '01155443322',
-    assistantPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
+    assistantPassword: process.env.TEST_DOCTOR_PASSWORD || process.env.TEST_PASSWORD || '',
     maxDailyBookings: 25,
     primaryColor: '#0F766E',
     assistants: [
@@ -146,7 +147,7 @@ const CLINICS_DATA = [
         name: 'أ. نادية صبحي (سكرتيرة فرع التجمع)',
         email: 'nadia.tarek@gmail.com',
         phone: '01233445566',
-        password: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
+        password: process.env.TEST_DOCTOR_PASSWORD || process.env.TEST_PASSWORD || '',
         branchName: 'فرع التجمع الخامس'
       }
     ],
@@ -189,11 +190,11 @@ const CLINICS_DATA = [
     doctorName: 'د. سارة فؤاد',
     doctorEmail: 'dr.sara@gmail.com',
     doctorPhone: '01288776655',
-    doctorPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
+    doctorPassword: process.env.TEST_DOCTOR_PASSWORD || process.env.TEST_PASSWORD || '',
     assistantName: 'أ. ريهام عادل (سكرتيرة رئيسية)',
     assistantEmail: 'sec.sara@gmail.com',
     assistantPhone: '01022334455',
-    assistantPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
+    assistantPassword: process.env.TEST_DOCTOR_PASSWORD || process.env.TEST_PASSWORD || '',
     maxDailyBookings: 20,
     primaryColor: '#2563EB',
     assistants: [
@@ -202,7 +203,7 @@ const CLINICS_DATA = [
         name: 'أ. ياسمين صلاح (سكرتيرة فرع المعادي)',
         email: 'yasmin.sara@gmail.com',
         phone: '01188990011',
-        password: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
+        password: process.env.TEST_DOCTOR_PASSWORD || process.env.TEST_PASSWORD || '',
         branchName: 'فرع المعادي'
       }
     ],
@@ -245,11 +246,11 @@ const CLINICS_DATA = [
     doctorName: 'د. ندى الشريف',
     doctorEmail: 'dr.nada@gmail.com',
     doctorPhone: '01144332211',
-    doctorPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
+    doctorPassword: process.env.TEST_DOCTOR_PASSWORD || process.env.TEST_PASSWORD || '',
     assistantName: 'أ. سلمى سعيد (سكرتيرة رئيسية)',
     assistantEmail: 'sec.nada@gmail.com',
     assistantPhone: '01077889900',
-    assistantPassword: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
+    assistantPassword: process.env.TEST_DOCTOR_PASSWORD || process.env.TEST_PASSWORD || '',
     maxDailyBookings: 20,
     primaryColor: '#7C3AED',
     assistants: [
@@ -258,7 +259,7 @@ const CLINICS_DATA = [
         name: 'أ. هاجر مصطفى (سكرتيرة مساعدة)',
         email: 'hagar.nada@gmail.com',
         phone: '01511223355',
-        password: process.env.TEST_DOCTOR_PASSWORD || 'DrSecureRotated2026!#',
+        password: process.env.TEST_DOCTOR_PASSWORD || process.env.TEST_PASSWORD || '',
         branchName: 'فرع الهرم'
       }
     ],
@@ -301,11 +302,8 @@ const PATIENTS_SEED = [
 
 export async function POST(req: NextRequest) {
   try {
-    const authHeader = req.headers.get('Authorization')
-    const secret = req.headers.get('x-admin-key')
-    if (secret !== 'yalla-secret-deploy-2026' && authHeader !== 'Bearer yalla-secret-deploy-2026') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    // Authenticate Platform Owner only
+    const owner = await authenticateOwnerRequest(req)
 
     const target = req.nextUrl.searchParams.get('target') || 'all'
 
@@ -473,7 +471,7 @@ export async function POST(req: NextRequest) {
 
     // 4. Write Patient Accounts
     if (target === 'all' || target === 'patients') {
-      const patientPasswordHash = await hashPassword(process.env.TEST_PATIENT_PASSWORD || 'PatientSecureRotated2026!#')
+      const patientPasswordHash = await hashPassword(process.env.TEST_PATIENT_PASSWORD || process.env.TEST_PASSWORD || '')
       for (let i = 0; i < PATIENTS_SEED.length; i++) {
         const p = PATIENTS_SEED[i]
         const accId = `patient-acc-${i + 1}`
@@ -483,13 +481,21 @@ export async function POST(req: NextRequest) {
           phone: p.phone,
           age: p.age,
           gender: p.gender,
-          password: process.env.TEST_PATIENT_PASSWORD || 'PatientSecureRotated2026!#',
+          password: null,
           passwordHash: patientPasswordHash,
           createdAt: new Date().toISOString()
         }, true)
         results.patientAccountsUpdated.push(p.phone)
       }
     }
+
+    await createDocument('audit_logs', {
+      action: 'seed_clinics',
+      performedBy: owner.email || 'platform_owner',
+      ownerUid: owner.uid,
+      target,
+      timestamp: new Date().toISOString()
+    }).catch(() => {})
 
     return NextResponse.json({
       success: true,

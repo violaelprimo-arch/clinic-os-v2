@@ -56,6 +56,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
   const [isSyncing, setIsSyncing] = useState(false)
   const [syncingDrugName, setSyncingDrugName] = useState<string | null>(null)
   const [lastSyncDate, setLastSyncDate] = useState<string>('')
+  const [syncStats, setSyncStats] = useState<{ added: number; updated: number; unchanged: number } | null>(null)
 
   // 1. Fetch clinic favorites & custom drugs from Firestore
   useEffect(() => {
@@ -83,52 +84,59 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
     fetchClinicData()
   }, [slug])
 
-  // 2. Check and perform daily background price check
+  // 2. Load latest official sync metadata and trigger update if needed
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedSync = localStorage.getItem('last_drug_sync') || ''
-      if (savedSync) setLastSyncDate(savedSync)
-
-      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date())
-      if (savedSync !== today) {
-        fetch('/api/sync-daily-prices')
-          .then((res) => {
-            if (res.ok) {
-              localStorage.setItem('last_drug_sync', today)
-              setLastSyncDate(today)
-              refreshDrugs()
+    const checkSyncStatus = async () => {
+      try {
+        const res = await fetch('/api/sync-daily-prices')
+        if (res.ok) {
+          const data = await res.json()
+          if (data.latestSync) {
+            setLastSyncDate(data.latestSync.cairoDate || data.currentCairoDate)
+            if (data.latestSync.addedCount !== undefined) {
+              setSyncStats({
+                added: data.latestSync.addedCount,
+                updated: data.latestSync.updatedCount,
+                unchanged: data.latestSync.unchangedCount
+              })
             }
-          })
-          .catch(() => {})
+          }
+        }
+      } catch (err) {
+        console.warn('Could not load latest sync status:', err)
       }
     }
-  }, [refreshDrugs])
+    checkSyncStatus()
+  }, [])
 
   const handleManualSync = async (customQuery?: string) => {
     setIsSyncing(true)
     const targetQ = typeof customQuery === 'string' ? customQuery : search.trim()
-    const queryParam = targetQ ? `?q=${encodeURIComponent(targetQ)}` : ''
     toast.info(
       targetQ
-        ? `جاري فحص وتحديث أسعار (${targetQ})...`
-        : 'جاري فحص وتحديث أحدث أسعار الأدوية...'
+        ? `جاري فحص وتحديث أسعار (${targetQ}) من بوابة الدواء...`
+        : 'جاري فحص وتحديث أحدث أسعار الأدوية من بوابة الدواء...'
     )
     try {
-      const res = await fetch(`/api/sync-daily-prices${queryParam}`)
+      const res = await fetch('/api/sync-daily-prices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: targetQ || undefined, force: true })
+      })
       const data = await res.json()
       if (res.ok && data.success) {
-        const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date())
-        localStorage.setItem('last_drug_sync', today)
-        setLastSyncDate(today)
+        setLastSyncDate(data.cairoDate)
+        if (data.addedCount !== undefined) {
+          setSyncStats({
+            added: data.addedCount,
+            updated: data.updatedCount,
+            unchanged: data.unchangedCount
+          })
+        }
         await refreshDrugs()
-        
-        toast.success(
-          data.records && data.records.length > 0
-            ? `تم تحديث أسعار ${data.records.length} دواء بنجاح بتاريخ اليوم!`
-            : 'تم فحص أحدث الأسعار ومطابقتها بنجاح!'
-        )
+        toast.success(data.message || 'تمت مزامنة الأسعار بنجاح!')
       } else {
-        toast.error(data.error || 'تعذر إكمال التحديث حالياً.')
+        toast.error(data.message || data.error || 'تعذر إكمال التحديث حالياً.')
       }
     } catch (e: any) {
       toast.error('حدث خطأ أثناء فحص وتحديث الأسعار: ' + (e.message || ''))
@@ -287,6 +295,11 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
               <Sparkles className="w-3 h-3 text-cyan-500" />
               {lastSyncDate ? `${t('last_updated_on', 'تم التحديث بتاريخ')}: ${lastSyncDate}` : t('updated_today', 'محدث بتاريخ اليوم')}
             </span>
+            {syncStats && (
+              <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                {`+${syncStats.added} جديد | ${syncStats.updated} محدث | ${syncStats.unchanged} مطابق`}
+              </span>
+            )}
           </div>
         </div>
 

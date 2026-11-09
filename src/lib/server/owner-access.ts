@@ -1,6 +1,7 @@
 import 'server-only'
 import { NextRequest, NextResponse } from 'next/server'
-import { OWNER_COOKIE, verifyOwnerSession } from '@/lib/owner-session'
+import { OWNER_COOKIE, verifyOwnerSession, OWNER_EMAIL } from '@/lib/owner-session'
+import { verifyFirebaseOwnerIdToken } from './firebase-owner-auth'
 import { createDocument } from './firebase-rest'
 export class ApiError extends Error {
   constructor(
@@ -60,6 +61,33 @@ export async function requireOwner(request: NextRequest) {
     throw new ApiError(403, 'OWNER_ACCESS_DENIED', 'حساب المالك غير مصرح به.')
   if (request.method !== 'GET') assertSameOrigin(request)
   return owner
+}
+
+export async function authenticateOwnerRequest(request: NextRequest) {
+  // 1. Try owner session cookie
+  const cookieVal = request.cookies.get(OWNER_COOKIE)?.value
+  const secret = process.env.OWNER_SESSION_SECRET || process.env.AUTH_SECRET || ''
+  if (cookieVal && secret.length >= 32) {
+    try {
+      const owner = await verifyOwnerSession(cookieVal, secret)
+      if (owner && process.env.PLATFORM_OWNER_UID && owner.uid === process.env.PLATFORM_OWNER_UID) {
+        return { uid: owner.uid, email: owner.email || OWNER_EMAIL }
+      }
+    } catch {}
+  }
+
+  // 2. Try Authorization Bearer as Firebase ID Token
+  const authHeader = request.headers.get('Authorization')
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.substring(7).trim()
+    try {
+      const owner = await verifyFirebaseOwnerIdToken(token)
+      if (owner) return owner
+    } catch {}
+  }
+
+  // 3. Fallback: call requireOwner which throws ApiError with proper status code
+  return await requireOwner(request)
 }
 export async function readJson(request: NextRequest, max = 16384) {
   if (!request.headers.get('content-type')?.includes('application/json'))
