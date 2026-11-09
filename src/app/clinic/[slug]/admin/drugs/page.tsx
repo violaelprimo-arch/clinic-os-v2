@@ -56,6 +56,9 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
   const [isSyncing, setIsSyncing] = useState(false)
   const [syncingDrugName, setSyncingDrugName] = useState<string | null>(null)
   const [lastSyncDate, setLastSyncDate] = useState<string>('')
+  const [syncState, setSyncState] = useState<'loading' | 'never' | 'running' | 'failed' | 'success'>('loading')
+  const [syncError, setSyncError] = useState('')
+  const [lastUpdatedCount, setLastUpdatedCount] = useState(0)
 
   // 1. Fetch clinic favorites & custom drugs from Firestore
   useEffect(() => {
@@ -83,55 +86,55 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
     fetchClinicData()
   }, [slug])
 
-  // 2. Check and perform daily background price check
+  // 2. Read the global sync status; scheduled work happens on the Worker
+  // even when no doctor has opened this page.
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedSync = localStorage.getItem('last_drug_sync') || ''
-      if (savedSync) setLastSyncDate(savedSync)
-
-      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date())
-      if (savedSync !== today) {
-        fetch('/api/sync-daily-prices')
-          .then((res) => {
-            if (res.ok) {
-              localStorage.setItem('last_drug_sync', today)
-              setLastSyncDate(today)
-              refreshDrugs()
-            }
-          })
-          .catch(() => {})
+    let cancelled = false
+    const loadSyncStatus = async () => {
+      try {
+        const response = await fetch('/api/sync-daily-prices', { cache: 'no-store' })
+        const data = await response.json()
+        if (cancelled) return
+        if (!response.ok || !data.success) throw new Error(data.error || 'تعذر قراءة حالة المزامنة')
+        setSyncState(data.state || 'never')
+        setLastSyncDate(data.lastSuccessDate || '')
+        setSyncError(data.lastError || '')
+        setLastUpdatedCount(Number(data.updated_count) || 0)
+      } catch {
+        if (!cancelled) { setSyncState('failed'); setSyncError('تعذر قراءة حالة تحديث الأسعار') }
       }
     }
-  }, [refreshDrugs])
+    void loadSyncStatus()
+    const polling = setInterval(() => void loadSyncStatus(), 60_000)
+    return () => { cancelled = true; clearInterval(polling) }
+  }, [])
 
   const handleManualSync = async (customQuery?: string) => {
+    if (isSyncing) return
     setIsSyncing(true)
-    const targetQ = typeof customQuery === 'string' ? customQuery : search.trim()
-    const queryParam = targetQ ? `?q=${encodeURIComponent(targetQ)}` : ''
-    toast.info(
-      targetQ
-        ? `جاري فحص وتحديث أسعار (${targetQ})...`
-        : 'جاري فحص وتحديث أحدث أسعار الأدوية...'
-    )
+    const targetQ = typeof customQuery === 'string' ? customQuery : ''
+    toast.info(targetQ
+      ? `جاري التحقق من سعر (${targetQ})...`
+      : 'جاري التحقق من آخر تحديثات أسعار الأدوية...')
     try {
-      const res = await fetch(`/api/sync-daily-prices${queryParam}`)
-      const data = await res.json()
-      if (res.ok && data.success) {
-        const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date())
-        localStorage.setItem('last_drug_sync', today)
-        setLastSyncDate(today)
-        await refreshDrugs()
-        
-        toast.success(
-          data.records && data.records.length > 0
-            ? `تم تحديث أسعار ${data.records.length} دواء بنجاح بتاريخ اليوم!`
-            : 'تم فحص أحدث الأسعار ومطابقتها بنجاح!'
-        )
-      } else {
-        toast.error(data.error || 'تعذر إكمال التحديث حالياً.')
-      }
-    } catch (e: any) {
-      toast.error('حدث خطأ أثناء فحص وتحديث الأسعار: ' + (e.message || ''))
+      const res = await fetch('/api/sync-daily-prices', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, q: targetQ }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.success) throw new Error(data.error || 'فشل الاتصال بمصدر الأسعار')
+      setSyncState('success')
+      setSyncError('')
+      setLastSyncDate(data.date || '')
+      setLastUpdatedCount(Number(data.updated_count) || 0)
+      await refreshDrugs()
+      toast.success(`تم استلام وحفظ ${Number(data.updated_count) || 0} سعر دواء فعليًا`)
+    } catch (error: any) {
+      setSyncState('failed')
+      setSyncError(error?.message || 'تعذر تحديث الأدوية')
+      toast.error(error?.message || 'تعذر إكمال التحديث، سيتم الاحتفاظ بآخر أسعار محفوظة')
     } finally {
       setIsSyncing(false)
       setSyncingDrugName(null)
@@ -285,8 +288,17 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
             </p>
             <span className="text-[11px] font-bold text-primary bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-full flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-cyan-500" />
-              {lastSyncDate ? `${t('last_updated_on', 'تم التحديث بتاريخ')}: ${lastSyncDate}` : t('updated_today', 'محدث بتاريخ اليوم')}
+              {lastSyncDate ? `آخر تحديث ناجح: ${lastSyncDate} (${lastUpdatedCount} سعر)` : 'لم يتم تأكيد تحديث ناجح بعد'}
             </span>
+            {syncState === 'failed' && (
+              <p role="status" className="text-xs font-bold text-amber-700 dark:text-amber-300">
+                تعذر التحديث الأخير: {syncError || 'المصدر غير متاح'} — الأسعار القديمة محفوظة، والمحاولة التالية تلقائية.
+              </p>
+            )}
+            {syncState === 'running' && (
+              <p className="text-xs text-blue-600 font-bold">جاري فحص الأسعار من المصدر...</p>
+            )}
+            <p className="text-[11px] text-muted-foreground">تحديث تلقائي يوميًا الساعة 6:00 صباحًا بتوقيت القاهرة، وإعادة المحاولة عند الفشل.</p>
           </div>
         </div>
 
@@ -447,7 +459,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
           </div>
           <div>
             <div className="text-[11px] text-muted-foreground font-semibold">{t('price_tracking', 'تسعيرة الدواء')}</div>
-            <div className="text-base font-black text-emerald-600 dark:text-emerald-400">{t('daily_market_update', 'محدث يومياً')}</div>
+            <div className="text-base font-black text-emerald-600 dark:text-emerald-400">{lastSyncDate ? `آخر مزامنة ${lastSyncDate}` : 'لم يبدأ تحديث تلقائي ناجح بعد'}</div>
           </div>
         </div>
 

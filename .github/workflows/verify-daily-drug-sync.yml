@@ -1,0 +1,29 @@
+name: Verify daily drug sync and Cloudflare cron
+on:
+  push:
+    branches:
+      - fix/daily-drug-prices-cron-20261109
+  pull_request:
+    branches:
+      - master
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: Next build
+        run: npm run build
+      - name: Cloudflare OpenNext build
+        run: npx @opennextjs/cloudflare build
+      - name: Validate custom cron Worker bundle without deploying
+        run: npx wrangler deploy --dry-run --outdir /tmp/yalla-clinic-drug-sync
