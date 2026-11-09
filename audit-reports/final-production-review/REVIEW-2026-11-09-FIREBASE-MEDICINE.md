@@ -27,3 +27,11 @@
 - Full historical recrawling of the external source is not represented as completed.
 - UI tests after deployment must verify the active Worker, owner clinic form, reversible demo-branch toggling, session bootstrap, source price overlay, and cron configuration.
 - Native Google consent/password flows require the account holder when browser sign-in prompts require personal authentication. No credentials or patient data belong in reports.
+
+## Live rollout evidence
+- PRs #7 and #8 merged. Cloudflare successfully built and deployed commit `4733aa10a482d8ace5e724f59eaf7da8764a1a29`; Worker version `e4bbf596-b376-4e35-aa61-5d70d8217f82` became active on 2026-11-09 at 19:57 UTC. Cairo and Inter font assets are bundled locally after the clean Cloudflare build exposed an upstream font-resolver failure.
+- Versioned Firestore rules published in project `clinic-os-d2d1b` at 21:57 Cairo. The staged editor text was compared exactly with the tested repository file before publishing.
+- Live HTTP checks passed: sanitized public clinic profile (200), anonymous staff profile/session denied (401), forged cron headers denied (401), raw private clinic document denied (403).
+- The first live manual sync persisted 71 additions and four price changes, then returned PARTIAL with cursor page 4. Full daily completion is not claimed for an unfinished batch.
+- Demo branch close persisted after a full page reload; reopening succeeded and restored its original availability. No patient appointments or real account passwords were changed.
+- Owner dashboard loaded under the deployed rules and displayed localized names/dates. The doctor demo tab requested a new login; the account holder was asked to sign in personally for the remaining live doctor-session check.
