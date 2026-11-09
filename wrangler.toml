@@ -35,6 +35,6 @@ binding = "ASSETS"
 enabled = true
 
 [triggers]
-crons = ["0 3 * * *", "0 4 * * *"]
+crons = ["0 3 * * *", "0 4 * * *", "*/15 * * * *"]
 
 
