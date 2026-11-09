@@ -1,4 +1,5 @@
 'use client'
+import { loadClinicProfile } from '@/lib/clinic-profile-client'
 
 import { ResidentialAreaSelector, ResidentialAreaValue } from '@/components/common/ResidentialAreaSelector'
 
@@ -260,15 +261,8 @@ export default function PatientProfileClient({ slug, patientId }: { slug: string
     let cancelled = false
     const load = async () => {
       try {
-        const qClinic = query(collection(db, 'clinics'), where('slug', '==', slug))
-        const cSnap = await getDocs(qClinic)
+        const cData = await loadClinicProfile(slug)
         if (cancelled) return
-        if (cSnap.empty) {
-          setAppointments([])
-          setLoading(false)
-          return
-        }
-        const cData = { id: cSnap.docs[0].id, ...cSnap.docs[0].data() }
         setClinic(cData)
 
         let resolvedPhone = rawDecodedId

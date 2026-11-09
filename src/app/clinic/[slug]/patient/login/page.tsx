@@ -39,16 +39,16 @@ export default function PatientLoginPage() {
 
     try {
       // 1. Resolve clinic by slug
-      const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
-      const cSnap = await getDocs(cQ)
-      if (cSnap.empty && slug !== 'demo') {
+      const clinicRes = await fetch(`/api/clinic/${encodeURIComponent(slug)}/settings`, {
+        cache: 'no-store',
+      })
+      const clinicResponse = await clinicRes.json().catch(() => ({}))
+      if (!clinicRes.ok || !clinicResponse.clinic?.id) {
         toast.error('العيادة غير موجودة أو غير متاحة حالياً')
         setLoading(false)
         return
       }
-
-      const clinicDoc = cSnap.empty ? null : cSnap.docs[0]
-      const clinicId = clinicDoc ? clinicDoc.id : 'demo'
+      const clinicId = String(clinicResponse.clinic.id)
       const cleanPhone = phone.trim().replace(/\s+/g, '')
 
       const isValidPhone = validatePhoneNumber(cleanPhone, selectedCountry)

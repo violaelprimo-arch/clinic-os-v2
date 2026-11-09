@@ -50,8 +50,8 @@ before(async () => {
 })
 after(async () => { await env?.cleanup() })
 
-const authDb = (clinicId, uid = 'doctor-1') =>
-  env.authenticatedContext(uid, { clinicId, clinic_id: clinicId }).firestore()
+const authDb = (clinicId, uid = 'doctor-1', clinicRole = 'doctor') =>
+  env.authenticatedContext(uid, { clinicId, clinic_id: clinicId, clinicRole }).firestore()
 
 const ownerDb = () =>
   env.authenticatedContext('real-owner', {
@@ -65,6 +65,9 @@ test('public visitors cannot read, list or write appointments, prescriptions or 
   await assertFails(getDocs(collection(db, 'appointments')))
   await assertFails(getDoc(doc(db, 'patient_accounts/stoppedPatient')))
   await assertFails(getDocs(collection(db, 'patient_accounts')))
+  await assertFails(setDoc(doc(db, 'patient_accounts/anonymousFake'), {
+    clinic_id: 'clinicA', phone: '01012345678', passwordHash: 'forged'
+  }))
   await assertFails(getDoc(doc(db, 'prescriptions/rxA')))
   await assertFails(getDocs(collection(db, 'prescriptions')))
   await assertFails(setDoc(doc(db, 'appointments/forged'), {
@@ -80,6 +83,7 @@ test('public visitors cannot read, list or write appointments, prescriptions or 
 
 test('active doctor can only read and write own clinic appointments', async () => {
   const dbA = authDb('clinicA')
+  await assertFails(getDoc(doc(dbA, 'clinics/clinicA'))) // hashes must never reach the browser
   await assertSucceeds(getDoc(doc(dbA, 'appointments/apptA')))
   await assertFails(getDoc(doc(dbA, 'appointments/apptStopped')))
 })
@@ -93,6 +97,15 @@ test('active doctor can operate own branch, but cannot rewrite its identity or m
   await assertFails(deleteDoc(doc(db, 'branches/branchA')))
   await assertFails(setDoc(doc(db, 'branches/forgedDoctor'), {
     clinic_id: 'clinicA', name: 'Unauthorized New Branch',
+  }))
+})
+
+test('assistant can access a tenant queue but cannot author or alter a prescription', async () => {
+  const db = authDb('clinicA', 'assistant-1', 'assistant')
+  await assertSucceeds(getDoc(doc(db, 'appointments/apptA')))
+  await assertFails(updateDoc(doc(db, 'prescriptions/rxA'), { patientName: 'Forged Rx' }))
+  await assertFails(setDoc(doc(db, 'prescriptions/forgedRx'), {
+    clinic_id: 'clinicA', patientName: 'Forged',
   }))
 })
 
@@ -120,7 +133,9 @@ test('clinic scope cannot be switched by claiming another clinic ID in the paylo
 
 test('stopped doctor can read existing records, but cannot perform any write', async () => {
   const db = authDb('clinicStopped', 'doctor-stopped')
-  await assertSucceeds(getDoc(doc(db, 'patient_accounts/stoppedPatient')))
+  // Patient account identities must not be readable by clinic staff through
+  // Firestore client rules. Appointment history stays readable in read-only mode.
+  await assertFails(getDoc(doc(db, 'patient_accounts/stoppedPatient')))
   await assertSucceeds(getDoc(doc(db, 'appointments/apptStopped')))
   await assertFails(updateDoc(doc(db, 'clinics/clinicStopped'), {
     clinicName: 'After Stop',
@@ -140,4 +155,17 @@ test('verified owner can manage and reactivate clinics and register branches', a
     clinic_id: 'clinicStopped', clinicId: 'clinicStopped',
     name: 'New Clinic Location', isOpen: false, isMain: true,
   }))
+})
+
+
+test('tenant cannot move existing appointments into another clinic', async () => {
+  await assertFails(updateDoc(doc(authDb('clinicA'), 'appointments/apptA'), { clinic_id: 'clinicStopped' }))
+})
+test('credential version changes revoke old Firestore sessions', async () => {
+  await env.withSecurityRulesDisabled(ctx => updateDoc(doc(ctx.firestore(), 'clinics/clinicA'), { credentialsVersion: 7 }))
+  await assertFails(getDoc(doc(authDb('clinicA'), 'appointments/apptA')))
+  const current = env.authenticatedContext('new-session', { clinic_id: 'clinicA', clinicRole: 'doctor', credentialsVersion: 7 }).firestore()
+  await assertSucceeds(getDoc(doc(current, 'appointments/apptA')))
+  await assertFails(updateDoc(doc(current, 'clinics/clinicA'), { credentialsVersion: 0 }))
+  await env.withSecurityRulesDisabled(ctx => updateDoc(doc(ctx.firestore(), 'clinics/clinicA'), { credentialsVersion: 0 }))
 })

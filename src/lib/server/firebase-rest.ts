@@ -366,11 +366,98 @@ export async function createAtomicAppointmentServer(
   throw new Error('FIRESTORE_BOOKING_CONFLICT')
 }
 
+/**
+ * Acquire a lease with atomic Firestore preconditions. Creating a missing lock
+ * requires exists=false; replacing an expired lease requires its updateTime.
+ * Multiple contenders cannot both succeed, without holding transaction locks
+ * across network calls (which can deadlock on a concurrently missing document).
+ */
+export async function acquireFirestoreLease(
+  path: string, runId: string, triggeredBy: string, ttlMs: number,
+): Promise<{ acquired: boolean; currentRunId?: string }> {
+  if (!runId || !Number.isFinite(ttlMs) || ttlMs < 60000) throw new Error('INVALID_FIRESTORE_LEASE')
+  const url = documentUrl(path)
+  const payload = () => ({ fields: encode({ runId, lockedAt: new Date().toISOString(), lockedBy: triggeredBy }).mapValue?.fields || {} })
+  const created = await request(url + '?currentDocument.exists=false', {
+    method: 'PATCH', body: JSON.stringify(payload()),
+  })
+  if (created.ok) return { acquired: true, currentRunId: runId }
+  if (![409, 412].includes(created.status)) throw new Error('FIRESTORE_LEASE_CREATE_FAILED')
+  const response = await request(url)
+  if (response.status === 404) return { acquired: false }
+  if (!response.ok) throw new Error('FIRESTORE_LEASE_READ_FAILED')
+  const raw = await response.json() as FirestoreDocument & { updateTime?: string }
+  const current = unpack(raw)
+  const lockedAt = Date.parse(String(current.lockedAt || ''))
+  if (Number.isFinite(lockedAt) && Date.now() - lockedAt < ttlMs) {
+    return { acquired: false, currentRunId: String(current.runId || '') }
+  }
+  if (!raw.updateTime) throw new Error('FIRESTORE_LEASE_VERSION_MISSING')
+  const replaced = await request(documentUrl('').replace(/\/$/, '') + ':commit', {
+    method: 'POST', body: JSON.stringify({ writes: [{ update: {
+      name: url.split('/v1/')[1], ...payload(),
+    }, currentDocument: { updateTime: raw.updateTime } }] }),
+  })
+  if (replaced.ok) return { acquired: true, currentRunId: runId }
+  if ([409, 412].includes(replaced.status)) return { acquired: false }
+  throw new Error('FIRESTORE_LEASE_REPLACE_FAILED')
+}
+
+/** Conditional delete cannot remove a lease taken over by another worker. */
+export async function releaseFirestoreLease(path: string, runId: string): Promise<boolean> {
+  const url = documentUrl(path)
+  const response = await request(url)
+  if (response.status === 404) return false
+  if (!response.ok) throw new Error('FIRESTORE_LEASE_READ_FAILED')
+  const raw = await response.json() as FirestoreDocument & { updateTime?: string }
+  const current = unpack(raw)
+  if (current.runId !== runId) return false
+  if (!raw.updateTime) throw new Error('FIRESTORE_LEASE_VERSION_MISSING')
+  const removed = await request(documentUrl('').replace(/\/$/, '') + ':commit', {
+    method: 'POST', body: JSON.stringify({ writes: [{ delete: url.split('/v1/')[1], currentDocument: { updateTime: raw.updateTime } }] }),
+  })
+  if ([409, 412, 404].includes(removed.status)) return false
+  if (!removed.ok) throw new Error('FIRESTORE_LEASE_RELEASE_FAILED')
+  return true
+}
 export async function deleteDocument(path: string) {
   const response = await request(documentUrl(path), { method: 'DELETE' })
   if (!response.ok && response.status !== 404)
     throw new Error('FIRESTORE_DELETE_FAILED')
 }
+/** Indexed single-field lookup avoids unsafe partial 200-record collection scans. */
+export async function queryDocumentsByField(
+  collection: string,
+  field: string,
+  value: string,
+  maxResults = 50,
+) {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(field) ||
+      !/^[A-Za-z_][A-Za-z0-9_]*$/.test(collection) ||
+      typeof value !== 'string' || !value.trim()) {
+    throw new Error('INVALID_FIRESTORE_LOOKUP')
+  }
+  const response = await request(documentUrl('').replace(/\/$/, '') + ':runQuery', {
+    method: 'POST',
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: collection }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath: field },
+            op: 'EQUAL',
+            value: encode(value),
+          },
+        },
+        limit: Math.max(1, Math.min(100, maxResults)),
+      },
+    }),
+  })
+  if (!response.ok) throw new Error('FIRESTORE_LOOKUP_FAILED')
+  const rows = (await response.json()) as Array<{ document?: FirestoreDocument }>
+  return rows.flatMap(row => row.document ? [unpack(row.document)] : [])
+}
+
 export async function queryDocuments(collection: string, approvedOnly = false) {
   // 1. Attempt structured runQuery (without remote composite orderBy to avoid missing-index errors)
   try {
@@ -433,4 +520,32 @@ export async function queryDocuments(collection: string, approvedOnly = false) {
   }
 
   throw new Error('FIRESTORE_QUERY_FAILED')
+}
+
+/** Upsert only supplied fields. Used for bounded medicine batches (<= 100 writes). */
+export async function upsertDocumentBatch(patches: Array<{ path: string; data: Fields }>) {
+  if (!patches.length) return
+  if (patches.length > 100) throw new Error('FIRESTORE_BATCH_TOO_LARGE')
+  const writes = patches.map(({ path, data }) => ({
+    update: { name: documentUrl(path).split('/v1/')[1], fields: encode(data).mapValue?.fields || {} },
+    updateMask: { fieldPaths: Object.keys(data) },
+  }))
+  const res = await request(documentUrl('').replace(/\/$/, '') + ':commit', {
+    method: 'POST', body: JSON.stringify({ writes }),
+  })
+  if (!res.ok) throw new Error('FIRESTORE_BATCH_UPSERT_FAILED')
+}
+
+/** Retrieve a whole batch without one HTTP round trip per medicine. */
+export async function readDocumentBatch(paths: string[]) {
+  if (!paths.length) return new Map<string, Fields>()
+  if (paths.length > 100) throw new Error('FIRESTORE_BATCH_TOO_LARGE')
+  const res = await request(documentUrl('').replace(/\/$/, '') + ':batchGet', {
+    method: 'POST', body: JSON.stringify({ documents: paths.map(p => documentUrl(p).split('/v1/')[1]) }),
+  })
+  if (!res.ok) throw new Error('FIRESTORE_BATCH_READ_FAILED')
+  const rows = await res.json() as Array<{ found?: FirestoreDocument }>
+  const docs = new Map<string, Fields>()
+  for (const row of rows) if (row.found) docs.set(String(row.found.name.split('/').pop()), unpack(row.found))
+  return docs
 }

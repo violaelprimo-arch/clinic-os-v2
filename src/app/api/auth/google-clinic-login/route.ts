@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSessionToken } from '@/lib/auth-crypto'
-import { queryDocuments } from '@/lib/server/firebase-rest'
+import { queryDocumentsByField } from '@/lib/server/firebase-rest'
 import { verifyClinicGoogleIdToken } from '@/lib/server/firebase-clinic-auth'
 
 export async function POST(req: NextRequest) {
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     const { uid, email } = await verifyClinicGoogleIdToken(body.idToken)
     // A verified Google account is not enough: only the explicitly assigned
     // doctor email (and Firebase UID if pinned) may enter a tenant.
-    const candidates = await queryDocuments('clinics')
+    const candidates = await queryDocumentsByField('clinics', 'doctorEmail', email)
     const matching = candidates.filter((item) =>
       String(item.doctorEmail || '').trim().toLowerCase() === email &&
       (!item.doctorFirebaseUid || item.doctorFirebaseUid === uid) &&
@@ -36,6 +36,8 @@ export async function POST(req: NextRequest) {
       clinicId: clinic.id,
       slug,
       mustChangePassword: false,
+      username: String(clinic.doctorUsername || ''),
+      credentialsVersion: Number(clinic.credentialsVersion || 0),
     })
     const response = NextResponse.json({
       success: true,

@@ -18,19 +18,9 @@ export function assertSameOrigin(request: NextRequest) {
   try {
     const originUrl = new URL(origin)
     const nextUrl = request.nextUrl
-    if (
-      origin === nextUrl.origin ||
-      originUrl.hostname === nextUrl.hostname ||
-      originUrl.hostname === 'localhost' ||
-      originUrl.hostname.endsWith('.localhost') ||
-      ['yalla-clinic.com', 'yalaa-clinic.com'].some(
-        (domain) =>
-          originUrl.hostname === domain ||
-          originUrl.hostname.endsWith('.' + domain),
-      )
-    ) {
-      return
-    }
+    if (origin === nextUrl.origin ||
+        (originUrl.protocol === 'https:' && nextUrl.protocol === 'https:' && originUrl.host === nextUrl.host)) return
+
   } catch {
     // Fall through to throw
   }

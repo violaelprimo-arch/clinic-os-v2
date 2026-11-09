@@ -3,7 +3,7 @@
 import { use, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { auth, db } from '@/lib/firebase'
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'
+import { signInWithCustomToken } from 'firebase/auth'
 import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -139,11 +139,20 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: inputEmail, password, slug })
+        body: JSON.stringify({ identifier: inputEmail, password, slug })
       })
       const data = await res.json()
 
       if (res.ok && data.success) {
+        if (data.firebaseCustomToken) {
+          try {
+            await signInWithCustomToken(auth, data.firebaseCustomToken)
+          } catch {
+            throw new Error(isRtl
+              ? 'تعذر إنشاء جلسة Firebase. يرجى إعادة المحاولة أو التواصل مع الدعم.'
+              : 'Firebase authentication failed. Please retry or contact support.')
+          }
+        }
         localStorage.setItem('clinic_session_token', data.token)
         localStorage.setItem('clinic_role', data.user.role)
         if (data.user.role === 'assistant' && data.user.branchId) {
@@ -161,17 +170,7 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
         return
       }
 
-      // 2. Fallback: Firebase Auth directly
-      try {
-        await signInWithEmailAndPassword(auth, inputEmail, password)
-        toast.success(isRtl ? 'تم تسجيل الدخول بنجاح' : 'Logged in successfully')
-        router.push(`/clinic/${slug}/admin`)
-        return
-      } catch (fbErr) {
-        // Fallback error
-      }
-
-      setError(data.error || (isRtl ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' : 'Incorrect email or password.'))
+      setError(data.error || (isRtl ? 'اسم المستخدم أو البريد الإلكتروني أو كلمة المرور غير صحيحة.' : 'Incorrect email or password.'))
     } catch (err: any) {
       setError(err.message || (isRtl ? 'فشل الاتصال بالخادم.' : 'Connection to server failed.'))
     } finally {
@@ -351,7 +350,7 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
 
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-muted-foreground">
-                {isRtl ? 'رقم الهاتف أو البريد الإلكتروني' : 'Phone Number or Email'}
+                {isRtl ? 'اسم المستخدم أو البريد الإلكتروني' : 'Username or Email'}
               </Label>
               <Input
                 type="text"

@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { collection, query, where, getDocs } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
 import { verifyPassword, hashPassword, createSessionToken } from '@/lib/auth-crypto'
-import { queryDocuments, writeDocument, createDocument } from '@/lib/server/firebase-rest'
+import { queryDocumentsByField, writeDocument } from '@/lib/server/firebase-rest'
 
 function normalizePhone(p: string): string {
   return String(p || '').replace(/\D/g, '').replace(/^20/, '0')
@@ -23,30 +21,27 @@ export async function POST(req: NextRequest) {
     const cleanPhone = String(phone).trim().replace(/\s+/g, '')
     const normalizedInputPhone = normalizePhone(cleanPhone)
 
-    // Resolve clinic
-    let clinicId = slug
-    try {
-      const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
-      const cSnap = await getDocs(cQ)
-      if (!cSnap.empty) {
-        clinicId = cSnap.docs[0].id
-      }
-    } catch (e) {
-      console.warn('Clinic lookup error, using slug as clinicId:', e)
+    // Resolve the actual clinic ID and fail closed on connection problems.
+    const clinics = await queryDocumentsByField('clinics', 'slug', String(slug))
+    if (clinics.length !== 1) {
+      return NextResponse.json({ error: 'العيادة غير موجودة أو غير متاحة' }, { status: 404 })
     }
+    const clinicId = String(clinics[0].id)
 
-    // Check patient_accounts via secure server REST (bypasses unauthenticated Firestore rule restrictions)
-    let allAccounts: any[] = []
-    try {
-      allAccounts = await queryDocuments('patient_accounts')
-    } catch (e) {
-      console.warn('queryDocuments for patient_accounts failed:', e)
-    }
-
-    const userDoc = allAccounts.find((acc: any) => {
-      const pNorm = normalizePhone(acc.phone)
-      return pNorm === normalizedInputPhone || acc.phone === cleanPhone
-    })
+    const variants = [...new Set([
+      cleanPhone,
+      normalizedInputPhone,
+      normalizedInputPhone.startsWith('0') ? '20' + normalizedInputPhone.slice(1) : '',
+      normalizedInputPhone.startsWith('0') ? '+20' + normalizedInputPhone.slice(1) : '',
+    ].filter(Boolean))]
+    const matches = await Promise.all([
+      queryDocumentsByField('patient_accounts', 'phoneNormalized', normalizedInputPhone),
+      ...variants.map(p => queryDocumentsByField('patient_accounts', 'phone', p)),
+    ])
+    const userDoc = matches.flat().find(acc => (
+      (acc.clinic_id === clinicId || acc.clinicId === clinicId) &&
+      normalizePhone(String(acc.phone || '')) === normalizedInputPhone
+    ))
 
     if (userDoc) {
       const storedPassword = userDoc.passwordHash || userDoc.password
@@ -89,7 +84,7 @@ export async function POST(req: NextRequest) {
 
       const token = await createSessionToken({
         role: 'patient',
-        name: patientData.name,
+        name: String(patientData.name || 'المريض'),
         phone: cleanPhone,
         clinicId,
         slug,
@@ -113,71 +108,11 @@ export async function POST(req: NextRequest) {
       return response
     }
 
-    // Check past appointments
-    let pastAppointments: any[] = []
-    try {
-      const apptQ = query(
-        collection(db, 'appointments'),
-        where('clinic_id', '==', clinicId)
-      )
-      const apptSnap = await getDocs(apptQ)
-      pastAppointments = apptSnap.docs
-        .map(d => ({ id: d.id, ...d.data() as any }))
-        .filter(a => normalizePhone(a.phone) === normalizedInputPhone || a.phone === cleanPhone)
-    } catch (e) {
-      console.warn('Appointments lookup failed:', e)
-    }
-
-    if (pastAppointments.length > 0) {
-      const firstAppt = pastAppointments[0]
-      const patientName = firstAppt.patientName || 'المريض'
-      const patientAge = firstAppt.age || ''
-      const passwordHash = await hashPassword(String(password))
-
-      const newId = crypto.randomUUID()
-      await writeDocument(`patient_accounts/${newId}`, {
-        clinic_id: clinicId,
-        name: patientName,
-        phone: cleanPhone,
-        age: patientAge,
-        passwordHash,
-        createdAt: new Date().toISOString()
-      }, true)
-
-      const patientData = {
-        id: newId,
-        name: patientName,
-        phone: cleanPhone,
-        age: patientAge,
-        clinic_id: clinicId,
-        slug
-      }
-
-      const token = await createSessionToken({
-        role: 'patient',
-        name: patientName,
-        phone: cleanPhone,
-        clinicId,
-        slug,
-        patientId: newId
-      })
-
-      const response = NextResponse.json({
-        success: true,
-        token,
-        patient: patientData
-      })
-
-      response.cookies.set('patient_session', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 30 * 24 * 60 * 60
-      })
-
-      return response
-    }
+    // A booking record is NOT proof of phone ownership. Never create a
+    // password-protected patient identity just from a previous booking name
+    // and a caller-supplied phone number; that enables account hijacking.
+    // Existing patients without credentials must use a verified registration
+    // or recovery workflow.
 
     return NextResponse.json(
       { error: 'رقم الهاتف غير مسجل في هذه العيادة. يرجى إنشاء حساب جديد.' },
@@ -186,7 +121,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Patient login API error:', error)
     return NextResponse.json(
-      { error: 'حدث خطأ في الخادم أثناء تسجيل الدخول: ' + (error.message || '') },
+      { error: 'تعذر تسجيل الدخول حاليًا، حاول مرة أخرى.' },
       { status: 500 }
     )
   }

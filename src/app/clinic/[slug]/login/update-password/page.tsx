@@ -2,8 +2,7 @@
 
 import { use, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { db } from '@/lib/firebase'
-import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore'
+import { loadPublicClinicProfile } from '@/lib/clinic-profile-client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/ui/password-input'
@@ -35,16 +34,7 @@ export default function UpdatePassword({ params }: { params: Promise<{ slug: str
   useEffect(() => {
     const fetchClinic = async () => {
       try {
-        const q = query(collection(db, 'clinics'), where('slug', '==', slug))
-        const snapshot = await getDocs(q)
-        if (!snapshot.empty) {
-          const data: any = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() }
-          setClinic(data)
-          // If there is already an active OTP pending for this clinic, let them jump to verify
-          if (data.resetPasswordOtp) {
-            setStep('verify')
-          }
-        }
+        setClinic(await loadPublicClinicProfile(slug))
       } catch (err) {
         console.error(err)
       }

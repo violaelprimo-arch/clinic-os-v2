@@ -1,4 +1,5 @@
 'use client'
+import { watchClinicProfile } from '@/lib/clinic-profile-client'
 
 import { use, useState, useEffect, useMemo, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -373,15 +374,9 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const currentScale = zoomMode === 'fit' ? fitScale : manualScale
 
   useEffect(() => {
-    const q = query(collection(db, 'clinics'), where('slug', '==', slug))
-    const unsubClinic = onSnapshot(
-      q,
-      async (snapshot) => {
-        if (!snapshot.empty) {
-          const cDoc = snapshot.docs[0]
-          const data = cDoc.data()
-          setClinic({ id: cDoc.id, ...data })
-          setClinicId(cDoc.id)
+    const unsubClinic = watchClinicProfile(slug, async (data) => {
+          setClinic(data)
+          setClinicId(data.id)
           if (data.hiddenProtocolIds && Array.isArray(data.hiddenProtocolIds)) {
             setHiddenBuiltinIds(data.hiddenProtocolIds)
           }
@@ -397,7 +392,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           try {
             const todayQ = query(
               collection(db, 'appointments'),
-              where('clinic_id', '==', cDoc.id),
+              where('clinic_id', '==', data.id),
               where('date', '==', dateStr)
             )
             const todaySnap = await getDocs(todayQ)
@@ -405,12 +400,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           } catch (e) {
             console.error(e)
           }
-        }
-      },
-      (err) => {
-        console.error(err)
-      }
-    )
+    }, console.error)
 
     return () => unsubClinic()
   }, [slug, dateStr])

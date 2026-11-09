@@ -13,6 +13,7 @@ import {
   Sparkles,
   UserCheck
 } from 'lucide-react'
+import { loadPublicClinicProfile } from '@/lib/clinic-profile-client'
 import { db } from '@/lib/firebase'
 import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore'
 import { calculatePatientLivePosition, PatientQueueStatusResult } from '@/lib/queueCalculations'
@@ -69,14 +70,10 @@ export function PatientLiveTurn({
       setClinicData(clinic)
       return
     }
-    const qC = query(collection(db, 'clinics'), where('slug', '==', slug))
-    getDocs(qC)
-      .then((snap) => {
-        if (!snap.empty) {
-          setClinicData({ id: snap.docs[0].id, ...snap.docs[0].data() })
-        }
-      })
+    let cancelled = false
+    loadPublicClinicProfile(slug).then(data => { if (!cancelled) setClinicData(data) })
       .catch((err) => console.error('Error fetching clinic for live turn:', err))
+    return () => { cancelled = true }
   }, [clinic, slug])
 
   // 2. React to prop updates from parent
@@ -550,4 +547,4 @@ export function PatientLiveTurn({
       </div>
     </div>
   )
-}
+}

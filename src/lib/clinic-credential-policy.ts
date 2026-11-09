@@ -22,9 +22,15 @@ export function isCurrentClinicDoctor(
     payload?.role === 'doctor' &&
     payload.clinicId === clinicId &&
     payload.slug === slug &&
-    typeof payload.email === 'string' &&
-    normalizeDoctorEmail(payload.email) === normalizeDoctorEmail(clinic.doctorEmail) &&
-    normalizeDoctorEmail(clinic.doctorEmail) !== null &&
+    Number(payload.credentialsVersion || 0) === Number(clinic.credentialsVersion || 0) &&
+    (
+      (normalizeDoctorEmail(clinic.doctorEmail) !== null &&
+        normalizeDoctorEmail(payload.email) === normalizeDoctorEmail(clinic.doctorEmail)) ||
+      (typeof clinic.doctorUsername === 'string' &&
+        /^[a-z0-9._-]{3,32}$/.test(clinic.doctorUsername) &&
+        typeof payload.username === 'string' &&
+        payload.username.toLowerCase() === clinic.doctorUsername.toLowerCase())
+    ) &&
     clinic.slug === slug &&
     (!Number.isFinite(passwordChangedAt) || (
       typeof payload.issuedAt === 'number' && payload.issuedAt >= passwordChangedAt
@@ -88,6 +94,9 @@ const fieldSection: Record<string, string> = {
   services: 'settings.services.catalog',
   assistantPermissions: 'settings.staff.permissions',
   assistants: 'settings.staff.permissions',
+  favorite_drugs: 'drugs',
+  favoriteDrugs: 'drugs',
+  custom_drugs: 'drugs',
   averageVisitTime: 'settings.queue.capacity',
   maxDailyBookings: 'settings.queue.capacity',
   bookingAvailability: 'settings.queue.capacity',

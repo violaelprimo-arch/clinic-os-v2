@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { runMedicineSync, getCairoDateString } from '@/lib/server/medicine-sync-service'
-import { verifySessionToken } from '@/lib/auth-crypto'
+import { getCurrentClinicStaff } from '@/lib/server/clinic-staff-access'
 import { authenticateOwnerRequest, assertSameOrigin } from '@/lib/server/owner-access'
 import { queryDocuments, readDocument } from '@/lib/server/firebase-rest'
 
@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 
 // In-memory sliding rate limiter: Max 1 manual sync every 15 minutes per account/IP
 const manualSyncRateLimits = new Map<string, number>()
-const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000
+const RATE_LIMIT_WINDOW_MS = 60 * 1000
 
 function enforceManualSyncRateLimit(key: string): { allowed: boolean; waitMinutes: number } {
   const now = Date.now()
@@ -42,23 +42,9 @@ async function authorizeSyncRequest(req: NextRequest): Promise<{
     return { authorized: true, role: 'owner', userId: owner.uid || owner.email }
   }
 
-  // 2. Check Clinic Doctor Session
-  const clinicCookie = req.cookies.get('clinic_session')?.value
-  const authHeader = req.headers.get('Authorization')
-  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7).trim() : null
-  const candidateToken = clinicCookie || bearerToken
-
-  if (candidateToken) {
-    const session = await verifySessionToken(candidateToken).catch(() => ({ valid: false, payload: undefined }))
-    if (session.valid && session.payload && session.payload.role === 'doctor') {
-      const clinicId = session.payload.clinicId
-      if (typeof clinicId === 'string' && clinicId) {
-        const clinic = (await readDocument(`clinics/${clinicId}`).catch(() => null)) as any
-        if (clinic && clinic.isActive !== false) {
-          return { authorized: true, role: 'doctor', userId: clinicId }
-        }
-      }
-    }
+  const staff = await getCurrentClinicStaff(req)
+  if (staff && staff.user.role === 'doctor' && staff.clinic.isActive !== false) {
+    return { authorized: true, role: 'doctor', userId: staff.clinicId }
   }
 
   return {
@@ -77,14 +63,14 @@ export async function GET() {
     const currentCairoDate = getCairoDateString()
 
     // 1. Read metadata
-    const metadata = (await readDocument('sync_metadata/market_prices').catch(() => null)) as any
+    const metadata = (await readDocument('sync_metadata/market_prices')) as any
 
     // 2. Read lock status
-    const lock = (await readDocument('sync_locks/market_prices').catch(() => null)) as any
+    const lock = (await readDocument('sync_locks/market_prices')) as any
     const isCurrentlyRunning = Boolean(
       lock &&
       lock.lockedAt &&
-      Date.now() - new Date(String(lock.lockedAt)).getTime() < 15 * 60 * 1000
+      Date.now() - new Date(String(lock.lockedAt)).getTime() < 5 * 60 * 1000
     )
 
     // 3. Read recent logs (sanitized)
@@ -106,9 +92,11 @@ export async function GET() {
     }))
 
     // Determine high-level health state
-    let status: 'RUNNING' | 'COMPLETED' | 'STALE' | 'FAILED' | 'IDLE' = 'IDLE'
+    let status: 'RUNNING' | 'PARTIAL' | 'COMPLETED' | 'STALE' | 'FAILED' | 'IDLE' = 'IDLE'
     if (isCurrentlyRunning) {
       status = 'RUNNING'
+    } else if (metadata?.lastAttemptStatus === 'PARTIAL') {
+      status = 'PARTIAL'
     } else if (metadata?.lastAttemptStatus === 'FAILED' && metadata?.lastSuccessDate !== currentCairoDate) {
       status = 'FAILED'
     } else if (metadata?.lastSuccessDate) {
@@ -119,6 +107,8 @@ export async function GET() {
       success: true,
       currentCairoDate,
       isRunning: isCurrentlyRunning,
+      dataVersion: metadata?.dataVersion || null,
+      nextPage: metadata?.checkpoint?.nextPage || null,
       status,
       lastSuccess: metadata?.lastSuccessDate
         ? {
@@ -187,10 +177,11 @@ export async function POST(req: NextRequest) {
       pages
     })
 
+    if (syncResult.status === 'FAILED') manualSyncRateLimits.delete(rateLimitKey)
     return NextResponse.json({
       success: syncResult.status !== 'FAILED',
       ...syncResult
-    })
+    }, { status: syncResult.status === 'FAILED' ? 502 : syncResult.status === 'PARTIAL' ? 202 : 200 })
   } catch (error: any) {
     console.error('Error in sync-daily-prices POST:', error)
     return NextResponse.json(

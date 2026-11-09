@@ -1,4 +1,5 @@
 'use client'
+import { loadClinicProfile } from '@/lib/clinic-profile-client'
 
 import React, { use, useState, useEffect, useMemo, useRef } from 'react'
 import {
@@ -116,10 +117,8 @@ export default function AnalyticsClient({ slug }: { slug: string }) {
   useEffect(() => {
     const fetchClinic = async () => {
       try {
-        const q = query(collection(db, 'clinics'), where('slug', '==', slug))
-        const snap = await getDocs(q)
-        if (!snap.empty) {
-          const cData = { id: snap.docs[0].id, ...(snap.docs[0].data() as any) }
+        const cData = await loadClinicProfile(slug)
+        if (cData) {
           setClinic(cData)
           setAssistantPermissions(cData.assistantPermissions || ['appointments'])
 

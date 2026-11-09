@@ -49,23 +49,34 @@ export async function handleScheduledEvent(
   const cairoHour = getCairoHour(eventTime)
   const cairoDate = getCairoDateString(eventTime)
 
-  // 1. Timezone & DST check: Trigger window is 05:00 to 07:00 AM Cairo time
-  // Cloudflare triggers at 0 3 * * * and 0 4 * * * UTC to cover UTC+2 winter and UTC+3 summer
-  const isMorningWindow = cairoHour >= 5 && cairoHour <= 7
-  if (!isMorningWindow) {
-    console.log(`[Worker Scheduled] Cairo hour is ${cairoHour} (outside 05:00-07:00 AM window). Skipping.`)
-    return { skipped: true, reason: 'OUTSIDE_CAIRO_WINDOW', cairoHour, cairoDate }
+  // Daily triggers fire at 03:00/04:00 UTC; exactly one maps to
+  // 06:00 Africa/Cairo after applying daylight-saving time.
+  // An independent 15-minute retry trigger heals transient source failures
+  // and missed original schedules without needing a browser tab.
+  const isRetryTrigger = cronExpr === '*/15 * * * *'
+  if (!isRetryTrigger && cairoHour !== 6) {
+    return { skipped: true, reason: 'NOT_0600_CAIRO', cairoHour, cairoDate }
+  }
+  if (isRetryTrigger && (cairoHour < 6 || cairoHour > 22)) {
+    return { skipped: true, reason: 'RETRY_OUTSIDE_ALLOWED_WINDOW', cairoHour, cairoDate }
   }
 
-  // 2. Idempotency check: Has today already been completed successfully?
+  let metadata: any = null
   try {
-    const metadata = (await readDocument('sync_metadata/market_prices').catch(() => null)) as any
-    if (metadata && metadata.lastSuccessDate === cairoDate && metadata.lastAttemptStatus === 'COMPLETED') {
-      console.log(`[Worker Scheduled] Sync for today (${cairoDate}) is already completed successfully. Skipping redundant cycle.`)
-      return { skipped: true, reason: 'ALREADY_COMPLETED_TODAY', cairoDate }
-    }
+    metadata = await readDocument('sync_metadata/market_prices')
   } catch (err) {
-    console.warn('[Worker Scheduled] Could not verify existing metadata, proceeding with run:', err)
+    // Fail closed instead of overwriting data on uncertain connectivity.
+    console.error('[Worker Scheduled] Unable to read authoritative sync metadata', err)
+    return { success: false, reason: 'SYNC_METADATA_UNAVAILABLE', cairoDate }
+  }
+  if (metadata?.pipelineVersion === 2 && metadata?.lastSuccessDate === cairoDate && metadata?.lastAttemptStatus === 'COMPLETED') {
+    return { skipped: true, reason: 'ALREADY_COMPLETED_TODAY', cairoDate }
+  }
+  if (isRetryTrigger && metadata?.lastAttemptTimestamp) {
+    const elapsed = eventTime.getTime() - Date.parse(String(metadata.lastAttemptTimestamp))
+    if (Number.isFinite(elapsed) && elapsed >= 0 && elapsed < 12 * 60 * 1000) {
+      return { skipped: true, reason: 'RECENT_ATTEMPT_IN_PROGRESS', cairoDate }
+    }
   }
 
   // 3. Retry loop with Exponential Backoff
@@ -84,6 +95,8 @@ export async function handleScheduledEvent(
         console.log(`[Worker Scheduled] Medicine sync completed successfully on attempt ${attempt}: +${result.addedCount} new, ${result.priceChangedCount} updated.`)
         return { success: true, attempt, ...result }
       }
+
+      if (result.status === 'PARTIAL') return { success: true, attempt, ...result }
 
       if (result.status === 'ALREADY_RUNNING') {
         console.log(`[Worker Scheduled] Sync already in progress by another worker. Exiting cleanly.`)

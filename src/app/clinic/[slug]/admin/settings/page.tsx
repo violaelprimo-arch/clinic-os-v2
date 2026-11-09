@@ -180,13 +180,15 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const q = query(collection(db, 'clinics'), where('slug', '==', slug))
-        const snapshot = await getDocs(q)
-        if (!snapshot.empty) {
-          const cDoc = snapshot.docs[0]
-          setClinicId(cDoc.id)
-          const data = cDoc.data()
-          setClinic({ id: cDoc.id, ...data })
+        const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/private-settings`, {
+          cache: 'no-store', credentials: 'same-origin',
+        })
+        const result = await res.json().catch(() => ({}))
+        if (!res.ok || !result.clinic) throw new Error(result.error || 'تعذر تحميل إعدادات العيادة')
+        {
+          const data = result.clinic
+          setClinicId(data.id)
+          setClinic(data)
           setPhotoUrl(data.heroImage || '')
           setBranchImage(data.branchImage || '')
           setClinicName(data.clinicName || '')
@@ -289,7 +291,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
           // Fetch clinic branches for assistant assignment
           try {
-            const bQ = query(collection(db, 'branches'), where('clinicId', '==', cDoc.id))
+            const bQ = query(collection(db, 'branches'), where('clinicId', '==', data.id))
             const bSnap = await getDocs(bQ)
             const bList = bSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter((b: any) => !b.isArchived)
             setBranches(bList)
@@ -408,6 +410,11 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}))
         throw new Error(errorData.error || 'فشل حفظ الإعدادات')
+      }
+      const saved = await res.json()
+      if (saved.requiresSessionRefresh) {
+        window.location.reload()
+        return
       }
 
       await syncClinicScheduleToMainBranch(
@@ -823,6 +830,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                     setCurrentDoctorPassword('')
                     setNewDoctorPassword('')
                     setNewDoctorPasswordConfirm('')
+                    window.location.reload()
                   } catch (e: any) {
                     toast.error(e.message || 'حدث خطأ أثناء تغيير كلمة المرور')
                   } finally {
@@ -887,6 +895,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                     setClinic((prev: any) => ({ ...prev, doctorEmail: data.email }))
                     setNewDoctorEmail('')
                     setCurrentDoctorEmailPassword('')
+                    window.location.reload()
                   } catch (e: any) {
                     toast.error(e.message || 'خطأ في تحديث البريد')
                   } finally {

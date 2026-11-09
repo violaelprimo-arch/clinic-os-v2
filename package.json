@@ -10,7 +10,9 @@
     "lint": "eslint",
     "test:landing": "node --import ./scripts/register-test-loader.mjs --test tests/landing-api.test.mjs tests/firebase-credentials.test.mjs",
     "test:landing:rules": "npx --yes firebase-tools@13.35.1 emulators:exec --only firestore --project demo-clinic-landing --config firebase.landing.compat.json 'node --test tests/firestore-landing.rules.test.mjs'",
-    "test:landing:browser": "playwright test --config playwright.landing.config.ts"
+    "test:landing:browser": "playwright test --config playwright.landing.config.ts",
+    "build:cloudflare": "opennextjs-cloudflare build",
+    "validate:worker": "wrangler deploy --dry-run"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -55,5 +57,8 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "wrangler": "^4.147.0"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

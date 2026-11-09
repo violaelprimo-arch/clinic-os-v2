@@ -1,6 +1,7 @@
 'use client'
 
 import { use, useEffect, useState, useMemo, useRef } from 'react'
+import { watchPublicClinicProfile } from '@/lib/clinic-profile-client'
 import { db } from '@/lib/firebase'
 import {
   calculatePatientLivePosition,
@@ -63,12 +64,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
     const apiInterval = setInterval(loadFromServerApi, 7000)
 
     // 1. Fetch clinic data
-    const qClinic = query(collection(db, 'clinics'), where('slug', '==', slug))
-    const unsubClinic = onSnapshot(qClinic, (snapshot) => {
-      if (!snapshot.empty) {
-        setClinic({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() })
-      }
-    })
+    const unsubClinic = watchPublicClinicProfile(slug, (data) => { setClinic(data) })
 
     // 2. Listen to this appointment live
     const unsubscribeAppt = onSnapshot(doc(db, 'appointments', appointmentId), (docSnap) => {

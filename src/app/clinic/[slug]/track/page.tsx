@@ -65,23 +65,25 @@ export default function TrackQueuePage({
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null)
   const [allTodayBranchAppts, setAllTodayBranchAppts] = useState<any[]>([])
 
-  // 1. Fetch clinic data by slug
+  // 1. Public, minimized clinic information comes from a server API, never
+  // from a direct Firestore read of the credential-bearing clinic document.
   useEffect(() => {
-    const qClinic = query(collection(db, 'clinics'), where('slug', '==', slug))
-    const unsubClinic = onSnapshot(
-      qClinic,
-      (snapshot) => {
-        if (!snapshot.empty) {
-          setClinic({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() })
-        }
-        setLoadingClinic(false)
-      },
-      (err) => {
-        console.error('Clinic fetch error:', err)
-        setLoadingClinic(false)
+    let cancelled = false
+    const loadClinic = async () => {
+      try {
+        const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/settings`, {
+          cache: 'no-store',
+        })
+        const result = await res.json().catch(() => ({}))
+        if (!cancelled && res.ok && result.clinic) setClinic(result.clinic)
+      } catch (err) {
+        if (!cancelled) console.warn('Unable to retrieve clinic profile:', err)
+      } finally {
+        if (!cancelled) setLoadingClinic(false)
       }
-    )
-    return () => unsubClinic()
+    }
+    void loadClinic()
+    return () => { cancelled = true }
   }, [slug])
 
   // 2. Perform search by phone number

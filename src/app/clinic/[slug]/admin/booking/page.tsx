@@ -1,8 +1,6 @@
 'use client'
 
 import { use, useEffect, useState } from 'react'
-import { db } from '@/lib/firebase'
-import { collection, query, where, onSnapshot } from 'firebase/firestore'
 import { InClinicBookingView } from '@/components/clinic/InClinicBookingView'
 import { ClinicLoading } from '@/components/clinic/ClinicLoading'
 import { useLanguage } from '@/context/LanguageContext'
@@ -26,22 +24,24 @@ export default function InClinicBookingPage({
     const storedRole = localStorage.getItem('clinic_role') || 'doctor'
     setRole(storedRole)
 
-    const q = query(collection(db, 'clinics'), where('slug', '==', slug))
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        if (!snapshot.empty) {
-          setClinic({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() })
-        }
-        setLoading(false)
-      },
-      (err) => {
-        console.error('Error fetching clinic for booking page:', err)
-        setLoading(false)
+    let cancelled = false
+    const controller = new AbortController()
+    const load = async () => {
+      try {
+        const response = await fetch(`/api/clinic/${encodeURIComponent(slug)}/staff-profile`, {
+          credentials: 'same-origin', cache: 'no-store', signal: controller.signal,
+        })
+        const data = await response.json().catch(() => ({}))
+        if (!cancelled && response.ok && data.clinic) setClinic(data.clinic)
+        if (!cancelled && !response.ok) console.warn('Clinic booking profile unavailable:', response.status)
+      } catch (err) {
+        if (!cancelled) console.error('Could not fetch clinic booking profile:', err)
+      } finally {
+        if (!cancelled) setLoading(false)
       }
-    )
-
-    return () => unsubscribe()
+    }
+    void load()
+    return () => { cancelled = true; controller.abort() }
   }, [slug])
 
   if (loading) {

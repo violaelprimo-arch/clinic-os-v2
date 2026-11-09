@@ -1,6 +1,7 @@
 'use client'
 
 import { use, useEffect, useState, useMemo, useRef } from 'react'
+import { watchPublicClinicProfile } from '@/lib/clinic-profile-client'
 import { db } from '@/lib/firebase'
 import { collection, query, where, onSnapshot, doc, getDoc, updateDoc } from 'firebase/firestore'
 import { useSearchParams } from 'next/navigation'
@@ -559,26 +560,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
   // 1. Real-time Clinic Document Listener
   useEffect(() => {
     if (!slug) return
-    const qClinic = query(collection(db, 'clinics'), where('slug', '==', slug))
-    const unsubClinic = onSnapshot(
-      qClinic,
-      (snapshot) => {
-        if (!snapshot.empty) {
-          const clinicDoc = snapshot.docs[0]
-          setClinic({ id: clinicDoc.id, ...(clinicDoc.data() as any) })
-        } else {
-          // Fallback check directly by doc ID if slug is doc ID
-          getDoc(doc(db, 'clinics', slug)).then((dSnap) => {
-            if (dSnap.exists()) {
-              setClinic({ id: dSnap.id, ...(dSnap.data() as any) })
-            }
-          }).catch((err) => console.warn('Direct doc fallback error:', err))
-        }
-      },
-      (err) => {
-        console.error('TV Screen clinic listener error:', err)
-      }
-    )
+    const unsubClinic = watchPublicClinicProfile(slug, (data) => { setClinic(data) })
     return () => unsubClinic()
   }, [slug])
 
@@ -656,9 +638,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
                 list.push({ ...p, queue_number: p.queueNumber })
               })
             }
-            if (list.length > 0) {
-              setAppointments(list)
-            }
+            setAppointments(list)
           }
         }
       } catch (e) {}

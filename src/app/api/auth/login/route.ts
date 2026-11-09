@@ -1,96 +1,93 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import { queryDocuments, queryDocumentsByField, writeDocument, createDocument } from '@/lib/server/firebase-rest'
 import { verifyPassword, hashPassword, createSessionToken } from '@/lib/auth-crypto'
-import { recordAuditLog } from '@/lib/audit-logger'
+import { createClinicFirebaseCustomToken } from '@/lib/server/firebase-clinic-custom-token'
 import { SINGLE_CLINIC_SLUG } from '@/lib/single-clinic'
+import { assertSameOrigin } from '@/lib/server/owner-access'
+
+const attempts = new Map<string, { count: number; expires: number }>()
+const WINDOW_MS = 60000
+function trackAttempt(req: NextRequest, identifier: string) {
+  const now = Date.now()
+  if (attempts.size > 10000) for (const [key, value] of attempts) {
+    if (value.expires <= now) attempts.delete(key)
+  }
+  const key = `${req.headers.get('cf-connecting-ip') || 'unknown'}:${identifier}`
+  const prior = attempts.get(key)
+  const state = prior && prior.expires > now ? prior : { count: 0, expires: now + WINDOW_MS }
+  state.count++
+  attempts.set(key, state)
+  return { key, allowed: state.count <= 5 }
+}
+
 
 export async function POST(req: NextRequest) {
   try {
+    assertSameOrigin(req)
     const body = await req.json()
-    const { email, password, slug: rawSlug } = body
-
-    if (!email || !password) {
-      return NextResponse.json({ error: 'يرجى إدخال البريد الإلكتروني وكلمة المرور' }, { status: 400 })
+    const { email, username, identifier, password, slug: rawSlug } = body
+    const loginIdentifier = String(identifier || username || email || '').trim().toLowerCase()
+    if (!loginIdentifier || !password || loginIdentifier.length > 254 ||
+        typeof password !== 'string' || password.length > 1024) {
+      return NextResponse.json({ error: 'يرجى إدخال اسم المستخدم أو البريد الإلكتروني وكلمة المرور' }, { status: 400 })
     }
-
-    const trimmedEmail = String(email).trim().toLowerCase()
-    const slug = typeof rawSlug === 'string' && rawSlug.trim() ? rawSlug.trim() : null
-
-    // 1. Locate the clinic document
-    let clinicDoc: any = null
-    let effectiveSlug: string = slug || SINGLE_CLINIC_SLUG
-
-    if (slug) {
-      const q = query(collection(db, 'clinics'), where('slug', '==', slug))
-      const snap = await getDocs(q)
-      if (!snap.empty) {
-        clinicDoc = snap.docs[0]
-        effectiveSlug = clinicDoc.data().slug || slug
-      }
-    } else {
-      // Universal login: lookup clinic by doctor email
-      const docQ = query(collection(db, 'clinics'), where('doctorEmail', '==', trimmedEmail))
-      const docSnap = await getDocs(docQ)
-      if (!docSnap.empty) {
-        clinicDoc = docSnap.docs[0]
-        effectiveSlug = clinicDoc.data().slug || effectiveSlug
-      } else {
-        // Lookup clinic by assistant primary email
-        const assQ = query(collection(db, 'clinics'), where('assistantEmail', '==', trimmedEmail))
-        const assSnap = await getDocs(assQ)
-        if (!assSnap.empty) {
-          clinicDoc = assSnap.docs[0]
-          effectiveSlug = clinicDoc.data().slug || effectiveSlug
-        } else {
-          // Check all clinics for secondary assistant array matching email
-          const allClinicsSnap = await getDocs(collection(db, 'clinics'))
-          for (const d of allClinicsSnap.docs) {
-            const data = d.data()
-            if (Array.isArray(data.assistants)) {
-              if (data.assistants.some((a: any) => (a.email || '').trim().toLowerCase() === trimmedEmail)) {
-                clinicDoc = d
-                effectiveSlug = data.slug || effectiveSlug
-                break
-              }
-            }
-          }
-        }
-      }
+    const attempt = trackAttempt(req, loginIdentifier)
+    if (!attempt.allowed) return NextResponse.json({ error: 'محاولات كثيرة. انتظر دقيقة ثم أعد المحاولة.' }, { status: 429, headers: { 'Retry-After': '60' } })
+    // Resolve the clinic on the trusted server. Client Firestore reads were
+    // denied after hardening Firestore rules and caused valid logins to fail.
+    // Username is an alias only; passwords remain salted hashes in Firestore.
+    const slug = typeof rawSlug === 'string' && rawSlug.trim()
+      ? rawSlug.trim().toLowerCase() : null
+    if (slug && !/^[a-z0-9][a-z0-9-]{0,62}$/.test(slug)) {
+      return NextResponse.json({ error: 'رابط عيادة غير صالح' }, { status: 400 })
     }
-
-    if (!clinicDoc) {
-      // Prevent tenant enumeration by returning standard 401
-      return NextResponse.json({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' }, { status: 401 })
+    const groups = slug
+      ? [await queryDocumentsByField('clinics', 'slug', slug)]
+      : await Promise.all(['doctorEmail', 'assistantEmail', 'doctorUsername', 'assistantUsername']
+          .map(field => queryDocumentsByField('clinics', field, loginIdentifier)))
+    // Old secondary-assistant accounts predate the indexed alias fields.
+    const candidates = groups.flat()
+    const clinics = candidates.length ? [...new Map(candidates.map(c => [c.id, c])).values()]
+      : await queryDocuments('clinics')
+    const matchingClinics = clinics.filter((c: any) => {
+      if (slug && c.slug !== slug) return false
+      const values = [
+        c.doctorEmail, c.assistantEmail, c.doctorUsername, c.assistantUsername,
+        ...(Array.isArray(c.assistants) ? c.assistants.flatMap((a: any) => [a.email, a.username]) : [])
+      ]
+      return values.some(v => typeof v === 'string' && v.trim().toLowerCase() === loginIdentifier)
+    })
+    // Fail closed when username/email aliases are ambiguous across tenants.
+    if (matchingClinics.length !== 1) {
+      return NextResponse.json({ error: 'اسم المستخدم أو البريد الإلكتروني أو كلمة المرور غير صحيحة' }, { status: 401 })
     }
-
-    const clinic = clinicDoc.data()
-    const clinicId = clinicDoc.id
-
+    const clinic = matchingClinics[0] as any
+    const clinicId = String(clinic.id)
+    const effectiveSlug = String(clinic.slug || slug || SINGLE_CLINIC_SLUG)
     // Check Doctor
-    const isDoctorEmail = (clinic.doctorEmail || '').trim().toLowerCase() === trimmedEmail
+    const isDoctorEmail = [clinic.doctorEmail, clinic.doctorUsername].some((v: unknown) => typeof v === 'string' && v.trim().toLowerCase() === loginIdentifier)
     let isDoctorMatch = false
     if (isDoctorEmail) {
       const storedHash = clinic.doctorPasswordHash || clinic.doctorPassword
       isDoctorMatch = await verifyPassword(password, storedHash)
 
       // If matched and hash was not stored, automatically upgrade to hash
-      if (isDoctorMatch && !clinic.doctorPasswordHash) {
+      if (isDoctorMatch && (!clinic.doctorPasswordHash || !String(clinic.doctorPasswordHash).startsWith('pbkdf2:'))) {
         const newHash = await hashPassword(password)
-        updateDoc(doc(db, 'clinics', clinicId), { doctorPasswordHash: newHash }).catch(() => {})
+        await writeDocument(`clinics/${clinicId}`, { doctorPasswordHash: newHash, doctorPassword: null }, true)
       }
     }
 
     // Check Assistant
-    const isAssEmail = (clinic.assistantEmail || '').trim().toLowerCase() === trimmedEmail
+    const isAssEmail = [clinic.assistantEmail, clinic.assistantUsername].some((v: unknown) => typeof v === 'string' && v.trim().toLowerCase() === loginIdentifier)
     let isAssMatch = false
     if (isAssEmail) {
       const storedHash = clinic.assistantPasswordHash || clinic.assistantPassword
       isAssMatch = await verifyPassword(password, storedHash)
 
-      if (isAssMatch && !clinic.assistantPasswordHash) {
+      if (isAssMatch && (!clinic.assistantPasswordHash || !String(clinic.assistantPasswordHash).startsWith('pbkdf2:'))) {
         const newHash = await hashPassword(password)
-        updateDoc(doc(db, 'clinics', clinicId), { assistantPasswordHash: newHash }).catch(() => {})
+        await writeDocument(`clinics/${clinicId}`, { assistantPasswordHash: newHash, assistantPassword: null }, true)
       }
     }
 
@@ -98,7 +95,7 @@ export async function POST(req: NextRequest) {
     let matchedSecondaryAss: any = null
     if (!isDoctorMatch && !isAssMatch && Array.isArray(clinic.assistants)) {
       for (const ass of clinic.assistants) {
-        if ((ass.email || '').trim().toLowerCase() === trimmedEmail) {
+        if (ass.isActive !== false && [ass.email, ass.username].some((v: unknown) => typeof v === 'string' && v.trim().toLowerCase() === loginIdentifier)) {
           const matched = await verifyPassword(password, ass.passwordHash || ass.password)
           if (matched) {
             matchedSecondaryAss = ass
@@ -109,9 +106,10 @@ export async function POST(req: NextRequest) {
     }
 
     if (!isDoctorMatch && !isAssMatch && !matchedSecondaryAss) {
-      return NextResponse.json({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' }, { status: 401 })
+      return NextResponse.json({ error: 'اسم المستخدم أو البريد الإلكتروني أو كلمة المرور غير صحيحة' }, { status: 401 })
     }
 
+    attempts.delete(attempt.key)
     const role: 'doctor' | 'assistant' = isDoctorMatch ? 'doctor' : 'assistant'
     const userName = isDoctorMatch
       ? (clinic.doctorName || 'دكتور العيادة')
@@ -125,34 +123,50 @@ export async function POST(req: NextRequest) {
     // Create cryptographically signed session token
     const token = await createSessionToken({
       role,
-      email: trimmedEmail,
+      email: isDoctorMatch ? clinic.doctorEmail : (matchedSecondaryAss?.email || clinic.assistantEmail || ''),
+      username: isDoctorMatch ? (clinic.doctorUsername || undefined) : (matchedSecondaryAss?.username || clinic.assistantUsername || undefined),
       name: userName,
       clinicId,
       slug: effectiveSlug,
       branchId: assignedBranchId,
       branchName: assignedBranchName,
-      mustChangePassword: isMustChangePassword
+      mustChangePassword: isMustChangePassword,
+      credentialsVersion: Number(clinic.credentialsVersion || 0),
     })
 
+    // Custom tokens are generated only after the server verified the password.
+    const firebaseCustomToken = await createClinicFirebaseCustomToken({
+        clinicId,
+        role,
+        branchId: assignedBranchId,
+        credentialsVersion: Number(clinic.credentialsVersion || 0),
+        accountKey: isDoctorMatch ? 'doctor' : (
+          matchedSecondaryAss
+            ? String(matchedSecondaryAss.id || matchedSecondaryAss.email || matchedSecondaryAss.username)
+            : 'primary-assistant'
+        )
+      })
+
     // Record audit log
-    await recordAuditLog({
+    await createDocument('audit_logs', {
       action: 'AUTH_LOGIN',
       actorName: userName,
       actorRole: role,
       clinicId,
-      details: { email: trimmedEmail, branchId: assignedBranchId, universal: !slug }
-    })
+      details: { identifierType: loginIdentifier.includes('@') ? 'email' : 'username', branchId: assignedBranchId, universal: !slug }
+    }).catch(() => console.warn('Login audit could not be saved'))
 
     const canonicalDashboardUrl = `/clinic/${effectiveSlug}/admin`
 
     const response = NextResponse.json({
       success: true,
       token,
+      firebaseCustomToken,
       redirectUrl: canonicalDashboardUrl,
       user: {
         role,
         name: userName,
-        email: trimmedEmail,
+        email: isDoctorMatch ? clinic.doctorEmail : (matchedSecondaryAss?.email || clinic.assistantEmail || ''),
         clinicId,
         slug: effectiveSlug,
         branchId: assignedBranchId,
@@ -167,11 +181,13 @@ export async function POST(req: NextRequest) {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: 7 * 24 * 60 * 60 // 7 days
+      maxAge: 7 * 24 * 60 * 60, // 7 days
+      domain: process.env.NODE_ENV === 'production' ? '.yalla-clinic.com' : undefined
     })
 
     return response
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 })
+    console.error('[clinic-login] Login request failed:', err instanceof Error ? err.message : 'UNKNOWN')
+    return NextResponse.json({ error: 'تعذر تسجيل الدخول مؤقتاً. يرجى إعادة المحاولة.' }, { status: 503 })
   }
 }

@@ -1,27 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifySessionToken } from '@/lib/auth-crypto'
+import { getCurrentClinicStaff } from '@/lib/server/clinic-staff-access'
+import { createClinicFirebaseCustomToken } from '@/lib/server/firebase-clinic-custom-token'
+import { assertSameOrigin } from '@/lib/server/owner-access'
 
 export async function GET(req: NextRequest) {
-  const token = req.cookies.get('clinic_session')?.value || req.headers.get('Authorization')?.replace('Bearer ', '')
-
-  if (!token) {
-    return NextResponse.json({ authenticated: false, error: 'NO_TOKEN' }, { status: 401 })
+  try {
+    const staff = await getCurrentClinicStaff(req)
+    if (!staff) return NextResponse.json({ authenticated: false }, { status: 401 })
+    return NextResponse.json({ authenticated: true, user: staff.user }, {
+      headers: { 'Cache-Control': 'private, no-store' },
+    })
+  } catch {
+    return NextResponse.json({ error: 'تعذر التحقق من الجلسة مؤقتًا' }, { status: 503 })
   }
+}
 
-  const result = await verifySessionToken(token)
-
-  if (!result.valid) {
-    return NextResponse.json({ authenticated: false, error: result.error }, { status: 401 })
+/** Establish the Firebase SDK identity on this origin, including clinic subdomains. */
+export async function POST(req: NextRequest) {
+  try {
+    assertSameOrigin(req)
+    const staff = await getCurrentClinicStaff(req)
+    if (!staff) return NextResponse.json({ authenticated: false }, { status: 401 })
+    const firebaseCustomToken = await createClinicFirebaseCustomToken({
+      clinicId: staff.clinicId, role: staff.user.role, accountKey: staff.accountKey,
+      credentialsVersion: Number(staff.clinic.credentialsVersion || 0),
+      branchId: staff.user.branchId,
+    })
+    return NextResponse.json({ authenticated: true, user: staff.user, firebaseCustomToken }, {
+      headers: { 'Cache-Control': 'private, no-store' },
+    })
+  } catch {
+    return NextResponse.json({ error: 'تعذر إنشاء جلسة Firebase. أعد المحاولة.' }, { status: 503 })
   }
-
-  return NextResponse.json({
-    authenticated: true,
-    user: result.payload
-  })
 }
 
 export async function DELETE(req: NextRequest) {
-  const response = NextResponse.json({ success: true, message: 'LOGGED_OUT' })
-  response.cookies.delete('clinic_session')
+  assertSameOrigin(req)
+  const response = NextResponse.json({ success: true })
+  const options = { httpOnly: true, secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax' as const, path: '/', maxAge: 0 }
+  if (req.nextUrl.hostname === 'yalla-clinic.com' || req.nextUrl.hostname.endsWith('.yalla-clinic.com')) {
+    response.cookies.set('clinic_session', '', { ...options, domain: '.yalla-clinic.com' })
+  }
+  response.headers.append('Set-Cookie', `clinic_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${options.secure ? '; Secure' : ''}`)
   return response
 }

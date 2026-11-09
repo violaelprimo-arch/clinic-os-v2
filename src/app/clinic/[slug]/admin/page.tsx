@@ -2,8 +2,6 @@
 
 import { use, useEffect, useState } from 'react'
 import { AdminDashboard } from '@/components/clinic/AdminDashboard'
-import { db } from '@/lib/firebase'
-import { collection, query, where, onSnapshot } from 'firebase/firestore'
 import { useLanguage } from '@/context/LanguageContext'
 import { ClinicLoading } from '@/components/clinic/ClinicLoading'
 import { Button } from '@/components/ui/button'
@@ -22,96 +20,34 @@ export default function AdminPage({ params }: { params: Promise<{ slug: string }
 
   useEffect(() => {
     let cancelled = false
+    const controller = new AbortController()
     setLoading(true)
     setNotFound(false)
     setErrorMsg(null)
-
-    // Fallback: fetch clinic settings via server endpoint if client Firestore is slow or denied
-    const tryServerFallback = async () => {
+    // Only load a scope-limited profile. Firestore's raw /clinics documents
+    // contain credential hashes and are deliberately blocked from client SDK.
+    const load = async () => {
       try {
-        const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/private-settings`, {
-          cache: 'no-store',
+        const response = await fetch(`/api/clinic/${encodeURIComponent(slug)}/staff-profile`, {
+          credentials: 'same-origin', cache: 'no-store', signal: controller.signal,
         })
-        if (res.ok) {
-          const data = await res.json()
-          if (!cancelled && data.clinic) {
-            setClinic(data.clinic)
-            setLoading(false)
-            return true
-          }
-        } else if (res.status === 404) {
-          if (!cancelled) {
-            setNotFound(true)
-            setLoading(false)
-          }
-          return false
+        const data = await response.json().catch(() => ({}))
+        if (cancelled) return
+        if (response.status === 404) {
+          setNotFound(true)
+        } else if (response.ok && data.clinic) {
+          setClinic(data.clinic)
+        } else {
+          setErrorMsg(data.error || (isRtl ? 'تعذر تحميل بيانات العيادة' : 'Unable to load clinic profile'))
         }
       } catch (err) {
-        console.warn('Server fallback fetch failed:', err)
+        if (!cancelled) setErrorMsg(isRtl ? 'تعذر الاتصال بالخادم' : 'Server connection failed')
+      } finally {
+        if (!cancelled) setLoading(false)
       }
-      return false
     }
-
-    const q = query(collection(db, 'clinics'), where('slug', '==', slug))
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        if (cancelled) return
-        if (!snapshot.empty) {
-          setClinic({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() })
-          setLoading(false)
-        } else if (slug === 'demo') {
-          setClinic({
-            id: 'demo',
-            slug: 'demo',
-            clinicName: isRtl ? 'العيادة التخصصية' : 'Specialized Clinic',
-            doctorName: isRtl ? 'الطبيب' : 'Physician',
-            specialty: isRtl ? 'استشاري الطب المتخصص' : 'Consultant Physician',
-            primaryColor: '#087CF4'
-          })
-          setLoading(false)
-        } else {
-          // Empty snapshot: try server fallback before declaring not found
-          tryServerFallback().then((found) => {
-            if (!cancelled && !found) {
-              setNotFound(true)
-              setLoading(false)
-            }
-          })
-        }
-      },
-      async (err) => {
-        console.error('Clinic listener error:', err)
-        if (cancelled) return
-        const found = await tryServerFallback()
-        if (!cancelled && !found) {
-          setErrorMsg(err.message || (isRtl ? 'تعذر الاتصال بقاعدة البيانات' : 'Failed to connect to database'))
-          setLoading(false)
-        }
-      }
-    )
-
-    // Safety timeout: loader must never spin longer than 4.5 seconds
-    const timer = setTimeout(async () => {
-      if (cancelled) return
-      setClinic((cur: any) => {
-        if (!cur) {
-          tryServerFallback().then((found) => {
-            if (!cancelled && !found) {
-              setNotFound(true)
-              setLoading(false)
-            }
-          })
-        }
-        return cur
-      })
-    }, 4500)
-
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-      unsubscribe()
-    }
+    void load()
+    return () => { cancelled = true; controller.abort() }
   }, [slug, isRtl, retryKey])
 
   if (loading) {
