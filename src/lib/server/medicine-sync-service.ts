@@ -7,7 +7,9 @@ import {
   writeDocument,
   deleteDocument,
   queryDocuments,
-  createDocument
+  createDocument,
+  acquireFirestoreLease,
+  releaseFirestoreLease
 } from './firebase-rest'
 import {
   normalizeDrugKey,
@@ -88,57 +90,16 @@ async function acquireDistributedLock(
   lockPath: string,
   runId: string,
   triggeredBy: string,
-  ttlMs = 15 * 60 * 1000
+  ttlMs = 30 * 60 * 1000,
 ): Promise<{ acquired: boolean; currentRunId?: string }> {
-  try {
-    const existing = (await readDocument(lockPath).catch(() => null)) as any
-    const now = Date.now()
-
-    if (existing && existing.lockedAt) {
-      const elapsed = now - new Date(String(existing.lockedAt)).getTime()
-      if (elapsed < ttlMs) {
-        // Lock actively held by another process
-        return { acquired: false, currentRunId: existing.runId }
-      }
-    }
-
-    // Write lock with this process's unique runId
-    const lockPayload = {
-      runId,
-      lockedAt: new Date(now).toISOString(),
-      lockedBy: triggeredBy,
-      cairoDate: getCairoDateString(new Date(now))
-    }
-    await writeDocument(lockPath, lockPayload, false)
-
-    // Confirm ownership
-    const confirmed = (await readDocument(lockPath).catch(() => null)) as any
-    if (confirmed && confirmed.runId === runId) {
-      return { acquired: true, currentRunId: runId }
-    }
-    return { acquired: false, currentRunId: confirmed?.runId }
-  } catch (err) {
-    console.warn('Error acquiring distributed lock:', err)
-    return { acquired: false }
-  }
+  // Every contender reads and commits in a Firestore transaction.
+  // Network errors must never be mistaken for an already-running task.
+  return acquireFirestoreLease(lockPath, runId, triggeredBy, ttlMs)
 }
 
-/**
- * Releases the distributed lock ONLY if owned by current runId.
- * Never deletes a lock acquired or taken over by another process.
- */
-async function releaseDistributedLock(lockPath: string, runId: string): Promise<boolean> {
-  try {
-    const current = (await readDocument(lockPath).catch(() => null)) as any
-    if (current && current.runId === runId) {
-      await deleteDocument(lockPath).catch(() => {})
-      return true
-    }
-    return false
-  } catch (err) {
-    console.warn('Error releasing distributed lock:', err)
-    return false
-  }
+/** Release only the active owner, with the same atomic transaction semantics. */
+async function releaseDistributedLock(lockPath: string, runId: string) {
+  return releaseFirestoreLease(lockPath, runId)
 }
 
 /**
@@ -312,17 +273,15 @@ export async function searchDawaaDrugs(query: string): Promise<ScrapedDrug[]> {
 export async function runMedicineSync(options: SyncOptions = {}): Promise<SyncResult> {
   const startTime = Date.now()
   const cairoDate = getCairoDateString()
-  const runId = `run_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+  const runId = `run_${Date.now()}_${crypto.randomUUID()}`
   const { triggeredBy = 'cron', query: searchQuery, pages = 3 } = options
+  const metadataPath = searchQuery?.trim()
+    ? 'sync_metadata/market_prices_targeted'
+    : 'sync_metadata/market_prices'
+  const safePages = Math.max(1, Math.min(15, Math.floor(Number(pages) || 3)))
 
-  // Record attempt start
+  // Attempt metadata is written ONLY after exclusive lock acquisition.
   const attemptTimestamp = new Date().toISOString()
-  await writeDocument('sync_metadata/market_prices', {
-    lastAttemptDate: cairoDate,
-    lastAttemptTimestamp: attemptTimestamp,
-    lastAttemptTriggeredBy: triggeredBy,
-    lastAttemptStatus: 'IN_PROGRESS'
-  }, true).catch(() => {})
 
   // 1. Acquire Atomic Distributed Lock
   const lockAcquired = await acquireDistributedLock(
@@ -348,6 +307,14 @@ export async function runMedicineSync(options: SyncOptions = {}): Promise<SyncRe
     }
   }
 
+  await writeDocument(metadataPath, {
+    lastAttemptDate: cairoDate,
+    lastAttemptTimestamp: attemptTimestamp,
+    lastAttemptTriggeredBy: triggeredBy,
+    lastAttemptStatus: 'IN_PROGRESS',
+    lastRunId: runId
+  }, true)
+
   let addedCount = 0
   let priceChangedCount = 0
   let verifiedCount = 0
@@ -361,7 +328,7 @@ export async function runMedicineSync(options: SyncOptions = {}): Promise<SyncRe
     if (searchQuery && searchQuery.trim()) {
       scrapedDrugs = await searchDawaaDrugs(searchQuery.trim())
     } else {
-      scrapedDrugs = await scrapeDawaaPriceUpdates(pages)
+      scrapedDrugs = await scrapeDawaaPriceUpdates(safePages)
     }
 
     totalProcessed = scrapedDrugs.length
@@ -369,7 +336,7 @@ export async function runMedicineSync(options: SyncOptions = {}): Promise<SyncRe
     // Audit Requirement: Empty source response MUST be treated as an error requiring verification, NOT success
     if (totalProcessed === 0) {
       const emptyErrorMsg = 'المصدر أعاد استجابة فارغة (0 أدوية). تعذر التحقق من الأسعار.'
-      await writeDocument('sync_metadata/market_prices', {
+      await writeDocument(metadataPath, {
         lastAttemptStatus: 'FAILED',
         lastAttemptError: 'EMPTY_SOURCE_RESPONSE',
         updatedAt: new Date().toISOString()
@@ -405,7 +372,7 @@ export async function runMedicineSync(options: SyncOptions = {}): Promise<SyncRe
       if (!docId) continue
 
       const normKey = normalizeDrugKey(drug.nameEn) || normalizeDrugKey(drug.slug.replace(/-/g, ' '))
-      const existingDoc = (await readDocument(`market_prices/${docId}`).catch(() => null)) as any
+      const existingDoc = (await readDocument(`market_prices/${docId}`)) as any
 
       if (existingDoc) {
         // Differentiate actual price change from routine re-check
@@ -492,7 +459,7 @@ export async function runMedicineSync(options: SyncOptions = {}): Promise<SyncRe
     const successTimestamp = new Date().toISOString()
 
     // 4. Update sync metadata with separate timestamps for success, attempt, and source
-    await writeDocument('sync_metadata/market_prices', {
+    await writeDocument(metadataPath, {
       lastSuccessDate: cairoDate,
       lastSuccessTimestamp: successTimestamp,
       lastAttemptDate: cairoDate,
@@ -505,7 +472,7 @@ export async function runMedicineSync(options: SyncOptions = {}): Promise<SyncRe
       verifiedCount,
       totalProcessed,
       updatedAt: successTimestamp
-    }, true).catch(() => {})
+    }, true)
 
     // 5. Record Audit Log in market_prices_sync_logs
     const logId = `sync_${Date.now()}`
@@ -549,7 +516,7 @@ export async function runMedicineSync(options: SyncOptions = {}): Promise<SyncRe
     const failureTimestamp = new Date().toISOString()
 
     // Record failure in metadata and logs
-    await writeDocument('sync_metadata/market_prices', {
+    await writeDocument(metadataPath, {
       lastAttemptStatus: 'FAILED',
       lastAttemptError: error.message || 'Unknown error',
       updatedAt: failureTimestamp
@@ -584,6 +551,8 @@ export async function runMedicineSync(options: SyncOptions = {}): Promise<SyncRe
     }
   } finally {
     // Release distributed lock conditionally (only if runId matches)
-    await releaseDistributedLock('sync_locks/market_prices', runId)
+    await releaseDistributedLock('sync_locks/market_prices', runId).catch(err => {
+      console.error('[medicine-sync] Atomic lock release failed:', err)
+    })
   }
 }
