@@ -82,15 +82,16 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
     setIsLoading(true)
     setLoadError(null)
     try {
-      const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
-      const cSnap = await getDocs(cQ)
-      if (cSnap.empty) {
-        setLoadError('العيادة غير موجودة')
-        setIsLoading(false)
-        return
+      // Fetch clinic data with the authenticated server route. The browser SDK
+      // can no longer read /clinics directly under hardened Firestore rules.
+      const clinicRes = await fetch(`/api/clinic/${encodeURIComponent(slug)}/private-settings`, {
+        credentials: 'same-origin', cache: 'no-store'
+      })
+      const clinicData = await clinicRes.json().catch(() => ({}))
+      if (!clinicRes.ok || !clinicData.clinic) {
+        throw new Error(clinicData.error || 'تعذر تحميل بيانات العيادة')
       }
-      const cData = { id: cSnap.docs[0].id, ...cSnap.docs[0].data() }
-      setClinic(cData)
+      setClinic(clinicData.clinic)
 
       // Fetch branches via server API (bypasses unauthenticated Firestore client rules)
       const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/branches`)
@@ -245,7 +246,11 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
     }
   }
 
+  const [togglingBranchId, setTogglingBranchId] = useState<string | null>(null)
+
   const handleToggleStatus = async (branchId: string, currentStatus: boolean) => {
+    if (togglingBranchId) return
+    setTogglingBranchId(branchId)
     try {
       const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/branches`, {
         method: 'POST',
@@ -256,8 +261,8 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
         })
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok || !data.success || !data.branch) {
-        throw new Error(data.error || 'تعذر تحديث حالة الفرع')
+      if (!res.ok || !data.success || !data.branch || data.branch.isOpen !== !currentStatus) {
+        throw new Error(data.error || 'تعذر تأكيد حفظ حالة الفرع')
       }
       // The API returns the actual persisted document ID, which may differ
       // from a legacy virtual "main" branch ID.
@@ -269,6 +274,8 @@ export default function BranchesPage({ params }: { params: Promise<{ slug: strin
       await fetchClinicAndBranches()
     } catch (err: any) {
       toast.error(err?.message || 'حدث خطأ أثناء تعديل حالة الفرع')
+    } finally {
+      setTogglingBranchId(null)
     }
   }
 
