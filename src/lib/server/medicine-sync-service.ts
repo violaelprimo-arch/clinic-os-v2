@@ -86,8 +86,13 @@ export async function runMedicineSync(options: SyncOptions = {}): Promise<SyncRe
     metadata = await readDocument(metadataPath) || {}
     await writeDocument(metadataPath, { lastAttemptDate: date, lastAttemptTimestamp: base.timestamp,
       lastAttemptStatus: 'IN_PROGRESS', lastAttemptTriggeredBy: triggeredBy, lastRunId: runId }, true)
-    const priorCheckpoint = metadata.pipelineVersion === PIPELINE_VERSION && metadata.checkpoint?.cycleDate === date
-      ? metadata.checkpoint : null
+    const candidate = metadata.checkpoint
+    const priorCheckpoint = metadata.pipelineVersion === PIPELINE_VERSION && candidate &&
+      /^\d{4}-\d{2}-\d{2}$/.test(String(candidate.cycleDate)) && candidate.cycleDate <= date &&
+      /^\d{4}-\d{2}-\d{2}$/.test(String(candidate.sinceDate)) &&
+      Number.isInteger(candidate.nextPage) && candidate.nextPage > 0 && candidate.nextPage <= 10000
+      ? candidate : null
+    const cycleDate = priorCheckpoint?.cycleDate || date
     // The bundled directory is retained. On the first v2 delta run, backfill a
     // seven-day overlap; subsequent days resume from the last verified day.
     const cutoff = priorCheckpoint?.sinceDate || shiftDate(
@@ -150,14 +155,20 @@ export async function runMedicineSync(options: SyncOptions = {}): Promise<SyncRe
         } })
       })
       await upsertDocumentBatch(writes)
+      // Keep unfinished history across midnight. Once the older cycle ends,
+      // revisit the newest pages before claiming today's update is complete.
+      const handoffToToday = complete && !target && cycleDate !== date
+      if (handoffToToday) { complete = false; page = 1 }
       // Persist the cursor after a fully committed page. A crash safely repeats
       // at most one idempotent page and never marks a partial cycle complete.
       if (!target) await writeDocument(metadataPath, {
         pipelineVersion: PIPELINE_VERSION,
-        checkpoint: complete ? null : { cycleDate: date, sinceDate: cutoff, nextPage: page, newestSourceDate: latestSource },
+        checkpoint: complete ? null : { cycleDate: handoffToToday ? date : cycleDate,
+          sinceDate: handoffToToday ? shiftDate(cycleDate, -1) : cutoff,
+          nextPage: page, newestSourceDate: latestSource },
         lastAttemptStatus: complete ? 'COMPLETED' : 'PARTIAL', dataVersion: checkedAt,
       }, true)
-      if (complete || Date.now() - start > 20000) break
+      if (complete || handoffToToday || Date.now() - start > 20000) break
       await new Promise(r => setTimeout(r, 500))
     }
     base.status = complete ? 'COMPLETED' : 'PARTIAL'

@@ -297,10 +297,15 @@ export function MedicineSyncMonitorWidget() {
                       </span>
                     </td>
                     <td className="py-2.5 px-2">
-                      {log.status === 'completed' ? (
+                      {String(log.status).toUpperCase() === 'COMPLETED' ? (
                         <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold">
                           <CheckCircle2 className="w-3 h-3" />
                           <span>{isRtl ? 'ناجح' : 'Completed'}</span>
+                        </span>
+                      ) : String(log.status).toUpperCase() === 'PARTIAL' ? (
+                        <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 font-bold">
+                          <Clock className="w-3 h-3" />
+                          <span>{isRtl ? 'جارٍ الاستكمال' : 'Continuing'}</span>
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-destructive font-bold">
