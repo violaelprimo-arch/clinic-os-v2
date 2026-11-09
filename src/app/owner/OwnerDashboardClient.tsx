@@ -343,8 +343,10 @@ function OwnerDashboard() {
   const [slug, setSlug] = useState('')
   const [mapsLink, setMapsLink] = useState('')
   const [doctorEmail, setDoctorEmail] = useState('')
+  const [doctorUsername, setDoctorUsername] = useState('')
   const [doctorPassword, setDoctorPassword] = useState('')
   const [assistantEmail, setAssistantEmail] = useState('')
+  const [assistantUsername, setAssistantUsername] = useState('')
   const [assistantPassword, setAssistantPassword] = useState('')
   const [aiApiKey, setAiApiKey] = useState('')
   
@@ -1251,6 +1253,22 @@ function OwnerDashboard() {
         return
       }
 
+      // Usernames are optional aliases and must be globally unique.
+      // Keep passwords as hashes; an empty password field never resets the account.
+      const aliases = [doctorUsername.trim().toLowerCase(), assistantUsername.trim().toLowerCase()].filter(Boolean)
+      if (aliases.some(a => !/^[a-z0-9._-]{3,32}$/.test(a)) ||
+          new Set(aliases).size !== aliases.length ||
+          clinics.some(c => c.id !== editingId && [c.doctorUsername, c.assistantUsername, c.doctorEmail, c.assistantEmail].some(
+            (v: unknown) => typeof v === 'string' && aliases.includes(v.trim().toLowerCase())
+          ))) {
+        toast.error('اسم المستخدم يجب أن يكون فريدًا من 3 إلى 32 حرفًا إنجليزيًا أو رقمًا أو نقطة أو شرطة.')
+        return
+      }
+      if (!editingId && (!doctorPassword || (!doctorEmail.trim() && !doctorUsername.trim()))) {
+        toast.error('لإنشاء عيادة يجب إدخال كلمة مرور الطبيب واسم مستخدم أو بريد إلكتروني.')
+        return
+      }
+
       // Preserve existing credential hashes when editing unrelated clinic
       // settings. Leaving the password boxes empty must never reset login.
       const doctorPasswordHash = doctorPassword ? await hashPassword(doctorPassword) : ''
@@ -1267,8 +1285,10 @@ function OwnerDashboard() {
         clinicPhone,
         slug: finalSlug,
         mapsLink,
-        doctorEmail,
-        assistantEmail,
+        doctorEmail: doctorEmail.trim().toLowerCase(),
+        doctorUsername: doctorUsername.trim().toLowerCase(),
+        assistantEmail: assistantEmail.trim().toLowerCase(),
+        assistantUsername: assistantUsername.trim().toLowerCase(),
         ...accountChanges,
         aiApiKey,
         prescriptionTemplateUrl,
@@ -1446,8 +1466,10 @@ function OwnerDashboard() {
       setSlug('')
       setMapsLink('')
       setDoctorEmail('')
+      setDoctorUsername('')
       setDoctorPassword('')
       setAssistantEmail('')
+      setAssistantUsername('')
       setAssistantPassword('')
       setAiApiKey('')
       setPrescriptionTemplateUrl('')
@@ -1495,8 +1517,10 @@ function OwnerDashboard() {
     setSlug(c.slug || '')
     setMapsLink(c.mapsLink || '')
     setDoctorEmail(c.doctorEmail || '')
+    setDoctorUsername(c.doctorUsername || '')
     setDoctorPassword('') // Blank means keep existing password when editing
     setAssistantEmail(c.assistantEmail || '')
+    setAssistantUsername(c.assistantUsername || '')
     setAssistantPassword('') // Blank means keep existing password when editing
     setAiApiKey(c.aiApiKey || '')
     setPrescriptionTemplateUrl(c.prescriptionTemplateUrl || '')
@@ -4535,20 +4559,30 @@ function OwnerDashboard() {
               </div>
 
               {/* Section 6: Login Accounts */}
-              {!editingId && (
-<div className="space-y-3">
+              <div className="space-y-4 rounded-3xl border border-border bg-card p-5 shadow-sm">
                 <h3 className="text-xs font-black text-slate-700 flex items-center gap-2">
                   <Users className="w-4 h-4 text-[#087CF4]" />
                   حسابات دخول الكادر الطبي
                 </h3>
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                <p className="text-xs text-muted-foreground">يمكن الدخول باسم المستخدم أو البريد الإلكتروني بنفس كلمة المرور. ترك كلمة المرور فارغة عند التعديل يحافظ على القديمة.</p>
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                  <div className="p-4 rounded-2xl bg-background border border-border space-y-3 min-w-0">
                     <span className="text-xs font-black text-slate-700 block">حساب الطبيب (مسؤول العيادة)</span>
                     <Input
                       type="email"
                       value={doctorEmail}
                       onChange={e => setDoctorEmail(e.target.value)}
                       placeholder="doctor@clinic.com"
+                      className="h-10 text-xs rounded-xl bg-white"
+                    />
+                    <Input
+                      type="text"
+                      value={doctorUsername}
+                      onChange={e => setDoctorUsername(e.target.value.toLowerCase())}
+                      autoComplete="off"
+                      dir="ltr"
+                      maxLength={32}
+                      placeholder="اسم المستخدم — مثال: dr.ahmed"
                       className="h-10 text-xs rounded-xl bg-white"
                     />
                     <PasswordInput
@@ -4559,13 +4593,23 @@ function OwnerDashboard() {
                     />
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-                    <span className="text-xs font-black text-slate-700 block">حساب مساعد العيادة (السكرتارية)</span>
+                  <div className="p-4 rounded-2xl bg-background border border-border space-y-3 min-w-0">
+                    <span className="text-xs font-black text-foreground block">حساب مساعد العيادة (السكرتارية)</span>
                     <Input
                       type="email"
                       value={assistantEmail}
                       onChange={e => setAssistantEmail(e.target.value)}
                       placeholder="assistant@clinic.com"
+                      className="h-10 text-xs rounded-xl bg-white"
+                    />
+                    <Input
+                      type="text"
+                      value={assistantUsername}
+                      onChange={e => setAssistantUsername(e.target.value.toLowerCase())}
+                      autoComplete="off"
+                      dir="ltr"
+                      maxLength={32}
+                      placeholder="اسم المستخدم — مثال: clinic.reception"
                       className="h-10 text-xs rounded-xl bg-white"
                     />
                     <PasswordInput
@@ -4577,7 +4621,6 @@ function OwnerDashboard() {
                   </div>
                 </div>
               </div>
-)}
 
               {/* Section 5: Subscription & Package Selection / Upgrade */}
               <div className="space-y-4">
