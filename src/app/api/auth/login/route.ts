@@ -34,10 +34,6 @@ export async function POST(req: NextRequest) {
     const clinic = matchingClinics[0] as any
     const clinicId = String(clinic.id)
     const effectiveSlug = String(clinic.slug || slug || SINGLE_CLINIC_SLUG)
-    if (clinic.isActive === false) {
-      return NextResponse.json({ error: 'هذا الحساب غير متاح حالياً، تواصل مع إدارة المنصة' }, { status: 403 })
-    }
-
     // Check Doctor
     const isDoctorEmail = [clinic.doctorEmail, clinic.doctorUsername].some((v: unknown) => typeof v === 'string' && v.trim().toLowerCase() === loginIdentifier)
     let isDoctorMatch = false
