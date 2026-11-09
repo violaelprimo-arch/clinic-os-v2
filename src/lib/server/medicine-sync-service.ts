@@ -152,12 +152,13 @@ export async function scrapeDawaaPriceUpdates(pages = 2): Promise<ScrapedDrug[]>
   for (let page = 1; page <= pages; page++) {
     try {
       const url = `https://www.dawaagate.com/price-updates${page > 1 ? `?page=${page}` : ''}`
-      const res = await fetch(url, { headers: HTTP_HEADERS, next: { revalidate: 0 } })
-      if (!res.ok) continue
+      const res = await fetch(url, { headers: HTTP_HEADERS, cache: 'no-store', signal: AbortSignal.timeout(20000) })
+      if (!res.ok) throw new Error(`DAWAAGATE_PRICE_PAGE_HTTP_${res.status}`)
 
       const html = await res.text()
       const $ = cheerio.load(html)
 
+      const beforePage = results.length
       $('table tr').each((_, el) => {
         const $row = $(el)
         const link = $row.find('td.name a')
@@ -191,12 +192,18 @@ export async function scrapeDawaaPriceUpdates(pages = 2): Promise<ScrapedDrug[]>
         }
       })
 
+      if (results.length === beforePage && page === 1) {
+        throw new Error('DAWAAGATE_PRICE_TABLE_EMPTY_OR_CHANGED')
+      }
+
       // Polite delay between pages
       if (page < pages) {
         await new Promise((r) => setTimeout(r, 400))
       }
     } catch (err) {
       console.error(`Error scraping DawaaGate updates page ${page}:`, err)
+      // Never mark an incomplete set of price pages as a successful sync.
+      throw err
     }
   }
 
