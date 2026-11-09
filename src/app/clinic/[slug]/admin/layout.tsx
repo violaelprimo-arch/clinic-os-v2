@@ -175,52 +175,30 @@ export default function AdminLayout({
       window.location.href = `/clinic/${slug}/login`
     }
 
-    const tryServerFallback = async () => {
+    let active = true
+    const loadClinicProfile = async () => {
       try {
-        const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/private-settings`, { cache: 'no-store' })
-        if (res.ok) {
-          const data = await res.json()
-          if (data.clinic) {
-            setClinic(data.clinic)
-            return true
-          }
+        const response = await fetch(`/api/clinic/${encodeURIComponent(slug)}/staff-profile`, {
+          cache: 'no-store', credentials: 'same-origin',
+        })
+        const data = await response.json().catch(() => ({}))
+        if (!active) return
+        if (!response.ok || !data.clinic) {
+          console.warn('Clinic profile unavailable:', response.status)
+          return
         }
-      } catch (e) {
-        console.warn('Layout server fallback failed:', e)
+        setClinic(data.clinic)
+      } catch (err) {
+        console.warn('Clinic profile fetch failed:', err)
+      } finally {
+        if (active) setLoading(false)
       }
-      return false
     }
-
-    const q = query(collection(db, 'clinics'), where('slug', '==', slug))
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        if (!snapshot.empty) {
-          const clinicData = snapshot.docs[0].data();
-          // Suspended clinics retain read-only access to historical reports.
-          // Do not redirect their staff to login, because the session remains valid.
-          setClinic({ id: snapshot.docs[0].id, ...clinicData });
-        } else if (slug === 'demo') {
-          setClinic({
-            clinicName: 'عيادة الأمل التخصصية',
-            doctorName: 'أحمد محمود',
-            specialty: 'استشاري جراحة العظام والمفاصل',
-            primaryColor: '#087CF4',
-            aiEnabled: true,
-            assistantPermissions: ['appointments']
-          })
-        } else {
-          tryServerFallback()
-        }
-        setLoading(false)
-      },
-      (err) => {
-        console.error(err)
-        tryServerFallback().finally(() => setLoading(false))
-      }
-    )
-
-    return () => unsubscribe()
+    void loadClinicProfile()
+    // Clinic branding and subscription policy changes do not need an open
+    // client Firestore listener to a document containing credential hashes.
+    const refreshTimer = window.setInterval(() => void loadClinicProfile(), 60000)
+    return () => { active = false; window.clearInterval(refreshTimer) }
   }, [slug])
 
   // Close mobile drawer on route change
