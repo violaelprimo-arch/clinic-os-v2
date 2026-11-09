@@ -27,11 +27,15 @@ export interface SyncResult {
   message: string
   addedCount: number
   updatedCount: number
+  priceChangedCount: number
+  verifiedCount: number
   unchangedCount: number
   totalProcessed: number
   durationMs: number
   cairoDate: string
   timestamp: string
+  runId?: string
+  lastSourceUpdateDate?: string
   error?: string
 }
 
@@ -77,7 +81,69 @@ interface ScrapedDrug {
 }
 
 /**
+ * Distributed Lock Acquisition with unique Run ID and Lease Expiration
+ * Guarantees atomic ownership and prevents concurrent sync collisions.
+ */
+async function acquireDistributedLock(
+  lockPath: string,
+  runId: string,
+  triggeredBy: string,
+  ttlMs = 15 * 60 * 1000
+): Promise<{ acquired: boolean; currentRunId?: string }> {
+  try {
+    const existing = (await readDocument(lockPath).catch(() => null)) as any
+    const now = Date.now()
+
+    if (existing && existing.lockedAt) {
+      const elapsed = now - new Date(String(existing.lockedAt)).getTime()
+      if (elapsed < ttlMs) {
+        // Lock actively held by another process
+        return { acquired: false, currentRunId: existing.runId }
+      }
+    }
+
+    // Write lock with this process's unique runId
+    const lockPayload = {
+      runId,
+      lockedAt: new Date(now).toISOString(),
+      lockedBy: triggeredBy,
+      cairoDate: getCairoDateString(new Date(now))
+    }
+    await writeDocument(lockPath, lockPayload, false)
+
+    // Confirm ownership
+    const confirmed = (await readDocument(lockPath).catch(() => null)) as any
+    if (confirmed && confirmed.runId === runId) {
+      return { acquired: true, currentRunId: runId }
+    }
+    return { acquired: false, currentRunId: confirmed?.runId }
+  } catch (err) {
+    console.warn('Error acquiring distributed lock:', err)
+    return { acquired: false }
+  }
+}
+
+/**
+ * Releases the distributed lock ONLY if owned by current runId.
+ * Never deletes a lock acquired or taken over by another process.
+ */
+async function releaseDistributedLock(lockPath: string, runId: string): Promise<boolean> {
+  try {
+    const current = (await readDocument(lockPath).catch(() => null)) as any
+    if (current && current.runId === runId) {
+      await deleteDocument(lockPath).catch(() => {})
+      return true
+    }
+    return false
+  } catch (err) {
+    console.warn('Error releasing distributed lock:', err)
+    return false
+  }
+}
+
+/**
  * Scrapes recently updated medicines from DawaaGate /price-updates
+ * Handles pagination and avoids collapsing distinct package sizes.
  */
 export async function scrapeDawaaPriceUpdates(pages = 2): Promise<ScrapedDrug[]> {
   const results: ScrapedDrug[] = []
@@ -124,6 +190,11 @@ export async function scrapeDawaaPriceUpdates(pages = 2): Promise<ScrapedDrug[]>
           })
         }
       })
+
+      // Polite delay between pages
+      if (page < pages) {
+        await new Promise((r) => setTimeout(r, 400))
+      }
     } catch (err) {
       console.error(`Error scraping DawaaGate updates page ${page}:`, err)
     }
@@ -160,7 +231,7 @@ export async function scrapeDrugDetail(slug: string): Promise<Partial<ScrapedDru
       } catch {}
     })
 
-    // 2. Parse text items (ddm-fact-item, li, etc.)
+    // 2. Parse text items
     $('.ddm-fact-item, .ddm-fact-row, .ddm-info-row, li, tr').each((_, el) => {
       const text = $(el).text().replace(/\s+/g, ' ').trim()
       if (text.includes('الاسم بالإنجليزي') && !detail.nameEn) {
@@ -228,46 +299,53 @@ export async function searchDawaaDrugs(query: string): Promise<ScrapedDrug[]> {
 
 /**
  * Core Medicine Synchronization Engine
- * Safe upsert into market_prices with distributed lock, validation, and audit logging.
+ * Safe upsert into market_prices with atomic distributed lock, validation,
+ * clear distinction between price changes vs re-checks, and separate timestamps.
  */
 export async function runMedicineSync(options: SyncOptions = {}): Promise<SyncResult> {
   const startTime = Date.now()
   const cairoDate = getCairoDateString()
-  const { triggeredBy = 'cron', query: searchQuery, pages = 2, force = false } = options
+  const runId = `run_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+  const { triggeredBy = 'cron', query: searchQuery, pages = 3 } = options
 
-  // 1. Distributed Lock Check (15 min expiration window)
-  const lock = (await readDocument('sync_locks/market_prices').catch(() => null)) as any
-  if (lock && lock.lockedAt) {
-    const elapsed = Date.now() - new Date(String(lock.lockedAt)).getTime()
-    if (elapsed < 15 * 60 * 1000 && !force) {
-      return {
-        status: 'ALREADY_RUNNING',
-        message: 'مزامنة الأسعار جارية حاليًا بواسطة عملية أخرى',
-        addedCount: 0,
-        updatedCount: 0,
-        unchangedCount: 0,
-        totalProcessed: 0,
-        durationMs: Date.now() - startTime,
-        cairoDate,
-        timestamp: new Date().toISOString()
-      }
+  // Record attempt start
+  const attemptTimestamp = new Date().toISOString()
+  await writeDocument('sync_metadata/market_prices', {
+    lastAttemptDate: cairoDate,
+    lastAttemptTimestamp: attemptTimestamp,
+    lastAttemptTriggeredBy: triggeredBy,
+    lastAttemptStatus: 'IN_PROGRESS'
+  }, true).catch(() => {})
+
+  // 1. Acquire Atomic Distributed Lock
+  const lockAcquired = await acquireDistributedLock(
+    'sync_locks/market_prices',
+    runId,
+    triggeredBy
+  )
+
+  if (!lockAcquired.acquired) {
+    return {
+      status: 'ALREADY_RUNNING',
+      message: 'مزامنة الأسعار جارية حاليًا بواسطة عملية أخرى',
+      addedCount: 0,
+      updatedCount: 0,
+      priceChangedCount: 0,
+      verifiedCount: 0,
+      unchangedCount: 0,
+      totalProcessed: 0,
+      durationMs: Date.now() - startTime,
+      cairoDate,
+      timestamp: attemptTimestamp,
+      runId: lockAcquired.currentRunId
     }
   }
 
-  // Acquire Lock
-  await writeDocument(
-    'sync_locks/market_prices',
-    {
-      lockedAt: new Date().toISOString(),
-      lockedBy: triggeredBy
-    },
-    false
-  ).catch(() => {})
-
   let addedCount = 0
-  let updatedCount = 0
-  let unchangedCount = 0
+  let priceChangedCount = 0
+  let verifiedCount = 0
   let totalProcessed = 0
+  let latestSourceDateText = ''
 
   try {
     // 2. Collect drugs from DawaaGate
@@ -281,55 +359,93 @@ export async function runMedicineSync(options: SyncOptions = {}): Promise<SyncRe
 
     totalProcessed = scrapedDrugs.length
 
-    // 3. Process each drug with safe upsert
+    // Audit Requirement: Empty source response MUST be treated as an error requiring verification, NOT success
+    if (totalProcessed === 0) {
+      const emptyErrorMsg = 'المصدر أعاد استجابة فارغة (0 أدوية). تعذر التحقق من الأسعار.'
+      await writeDocument('sync_metadata/market_prices', {
+        lastAttemptStatus: 'FAILED',
+        lastAttemptError: 'EMPTY_SOURCE_RESPONSE',
+        updatedAt: new Date().toISOString()
+      }, true).catch(() => {})
+
+      return {
+        status: 'FAILED',
+        message: emptyErrorMsg,
+        addedCount: 0,
+        updatedCount: 0,
+        priceChangedCount: 0,
+        verifiedCount: 0,
+        unchangedCount: 0,
+        totalProcessed: 0,
+        durationMs: Date.now() - startTime,
+        cairoDate,
+        timestamp: new Date().toISOString(),
+        runId,
+        error: 'EMPTY_SOURCE_RESPONSE'
+      }
+    }
+
+    // 3. Process each drug with packaging and dosage preservation
     for (const drug of scrapedDrugs) {
-      // Strict validation: Skip invalid prices
       if (!drug.price || drug.price <= 0 || isNaN(drug.price)) continue
 
-      const normKey =
-        normalizeDrugKey(drug.nameEn) ||
-        normalizeDrugKey(drug.slug.replace(/-/g, ' '))
-      if (!normKey) continue
+      if (drug.dateText && !latestSourceDateText) {
+        latestSourceDateText = drug.dateText
+      }
 
-      const docId = normKey
+      // Preserve distinct dosages and pack sizes: Document ID is keyed by normalized slug
+      const docId = normalizeDrugKey(drug.slug) || normalizeDrugKey(drug.nameEn)
+      if (!docId) continue
+
+      const normKey = normalizeDrugKey(drug.nameEn) || normalizeDrugKey(drug.slug.replace(/-/g, ' '))
       const existingDoc = (await readDocument(`market_prices/${docId}`).catch(() => null)) as any
 
       if (existingDoc) {
-        // Check if price or metadata changed
-        const isPriceSame = Math.abs(Number(existingDoc.price) - drug.price) < 0.01
-        const hasArName = Boolean(existingDoc.nameAr || existingDoc.commercial_name_ar)
+        // Differentiate actual price change from routine re-check
+        const isPriceDifferent = Math.abs(Number(existingDoc.price || 0) - drug.price) >= 0.01
 
-        if (isPriceSame && hasArName && existingDoc.last_updated === cairoDate) {
-          unchangedCount++
-          continue
+        if (isPriceDifferent) {
+          // Price CHANGED
+          priceChangedCount++
+          const updatedRecord = {
+            name: drug.nameEn || existingDoc.name,
+            commercial_name_en: drug.nameEn || existingDoc.commercial_name_en,
+            nameAr: drug.nameAr || existingDoc.nameAr || '',
+            commercial_name_ar: drug.nameAr || existingDoc.commercial_name_ar || '',
+            slug: drug.slug || existingDoc.slug || '',
+            normalizedKey: normKey,
+            normalizedAr: normalizeArabicDrugKey(drug.nameAr || existingDoc.nameAr || ''),
+            canonicalKey: canonicalDrugIdentifier(drug.nameEn || existingDoc.name),
+            price: drug.price,
+            oldPrice: existingDoc.price || drug.oldPrice,
+            lastPriceChangeDate: cairoDate,
+            lastPriceChangeTimestamp: new Date().toISOString(),
+            company: drug.company || existingDoc.company || '',
+            activeIngredient: drug.activeIngredient || existingDoc.activeIngredient || '',
+            dosageForm: drug.dosageForm || existingDoc.dosageForm || '',
+            category: drug.category || existingDoc.category || '',
+            barcode: drug.barcode || existingDoc.barcode || '',
+            source: 'dawaagate.com',
+            sourceDateText: drug.dateText || existingDoc.sourceDateText || '',
+            last_updated: cairoDate,
+            last_verified: cairoDate,
+            updatedAt: new Date().toISOString()
+          }
+          await writeDocument(`market_prices/${docId}`, updatedRecord, true)
+        } else {
+          // Price VERIFIED unchanged
+          verifiedCount++
+          // Update verification timestamp and metadata if not refreshed today
+          if (existingDoc.last_verified !== cairoDate) {
+            await writeDocument(`market_prices/${docId}`, {
+              last_verified: cairoDate,
+              sourceDateText: drug.dateText || existingDoc.sourceDateText || '',
+              updatedAt: new Date().toISOString()
+            }, true)
+          }
         }
-
-        // Updated price or refreshed date
-        const updatedRecord = {
-          name: drug.nameEn || existingDoc.name,
-          commercial_name_en: drug.nameEn || existingDoc.commercial_name_en,
-          nameAr: drug.nameAr || existingDoc.nameAr || '',
-          commercial_name_ar: drug.nameAr || existingDoc.commercial_name_ar || '',
-          slug: drug.slug || existingDoc.slug || '',
-          normalizedKey: normKey,
-          normalizedAr: normalizeArabicDrugKey(drug.nameAr || existingDoc.nameAr || ''),
-          canonicalKey: canonicalDrugIdentifier(drug.nameEn || existingDoc.name),
-          price: drug.price,
-          oldPrice: drug.oldPrice > 0 ? drug.oldPrice : (isPriceSame ? existingDoc.oldPrice : existingDoc.price),
-          company: drug.company || existingDoc.company || '',
-          activeIngredient: drug.activeIngredient || existingDoc.activeIngredient || '',
-          dosageForm: drug.dosageForm || existingDoc.dosageForm || '',
-          category: drug.category || existingDoc.category || '',
-          barcode: drug.barcode || existingDoc.barcode || '',
-          source: 'dawaagate.com',
-          last_updated: cairoDate,
-          updatedAt: new Date().toISOString()
-        }
-
-        await writeDocument(`market_prices/${docId}`, updatedRecord, true)
-        updatedCount++
       } else {
-        // New drug addition: Fetch detail metadata if missing
+        // Newly added medication: Enrich metadata if missing
         let enrichedDetail: Partial<ScrapedDrug> = {}
         if (!drug.company || !drug.activeIngredient) {
           enrichedDetail = await scrapeDrugDetail(drug.slug).catch(() => ({}))
@@ -346,13 +462,16 @@ export async function runMedicineSync(options: SyncOptions = {}): Promise<SyncRe
           canonicalKey: canonicalDrugIdentifier(enrichedDetail.nameEn || drug.nameEn),
           price: drug.price,
           oldPrice: drug.oldPrice || null,
+          lastPriceChangeDate: cairoDate,
           company: enrichedDetail.company || drug.company || '',
           activeIngredient: enrichedDetail.activeIngredient || drug.activeIngredient || '',
           dosageForm: enrichedDetail.dosageForm || drug.dosageForm || '',
           category: enrichedDetail.category || drug.category || '',
           barcode: enrichedDetail.barcode || drug.barcode || '',
           source: 'dawaagate.com',
+          sourceDateText: drug.dateText || '',
           last_updated: cairoDate,
+          last_verified: cairoDate,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         }
@@ -363,65 +482,101 @@ export async function runMedicineSync(options: SyncOptions = {}): Promise<SyncRe
     }
 
     const durationMs = Date.now() - startTime
+    const successTimestamp = new Date().toISOString()
 
-    // 4. Record Audit Log in market_prices_sync_logs
+    // 4. Update sync metadata with separate timestamps for success, attempt, and source
+    await writeDocument('sync_metadata/market_prices', {
+      lastSuccessDate: cairoDate,
+      lastSuccessTimestamp: successTimestamp,
+      lastAttemptDate: cairoDate,
+      lastAttemptTimestamp: successTimestamp,
+      lastAttemptStatus: 'COMPLETED',
+      lastSourceUpdateDate: latestSourceDateText || cairoDate,
+      lastRunId: runId,
+      addedCount,
+      priceChangedCount,
+      verifiedCount,
+      totalProcessed,
+      updatedAt: successTimestamp
+    }, true).catch(() => {})
+
+    // 5. Record Audit Log in market_prices_sync_logs
     const logId = `sync_${Date.now()}`
     const logRecord = {
       id: logId,
+      runId,
       status: 'completed',
       triggeredBy,
       cairoDate,
       addedCount,
-      updatedCount,
-      unchangedCount,
+      priceChangedCount,
+      verifiedCount,
+      updatedCount: priceChangedCount,
+      unchangedCount: verifiedCount,
       totalProcessed,
+      sourceDateText: latestSourceDateText,
       durationMs,
-      timestamp: new Date().toISOString()
+      timestamp: successTimestamp
     }
 
     await createDocument('market_prices_sync_logs', logRecord, logId).catch(() => {})
 
     return {
       status: 'COMPLETED',
-      message: `تمت مزامنة دليل الأدوية بنجاح (${addedCount} دواء جديد، ${updatedCount} سعر محدث، ${unchangedCount} بدون تغيير)`,
+      message: `تمت مزامنة الأسعار بنجاح (${addedCount} دواء جديد، ${priceChangedCount} سعر محدث، ${verifiedCount} مطابق)`,
       addedCount,
-      updatedCount,
-      unchangedCount,
+      updatedCount: priceChangedCount,
+      priceChangedCount,
+      verifiedCount,
+      unchangedCount: verifiedCount,
       totalProcessed,
       durationMs,
       cairoDate,
-      timestamp: new Date().toISOString()
+      runId,
+      lastSourceUpdateDate: latestSourceDateText,
+      timestamp: successTimestamp
     }
   } catch (error: any) {
     console.error('Medicine sync failed:', error)
     const durationMs = Date.now() - startTime
+    const failureTimestamp = new Date().toISOString()
 
-    // Log failure
+    // Record failure in metadata and logs
+    await writeDocument('sync_metadata/market_prices', {
+      lastAttemptStatus: 'FAILED',
+      lastAttemptError: error.message || 'Unknown error',
+      updatedAt: failureTimestamp
+    }, true).catch(() => {})
+
     const logId = `sync_err_${Date.now()}`
     await createDocument('market_prices_sync_logs', {
       id: logId,
+      runId,
       status: 'failed',
       triggeredBy,
       cairoDate,
       error: error.message || 'Unknown error during medicine sync',
       durationMs,
-      timestamp: new Date().toISOString()
+      timestamp: failureTimestamp
     }, logId).catch(() => {})
 
     return {
       status: 'FAILED',
       message: 'فشلت عملية مزامنة الأسعار من بوابة الدواء',
       addedCount,
-      updatedCount,
-      unchangedCount,
+      updatedCount: priceChangedCount,
+      priceChangedCount,
+      verifiedCount,
+      unchangedCount: verifiedCount,
       totalProcessed,
       durationMs,
       cairoDate,
-      timestamp: new Date().toISOString(),
+      runId,
+      timestamp: failureTimestamp,
       error: error.message
     }
   } finally {
-    // Release distributed lock
-    await deleteDocument('sync_locks/market_prices').catch(() => {})
+    // Release distributed lock conditionally (only if runId matches)
+    await releaseDistributedLock('sync_locks/market_prices', runId)
   }
 }

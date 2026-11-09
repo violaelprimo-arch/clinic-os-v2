@@ -93,7 +93,7 @@ async function main() {
   console.log('\n--- SUITE 2: Multi-Tenant Clinic API & Live Queue (5 Clinics) ---');
 
   for (const c of CLINICS) {
-    await test(`[${c.slug}] Settings endpoint returns active clinic profile`, async () => {
+    await test(`[${c.slug}] Settings endpoint returns active clinic profile with data minimization`, async () => {
       const res = await fetchJson(`${BASE_URL}/api/clinic/${c.slug}/settings`);
       assert.strictEqual(res.status, 200);
       assert.strictEqual(res.data.success, true);
@@ -101,6 +101,9 @@ async function main() {
       assert.strictEqual(res.data.clinic.slug, c.slug);
       assert(res.data.clinic.doctorName || res.data.clinic.name, 'Name must exist');
       assert.strictEqual(res.data.clinic.isActive, true);
+      assert.strictEqual(res.data.clinic.doctorPassword, undefined, 'doctorPassword must be stripped');
+      assert.strictEqual(res.data.clinic.doctorPasswordHash, undefined, 'doctorPasswordHash must be stripped');
+      assert.strictEqual(res.data.clinic.assistants, undefined, 'assistants list must be stripped');
     });
 
     await test(`[${c.slug}] Live Queue endpoint returns queue numbers and status`, async () => {
@@ -126,6 +129,10 @@ async function main() {
 
   for (const c of CLINICS) {
     await test(`[Doctor Login] ${c.doctorEmail} authenticates successfully`, async () => {
+      if (!TEST_DOCTOR_PASSWORD) {
+        console.log(`     ℹ️ [SKIP] TEST_DOCTOR_PASSWORD env var not provided`);
+        return;
+      }
       const res = await fetchJson(`${BASE_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -141,6 +148,10 @@ async function main() {
     });
 
     await test(`[Secretary Login] ${c.assistantEmail} authenticates successfully`, async () => {
+      if (!TEST_SECRETARY_PASSWORD) {
+        console.log(`     ℹ️ [SKIP] TEST_SECRETARY_PASSWORD env var not provided`);
+        return;
+      }
       const res = await fetchJson(`${BASE_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -177,7 +188,7 @@ async function main() {
     const res = await fetchJson(`${BASE_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'nonexistent-user-123@nowhere.com', password: TEST_DOCTOR_PASSWORD })
+      body: JSON.stringify({ email: 'nonexistent-user-123@nowhere.com', password: TEST_DOCTOR_PASSWORD || 'NonExistentPass123!' })
     });
     assert.strictEqual(res.status, 401);
     assert(res.data.error, 'Must return error message');
@@ -189,6 +200,10 @@ async function main() {
   console.log('\n--- SUITE 4: Patient Portal (Login, Registration & Phone Normalization) ---');
 
   await test('Patient Login with normalized Egyptian phone (01011122233)', async () => {
+    if (!TEST_PATIENT_PASSWORD) {
+      console.log(`     ℹ️ [SKIP] TEST_PATIENT_PASSWORD env var not provided`);
+      return;
+    }
     const res = await fetchJson(`${BASE_URL}/api/patient/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -201,6 +216,10 @@ async function main() {
   });
 
   await test('Patient Login with +20 prefix (+201011122233)', async () => {
+    if (!TEST_PATIENT_PASSWORD) {
+      console.log(`     ℹ️ [SKIP] TEST_PATIENT_PASSWORD env var not provided`);
+      return;
+    }
     const res = await fetchJson(`${BASE_URL}/api/patient/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -217,15 +236,14 @@ async function main() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        name: 'مريض اختبار تلقائي',
         phone: testPhone,
-        name: 'مريض تجريبي تلقائي',
-        password: TEST_PATIENT_PASSWORD,
-        clinicSlug: 'karim'
+        password: TEST_PATIENT_PASSWORD || 'AutoTestP@ss123!'
       })
     });
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.data.success, true);
-    assert(res.data.token, 'Must return patient token');
+    assert(res.data.token, 'Must return session token');
   });
 
   // ==========================================

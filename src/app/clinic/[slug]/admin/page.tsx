@@ -29,7 +29,7 @@ export default function AdminPage({ params }: { params: Promise<{ slug: string }
     // Fallback: fetch clinic settings via server endpoint if client Firestore is slow or denied
     const tryServerFallback = async () => {
       try {
-        const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/settings`, {
+        const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/private-settings`, {
           cache: 'no-store',
         })
         if (res.ok) {

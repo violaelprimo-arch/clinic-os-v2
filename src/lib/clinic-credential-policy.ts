@@ -48,7 +48,7 @@ const allowedSettings = new Set([
   'clinicPhones', 'onlinePaymentEnabled', 'walletNumber',
   'instapayHandle', 'isCashEnabled', 'showPrices',
   'isWalletEnabled', 'isInstapayEnabled', 'queueNormal', 'queueConsult',
-  'queueUrgent', 'queuePattern', 'assistants',
+  'queueUrgent', 'queuePattern', 'assistants', 'favorite_drugs', 'favoriteDrugs', 'custom_drugs',
 ])
 
 // Owner-managed visibility is also a server-side write permission: hidden

@@ -177,7 +177,7 @@ export default function AdminLayout({
 
     const tryServerFallback = async () => {
       try {
-        const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/settings`, { cache: 'no-store' })
+        const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/private-settings`, { cache: 'no-store' })
         if (res.ok) {
           const data = await res.json()
           if (data.clinic) {

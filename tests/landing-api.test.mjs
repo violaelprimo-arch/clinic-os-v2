@@ -24,14 +24,14 @@ const origin = 'https://clinic.example.test',
   originalFetch = globalThis.fetch
 let token,
   counter = 0
-test('owner subdomains can load the shared draft preview without an owner-path rewrite', () => {
-  const preview = middleware(
+test('owner subdomains can load the shared draft preview without an owner-path rewrite', async () => {
+  const preview = await middleware(
     new NextRequest('https://owner.yalla-clinic.com/landing-preview', {
       headers: { host: 'owner.yalla-clinic.com' },
     }),
   )
   assert.equal(preview.headers.get('x-middleware-next'), '1')
-  const dashboard = middleware(
+  const dashboard = await middleware(
     new NextRequest('https://owner.yalla-clinic.com/', {
       headers: { host: 'owner.yalla-clinic.com' },
     }),

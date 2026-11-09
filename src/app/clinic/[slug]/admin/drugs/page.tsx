@@ -16,7 +16,7 @@ import { db } from '@/lib/firebase'
 import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore'
 import type { DrugItem } from '@/lib/egyptian-drugs'
 import { useEgyptianDrugs } from '@/hooks/useEgyptianDrugs'
-import { canonicalDrugIdentifier, matchesDrugSearch } from '@/lib/drugUtils'
+import { canonicalDrugIdentifier, matchesDrugSearch, normalizeDrugKey } from '@/lib/drugUtils'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { useLanguage } from '@/context/LanguageContext'
@@ -91,15 +91,13 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
         const res = await fetch('/api/sync-daily-prices')
         if (res.ok) {
           const data = await res.json()
-          if (data.latestSync) {
-            setLastSyncDate(data.latestSync.cairoDate || data.currentCairoDate)
-            if (data.latestSync.addedCount !== undefined) {
-              setSyncStats({
-                added: data.latestSync.addedCount,
-                updated: data.latestSync.updatedCount,
-                unchanged: data.latestSync.unchangedCount
-              })
-            }
+          if (data.lastSuccess) {
+            setLastSyncDate(data.lastSuccess.cairoDate)
+            setSyncStats({
+              added: data.lastSuccess.addedCount || 0,
+              updated: data.lastSuccess.priceChangedCount || 0,
+              unchanged: data.lastSuccess.verifiedCount || 0
+            })
           }
         }
       } catch (err) {
@@ -121,7 +119,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
       const res = await fetch('/api/sync-daily-prices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: targetQ || undefined, force: true })
+        body: JSON.stringify({ query: targetQ || undefined, pages: 3 })
       })
       const data = await res.json()
       if (res.ok && data.success) {
@@ -129,8 +127,8 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
         if (data.addedCount !== undefined) {
           setSyncStats({
             added: data.addedCount,
-            updated: data.updatedCount,
-            unchanged: data.unchangedCount
+            updated: data.priceChangedCount ?? data.updatedCount,
+            unchanged: data.verifiedCount ?? data.unchangedCount
           })
         }
         await refreshDrugs()
@@ -152,15 +150,15 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
 
     // 1. Custom clinic drugs take highest priority
     for (const d of customDrugs) {
-      const key = canonicalDrugIdentifier(d.name) || d.id
+      const key = (d.slug ? d.slug : '') || (d.id ? String(d.id) : normalizeDrugKey(d.name))
       drugMap.set(key, d)
     }
 
-    // 2. Add API drugs from authoritative market catalog if not already set by custom
+    // 2. Add API drugs from authoritative market catalog without collapsing distinct dosages or pack counts
     for (let idx = 0; idx < apiDrugs.length; idx++) {
       const api = apiDrugs[idx]
       const name = api.name || api.commercial_name_en || api.commercial_name_ar
-      const key = canonicalDrugIdentifier(name) || `api-${idx}`
+      const key = (api.slug ? api.slug : '') || (api.id ? String(api.id) : normalizeDrugKey(name)) || `api-${idx}`
       if (!drugMap.has(key)) {
         drugMap.set(key, {
           id: api.id || `api-${idx}`,
@@ -193,9 +191,16 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
     
     setFavoriteList(newList)
     try {
+      // Direct Firestore SDK update with server fallback
       await updateDoc(doc(db, 'clinics', clinicId), {
         favorite_drugs: newList,
         favoriteDrugs: newList
+      }).catch(async () => {
+        await fetch(`/api/clinic/${encodeURIComponent(slug)}/settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ favorite_drugs: newList, favoriteDrugs: newList })
+        })
       })
       toast.success(isFav ? 'تم الإزالة من المفضلة' : 'تمت الإضافة للمفضلة')
     } catch (err) {
@@ -234,6 +239,12 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
       try {
         await updateDoc(doc(db, 'clinics', clinicId), {
           custom_drugs: updated
+        }).catch(async () => {
+          await fetch(`/api/clinic/${encodeURIComponent(slug)}/settings`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ custom_drugs: updated })
+          })
         })
         toast.success('تم حفظ الدواء بنجاح في قاعدة بيانات العيادة الدائمة')
       } catch (err) {

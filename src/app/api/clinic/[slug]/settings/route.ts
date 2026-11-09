@@ -5,9 +5,88 @@ import { pickNormalClinicSettings } from '@/lib/clinic-credential-policy'
 import { isClinicSuspended } from '@/lib/clinicAccessPolicy'
 import { syncClinicScheduleToMainBranch, formatWeeklyScheduleSummary } from '@/lib/branchService'
 
+export const dynamic = 'force-dynamic'
+
 /**
- * GET: Retrieve clinic settings safely via server REST.
- * Strips all passwords, password hashes, and sensitive administrative fields.
+ * Public Allowlist for Clinic Data Minimization:
+ * Only public-facing attributes needed by patient booking, branding, and schedules
+ * are permitted in public responses. Administrative fields, assistant credentials,
+ * billing data, and internal notes are strictly excluded.
+ */
+const PUBLIC_CLINIC_FIELDS = [
+  'id',
+  'slug',
+  'clinicName',
+  'name',
+  'doctorName',
+  'doctorTitle',
+  'specialty',
+  'heroSubtitle',
+  'certificationTitle',
+  'certificationEntity',
+  'heroImage',
+  'branchImage',
+  'experienceYears',
+  'doctorRating',
+  'logoUrl',
+  'thermalMonoLogoUrl',
+  'slogan',
+  'receiptHeaderNote',
+  'receiptFooterNote',
+  'reportHeaderNote',
+  'primaryColor',
+  'secondaryColor',
+  'bookingPageConfig',
+  'clinicAddress',
+  'address',
+  'clinicPhone',
+  'clinicPhones',
+  'doctorPhone',
+  'whatsappNumber',
+  'mapsLink',
+  'latitude',
+  'longitude',
+  'branches',
+  'services',
+  'workingHours',
+  'weeklySchedule',
+  'bookingAvailability',
+  'allowFutureBookings',
+  'averageVisitTime',
+  'isClinicOpen',
+  'showPrices',
+  'hidePrices',
+  'onlinePaymentEnabled',
+  'isCashEnabled',
+  'isInstapayEnabled',
+  'instapayHandle',
+  'instapayAccount',
+  'isWalletEnabled',
+  'walletNumber',
+  'vodafoneCashNumber',
+  'prescriptionTemplateUrl',
+  'aiEnabled',
+  'isActive',
+  'expirationDate',
+] as const
+
+function pickPublicClinicData(cDoc: Record<string, any>, clinicId: string) {
+  const publicData: Record<string, any> = {
+    id: clinicId,
+    slug: cDoc.slug || '',
+    isActive: cDoc.isActive !== false,
+  }
+  for (const field of PUBLIC_CLINIC_FIELDS) {
+    if (cDoc[field] !== undefined) {
+      publicData[field] = cDoc[field]
+    }
+  }
+  return publicData
+}
+
+/**
+ * GET: Retrieve public clinic profile via strict data minimization allowlist.
+ * If called with valid doctor credentials, returns extended clinic configuration.
  */
 export async function GET(
   req: NextRequest,
@@ -20,43 +99,53 @@ export async function GET(
     }
 
     const allClinics = await queryDocuments('clinics')
-    const cDoc = allClinics.find((c: any) => c.slug === slug)
+    const cDoc = allClinics.find((c: any) => c.slug === slug || c.id === slug)
     if (!cDoc) {
       return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404 })
     }
 
     const clinicId = cDoc.id
 
-    // Return safe data (strip sensitive credentials and password hashes)
-    const {
-      doctorPasswordHash,
-      doctorPassword,
-      assistantPasswordHash,
-      assistantPassword,
-      ...rawSafe
-    } = cDoc
+    // Check if requester is authenticated as this clinic doctor
+    const doctorAuth = await getClinicDoctorAccount(req, slug).catch(() => null)
+    if (doctorAuth && doctorAuth.ok) {
+      // Authenticated doctor gets full settings (with passwords stripped)
+      const {
+        doctorPasswordHash,
+        doctorPassword,
+        assistantPasswordHash,
+        assistantPassword,
+        ...rawSafe
+      } = cDoc
 
-    const safeAssistants = Array.isArray(rawSafe.assistants)
-      ? rawSafe.assistants.map((a: any) => {
-          const { password, passwordHash, ...cleanA } = a
-          return cleanA
-        })
-      : []
+      const safeAssistants = Array.isArray(rawSafe.assistants)
+        ? rawSafe.assistants.map((a: any) => {
+            const { password, passwordHash, ...cleanA } = a
+            return cleanA
+          })
+        : []
 
-    const safeClinic = {
-      ...rawSafe,
-      id: clinicId,
-      assistants: safeAssistants
+      return NextResponse.json({
+        success: true,
+        clinic: {
+          ...rawSafe,
+          id: clinicId,
+          assistants: safeAssistants
+        }
+      })
     }
+
+    // Unauthenticated public request: Return strictly minimized allowlist data
+    const publicClinic = pickPublicClinicData(cDoc, clinicId)
 
     return NextResponse.json({
       success: true,
-      clinic: safeClinic
+      clinic: publicClinic
     })
   } catch (err: any) {
     console.error('Error in settings GET:', err)
     return NextResponse.json(
-      { error: 'فشل في استرجاع إعدادات العيادة: ' + (err.message || '') },
+      { error: 'فشل في استرجاع بيانات العيادة' },
       { status: 500 }
     )
   }

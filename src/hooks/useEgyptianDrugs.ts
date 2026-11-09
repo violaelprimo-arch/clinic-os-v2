@@ -63,26 +63,30 @@ async function fetchAndMergeDrugs(): Promise<EgyptianDrug[]> {
   // Map keyed by canonical identifier to guarantee ZERO duplicates
   const drugMap = new Map<string, EgyptianDrug>()
 
-  // Helper to register or update a drug entry
+  // Helper to register or update a drug entry preserving dosage & pack sizes
   const registerDrug = (drug: EgyptianDrug) => {
+    const uniqueKey =
+      (drug.slug ? normalizeDrugKey(drug.slug) : '') ||
+      normalizeDrugKey(drug.commercial_name_en || drug.name) ||
+      (drug.id ? String(drug.id) : 'unknown')
+
     const canonKey =
       canonicalDrugIdentifier(drug.commercial_name_en) ||
       canonicalDrugIdentifier(drug.commercial_name_ar) ||
-      normalizeDrugKey(drug.commercial_name_en) ||
-      'unknown'
+      uniqueKey
 
     drug.canonicalKey = canonKey
 
-    if (!drugMap.has(canonKey)) {
-      drugMap.set(canonKey, drug)
+    if (!drugMap.has(uniqueKey)) {
+      drugMap.set(uniqueKey, drug)
       return
     }
 
-    const existing = drugMap.get(canonKey)!
+    const existing = drugMap.get(uniqueKey)!
 
     // If new candidate has market update and existing does not, new candidate wins
     if (drug.isMarketUpdated && !existing.isMarketUpdated) {
-      drugMap.set(canonKey, {
+      drugMap.set(uniqueKey, {
         ...existing,
         ...drug,
         // preserve Arabic/English names if one side was richer
@@ -99,7 +103,7 @@ async function fetchAndMergeDrugs(): Promise<EgyptianDrug[]> {
       const dateA = drug.lastMarketUpdate || ''
       const dateB = existing.lastMarketUpdate || ''
       if (dateA >= dateB) {
-        drugMap.set(canonKey, {
+        drugMap.set(uniqueKey, {
           ...existing,
           ...drug,
           nameAr: drug.nameAr || existing.nameAr,
@@ -145,12 +149,16 @@ async function fetchAndMergeDrugs(): Promise<EgyptianDrug[]> {
           for (const item of compactList) {
             const nameEn = item.n || ''
             const nameAr = item.ar || ''
+            const uniqueKey =
+              (item.slug ? normalizeDrugKey(item.slug) : '') ||
+              normalizeDrugKey(nameEn) ||
+              (item.id ? String(item.id) : '')
             const canonKey =
               canonicalDrugIdentifier(nameEn) ||
               canonicalDrugIdentifier(nameAr) ||
-              normalizeDrugKey(nameEn)
-            if (canonKey && !drugMap.has(canonKey)) {
-              drugMap.set(canonKey, {
+              uniqueKey
+            if (uniqueKey && !drugMap.has(uniqueKey)) {
+              drugMap.set(uniqueKey, {
                 id: item.id || `eg-${canonKey}`,
                 name: nameEn,
                 nameAr,
