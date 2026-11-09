@@ -21,7 +21,7 @@ export default function UniversalClinicLogin() {
   const { t, dir, isRtl } = useLanguage()
   const router = useRouter()
 
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState('') // email or username in sign-in mode
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -140,13 +140,13 @@ export default function UniversalClinicLogin() {
     setIsLoading(true)
     setError(null)
 
-    const inputEmail = email.trim()
+    const loginIdentifier = email.trim()
 
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: inputEmail, password })
+        body: JSON.stringify({ identifier: loginIdentifier, password })
       })
       const data = await res.json()
 
@@ -170,7 +170,7 @@ export default function UniversalClinicLogin() {
         return
       }
 
-      setError(data.error || (isRtl ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' : 'Incorrect email or password.'))
+      setError(data.error || (isRtl ? 'اسم المستخدم أو البريد الإلكتروني أو كلمة المرور غير صحيحة.' : 'Incorrect username, email or password.'))
     } catch (err: any) {
       setError(err.message || (isRtl ? 'فشل الاتصال بالخادم.' : 'Connection to server failed.'))
     } finally {
@@ -260,7 +260,7 @@ export default function UniversalClinicLogin() {
                 {isRtl ? 'تسجيل دخول العيادة' : 'Clinic Sign In'}
               </h1>
               <p className="text-xs sm:text-sm text-muted-foreground font-medium">
-                {isRtl ? 'ادخل البريد الإلكتروني وكلمة المرور للوصول إلى لوحة تحكم عيادتك' : 'Enter your email and password to access your clinic workspace'}
+                {isRtl ? 'ادخل اسم المستخدم أو البريد الإلكتروني وكلمة المرور للوصول إلى لوحة عيادتك' : 'Enter your username or email and password to access your clinic workspace'}
               </p>
             </div>
           </div>
@@ -361,14 +361,15 @@ export default function UniversalClinicLogin() {
               <div className="space-y-4">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-bold text-muted-foreground">
-                    {isRtl ? 'البريد الإلكتروني' : 'Email Address'}
+                    {isRtl ? 'اسم المستخدم أو البريد الإلكتروني' : 'Username or Email'}
                   </Label>
                   <Input
-                    type="email"
+                    type="text"
+                    autoComplete="username"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    placeholder="doctor@clinic.com"
+                    placeholder="username / doctor@clinic.com"
                     className="h-11 text-xs bg-background border-border"
                     dir="ltr"
                   />
