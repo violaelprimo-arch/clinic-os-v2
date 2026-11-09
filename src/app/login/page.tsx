@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth'
+import { GoogleAuthProvider, signInWithPopup, signInWithCustomToken } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -151,6 +151,15 @@ export default function UniversalClinicLogin() {
       const data = await res.json()
 
       if (res.ok && data.success) {
+        if (data.firebaseCustomToken) {
+          try {
+            await signInWithCustomToken(auth, data.firebaseCustomToken)
+          } catch {
+            throw new Error(isRtl
+              ? 'تعذر إنشاء جلسة Firebase. يرجى إعادة المحاولة أو التواصل مع الدعم.'
+              : 'Firebase authentication failed. Please retry or contact support.')
+          }
+        }
         localStorage.setItem('clinic_session_token', data.token)
         localStorage.setItem('clinic_role', data.user.role)
         if (data.user.role === 'assistant' && data.user.branchId) {
