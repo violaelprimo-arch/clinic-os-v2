@@ -8,14 +8,15 @@ import { getFirebaseServerCredentials, signServiceJwt } from '@/lib/server/fireb
  * Username is an alias in Firestore; it is NOT an email and is never
  * fabricated as an actual patient/staff mailbox.
  *
- * Do not grant tenant-wide custom claims here: legacy clinic documents still
- * contain credential hashes and must not be exposed via Firestore client SDK.
- * Tenant data access remains behind the existing scoped server APIs.
+ * Firestore rules allow the operational collections for this exact tenant,
+ * while the credential-bearing clinics document remains owner-only.
  */
 export async function createClinicFirebaseCustomToken(args: {
   clinicId: string
   role: 'doctor' | 'assistant'
   accountKey: string
+  credentialsVersion?: number
+  branchId?: string
 }): Promise<string> {
   const { email } = getFirebaseServerCredentials()
   const accountKey = args.accountKey.trim().toLowerCase()
@@ -37,8 +38,10 @@ export async function createClinicFirebaseCustomToken(args: {
     sub: email,
     aud: 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit',
     iat: now,
-    exp: now + 3600,
+    exp: now + 300,
     uid,
-    claims: { clinicRole: args.role, clinic_id: args.clinicId }
+    claims: { clinicRole: args.role, clinic_id: args.clinicId,
+      credentialsVersion: Number(args.credentialsVersion || 0),
+      ...(args.branchId ? { branch_id: args.branchId } : {}) }
   })
 }

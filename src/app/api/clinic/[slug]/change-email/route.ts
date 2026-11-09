@@ -49,11 +49,15 @@ export async function POST(
     await writeDocument(`clinics/${clinicId}`, {
       doctorEmail: email,
       emailLastChangedAt: changedAt,
+      credentialsVersion: Date.parse(changedAt),
+      doctorFirebaseUid: null,
       updatedAt: changedAt,
     }, true)
 
     const updatedToken = await createSessionToken({
       role: 'doctor',
+      username: String(clinic.doctorUsername || ''),
+      credentialsVersion: Date.parse(changedAt),
       email,
       name: String(clinic.doctorName || 'طبيب العيادة'),
       clinicId,
@@ -81,6 +85,7 @@ export async function POST(
       sameSite: 'lax',
       path: '/',
       maxAge: 7 * 24 * 60 * 60,
+      domain: process.env.NODE_ENV === 'production' ? '.yalla-clinic.com' : undefined,
     })
     return response
   } catch (error) {

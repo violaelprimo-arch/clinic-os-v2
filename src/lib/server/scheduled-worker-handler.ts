@@ -69,7 +69,7 @@ export async function handleScheduledEvent(
     console.error('[Worker Scheduled] Unable to read authoritative sync metadata', err)
     return { success: false, reason: 'SYNC_METADATA_UNAVAILABLE', cairoDate }
   }
-  if (metadata?.lastSuccessDate === cairoDate) {
+  if (metadata?.pipelineVersion === 2 && metadata?.lastSuccessDate === cairoDate && metadata?.lastAttemptStatus === 'COMPLETED') {
     return { skipped: true, reason: 'ALREADY_COMPLETED_TODAY', cairoDate }
   }
   if (isRetryTrigger && metadata?.lastAttemptTimestamp) {
@@ -95,6 +95,8 @@ export async function handleScheduledEvent(
         console.log(`[Worker Scheduled] Medicine sync completed successfully on attempt ${attempt}: +${result.addedCount} new, ${result.priceChangedCount} updated.`)
         return { success: true, attempt, ...result }
       }
+
+      if (result.status === 'PARTIAL') return { success: true, attempt, ...result }
 
       if (result.status === 'ALREADY_RUNNING') {
         console.log(`[Worker Scheduled] Sync already in progress by another worker. Exiting cleanly.`)

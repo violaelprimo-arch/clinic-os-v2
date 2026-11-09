@@ -123,7 +123,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
       })
       const data = await res.json()
       if (res.ok && data.success) {
-        setLastSyncDate(data.cairoDate)
+        if (!targetQ && data.status === 'COMPLETED') setLastSyncDate(data.cairoDate)
         if (data.addedCount !== undefined) {
           setSyncStats({
             added: data.addedCount,
@@ -132,7 +132,8 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
           })
         }
         await refreshDrugs()
-        toast.success(data.message || 'تمت مزامنة الأسعار بنجاح!')
+        if (data.status === 'COMPLETED') toast.success(data.message || 'تمت مزامنة الأسعار بنجاح!')
+        else toast.info(data.message || 'التحديث جارٍ ويُستكمل تلقائيًا')
       } else {
         toast.error(data.message || data.error || 'تعذر إكمال التحديث حالياً.')
       }
@@ -681,7 +682,7 @@ export default function DrugDirectoryPage({ params }: { params: Promise<{ slug: 
                             type="button"
                             onClick={() => {
                               setSyncingDrugName(drug.name)
-                              handleManualSync(drug.name.split(' ')[0] || drug.name)
+                              handleManualSync(drug.slug || drug.id || drug.name)
                             }}
                             disabled={isSyncing}
                             className="p-1.5 rounded-lg border border-border hover:border-amber-400 hover:bg-amber-500/10 text-muted-foreground hover:text-amber-500 transition-colors cursor-pointer"

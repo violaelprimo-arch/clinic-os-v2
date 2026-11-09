@@ -1,4 +1,5 @@
 'use client'
+import { loadClinicProfile } from '@/lib/clinic-profile-client'
 
 import { use, useState, useEffect, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -97,10 +98,8 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
   useEffect(() => {
     const fetchClinicInfo = async () => {
       try {
-        const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
-        const cSnap = await getDocs(cQ)
-        if (!cSnap.empty) {
-          const cData = { id: cSnap.docs[0].id, ...(cSnap.docs[0].data() as any) }
+        const cData = await loadClinicProfile(slug)
+        if (cData) {
           setClinic(cData)
 
           // Fetch branches from root collection / API
@@ -198,13 +197,8 @@ export default function FinancePage({ params }: { params: Promise<{ slug: string
         console.warn('Finance server API fallback to client query:', apiErr)
       }
 
-      const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
-      const cSnap = await getDocs(cQ)
-      if (cSnap.empty) {
-        setIsLoading(false)
-        return toast.error('العيادة غير موجودة')
-      }
-      const cId = cSnap.docs[0].id
+      const cData = await loadClinicProfile(slug)
+      const cId = cData.id
 
       const q = query(
         collection(db, 'appointments'),

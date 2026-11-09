@@ -111,7 +111,7 @@ export async function authorizeRecordAccess(
       const phoneMatches = sessionPhone && targetPhone && sessionPhone === targetPhone
       const idMatches = sessionPatientId && recordPatientId && sessionPatientId === recordPatientId
 
-      if (phoneMatches || idMatches) {
+      if (patientSession.payload.clinicId === clinicId && (phoneMatches || idMatches)) {
         return { authorized: true, accessorRole: 'patient' }
       }
 

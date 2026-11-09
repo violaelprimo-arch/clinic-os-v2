@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifySessionToken } from '@/lib/auth-crypto'
+import { getCurrentClinicStaff } from '@/lib/server/clinic-staff-access'
+import { authenticateOwnerRequest, assertSameOrigin } from '@/lib/server/owner-access'
 import { OWNER_COOKIE, verifyOwnerSession } from '@/lib/owner-session'
 import { Branch, BranchScheduleDay } from '@/types/clinic'
 import { DEFAULT_WEEKLY_SCHEDULE, formatWeeklyScheduleSummary } from '@/lib/branchService'
 import { sanitizeAddress } from '@/lib/mapsHelper'
 import { canonicalizeBranches, mainBranchDuplicateKey } from '@/lib/branchCanonical'
-import { queryDocuments, readDocument, writeDocument, createDocument, commitDocumentPatches } from '@/lib/server/firebase-rest'
+import { queryDocumentsByField, readDocument, writeDocument, createDocument, commitDocumentPatches } from '@/lib/server/firebase-rest'
 import { isClinicSuspended } from '@/lib/clinicAccessPolicy'
 
 /**
@@ -15,66 +16,31 @@ import { isClinicSuspended } from '@/lib/clinicAccessPolicy'
 async function fetchBranchesForClinic(clinicId: string, slug?: string, includeArchived = false): Promise<Branch[]> {
   // Server credentials are required after client Firestore access was restricted.
   // Never silently return an empty list if the database is unavailable.
-  const rows = await queryDocuments('branches')
-  const matches = rows.filter((b: any) =>
-    b.clinicId === clinicId || b.clinic_id === clinicId ||
-    (slug && (b.clinicId === slug || b.clinic_id === slug))
-  )
+  const groups = await Promise.all([
+    queryDocumentsByField('branches', 'clinicId', clinicId),
+    queryDocumentsByField('branches', 'clinic_id', clinicId),
+    ...(slug && slug !== clinicId ? [queryDocumentsByField('branches', 'clinicId', slug),
+      queryDocumentsByField('branches', 'clinic_id', slug)] : []),
+  ])
+  const matches = [...new Map(groups.flat().map(b => [b.id, b])).values()]
+
   return matches.filter((b: any) => includeArchived || b.isArchived !== true) as unknown as Branch[]
 }
 
 async function findClinicBySlug(slug: string): Promise<any | null> {
-  const clinics = await queryDocuments('clinics')
-  return clinics.find((c: any) => c.slug === slug || c.id === slug) || null
+  return (await queryDocumentsByField('clinics', 'slug', slug))[0] || null
 }
 
 /**
  * Verify caller identity: Platform Owner OR Doctor/Assistant for this clinic.
  */
 async function authenticateCaller(req: NextRequest, clinicSlug: string, clinicId: string) {
-  let isOwner = false
-  let isClinicStaff = false
-
-  // 1. Check Owner session cookie
-  const ownerCookie = req.cookies.get(OWNER_COOKIE)?.value
-  if (ownerCookie) {
-    const secret = process.env.OWNER_SESSION_SECRET || process.env.AUTH_SECRET || ''
-    if (secret.length >= 32) {
-      try {
-        const owner = await verifyOwnerSession(ownerCookie, secret)
-        if (owner && process.env.PLATFORM_OWNER_UID && owner.uid === process.env.PLATFORM_OWNER_UID) {
-          isOwner = true
-        }
-      } catch {}
-    }
-  }
-
-  // 2. Check Clinic session token
-  const sessionToken =
-    req.cookies.get('clinic_session')?.value ||
-    req.headers.get('Authorization')?.replace('Bearer ', '')
-
-  if (sessionToken) {
-    try {
-      const session = await verifySessionToken(sessionToken)
-      if (session.valid && session.payload) {
-        // A clinic session is never sufficient to claim platform-owner privileges.
-        // Only a verified OWNER_COOKIE can authorize platform-wide operations.
-        if (
-          session.payload.role === 'doctor' &&
-          (
-            session.payload.slug === clinicSlug ||
-            session.payload.clinicId === clinicId ||
-            session.payload.clinicId === clinicSlug
-          )
-        ) {
-          isClinicStaff = true
-        }
-      }
-    } catch {}
-  }
-
-  return { isOwner, isClinicStaff, isAuthorized: isOwner || isClinicStaff }
+  if (req.method !== 'GET') assertSameOrigin(req)
+  const owner = await authenticateOwnerRequest(req).catch(() => null)
+  if (owner) return { isOwner: true, isClinicStaff: false, isAuthorized: true }
+  const staff = await getCurrentClinicStaff(req, clinicSlug)
+  const isClinicStaff = Boolean(staff && staff.clinicId === clinicId && staff.user.role === 'doctor')
+  return { isOwner: false, isClinicStaff, isAuthorized: isClinicStaff }
 }
 
 /**
@@ -114,7 +80,7 @@ export async function GET(
   } catch (err: any) {
     console.error('Error in branches GET:', err)
     return NextResponse.json(
-      { error: 'فشل في استرجاع فروع العيادة: ' + (err.message || '') },
+      { error: 'تعذر استرجاع فروع العيادة. حاول مرة أخرى.' },
       { status: 500 }
     )
   }
@@ -171,6 +137,15 @@ export async function POST(
 
     if (branchId && (typeof branchId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(branchId))) {
       return NextResponse.json({ error: 'معرف الفرع غير صالح' }, { status: 400 })
+    }
+    if (Object.hasOwn(body, 'isOpen') && typeof isOpen !== 'boolean') {
+      return NextResponse.json({ error: 'حالة الحجز يجب أن تكون مفتوحًا أو مغلقًا' }, { status: 400 })
+    }
+    if (Object.hasOwn(body, 'slotDuration') && (!Number.isFinite(Number(slotDuration)) || Number(slotDuration) < 1 || Number(slotDuration) > 240)) {
+      return NextResponse.json({ error: 'مدة الكشف يجب أن تكون بين 1 و240 دقيقة' }, { status: 400 })
+    }
+    if (Object.hasOwn(body, 'maxDailyBookings') && (!Number.isInteger(Number(maxDailyBookings)) || Number(maxDailyBookings) < 0 || Number(maxDailyBookings) > 10000)) {
+      return NextResponse.json({ error: 'الحد اليومي غير صالح' }, { status: 400 })
     }
     const isCreating = !branchId || branchId === 'new'
 

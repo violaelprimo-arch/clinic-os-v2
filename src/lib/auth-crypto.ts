@@ -155,6 +155,7 @@ export async function createSessionToken(payload: {
   branchId?: string
   branchName?: string
   mustChangePassword?: boolean
+  credentialsVersion?: number
 }): Promise<string> {
   const data = {
     ...payload,
@@ -209,7 +210,8 @@ export async function verifySessionToken(token: string): Promise<{
     const json = decodeURIComponent(escape(atob(base64Data)))
     const payload = JSON.parse(json)
 
-    if (payload.expiresAt && Date.now() > payload.expiresAt) {
+    if (!Number.isFinite(payload.expiresAt) || !Number.isFinite(payload.issuedAt) ||
+        payload.issuedAt > Date.now() + 60000 || Date.now() > payload.expiresAt) {
       return { valid: false, error: 'TOKEN_EXPIRED' }
     }
 

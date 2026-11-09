@@ -45,12 +45,15 @@ export async function POST(
       doctorPassword: null,
       mustChangePassword: false,
       passwordLastChangedAt: changedAt,
+      credentialsVersion: Date.parse(changedAt),
       updatedAt: changedAt,
     }, true)
 
     const updatedToken = await createSessionToken({
       role: 'doctor',
-      email: String(clinic.doctorEmail),
+      email: String(clinic.doctorEmail || ''),
+      username: String(clinic.doctorUsername || ''),
+      credentialsVersion: Date.parse(changedAt),
       name: String(clinic.doctorName || 'طبيب العيادة'),
       clinicId,
       slug,
@@ -78,6 +81,7 @@ export async function POST(
       sameSite: 'lax',
       path: '/',
       maxAge: 7 * 24 * 60 * 60,
+      domain: process.env.NODE_ENV === 'production' ? '.yalla-clinic.com' : undefined,
     })
     return response
   } catch (error) {

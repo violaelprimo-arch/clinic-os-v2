@@ -38,3 +38,6 @@ enabled = true
 crons = ["0 3 * * *", "0 4 * * *", "*/15 * * * *"]
 
 
+
+[alias]
+"server-only" = "./src/lib/server/worker-marker.ts"

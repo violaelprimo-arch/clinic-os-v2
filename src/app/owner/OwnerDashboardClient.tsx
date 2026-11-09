@@ -1278,6 +1278,13 @@ function OwnerDashboard() {
         ...(assistantPassword ? { assistantPasswordHash, assistantPassword: '' } : {}),
       }
 
+      const priorAccount = clinics.find(c => c.id === editingId)
+      const credentialsChanged = Object.keys(accountChanges).length > 0 || Boolean(editingId && priorAccount && (
+        String(priorAccount.doctorEmail || '').toLowerCase() !== doctorEmail.trim().toLowerCase() ||
+        String(priorAccount.doctorUsername || '').toLowerCase() !== doctorUsername.trim().toLowerCase() ||
+        String(priorAccount.assistantEmail || '').toLowerCase() !== assistantEmail.trim().toLowerCase() ||
+        String(priorAccount.assistantUsername || '').toLowerCase() !== assistantUsername.trim().toLowerCase()
+      ))
       const clinicData = {
         clinicName,
         doctorName,
@@ -1290,6 +1297,7 @@ function OwnerDashboard() {
         assistantEmail: assistantEmail.trim().toLowerCase(),
         assistantUsername: assistantUsername.trim().toLowerCase(),
         ...accountChanges,
+        ...(credentialsChanged ? { credentialsVersion: Date.now() } : {}),
         aiApiKey,
         prescriptionTemplateUrl,
         aiEnabled: aiEnabled !== false,
@@ -1777,7 +1785,7 @@ function OwnerDashboard() {
             className="h-11 rounded-xl border-[#DCE9F5] text-xs font-bold text-slate-700 transition-all hover:-translate-y-0.5 hover:bg-[#F4FAFF] dark:border-[#254565] dark:text-slate-200 dark:hover:bg-[#0E2342]"
           >
             <RefreshCw className={`w-3.5 h-3.5 ml-1.5 ${isRefreshing ? 'animate-spin text-[#087CF4]' : ''}`} />
-            {t('refresh_data')}
+            {isRtl ? 'تحديث البيانات' : 'Refresh data'}
           </Button>
 
           <Button
@@ -2036,7 +2044,7 @@ function OwnerDashboard() {
                             <div className="space-y-0.5">
                               <h4 className="font-black text-sm text-foreground">{c.clinicName}</h4>
                               <p className="text-muted-foreground font-semibold text-[11px]">
-                                {c.doctorName ? `د. ${c.doctorName}` : 'طبيب العيادة'}
+                                {c.doctorName ? `د. ${String(c.doctorName).replace(/^(?:د\.|دكتور\s+)\s*/, '')}` : 'طبيب العيادة'}
                               </p>
                               <div className="flex items-center gap-2 pt-1 font-mono text-[10px] text-muted-foreground/80">
                                 <span>واتساب: {c.clinicPhone || '—'}</span>
@@ -2244,7 +2252,7 @@ function OwnerDashboard() {
                               </button>
                               {c.expirationDate && (
                                 <span className="text-[10px] text-muted-foreground font-mono">
-                                  {isRtl ? 'ينتهي:' : 'Exp:'} {c.expirationDate}
+                                  {isRtl ? 'ينتهي:' : 'Exp:'} {new Date(c.expirationDate).toLocaleDateString(isRtl ? 'ar-EG' : 'en-GB', { timeZone: 'Africa/Cairo' })}
                                 </span>
                               )}
                             </div>
@@ -2575,7 +2583,7 @@ function OwnerDashboard() {
                               </div>
                               <div className="min-w-0">
                                 <h4 className="font-black text-sm text-[#182230] truncate">
-                                  {c.doctorName ? `د. ${c.doctorName}` : 'طبيب العيادة'}
+                                  {c.doctorName ? `د. ${String(c.doctorName).replace(/^(?:د\.|دكتور\s+)\s*/, '')}` : 'طبيب العيادة'}
                                 </h4>
                                 <p className="text-[11px] text-slate-500 font-medium truncate">
                                   {c.specialty || 'طبيب عام'} {c.certificationTitle ? `• ${c.certificationTitle}` : ''}
@@ -2649,7 +2657,7 @@ function OwnerDashboard() {
                                 {expInfo.text}
                               </span>
                               <span className="font-mono text-[10px] text-slate-400" dir="ltr">
-                                {c.expirationDate ? `ينتهي: ${c.expirationDate}` : 'اشتراك مفتوح'}
+                                {c.expirationDate ? `ينتهي: ${new Date(c.expirationDate).toLocaleDateString('ar-EG', { timeZone: 'Africa/Cairo' })}` : 'اشتراك مفتوح'}
                               </span>
                             </div>
                           </td>
@@ -4566,36 +4574,42 @@ function OwnerDashboard() {
 
               {/* Section 6: Login Accounts */}
               <div className="space-y-4 rounded-3xl border border-border bg-card p-5 shadow-sm">
-                <h3 className="text-xs font-black text-slate-700 flex items-center gap-2">
+                <h3 className="text-xs font-black text-foreground flex items-center gap-2">
                   <Users className="w-4 h-4 text-[#087CF4]" />
                   حسابات دخول الكادر الطبي
                 </h3>
                 <p className="text-xs text-muted-foreground">يمكن الدخول باسم المستخدم أو البريد الإلكتروني بنفس كلمة المرور. ترك كلمة المرور فارغة عند التعديل يحافظ على القديمة.</p>
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                   <div className="p-4 rounded-2xl bg-background border border-border space-y-3 min-w-0">
-                    <span className="text-xs font-black text-slate-700 block">حساب الطبيب (مسؤول العيادة)</span>
+                    <span className="text-xs font-black text-foreground block">حساب الطبيب (مسؤول العيادة)</span>
                     <Input
                       type="email"
+                      dir="ltr"
+                      aria-label="البريد الإلكتروني للطبيب (اختياري)"
+                      autoComplete="off"
                       value={doctorEmail}
                       onChange={e => setDoctorEmail(e.target.value)}
                       placeholder="doctor@clinic.com"
-                      className="h-10 text-xs rounded-xl bg-white"
+                      className="h-10 text-xs rounded-xl bg-background"
                     />
                     <Input
                       type="text"
+                      aria-label="اسم مستخدم الطبيب"
                       value={doctorUsername}
                       onChange={e => setDoctorUsername(e.target.value.toLowerCase())}
                       autoComplete="off"
                       dir="ltr"
                       maxLength={32}
                       placeholder="اسم المستخدم — مثال: dr.ahmed"
-                      className="h-10 text-xs rounded-xl bg-white"
+                      className="h-10 text-xs rounded-xl bg-background"
                     />
                     <PasswordInput
+                      aria-label="كلمة مرور الطبيب الجديدة"
+                      autoComplete="new-password"
                       value={doctorPassword}
                       onChange={e => setDoctorPassword(e.target.value)}
                       placeholder="كلمة المرور"
-                      className="h-10 text-xs rounded-xl bg-white"
+                      className="h-10 text-xs rounded-xl bg-background"
                     />
                   </div>
 
@@ -4603,26 +4617,32 @@ function OwnerDashboard() {
                     <span className="text-xs font-black text-foreground block">حساب مساعد العيادة (السكرتارية)</span>
                     <Input
                       type="email"
+                      dir="ltr"
+                      aria-label="البريد الإلكتروني للسكرتير (اختياري)"
+                      autoComplete="off"
                       value={assistantEmail}
                       onChange={e => setAssistantEmail(e.target.value)}
                       placeholder="assistant@clinic.com"
-                      className="h-10 text-xs rounded-xl bg-white"
+                      className="h-10 text-xs rounded-xl bg-background"
                     />
                     <Input
                       type="text"
+                      aria-label="اسم مستخدم السكرتير"
                       value={assistantUsername}
                       onChange={e => setAssistantUsername(e.target.value.toLowerCase())}
                       autoComplete="off"
                       dir="ltr"
                       maxLength={32}
                       placeholder="اسم المستخدم — مثال: clinic.reception"
-                      className="h-10 text-xs rounded-xl bg-white"
+                      className="h-10 text-xs rounded-xl bg-background"
                     />
                     <PasswordInput
+                      aria-label="كلمة مرور السكرتير الجديدة"
+                      autoComplete="new-password"
                       value={assistantPassword}
                       onChange={e => setAssistantPassword(e.target.value)}
                       placeholder="كلمة المرور"
-                      className="h-10 text-xs rounded-xl bg-white"
+                      className="h-10 text-xs rounded-xl bg-background"
                     />
                   </div>
                 </div>

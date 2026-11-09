@@ -1,213 +1,75 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
-import { hashPassword, verifyPassword, createSessionToken } from '@/lib/auth-crypto'
-import { recordAuditLog } from '@/lib/audit-logger'
+import { hashPassword, verifyPassword } from '@/lib/auth-crypto'
+import { queryDocumentsByField, readDocument, writeDocument, acquireFirestoreLease, releaseFirestoreLease } from '@/lib/server/firebase-rest'
+import { assertSameOrigin } from '@/lib/server/owner-access'
+import { sendPasswordResetOtp } from '@/lib/server/reset-email'
 
+const genericMessage = 'إذا كان الحساب له بريد مسجل، فسيصلك رمز التحقق خلال لحظات.'
 export async function POST(req: NextRequest) {
+  let lockedClinic = '', runId = ''
   try {
+    assertSameOrigin(req)
     const body = await req.json().catch(() => ({}))
-    const { action, email, slug, otp, newPassword, resetToken } = body
-
-    if (!slug) {
-      return NextResponse.json({ error: 'معرف العيادة مطلوب' }, { status: 400 })
+    const { action, otp, newPassword } = body
+    const identifier = String(body.email || body.identifier || '').trim().toLowerCase()
+    const slug = typeof body.slug === 'string' ? body.slug.trim().toLowerCase() : ''
+    if (!['request', 'verify-and-reset'].includes(action) || !identifier || identifier.length > 254 ||
+        (slug && !/^[a-z0-9][a-z0-9-]{0,62}$/.test(slug))) {
+      return NextResponse.json({ error: 'بيانات الطلب غير صالحة' }, { status: 400 })
     }
-
-    const q = query(collection(db, 'clinics'), where('slug', '==', slug))
-    const snap = await getDocs(q)
-    if (snap.empty) {
-      return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404 })
+    const clinics = await queryDocumentsByField('clinics',
+      slug ? 'slug' : identifier.includes('@') ? 'doctorEmail' : 'doctorUsername', slug || identifier)
+    const found = clinics.length === 1 ? clinics[0] : null
+    if (!found || ![found.doctorEmail, found.doctorUsername].some(v => typeof v === 'string' && v.trim().toLowerCase() === identifier)) {
+      return action === 'request' ? NextResponse.json({ success: true, message: genericMessage })
+        : NextResponse.json({ error: 'بيانات التحقق غير صحيحة أو منتهية' }, { status: 400 })
     }
-
-    const cDoc = snap.docs[0]
-    const clinic = cDoc.data()
-    const clinicId = cDoc.id
-
-    // ACTION 1: Request OTP
+    const clinicId = String(found.id)
+    runId = crypto.randomUUID()
+    const lease = await acquireFirestoreLease(`auth_reset_locks/${clinicId}`, runId, 'password-reset', 60000)
+    if (!lease.acquired) return NextResponse.json({ error: 'يوجد طلب قيد التنفيذ. انتظر قليلًا.' }, { status: 429 })
+    lockedClinic = clinicId
+    const clinic = (await readDocument(`clinics/${clinicId}`)) as Record<string, any>
+    const email = typeof clinic.doctorEmail === 'string' ? clinic.doctorEmail.trim().toLowerCase() : ''
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ error: 'هذا الحساب ليس له بريد استرجاع. تواصل مع مالك المنصة.' }, { status: 400 })
+    }
     if (action === 'request') {
-      if (!email) {
-        return NextResponse.json({ error: 'البريد الإلكتروني مطلوب' }, { status: 400 })
+      if (Date.now() - Date.parse(clinic.resetPasswordRequestedAt || '') < 60000) {
+        return NextResponse.json({ error: 'انتظر دقيقة قبل طلب رمز جديد.' }, { status: 429 })
       }
-
-      const cleanInputEmail = String(email).trim().toLowerCase()
-      const registeredEmail = (clinic.doctorEmail || '').trim().toLowerCase()
-
-      // If email does not match registered email, do not disclose details
-      if (!registeredEmail || cleanInputEmail !== registeredEmail) {
-        return NextResponse.json({
-          success: true,
-          message: 'إذا كان البريد الإلكتروني مسجلاً في سجلات العيادة، فسيصلك رمز التحقق خلال لحظات.'
-        })
-      }
-
-      // 60-Second Cooldown between OTP requests
-      const lastRequestedAt = clinic.resetPasswordRequestedAt ? new Date(clinic.resetPasswordRequestedAt).getTime() : 0
-      const cooldownRemaining = Math.ceil((lastRequestedAt + 60000 - Date.now()) / 1000)
-      if (cooldownRemaining > 0) {
-        return NextResponse.json(
-          { error: `يرجى الانتظار ${cooldownRemaining} ثانية قبل طلب رمز جديد.` },
-          { status: 429 }
-        )
-      }
-
-      // Generate cryptographically secure 6-digit numeric OTP (no Math.random)
-      const randomValues = new Uint32Array(1)
-      crypto.getRandomValues(randomValues)
-      const generatedOtp = (100000 + (randomValues[0] % 900000)).toString()
-
-      // Hash OTP before storage in Firestore (HMAC/SHA-256)
-      const hashedOtp = await hashPassword(generatedOtp)
-      const expiresAt = Date.now() + 10 * 60 * 1000 // 10 minutes validity
-
-      // Update Firestore document with new hashed OTP, resetting attempts
-      await updateDoc(doc(db, 'clinics', clinicId), {
-        resetPasswordOtpHashed: hashedOtp,
-        resetPasswordOtp: null, // Clear legacy plaintext
-        resetPasswordExpiresAt: expiresAt,
-        resetPasswordAttempts: 0,
-        resetPasswordRequestedAt: new Date().toISOString()
-      })
-
-      // Send OTP via email delivery engine
-      try {
-        const url = new URL('/api/send-otp', req.url)
-        const sendOtpRes = await fetch(url.toString(), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: cleanInputEmail,
-            otp: generatedOtp,
-            doctorName: clinic.doctorName,
-            clinicName: clinic.clinicName
-          })
-        })
-
-        const sendData = await sendOtpRes.json().catch(() => ({}))
-        if (!sendOtpRes.ok || sendData.success === false) {
-          console.error('[reset-password] send-otp returned error:', sendData)
-          return NextResponse.json(
-            {
-              success: false,
-              error: sendData.error || 'تعذر إرسال رمز التحقق إلى بريدك الإلكتروني عبر مزود الخدمة.',
-              code: sendData.code || 'DELIVERY_FAILED'
-            },
-            { status: 502 }
-          )
-        }
-      } catch (err: any) {
-        console.error('[reset-password] Error invoking send-otp:', err)
-        return NextResponse.json(
-          { error: 'تعذر الاتصال بخدمة إرسال البريد: ' + (err?.message || 'خطأ غير معروف') },
-          { status: 500 }
-        )
-      }
-
-      return NextResponse.json({
-        success: true,
-        message: 'تم إرسال رمز التحقق (OTP) المكون من 6 أرقام إلى بريدك الإلكتروني على Gmail بنجاح.'
-      })
+      const random = crypto.getRandomValues(new Uint32Array(1))[0]
+      const generated = String(100000 + random % 900000)
+      await writeDocument(`clinics/${clinicId}`, {
+        resetPasswordOtpHashed: await hashPassword(generated), resetPasswordOtp: null,
+        resetPasswordExpiresAt: Date.now() + 10 * 60000, resetPasswordAttempts: 0,
+        resetPasswordRequestedAt: new Date().toISOString(),
+      }, true)
+      await sendPasswordResetOtp(email, generated)
+      return NextResponse.json({ success: true, message: genericMessage })
     }
-
-    // ACTION 2: Verify OTP and Reset Password
-    if (action === 'verify-and-reset') {
-      if (!email || !otp || !newPassword) {
-        return NextResponse.json(
-          { error: 'يرجى إدخال البريد الإلكتروني ورمز التحقق وكلمة المرور الجديدة' },
-          { status: 400 }
-        )
-      }
-
-      if (String(newPassword).length < 6) {
-        return NextResponse.json(
-          { error: 'يجب ألا تقل كلمة المرور الجديدة عن 6 أحرف أو أرقام' },
-          { status: 400 }
-        )
-      }
-
-      const cleanInputEmail = String(email).trim().toLowerCase()
-      const registeredEmail = (clinic.doctorEmail || '').trim().toLowerCase()
-
-      if (cleanInputEmail !== registeredEmail) {
-        return NextResponse.json(
-          { error: 'البريد الإلكتروني غير مطابق لسجلات العيادة' },
-          { status: 400 }
-        )
-      }
-
-      const attempts = Number(clinic.resetPasswordAttempts) || 0
-      if (attempts >= 5) {
-        return NextResponse.json(
-          { error: 'تم استنفاذ عدد المحاولات المسموح بها (5 محاولات). يرجى طلب رمز جديد.' },
-          { status: 429 }
-        )
-      }
-
-      const expiresAt = Number(clinic.resetPasswordExpiresAt) || 0
-      if (!expiresAt || Date.now() > expiresAt) {
-        return NextResponse.json(
-          { error: 'رمز التحقق (OTP) منتهي الصلاحية (صلاحيته 10 دقائق). يرجى طلب رمز جديد.' },
-          { status: 400 }
-        )
-      }
-
-      // Check OTP against stored hash (or legacy plaintext fallback)
-      const storedOtpHash = clinic.resetPasswordOtpHashed || clinic.resetPasswordOtp
-      if (!storedOtpHash) {
-        return NextResponse.json(
-          { error: 'لم يتم العثور على طلب استعادة نشط. يرجى طلب رمز جديد.' },
-          { status: 400 }
-        )
-      }
-
-      const isOtpValid = await verifyPassword(String(otp).trim(), storedOtpHash)
-
-      // Increment failed attempts on mismatch
-      if (!isOtpValid) {
-        await updateDoc(doc(db, 'clinics', clinicId), {
-          resetPasswordAttempts: attempts + 1
-        })
-        const remainingAttempts = Math.max(0, 4 - attempts)
-        return NextResponse.json(
-          { error: `رمز التحقق (OTP) غير صحيح. متبقي لديك ${remainingAttempts} محاولات.` },
-          { status: 400 }
-        )
-      }
-
-      // Update password securely and revoke OTP (Single-Use consumption)
-      const newPasswordHash = await hashPassword(String(newPassword))
-
-      await updateDoc(doc(db, 'clinics', clinicId), {
-        doctorPasswordHash: newPasswordHash,
-        doctorPassword: null, // Wipe any plaintext password
-        mustChangePassword: false, // Validated doctor is changing their own password
-        resetPasswordOtpHashed: null,
-        resetPasswordOtp: null,
-        resetPasswordExpiresAt: null,
-        resetPasswordAttempts: null,
-        resetPasswordRequestedAt: null,
-        passwordLastChangedAt: new Date().toISOString()
-      })
-
-      await recordAuditLog({
-        action: 'PASSWORD_RESET',
-        actorName: clinic.doctorName || 'طبيب العيادة',
-        actorRole: 'doctor',
-        clinicId,
-        details: { email: cleanInputEmail, method: 'OTP_GMAIL' }
-      })
-
-      return NextResponse.json({
-        success: true,
-        message: 'تم تعيين كلمة المرور الجديدة بنجاح! يمكنك الآن تسجيل الدخول بها.'
-      })
+    if (typeof otp !== 'string' || !/^\d{6}$/.test(otp) || typeof newPassword !== 'string' ||
+        newPassword.length < 6 || newPassword.length > 1024) {
+      return NextResponse.json({ error: 'أدخل رمزًا من 6 أرقام وكلمة مرور لا تقل عن 6 خانات.' }, { status: 400 })
     }
-
-    return NextResponse.json({ error: 'إجراء غير معروف' }, { status: 400 })
-  } catch (error: any) {
-    console.error('Password reset API error:', error)
-    return NextResponse.json(
-      { error: 'حدث خطأ في الخادم أثناء معالجة الطلب' },
-      { status: 500 }
-    )
+    const attempts = Number(clinic.resetPasswordAttempts || 0)
+    if (attempts >= 5 || Date.now() > Number(clinic.resetPasswordExpiresAt || 0) || !clinic.resetPasswordOtpHashed) {
+      return NextResponse.json({ error: 'انتهت صلاحية الرمز أو عدد المحاولات. اطلب رمزًا جديدًا.' }, { status: 400 })
+    }
+    if (!await verifyPassword(otp, String(clinic.resetPasswordOtpHashed))) {
+      await writeDocument(`clinics/${clinicId}`, { resetPasswordAttempts: attempts + 1 }, true)
+      return NextResponse.json({ error: 'رمز التحقق غير صحيح.' }, { status: 400 })
+    }
+    await writeDocument(`clinics/${clinicId}`, {
+      doctorPasswordHash: await hashPassword(newPassword), doctorPassword: null,
+      credentialsVersion: Date.now(), mustChangePassword: false,
+      passwordLastChangedAt: new Date().toISOString(), resetPasswordOtpHashed: null,
+      resetPasswordOtp: null, resetPasswordExpiresAt: null, resetPasswordAttempts: null,
+    }, true)
+    return NextResponse.json({ success: true, message: 'تم تغيير كلمة المرور. سجل الدخول من جديد.' })
+  } catch {
+    return NextResponse.json({ error: 'تعذر إتمام استعادة الحساب مؤقتًا. حاول لاحقًا.' }, { status: 503 })
+  } finally {
+    if (lockedClinic) await releaseFirestoreLease(`auth_reset_locks/${lockedClinic}`, runId).catch(() => {})
   }
 }

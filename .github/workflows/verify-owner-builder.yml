@@ -21,10 +21,12 @@ jobs:
       - name: TypeScript
         run: npx tsc --noEmit
       - name: Policy unit tests
-        run: node --import ./scripts/register-test-loader.mjs --test tests/clinic-access-policy.test.mjs tests/clinic-credential-policy.test.mjs tests/branch-canonical.test.mjs tests/booking-capacity-enforcement.test.mjs tests/booking-capacity-comprehensive.test.mjs tests/in-clinic-booking.test.mjs
+        run: node --import ./scripts/register-test-loader.mjs --test tests/clinic-access-policy.test.mjs tests/clinic-credential-policy.test.mjs tests/branch-canonical.test.mjs tests/booking-capacity-enforcement.test.mjs tests/booking-capacity-comprehensive.test.mjs tests/in-clinic-booking.test.mjs tests/dawaagate-parser.test.mjs tests/firebase-credentials.test.mjs tests/assistant-credentials.test.mjs
       - name: Firestore access rules emulator (no deployment)
-        run: npx --yes firebase-tools@13.35.1 emulators:exec --only firestore --project demo-clinic-access --config firebase.landing.compat.json 'node --test tests/firestore-clinic-access.rules.test.mjs'
+        run: npx --yes firebase-tools@13.35.1 emulators:exec --only firestore --project demo-clinic-access --config firebase.landing.compat.json 'node --import ./scripts/register-test-loader.mjs --test tests/firestore-clinic-access.rules.test.mjs tests/firestore-sync-lease.test.mjs'
       - name: Next production build (no deploy)
         run: npm run build
       - name: Cloudflare OpenNext bundle validation (no deploy)
         run: npx @opennextjs/cloudflare build
+      - name: Complete scheduled Worker bundle validation (no deploy)
+        run: npm run validate:worker

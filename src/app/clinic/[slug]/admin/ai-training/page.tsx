@@ -1,4 +1,5 @@
 'use client'
+import { watchClinicProfile } from '@/lib/clinic-profile-client'
 
 import { use, useEffect, useState, useRef } from 'react'
 import { db } from '@/lib/firebase'
@@ -29,17 +30,11 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const q = query(collection(db, 'clinics'), where('slug', '==', slug))
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        if (!snapshot.empty) {
-          const cDoc = snapshot.docs[0]
-          setClinicId(cDoc.id)
-          const data = cDoc.data()
-          setClinic({ id: cDoc.id, ...data })
-          setHasApiKey(!!data.aiApiKey)
-          setApiKey(data.aiApiKey || '')
+    const unsubscribe = watchClinicProfile(slug, (data) => {
+          setClinicId(data.id)
+          setClinic(data)
+          setHasApiKey(data.hasAiApiKey === true)
+          setApiKey('')
           setAiEnabled(data.aiEnabled !== false)
           setAiResponsesCount(Number(data.aiResponsesCount || 0))
           setAiResponsesLimit(Number(data.aiResponsesLimit ?? 100))
@@ -51,12 +46,7 @@ export default function AITrainingPage({ params }: { params: Promise<{ slug: str
               text: t('ai_welcome_initial')
             }])
           }
-        }
-      },
-      (err) => {
-        console.error(err)
-      }
-    )
+    }, console.error)
 
     return () => unsubscribe()
   }, [slug])

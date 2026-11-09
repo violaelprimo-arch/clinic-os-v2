@@ -411,6 +411,11 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
         const errorData = await res.json().catch(() => ({}))
         throw new Error(errorData.error || 'فشل حفظ الإعدادات')
       }
+      const saved = await res.json()
+      if (saved.requiresSessionRefresh) {
+        window.location.reload()
+        return
+      }
 
       await syncClinicScheduleToMainBranch(
         clinicId,
@@ -825,6 +830,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                     setCurrentDoctorPassword('')
                     setNewDoctorPassword('')
                     setNewDoctorPasswordConfirm('')
+                    window.location.reload()
                   } catch (e: any) {
                     toast.error(e.message || 'حدث خطأ أثناء تغيير كلمة المرور')
                   } finally {
@@ -889,6 +895,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
                     setClinic((prev: any) => ({ ...prev, doctorEmail: data.email }))
                     setNewDoctorEmail('')
                     setCurrentDoctorEmailPassword('')
+                    window.location.reload()
                   } catch (e: any) {
                     toast.error(e.message || 'خطأ في تحديث البريد')
                   } finally {

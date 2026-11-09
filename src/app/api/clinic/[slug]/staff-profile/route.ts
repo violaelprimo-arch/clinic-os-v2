@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifySessionToken } from '@/lib/auth-crypto'
+import { getCurrentClinicStaff } from '@/lib/server/clinic-staff-access'
 import { isCurrentClinicDoctor } from '@/lib/clinic-credential-policy'
 import { authenticateOwnerRequest } from '@/lib/server/owner-access'
-import { queryDocuments, readDocument } from '@/lib/server/firebase-rest'
+import { queryDocumentsByField } from '@/lib/server/firebase-rest'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,7 +28,10 @@ const STAFF_VIEW_FIELDS = [
   'isCashEnabled', 'isWalletEnabled', 'isInstapayEnabled',
   'onlinePaymentEnabled', 'walletNumber', 'instapayHandle',
   'favorite_drugs', 'favoriteDrugs', 'custom_drugs', 'prescriptionTemplateUrl',
-  'clinicAddress', 'doctorTitle', 'supportNumbers',
+  'slogan', 'receiptHeaderNote', 'receiptFooterNote', 'reportHeaderNote',
+  'supportNumbers', 'branches', 'hiddenProtocolIds', 'doctorEmail',
+  'aiResponsesLimit', 'aiResponsesCount', 'aiKnowledge', 'tvConfig',
+  'allowPatientMedicalView', 'residentialAreas', 'textColor', 'doctorImage',
 ] as const
 
 function pickStaffFields(clinic: Record<string, unknown>) {
@@ -37,22 +40,6 @@ function pickStaffFields(clinic: Record<string, unknown>) {
     if (clinic[key] !== undefined) safe[key] = clinic[key]
   }
   return safe
-}
-
-function assistantIdentityMatches(
-  payload: Record<string, unknown>,
-  clinic: Record<string, unknown>,
-) {
-  const email = String(payload.email || '').trim().toLowerCase()
-  const username = String(payload.username || '').trim().toLowerCase()
-  const candidates = [
-    { email: clinic.assistantEmail, username: clinic.assistantUsername },
-    ...(Array.isArray(clinic.assistants) ? clinic.assistants : []),
-  ]
-  return candidates.some((c: any) => (
-    (email && typeof c.email === 'string' && c.email.trim().toLowerCase() === email) ||
-    (username && typeof c.username === 'string' && c.username.trim().toLowerCase() === username)
-  ))
 }
 
 export async function GET(
@@ -67,40 +54,21 @@ export async function GET(
 
     let clinic: Record<string, unknown> | null = null
     let clinicId = ''
-    const token = req.cookies.get('clinic_session')?.value || ''
-    const session = token ? await verifySessionToken(token) : { valid: false }
-    if (session.valid && session.payload) {
-      const payload = session.payload as Record<string, unknown>
-      if (payload.slug !== slug || typeof payload.clinicId !== 'string' ||
-          !/^[a-zA-Z0-9_-]{1,128}$/.test(payload.clinicId) ||
-          !['doctor', 'assistant'].includes(String(payload.role))) {
-        return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
-      }
-      clinicId = payload.clinicId
-      clinic = await readDocument(`clinics/${clinicId}`)
-      if (!clinic || clinic.slug !== slug) {
-        return NextResponse.json({ error: 'العيادة غير متاحة' }, { status: 404 })
-      }
-      if (payload.role === 'doctor' &&
-          !isCurrentClinicDoctor(payload, clinic, clinicId, slug)) {
-        return NextResponse.json({ error: 'تم تغيير بيانات الدخول. سجل الدخول مجددًا.' }, { status: 401 })
-      }
-      if (payload.role === 'assistant' && !assistantIdentityMatches(payload, clinic)) {
-        return NextResponse.json({ error: 'حساب السكرتارية لم يعد مصرحًا به' }, { status: 401 })
-      }
+    const staff = await getCurrentClinicStaff(req, slug)
+    if (staff) {
+      clinic = staff.clinic
+      clinicId = staff.clinicId
     } else {
-      // Enables owner previews without turning the private endpoint public.
       const owner = await authenticateOwnerRequest(req).catch(() => null)
       if (!owner) return NextResponse.json({ error: 'يرجى تسجيل الدخول' }, { status: 401 })
-      const found = (await queryDocuments('clinics'))
-        .find((c: Record<string, unknown>) => c.slug === slug)
+      const found = (await queryDocumentsByField('clinics', 'slug', slug))[0]
       if (!found) return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404 })
       clinicId = String(found.id)
       clinic = found
     }
 
     return NextResponse.json(
-      { success: true, clinic: { ...pickStaffFields(clinic!), id: clinicId } },
+      { success: true, clinic: { ...pickStaffFields(clinic!), id: clinicId, hasAiApiKey: Boolean(clinic?.aiApiKey) } },
       { headers: { 'Cache-Control': 'private, no-store' } },
     )
   } catch (err) {

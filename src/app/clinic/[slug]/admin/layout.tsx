@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import { db, auth } from '@/lib/firebase'
 import { collection, query, where, onSnapshot, doc } from 'firebase/firestore'
-import { signOut } from 'firebase/auth'
+import { signOut, signInWithCustomToken } from 'firebase/auth'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { ClinicLoading } from '@/components/clinic/ClinicLoading'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -40,6 +40,7 @@ export default function AdminLayout({
   const [role, setRole] = useState<string | null>(null)
   const [sessionVerified, setSessionVerified] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
   const [mustChangePassword, setMustChangePassword] = useState(false)
   const [clinic, setClinic] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -119,86 +120,54 @@ export default function AdminLayout({
   }
 
   useEffect(() => {
-    const storedRole = localStorage.getItem('clinic_role') || 'doctor'
-    setRole(storedRole)
-    const locked = localStorage.getItem('clinic_locked_branch')
-    if (storedRole === 'assistant' && locked) {
-      setSelectedBranchId(locked)
-      localStorage.setItem('clinic_selected_branch', locked)
-    }
-
-    // Block assistant from directly opening branches management page
-    if (storedRole === 'assistant' && pathname.includes('/admin/branches')) {
-      window.location.href = `/clinic/${slug}/admin`
-      return
-    }
-
-    // Verify session token with server (A01 - P0 Server Verification)
-    const token = localStorage.getItem('clinic_session_token')
-    if (token) {
-      fetch('/api/auth/session', {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: 'no-store',
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (data.authenticated && data.user?.role) {
-            setIsAuthenticated(true)
-            setRole(data.user.role)
-            localStorage.setItem('clinic_role', data.user.role)
-            if (data.user.mustChangePassword) {
-              setMustChangePassword(true)
-            }
-            if (data.user.role === 'assistant' && data.user.branchId) {
-              setSelectedBranchId(data.user.branchId)
-              localStorage.setItem('clinic_selected_branch', data.user.branchId)
-              localStorage.setItem('clinic_locked_branch', data.user.branchId)
-              if (data.user.branchName) {
-                localStorage.setItem('clinic_locked_branch_name', data.user.branchName)
-              }
-            }
-          } else {
-            localStorage.removeItem('clinic_session_token')
-            localStorage.removeItem('clinic_role')
-            window.location.href = `/clinic/${slug}/login`
-          }
-        })
-        .catch((error) => {
-          console.error('Could not verify clinic session:', error)
-          localStorage.removeItem('clinic_session_token')
-          localStorage.removeItem('clinic_role')
-          window.location.href = `/clinic/${slug}/login`
-        })
-        .finally(() => setSessionVerified(true))
-    } else {
-      localStorage.removeItem('clinic_role')
-      window.location.href = `/clinic/${slug}/login`
-    }
-
     let active = true
-    const loadClinicProfile = async () => {
+    setSessionVerified(false)
+    setAuthError(null)
+    const initialize = async () => {
       try {
+        // Cookies are shared by the service domain. Firebase persistence is per
+        // origin, so establish its identity before child Firestore listeners.
+        const res = await fetch('/api/auth/session', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}', cache: 'no-store',
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!active) return
+        if (res.status === 401 || (data.user && data.user.slug !== slug)) {
+          localStorage.removeItem('clinic_session_token')
+          window.location.href = `/clinic/${slug}/login`
+          return
+        }
+        if (!res.ok || !data.authenticated || !data.firebaseCustomToken) {
+          throw new Error(data.error || 'تعذر استعادة جلسة Firebase')
+        }
+        await signInWithCustomToken(auth, data.firebaseCustomToken)
+        if (!active) return
+        setRole(data.user.role)
+        localStorage.setItem('clinic_role', data.user.role)
+        setMustChangePassword(data.user.mustChangePassword === true)
+        if (data.user.role === 'assistant' && data.user.branchId) {
+          setSelectedBranchId(data.user.branchId)
+          localStorage.setItem('clinic_selected_branch', data.user.branchId)
+          localStorage.setItem('clinic_locked_branch', data.user.branchId)
+        } else {
+          localStorage.removeItem('clinic_locked_branch')
+        }
         const response = await fetch(`/api/clinic/${encodeURIComponent(slug)}/staff-profile`, {
           cache: 'no-store', credentials: 'same-origin',
         })
-        const data = await response.json().catch(() => ({}))
-        if (!active) return
-        if (!response.ok || !data.clinic) {
-          console.warn('Clinic profile unavailable:', response.status)
-          return
-        }
-        setClinic(data.clinic)
-      } catch (err) {
-        console.warn('Clinic profile fetch failed:', err)
+        const profile = await response.json().catch(() => ({}))
+        if (!response.ok || !profile.clinic) throw new Error(profile.error || 'تعذر تحميل العيادة')
+        if (active) { setClinic(profile.clinic); setIsAuthenticated(true) }
+      } catch (error) {
+        if (active) setAuthError(error instanceof Error ? error.message : 'تعذر الاتصال بالخادم')
       } finally {
-        if (active) setLoading(false)
+        if (active) { setLoading(false); setSessionVerified(true) }
       }
     }
-    void loadClinicProfile()
-    // Clinic branding and subscription policy changes do not need an open
-    // client Firestore listener to a document containing credential hashes.
-    const refreshTimer = window.setInterval(() => void loadClinicProfile(), 60000)
-    return () => { active = false; window.clearInterval(refreshTimer) }
+    void initialize()
+    return () => { active = false }
   }, [slug])
 
   // Close mobile drawer on route change
@@ -427,6 +396,12 @@ export default function AdminLayout({
     window.location.href = `/clinic/${slug}/admin/patients?search=${encodeURIComponent(searchQuery)}`
   }
 
+  if (authError) {
+    return <div role="alert" className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 text-center">
+      <p>{authError}</p>
+      <button className="rounded-xl bg-primary text-primary-foreground px-6 py-3" onClick={() => window.location.reload()}>إعادة المحاولة</button>
+    </div>
+  }
   if (loading || !sessionVerified || !isAuthenticated) {
     return <ClinicLoading fullScreen size="lg" label={t('loading', 'جاري تحميل نظام العيادة...')} />
   }
@@ -879,7 +854,7 @@ export default function AdminLayout({
       <MustChangePasswordModal
         slug={slug}
         isOpen={mustChangePassword}
-        onSuccess={() => setMustChangePassword(false)}
+        onSuccess={() => window.location.reload()}
       />
 
       {/* Subscription Upgrade Modal */}

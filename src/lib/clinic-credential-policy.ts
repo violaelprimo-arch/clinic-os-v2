@@ -22,6 +22,7 @@ export function isCurrentClinicDoctor(
     payload?.role === 'doctor' &&
     payload.clinicId === clinicId &&
     payload.slug === slug &&
+    Number(payload.credentialsVersion || 0) === Number(clinic.credentialsVersion || 0) &&
     (
       (normalizeDoctorEmail(clinic.doctorEmail) !== null &&
         normalizeDoctorEmail(payload.email) === normalizeDoctorEmail(clinic.doctorEmail)) ||

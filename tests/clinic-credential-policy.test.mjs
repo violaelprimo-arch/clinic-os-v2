@@ -30,6 +30,7 @@ test('Password changes invalidate older doctor sessions', () => {
   assert.equal(isCurrentClinicDoctor(doctorSession, {
     ...clinic, passwordLastChangedAt: new Date(doctorSession.issuedAt - 1000).toISOString(),
   }, clinicId, slug), true)
+  assert.equal(isCurrentClinicDoctor(doctorSession, { ...clinic, credentialsVersion: 5 }, clinicId, slug), false)
 })
 
 test('Normal settings cannot update credentials, tenant IDs or platform roles', () => {

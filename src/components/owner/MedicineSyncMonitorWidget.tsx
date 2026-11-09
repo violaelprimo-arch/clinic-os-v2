@@ -44,7 +44,7 @@ export function MedicineSyncMonitorWidget() {
   const { isRtl, dir } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
-  const [engineStatus, setEngineStatus] = useState<'RUNNING' | 'COMPLETED' | 'STALE' | 'FAILED' | 'IDLE'>('IDLE')
+  const [engineStatus, setEngineStatus] = useState<'RUNNING' | 'PARTIAL' | 'COMPLETED' | 'STALE' | 'FAILED' | 'IDLE'>('IDLE')
   const [lastSuccess, setLastSuccess] = useState<LastSuccessData | null>(null)
   const [recentLogs, setRecentLogs] = useState<SyncLogItem[]>([])
   const [currentCairoDate, setCurrentCairoDate] = useState<string>('')
@@ -85,10 +85,13 @@ export function MedicineSyncMonitorWidget() {
       })
 
       const data = await res.json()
-      if (res.ok && data.success) {
+      if (res.ok && data.success && data.status === 'COMPLETED') {
         toast.success(
           data.message || (isRtl ? 'تمت مزامنة الأسعار بنجاح!' : 'Price sync completed successfully!')
         )
+        await fetchStatus()
+      } else if (res.ok && data.success) {
+        toast.info(data.message || 'تم حفظ دفعة ويُستكمل الباقي تلقائيًا')
         await fetchStatus()
       } else {
         toast.error(data.message || data.error || (isRtl ? 'تعذر إتمام المزامنة' : 'Sync failed'))
@@ -118,6 +121,7 @@ export function MedicineSyncMonitorWidget() {
         desc: isRtl ? 'تمت مزامنة الأسعار لتاريخ اليوم' : 'Verified current Cairo date'
       }
     }
+    if (engineStatus === 'PARTIAL') return { dotClass: 'bg-amber-500 animate-pulse', textClass: 'text-amber-600', label: 'جارٍ الاستكمال', desc: 'الدفعات المحفوظة متاحة ويُستكمل الباقي تلقائيًا' }
     if (engineStatus === 'STALE') {
       return {
         dotClass: 'bg-amber-500',

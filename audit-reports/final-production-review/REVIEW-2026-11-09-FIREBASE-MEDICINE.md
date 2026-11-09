@@ -1,45 +1,29 @@
-# Yalla Clinic — Firebase + Security + Medicine Sync Review
-Date: 2026-11-09 (Africa/Cairo)
-Repository: violaelprimo-arch/clinic-os-v2
-Review branch: fix/username-login-branch-operations-20261109
-PR: https://github.com/violaelprimo-arch/clinic-os-v2/pull/7
+# Yalla Clinic release verification — 2026-11-09
 
-## Implemented in the review branch
+## Implemented
+- Username or email/password account resolution, doctor/assistant roles, Firebase custom-token bridge per origin, signed-cookie logout across subdomains, and credential-version revocation.
+- Safe staff clinic profiles, operational-page migration away from credential-bearing Firestore documents, tenant-bound writes and doctor-only prescription modifications.
+- Owner form username/email/password fields for existing and new clinics, responsive credential cards, localized refresh and expiration labels.
+- Real branch open/close controls, persisted operational fields, input validation, canonical tenant reads; closed and archived branches denied by booking service.
+- DawaaGate table dates and JSON-LD @graph parsing, correct 165 EGP Planchoren fixture, distinct package identities, price history, batched writes, resumable checkpoints, correct partial status and scheduled Cairo-time retries.
+- Targeted price refresh does not mark the daily update complete. Failures preserve last valid prices.
+- Atomic conditional Firestore leases, tested against eight simultaneous contenders and expired-owner takeover. Legacy HTTP rules deployment retired.
+- Password recovery accepts the configured username/email, stores expiring one-use OTP hashes, and uses a server-only email sender. No recovery emails were sent during testing.
+- Assistant settings hash new passwords, preserve omitted private hashes, reject duplicate identities and refresh the current doctor's session after account revocation. The emulator covers a save/edit/login round trip.
+- Cloudflare Worker build uses Node 22+ and the correct OpenNext/scheduled Worker entry, with a complete dry-run validation.
 
-1. Doctor/assistant login accepts a username or email, with clinic ownership checks; passwords continue to be stored as salted hashes instead of plaintext.
-2. Firebase custom tokens are minted after verification, scoped by `clinic_id` and `clinicRole`; login pages sign in with `signInWithCustomToken`.
-3. Sensitive clinic Firestore documents are not directly readable by staff SDK clients. Staff-specific API returns allowlisted clinic metadata.
-4. Admin dashboard/layout/booking page use authenticated server-side clinic profile reads.
-5. Patient login, registration and tracking UI use sanitized clinic profile lookups where applicable.
-6. Owner-side doctor/assistant username fields and responsive credential-form layout were added.
-7. Branch opening/closing and management APIs were fixed; booking endpoint denies closed/archived branches. The owner branch manager has an open/close control.
-8. DawaaGate sync separates targeted refresh metadata from the daily scheduled update; a Firestore transaction-based lease prevents concurrent ownership, and an empty/broken upstream response cannot be recorded as success.
-9. Patient credential lookup is indexed and restricted to the requested clinic ID. A previous appointment is no longer accepted as evidence for creating a patient account with an arbitrary password.
-10. Firestore Rules prohibit unauthenticated patient_account creation and restrict prescription writes to the doctor role. Emulator tests were extended.
+## Automated evidence
+- 36 access, capacity, branch identity and in-clinic booking policy tests passed.
+- 10 source parser and Firebase credential tests passed.
+- 3 assistant-credential normalization tests passed.
+- 16 integration tests passed against a disposable Firestore emulator: tenant permissions, revocation, eight-way lease contention, real batch writes, username/email sign-in, cross-origin session recovery, partial medicine batches and fail-safe source failure.
+- OpenNext production bundle and complete Wrangler dry-run passed before the final release upload; final GitHub checks and deployment are recorded on PR #7.
+- Public source inspected on 2026-11-09: Planchoren 30 capsules current price 165 EGP (old price 150 EGP); the bundled 27,606-item catalog contains 150 EGP and requires the live overlay.
 
-## Evidence
-- GitHub Actions validation run: https://github.com/violaelprimo-arch/clinic-os-v2/actions/runs/42595628812 — **success**.
-- The run checks TypeScript, policy unit tests, Firestore rules with the emulator, Next production build and Cloudflare OpenNext bundling. It does **not** deploy.
-- Firebase console observed `Email/Password` and `Google` providers enabled in project `clinic-os-d2d1b`.
-- The live `https://yalla-clinic.com/login` screen still shows email-only login at the time of the browser inspection.
-
-## Unverified / release blockers — MUST NOT CLAIM PRODUCTION-READY
-1. No access from this Chat-mode connection to edit Firebase Console or view/deploy active Firestore Rules. Rules are only verified locally by emulator.
-2. No evidence that the Cloudflare Worker version contains this branch, that its service account secrets are configured, or that the scheduled handler executed in production at 06:00 Cairo.
-3. DawaaGate's source access authorization and completeness of the initial medicine catalog have not been established. Current incremental price updater scans a bounded number of the latest price-change pages; this is not a validated full-catalog refresh.
-4. Username/email Google sign-in, session logout and cross-subdomain behavior require real Firebase Auth end-to-end tests.
-5. Remaining patient medical record access and identity verification require end-to-end tests. A phone number alone does not prove ownership of private health records; OTP/recovery workflow has not been implemented.
-6. Other clinic UI components may still need an audit for direct SDK access to restricted documents.
-7. A real branch toggle/booking test and post-deployment drug price comparison against DawaaGate have not been performed.
-8. Username and patient phone uniqueness currently depend on indexed lookups and application validation; high-concurrency registration and migration tests are still needed.
-
-## Required deployment gate
-- Set production Firebase/Cloudflare credentials through approved secret management; never commit private keys.
-- Check authorized domains and Firebase token scopes; confirm provider behavior.
-- Validate all routes against staging, including real doctor/assistant and patient accounts.
-- Deploy Firebase rules and application code together only when dependent clients are migrated.
-- Run a staged manual medicine sync and inspect persisted Firestore records before declaring update healthy.
-- Verify Cairo-time scheduled event and retries through Cloudflare logs.
-- Confirm rollback and data backup are available before merging this PR into master.
-
-**Status: CODE REVIEW BUILD PASSED; PRODUCTION NOT DEPLOYED.**
+## Rollout and recovery
+- Apply application code and versioned Firestore rules together; retain the prior Cloudflare Worker version and Firebase rules revision for rollback.
+- This changes account metadata only when the owner or account holder explicitly changes credentials. Existing passwords are never reset during deployment.
+- Source sync is incremental over a seven-day overlap on the first v2 run and since the last verified cycle afterward; a PARTIAL result is not full completion. The bundled catalog is retained.
+- Full historical recrawling of the external source is not represented as completed.
+- UI tests after deployment must verify the active Worker, owner clinic form, reversible demo-branch toggling, session bootstrap, source price overlay, and cron configuration.
+- Native Google consent/password flows require the account holder when browser sign-in prompts require personal authentication. No credentials or patient data belong in reports.

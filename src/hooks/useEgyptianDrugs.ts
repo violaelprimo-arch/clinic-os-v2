@@ -37,10 +37,12 @@ export { normalizeDrugKey, normalizeArabicDrugKey, canonicalDrugIdentifier, matc
 
 // In-memory cache to guarantee 0ms latency across route navigations
 let cachedDrugs: EgyptianDrug[] | null = null
+let cachedVersion = ''
+let versionCheckedAt = 0
 let fetchPromise: Promise<EgyptianDrug[]> | null = null
 
-const CACHE_STORAGE_KEY = 'egyptian_drugs_cache_v3'
-const CACHE_TIMESTAMP_KEY = 'egyptian_drugs_cache_time_v3'
+const CACHE_STORAGE_KEY = 'egyptian_drugs_cache_v4'
+const CACHE_TIMESTAMP_KEY = 'egyptian_drugs_cache_time_v4'
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6 // 6 hours
 
 export function clearDrugCache() {
@@ -94,6 +96,9 @@ async function fetchAndMergeDrugs(): Promise<EgyptianDrug[]> {
         name: drug.name || existing.name,
         commercial_name_ar: drug.commercial_name_ar || existing.commercial_name_ar,
         commercial_name_en: drug.commercial_name_en || existing.commercial_name_en,
+        activeIngredient: drug.activeIngredient || existing.activeIngredient,
+        scientific_name: drug.scientific_name || existing.scientific_name,
+        company: drug.company || existing.company,
       })
       return
     }
@@ -110,6 +115,9 @@ async function fetchAndMergeDrugs(): Promise<EgyptianDrug[]> {
           name: drug.name || existing.name,
           commercial_name_ar: drug.commercial_name_ar || existing.commercial_name_ar,
           commercial_name_en: drug.commercial_name_en || existing.commercial_name_en,
+        activeIngredient: drug.activeIngredient || existing.activeIngredient,
+        scientific_name: drug.scientific_name || existing.scientific_name,
+        company: drug.company || existing.company,
         })
       }
     }
@@ -124,8 +132,8 @@ async function fetchAndMergeDrugs(): Promise<EgyptianDrug[]> {
       nameAr: c.nameAr || '',
       commercial_name_en: c.commercial_name_en || c.name,
       commercial_name_ar: c.commercial_name_ar || c.nameAr || '',
-      scientific_name: c.activeIngredient || 'معتمد مصرياً',
-      activeIngredient: c.activeIngredient || 'معتمد مصرياً',
+      scientific_name: c.activeIngredient || '',
+      activeIngredient: c.activeIngredient || '',
       manufacturer: c.company || 'سوق الدواء المصري',
       company: c.company || 'سوق الدواء المصري',
       drug_class: 'دليل الأدوية المصري',
@@ -150,7 +158,7 @@ async function fetchAndMergeDrugs(): Promise<EgyptianDrug[]> {
             const nameEn = item.n || ''
             const nameAr = item.ar || ''
             const uniqueKey =
-              (item.slug ? normalizeDrugKey(item.slug) : '') ||
+              ((item.slug || item.id) ? normalizeDrugKey(item.slug || item.id) : '') ||
               normalizeDrugKey(nameEn) ||
               (item.id ? String(item.id) : '')
             const canonKey =
@@ -160,6 +168,7 @@ async function fetchAndMergeDrugs(): Promise<EgyptianDrug[]> {
             if (uniqueKey && !drugMap.has(uniqueKey)) {
               drugMap.set(uniqueKey, {
                 id: item.id || `eg-${canonKey}`,
+                slug: item.slug || item.id,
                 name: nameEn,
                 nameAr,
                 commercial_name_en: nameEn,
@@ -204,8 +213,8 @@ async function fetchAndMergeDrugs(): Promise<EgyptianDrug[]> {
         nameAr: m.nameAr || m.commercial_name_ar || '',
         commercial_name_en: m.name || m.commercial_name_en || m.slug?.replace(/-/g, ' ') || '',
         commercial_name_ar: m.nameAr || m.commercial_name_ar || '',
-        scientific_name: m.activeIngredient || 'معتمد مصرياً',
-        activeIngredient: m.activeIngredient || 'معتمد مصرياً',
+        scientific_name: m.activeIngredient || '',
+        activeIngredient: m.activeIngredient || '',
         manufacturer: m.company || 'سوق الدواء المصري',
         company: m.company || 'سوق الدواء المصري',
         drug_class: 'سوق الدواء المصري',
@@ -259,8 +268,8 @@ export function useEgyptianDrugs() {
       nameAr: c.nameAr || '',
       commercial_name_en: c.commercial_name_en || c.name,
       commercial_name_ar: c.commercial_name_ar || c.nameAr || '',
-      scientific_name: c.activeIngredient || 'معتمد مصرياً',
-      activeIngredient: c.activeIngredient || 'معتمد مصرياً',
+      scientific_name: c.activeIngredient || '',
+      activeIngredient: c.activeIngredient || '',
       manufacturer: c.company || 'سوق الدواء المصري',
       company: c.company || 'سوق الدواء المصري',
       drug_class: 'دليل الأدوية المصري',
@@ -283,9 +292,23 @@ export function useEgyptianDrugs() {
     }
 
     if (cachedDrugs && cachedDrugs.length > 0 && !force) {
-      setDrugs(cachedDrugs)
-      setLoading(false)
-      return cachedDrugs
+      if (Date.now() - versionCheckedAt > 60000) {
+        try {
+          const res = await fetch('/api/sync-daily-prices', { cache: 'no-store' })
+          if (res.ok) {
+            const status = await res.json()
+            const nextVersion = String(status.dataVersion || '')
+            if (nextVersion && nextVersion !== cachedVersion) cachedDrugs = null
+            cachedVersion = nextVersion
+          }
+          versionCheckedAt = Date.now()
+        } catch { /* Preserve the last valid catalog while offline. */ }
+      }
+      if (cachedDrugs) {
+        setDrugs(cachedDrugs)
+        setLoading(false)
+        return cachedDrugs
+      }
     }
 
     setLoading(true)

@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getClinicDoctorAccount } from '@/lib/server/clinic-credential-access'
-import { writeDocument, queryDocuments } from '@/lib/server/firebase-rest'
+import { writeDocument, queryDocumentsByField, readDocument, commitDocumentPatches } from '@/lib/server/firebase-rest'
+import { normalizeAssistantAccounts } from '@/lib/server/assistant-credentials'
+import { createSessionToken } from '@/lib/auth-crypto'
 import { pickNormalClinicSettings } from '@/lib/clinic-credential-policy'
 import { isClinicSuspended } from '@/lib/clinicAccessPolicy'
-import { syncClinicScheduleToMainBranch, formatWeeklyScheduleSummary } from '@/lib/branchService'
+import { formatWeeklyScheduleSummary } from '@/lib/branchService'
 
 export const dynamic = 'force-dynamic'
 
@@ -98,8 +100,8 @@ export async function GET(
       return NextResponse.json({ error: 'معرف العيادة مطلوب' }, { status: 400 })
     }
 
-    const allClinics = await queryDocuments('clinics')
-    const cDoc = allClinics.find((c: any) => c.slug === slug || c.id === slug)
+    const cDoc = (await queryDocumentsByField('clinics', 'slug', slug))[0]
+      || (/^[a-zA-Z0-9_-]{1,128}$/.test(slug) ? await readDocument(`clinics/${slug}`) : null)
     if (!cDoc) {
       return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404 })
     }
@@ -115,6 +117,9 @@ export async function GET(
         doctorPassword,
         assistantPasswordHash,
         assistantPassword,
+        aiApiKey,
+        brevoApiKey,
+        resendApiKey,
         ...rawSafe
       } = cDoc
 
@@ -184,33 +189,62 @@ export async function POST(
       updatedAt: new Date().toISOString(),
     }
     const clinicId = account.clinicId
+    let credentialsVersion = Number(account.clinic.credentialsVersion || 0)
+    let requiresSessionRefresh = false
+    if (Object.hasOwn(cleanedPayload, 'assistants')) {
+      const normalized = await normalizeAssistantAccounts(cleanedPayload.assistants, account.clinic.assistants)
+      cleanedPayload.assistants = normalized.accounts
+      if (normalized.credentialsChanged) {
+        credentialsVersion = Date.now()
+        cleanedPayload.credentialsVersion = credentialsVersion
+        requiresSessionRefresh = true
+      }
+    }
     await writeDocument(`clinics/${clinicId}`, cleanedPayload, true)
 
     // Sync schedule to main branch if weeklySchedule provided
     if (Array.isArray(cleanedPayload.weeklySchedule) && cleanedPayload.weeklySchedule.length > 0) {
       try {
-        await syncClinicScheduleToMainBranch(
-          clinicId,
-          cleanedPayload.weeklySchedule,
-          formatWeeklyScheduleSummary(cleanedPayload.weeklySchedule, true),
-          {
-            address: cleanedPayload.clinicAddress || cleanedPayload.address || '',
-            mapsLink: cleanedPayload.mapsLink || '',
-            latitude: cleanedPayload.latitude ? parseFloat(cleanedPayload.latitude) : undefined,
-            longitude: cleanedPayload.longitude ? parseFloat(cleanedPayload.longitude) : undefined,
-            phone: cleanedPayload.clinicPhone || (cleanedPayload.clinicPhones?.[0] || '')
-          }
-        )
+        const groups = await Promise.all([
+          queryDocumentsByField('branches', 'clinicId', clinicId),
+          queryDocumentsByField('branches', 'clinic_id', clinicId),
+        ])
+        const branches = [...new Map(groups.flat().map(branch => [String(branch.id), branch])).values()]
+        const main = branches.find(branch => branch.isMain === true) || (branches.length === 1 ? branches[0] : null)
+        if (main) await commitDocumentPatches([{ path: `branches/${main.id}`, data: {
+          weeklySchedule: cleanedPayload.weeklySchedule,
+          workingHours: formatWeeklyScheduleSummary(cleanedPayload.weeklySchedule, true),
+          ...(cleanedPayload.maxDailyBookings !== undefined ? { maxDailyBookings: Math.max(0, Number(cleanedPayload.maxDailyBookings) || 0) } : {}),
+          updatedAt: new Date().toISOString(),
+        } }])
       } catch (syncErr) {
         console.warn('Schedule sync warning in settings POST:', syncErr)
       }
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
+      requiresSessionRefresh,
       message: 'تم حفظ كافة إعدادات العيادة بنجاح'
     })
+    if (requiresSessionRefresh) {
+      const token = await createSessionToken({ role: 'doctor', clinicId, slug,
+        name: String(account.clinic.doctorName || 'طبيب العيادة'),
+        username: String(account.clinic.doctorUsername || ''),
+        email: String(account.clinic.doctorEmail || ''), credentialsVersion,
+        mustChangePassword: account.clinic.mustChangePassword === true,
+      })
+      response.cookies.set('clinic_session', token, { httpOnly: true,
+        secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/',
+        maxAge: 7 * 24 * 60 * 60,
+        domain: process.env.NODE_ENV === 'production' ? '.yalla-clinic.com' : undefined,
+      })
+    }
+    return response
   } catch (err: any) {
+    if (/^(INVALID_ASSISTANT_|DUPLICATE_ASSISTANT_|ASSISTANT_PASSWORD_REQUIRED)/.test(err?.message || '')) {
+      return NextResponse.json({ error: 'راجع بيانات المساعدين: اسم دخول فريد، وكلمة مرور لا تقل عن 6 خانات للحساب الجديد.' }, { status: 400 })
+    }
     console.error('Error in settings POST:', err)
     return NextResponse.json(
       { error: err?.message === 'FIREBASE_SERVER_NOT_CONFIGURED'

@@ -156,3 +156,16 @@ test('verified owner can manage and reactivate clinics and register branches', a
     name: 'New Clinic Location', isOpen: false, isMain: true,
   }))
 })
+
+
+test('tenant cannot move existing appointments into another clinic', async () => {
+  await assertFails(updateDoc(doc(authDb('clinicA'), 'appointments/apptA'), { clinic_id: 'clinicStopped' }))
+})
+test('credential version changes revoke old Firestore sessions', async () => {
+  await env.withSecurityRulesDisabled(ctx => updateDoc(doc(ctx.firestore(), 'clinics/clinicA'), { credentialsVersion: 7 }))
+  await assertFails(getDoc(doc(authDb('clinicA'), 'appointments/apptA')))
+  const current = env.authenticatedContext('new-session', { clinic_id: 'clinicA', clinicRole: 'doctor', credentialsVersion: 7 }).firestore()
+  await assertSucceeds(getDoc(doc(current, 'appointments/apptA')))
+  await assertFails(updateDoc(doc(current, 'clinics/clinicA'), { credentialsVersion: 0 }))
+  await env.withSecurityRulesDisabled(ctx => updateDoc(doc(ctx.firestore(), 'clinics/clinicA'), { credentialsVersion: 0 }))
+})

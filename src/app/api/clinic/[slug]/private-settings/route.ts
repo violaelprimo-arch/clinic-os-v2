@@ -54,6 +54,9 @@ export async function GET(
       doctorPassword,
       assistantPasswordHash,
       assistantPassword,
+      aiApiKey,
+      brevoApiKey,
+      resendApiKey,
       ...rawSafe
     } = clinicDoc
 

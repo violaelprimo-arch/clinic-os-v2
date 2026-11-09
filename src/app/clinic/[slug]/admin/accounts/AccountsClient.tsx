@@ -1,4 +1,5 @@
 'use client'
+import { loadClinicProfile } from '@/lib/clinic-profile-client'
 
 import { use, useState, useEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
@@ -74,14 +75,8 @@ export default function AccountsClient({ slug }: { slug: string }) {
 
     const fetchTransactions = async () => {
       try {
-        const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
-        const cSnap = await getDocs(cQ)
+        const cData = await loadClinicProfile(slug)
         if (cancelled) return
-        if (cSnap.empty) {
-          setLoading(false)
-          return
-        }
-        const cData = { id: cSnap.docs[0].id, ...cSnap.docs[0].data() }
         setClinic(cData)
 
         const apptQ = query(

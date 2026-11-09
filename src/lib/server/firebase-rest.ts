@@ -367,135 +367,59 @@ export async function createAtomicAppointmentServer(
 }
 
 /**
- * Safely obtain a distributed Firestore lease using a read-write transaction.
- * Unlike a readDocument + writeDocument pair, concurrent contenders cannot
- * both commit ownership of the same lock.
+ * Acquire a lease with atomic Firestore preconditions. Creating a missing lock
+ * requires exists=false; replacing an expired lease requires its updateTime.
+ * Multiple contenders cannot both succeed, without holding transaction locks
+ * across network calls (which can deadlock on a concurrently missing document).
  */
 export async function acquireFirestoreLease(
-  path: string,
-  runId: string,
-  triggeredBy: string,
-  ttlMs: number,
+  path: string, runId: string, triggeredBy: string, ttlMs: number,
 ): Promise<{ acquired: boolean; currentRunId?: string }> {
-  const baseUrl = documentUrl('').replace(/\/$/, '')
-  const targetUrl = documentUrl(path)
-  const targetName = targetUrl.split('/v1/')[1]
-  if (!runId || !targetName || !Number.isFinite(ttlMs) || ttlMs < 60000) {
-    throw new Error('INVALID_FIRESTORE_LEASE')
+  if (!runId || !Number.isFinite(ttlMs) || ttlMs < 60000) throw new Error('INVALID_FIRESTORE_LEASE')
+  const url = documentUrl(path)
+  const payload = () => ({ fields: encode({ runId, lockedAt: new Date().toISOString(), lockedBy: triggeredBy }).mapValue?.fields || {} })
+  const created = await request(url + '?currentDocument.exists=false', {
+    method: 'PATCH', body: JSON.stringify(payload()),
+  })
+  if (created.ok) return { acquired: true, currentRunId: runId }
+  if (![409, 412].includes(created.status)) throw new Error('FIRESTORE_LEASE_CREATE_FAILED')
+  const response = await request(url)
+  if (response.status === 404) return { acquired: false }
+  if (!response.ok) throw new Error('FIRESTORE_LEASE_READ_FAILED')
+  const raw = await response.json() as FirestoreDocument & { updateTime?: string }
+  const current = unpack(raw)
+  const lockedAt = Date.parse(String(current.lockedAt || ''))
+  if (Number.isFinite(lockedAt) && Date.now() - lockedAt < ttlMs) {
+    return { acquired: false, currentRunId: String(current.runId || '') }
   }
-
-  for (let attempt = 0; attempt < 4; attempt++) {
-    let transaction: string | undefined
-    let committed = false
-    try {
-      const started = await request(baseUrl + ':beginTransaction', {
-        method: 'POST',
-        body: JSON.stringify({ options: { readWrite: {} } }),
-      })
-      if (!started.ok) throw new Error('FIRESTORE_LEASE_BEGIN_FAILED')
-      transaction = ((await started.json()) as { transaction?: string }).transaction
-      if (!transaction) throw new Error('FIRESTORE_LEASE_MISSING_TRANSACTION')
-
-      const snapshot = await request(
-        targetUrl + '?transaction=' + encodeURIComponent(transaction),
-      )
-      if (!snapshot.ok && snapshot.status !== 404) {
-        throw new Error('FIRESTORE_LEASE_READ_FAILED')
-      }
-      const current = snapshot.ok
-        ? unpack((await snapshot.json()) as FirestoreDocument)
-        : null
-
-      const lockTime = current?.lockedAt
-        ? Date.parse(String(current.lockedAt))
-        : Number.NaN
-      if (current && Number.isFinite(lockTime) &&
-          Date.now() - lockTime < ttlMs && Date.now() >= lockTime) {
-        return { acquired: false, currentRunId: String(current.runId || '') }
-      }
-
-      const record = {
-        runId,
-        lockedAt: new Date().toISOString(),
-        lockedBy: triggeredBy,
-      }
-      const update: Record<string, unknown> = {
-        update: {
-          name: targetName,
-          fields: (encode(record).mapValue || {}).fields || {},
-        },
-      }
-      if (!current) update.currentDocument = { exists: false }
-
-      const commit = await request(baseUrl + ':commit', {
-        method: 'POST',
-        body: JSON.stringify({ transaction, writes: [update] }),
-      })
-      if (commit.ok) {
-        committed = true
-        return { acquired: true, currentRunId: runId }
-      }
-      if (![409, 412, 429].includes(commit.status) || attempt === 3) {
-        throw new Error('FIRESTORE_LEASE_COMMIT_FAILED')
-      }
-    } finally {
-      if (transaction && !committed) {
-        await request(baseUrl + ':rollback', {
-          method: 'POST',
-          body: JSON.stringify({ transaction }),
-        }).catch(() => {})
-      }
-    }
-  }
-  return { acquired: false }
+  if (!raw.updateTime) throw new Error('FIRESTORE_LEASE_VERSION_MISSING')
+  const replaced = await request(documentUrl('').replace(/\/$/, '') + ':commit', {
+    method: 'POST', body: JSON.stringify({ writes: [{ update: {
+      name: url.split('/v1/')[1], ...payload(),
+    }, currentDocument: { updateTime: raw.updateTime } }] }),
+  })
+  if (replaced.ok) return { acquired: true, currentRunId: runId }
+  if ([409, 412].includes(replaced.status)) return { acquired: false }
+  throw new Error('FIRESTORE_LEASE_REPLACE_FAILED')
 }
 
-/** Delete a lease only while its ownership is still verified atomically. */
-export async function releaseFirestoreLease(
-  path: string,
-  runId: string,
-): Promise<boolean> {
-  const baseUrl = documentUrl('').replace(/\/$/, '')
-  const targetUrl = documentUrl(path)
-  let transaction: string | undefined
-  let committed = false
-  try {
-    const started = await request(baseUrl + ':beginTransaction', {
-      method: 'POST',
-      body: JSON.stringify({ options: { readWrite: {} } }),
-    })
-    if (!started.ok) throw new Error('FIRESTORE_LEASE_BEGIN_FAILED')
-    transaction = ((await started.json()) as { transaction?: string }).transaction
-    if (!transaction) throw new Error('FIRESTORE_LEASE_MISSING_TRANSACTION')
-
-    const snapshot = await request(
-      targetUrl + '?transaction=' + encodeURIComponent(transaction),
-    )
-    if (snapshot.status === 404) return false
-    if (!snapshot.ok) throw new Error('FIRESTORE_LEASE_READ_FAILED')
-    const current = unpack((await snapshot.json()) as FirestoreDocument)
-    if (current.runId !== runId) return false
-
-    const commit = await request(baseUrl + ':commit', {
-      method: 'POST',
-      body: JSON.stringify({
-        transaction,
-        writes: [{ delete: targetUrl.split('/v1/')[1] }],
-      }),
-    })
-    committed = commit.ok
-    if (!committed) throw new Error('FIRESTORE_LEASE_RELEASE_FAILED')
-    return true
-  } finally {
-    if (transaction && !committed) {
-      await request(baseUrl + ':rollback', {
-        method: 'POST',
-        body: JSON.stringify({ transaction }),
-      }).catch(() => {})
-    }
-  }
+/** Conditional delete cannot remove a lease taken over by another worker. */
+export async function releaseFirestoreLease(path: string, runId: string): Promise<boolean> {
+  const url = documentUrl(path)
+  const response = await request(url)
+  if (response.status === 404) return false
+  if (!response.ok) throw new Error('FIRESTORE_LEASE_READ_FAILED')
+  const raw = await response.json() as FirestoreDocument & { updateTime?: string }
+  const current = unpack(raw)
+  if (current.runId !== runId) return false
+  if (!raw.updateTime) throw new Error('FIRESTORE_LEASE_VERSION_MISSING')
+  const removed = await request(documentUrl('').replace(/\/$/, '') + ':commit', {
+    method: 'POST', body: JSON.stringify({ writes: [{ delete: url.split('/v1/')[1], currentDocument: { updateTime: raw.updateTime } }] }),
+  })
+  if ([409, 412, 404].includes(removed.status)) return false
+  if (!removed.ok) throw new Error('FIRESTORE_LEASE_RELEASE_FAILED')
+  return true
 }
-
 export async function deleteDocument(path: string) {
   const response = await request(documentUrl(path), { method: 'DELETE' })
   if (!response.ok && response.status !== 404)
@@ -596,4 +520,32 @@ export async function queryDocuments(collection: string, approvedOnly = false) {
   }
 
   throw new Error('FIRESTORE_QUERY_FAILED')
+}
+
+/** Upsert only supplied fields. Used for bounded medicine batches (<= 100 writes). */
+export async function upsertDocumentBatch(patches: Array<{ path: string; data: Fields }>) {
+  if (!patches.length) return
+  if (patches.length > 100) throw new Error('FIRESTORE_BATCH_TOO_LARGE')
+  const writes = patches.map(({ path, data }) => ({
+    update: { name: documentUrl(path).split('/v1/')[1], fields: encode(data).mapValue?.fields || {} },
+    updateMask: { fieldPaths: Object.keys(data) },
+  }))
+  const res = await request(documentUrl('').replace(/\/$/, '') + ':commit', {
+    method: 'POST', body: JSON.stringify({ writes }),
+  })
+  if (!res.ok) throw new Error('FIRESTORE_BATCH_UPSERT_FAILED')
+}
+
+/** Retrieve a whole batch without one HTTP round trip per medicine. */
+export async function readDocumentBatch(paths: string[]) {
+  if (!paths.length) return new Map<string, Fields>()
+  if (paths.length > 100) throw new Error('FIRESTORE_BATCH_TOO_LARGE')
+  const res = await request(documentUrl('').replace(/\/$/, '') + ':batchGet', {
+    method: 'POST', body: JSON.stringify({ documents: paths.map(p => documentUrl(p).split('/v1/')[1]) }),
+  })
+  if (!res.ok) throw new Error('FIRESTORE_BATCH_READ_FAILED')
+  const rows = await res.json() as Array<{ found?: FirestoreDocument }>
+  const docs = new Map<string, Fields>()
+  for (const row of rows) if (row.found) docs.set(String(row.found.name.split('/').pop()), unpack(row.found))
+  return docs
 }
