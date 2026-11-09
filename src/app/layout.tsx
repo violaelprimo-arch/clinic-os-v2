@@ -1,24 +1,9 @@
 import type { Metadata, Viewport } from "next"
-import { Cairo, Inter } from "next/font/google"
 import "./globals.css"
 import { Toaster } from 'sonner'
 import { PwaRegistrar } from '@/components/pwa/PwaRegistrar'
 import { ThemeProvider } from '@/context/ThemeContext'
 import { LanguageProvider } from '@/context/LanguageContext'
-
-const cairo = Cairo({
-  subsets: ["arabic", "latin"],
-  weight: ["400", "500", "600", "700", "800", "900"],
-  variable: "--font-cairo",
-  display: "swap"
-})
-
-const inter = Inter({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-  variable: "--font-inter",
-  display: "swap"
-})
 
 export const metadata: Metadata = {
   title: "Yalla Clinic - نظام العيادات الذكي",
@@ -60,6 +45,9 @@ export default function RootLayout({
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <head>
+        <link rel="stylesheet" href="/fonts/fonts.css" />
+        <link rel="preload" href="/fonts/cairo-01.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+        <link rel="preload" href="/fonts/cairo-03.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
         <link rel="icon" type="image/png" sizes="192x192" href="/favicon.png" />
@@ -97,7 +85,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${cairo.variable} ${inter.variable} ${cairo.className} antialiased`} suppressHydrationWarning>
+      <body className="antialiased" suppressHydrationWarning>
         <ThemeProvider>
           <LanguageProvider>
             <PwaRegistrar />
