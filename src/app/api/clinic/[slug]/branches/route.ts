@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { collection, query, where, getDocs } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
 import { verifySessionToken } from '@/lib/auth-crypto'
 import { OWNER_COOKIE, verifyOwnerSession } from '@/lib/owner-session'
 import { Branch, BranchScheduleDay } from '@/types/clinic'
@@ -15,44 +13,19 @@ import { isClinicSuspended } from '@/lib/clinicAccessPolicy'
  * Looks for both clinicId and clinic_id fields for complete compatibility.
  */
 async function fetchBranchesForClinic(clinicId: string, slug?: string, includeArchived = false): Promise<Branch[]> {
-  const map = new Map<string, Branch>()
+  // Server credentials are required after client Firestore access was restricted.
+  // Never silently return an empty list if the database is unavailable.
+  const rows = await queryDocuments('branches')
+  const matches = rows.filter((b: any) =>
+    b.clinicId === clinicId || b.clinic_id === clinicId ||
+    (slug && (b.clinicId === slug || b.clinic_id === slug))
+  )
+  return matches.filter((b: any) => includeArchived || b.isArchived !== true) as Branch[]
+}
 
-  try {
-    const branchesRef = collection(db, 'branches')
-    const [snap1, snap2] = await Promise.all([
-      getDocs(query(branchesRef, where('clinicId', '==', clinicId))),
-      getDocs(query(branchesRef, where('clinic_id', '==', clinicId)))
-    ])
-
-    snap1.docs.forEach((d) => {
-      map.set(d.id, { id: d.id, ...(d.data() as any) })
-    })
-    snap2.docs.forEach((d) => {
-      map.set(d.id, { id: d.id, ...(d.data() as any) })
-    })
-  } catch (clientErr) {
-    console.warn('Client SDK fetch branches failed, falling back to server REST:', clientErr)
-  }
-
-  // Fallback to server REST if client SDK failed or returned empty
-  if (map.size === 0) {
-    try {
-      const restBranches = await queryDocuments('branches')
-      for (const b of restBranches) {
-        if (
-          b.clinicId === clinicId ||
-          b.clinic_id === clinicId ||
-          (slug && (b.clinicId === slug || b.clinic_id === slug))
-        ) {
-          map.set(b.id, b as unknown as Branch)
-        }
-      }
-    } catch (restErr) {
-      console.warn('REST fetch branches failed:', restErr)
-    }
-  }
-
-  return Array.from(map.values()).filter((b) => includeArchived || !b.isArchived)
+async function findClinicBySlug(slug: string): Promise<any | null> {
+  const clinics = await queryDocuments('clinics')
+  return clinics.find((c: any) => c.slug === slug || c.id === slug) || null
 }
 
 /**
@@ -69,7 +42,7 @@ async function authenticateCaller(req: NextRequest, clinicSlug: string, clinicId
     if (secret.length >= 32) {
       try {
         const owner = await verifyOwnerSession(ownerCookie, secret)
-        if (owner && (!process.env.PLATFORM_OWNER_UID || owner.uid === process.env.PLATFORM_OWNER_UID)) {
+        if (owner && process.env.PLATFORM_OWNER_UID && owner.uid === process.env.PLATFORM_OWNER_UID) {
           isOwner = true
         }
       } catch {}
@@ -118,16 +91,9 @@ export async function GET(
       return NextResponse.json({ error: 'معرف العيادة مطلوب' }, { status: 400 })
     }
 
-    let clinicId = slug
-    try {
-      const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
-      const cSnap = await getDocs(cQ)
-      if (!cSnap.empty) {
-        clinicId = cSnap.docs[0].id
-      }
-    } catch (dbErr) {
-      console.warn('Firestore clinics lookup failed, proceeding with fallback:', dbErr)
-    }
+    const clinic = await findClinicBySlug(slug)
+    if (!clinic) return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404 })
+    const clinicId = String(clinic.id)
 
     const management = req.nextUrl.searchParams.get('view') === 'management'
     if (management) {
@@ -168,15 +134,9 @@ export async function POST(
       return NextResponse.json({ error: 'معرف العيادة مطلوب' }, { status: 400 })
     }
 
-    const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
-    const cSnap = await getDocs(cQ)
-    if (cSnap.empty) {
-      return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404 })
-    }
-
-    const cDoc = cSnap.docs[0]
-    const clinic = cDoc.data()
-    const clinicId = cDoc.id
+    const clinic = await findClinicBySlug(slug)
+    if (!clinic) return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404 })
+    const clinicId = String(clinic.id)
 
     const auth = await authenticateCaller(req, slug, clinicId)
     if (!auth.isAuthorized) {
@@ -321,7 +281,8 @@ export async function POST(
       // map coordinates, contacts, photo, or main-branch flag.
       const editableFields = auth.isOwner
         ? ['name', 'governorate', 'city', 'area', 'address', 'mapsLink',
-          'latitude', 'longitude', 'locationVerified', 'verifiedMapsLink', 'phone', 'whatsapp', 'image']
+          'latitude', 'longitude', 'locationVerified', 'verifiedMapsLink', 'phone', 'whatsapp', 'image',
+          'slotDuration', 'maxDailyBookings', 'isOpen', 'weeklySchedule']
         : ['slotDuration', 'maxDailyBookings', 'isOpen', 'weeklySchedule']
       const patch: Record<string, any> = { updatedAt: new Date().toISOString() }
       for (const key of editableFields) {
@@ -400,14 +361,9 @@ export async function DELETE(
       return NextResponse.json({ error: 'معرف العيادة مطلوب' }, { status: 400 })
     }
 
-    const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
-    const cSnap = await getDocs(cQ)
-    if (cSnap.empty) {
-      return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404 })
-    }
-
-    const cDoc = cSnap.docs[0]
-    const clinicId = cDoc.id
+    const clinic = await findClinicBySlug(slug)
+    if (!clinic) return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404 })
+    const clinicId = String(clinic.id)
 
     const auth = await authenticateCaller(req, slug, clinicId)
     if (!auth.isOwner) {
