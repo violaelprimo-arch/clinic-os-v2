@@ -139,7 +139,7 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: inputEmail, password, slug })
+        body: JSON.stringify({ identifier: inputEmail, password, slug })
       })
       const data = await res.json()
 
@@ -171,7 +171,7 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
         // Fallback error
       }
 
-      setError(data.error || (isRtl ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' : 'Incorrect email or password.'))
+      setError(data.error || (isRtl ? 'اسم المستخدم أو البريد الإلكتروني أو كلمة المرور غير صحيحة.' : 'Incorrect email or password.'))
     } catch (err: any) {
       setError(err.message || (isRtl ? 'فشل الاتصال بالخادم.' : 'Connection to server failed.'))
     } finally {
@@ -351,7 +351,7 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
 
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-muted-foreground">
-                {isRtl ? 'رقم الهاتف أو البريد الإلكتروني' : 'Phone Number or Email'}
+                {isRtl ? 'اسم المستخدم أو البريد الإلكتروني' : 'Username or Email'}
               </Label>
               <Input
                 type="text"
