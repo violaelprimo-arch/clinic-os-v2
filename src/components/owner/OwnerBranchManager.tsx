@@ -398,6 +398,13 @@ export function OwnerBranchManager({
               </option>
             ))}
           </select>
+          {onClose && (
+            <Button type="button" variant="outline" size="sm" onClick={onClose}
+              className="shrink-0 rounded-xl" aria-label="إغلاق إدارة الفروع">
+              <X className="w-4 h-4" />
+              إغلاق
+            </Button>
+          )}
         </div>
       </div>
 
