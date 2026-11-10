@@ -56,6 +56,8 @@ export async function createServerNotification(
   const raw = new TextEncoder().encode(`${event.clinicId}:${event.eventId}`)
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', raw))
   const id = 'event_' + [...digest].map(v => v.toString(16).padStart(2, '0')).join('').slice(0,48)
+  // Existing event? Avoid re-creating it every five-second feed poll.
+  if (await readDocument(`notifications/${id}`)) return id
   try {
     await createDocument('notifications', {
       ...event, isRead: false, createdAt: new Date().toISOString(),
