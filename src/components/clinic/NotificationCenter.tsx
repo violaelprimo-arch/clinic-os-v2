@@ -7,9 +7,6 @@ import {
 } from 'lucide-react'
 import { ClinicNotification } from '@/types/clinic'
 import {
-  subscribeToRecipientNotifications,
-  subscribeToClinicStaffNotifications,
-  markNotificationAsRead,
   requestBrowserNotificationPermission,
   playNotificationSound
 } from '@/lib/notificationService'
@@ -38,7 +35,9 @@ export function NotificationCenter({
   const [notifications, setNotifications] = useState<ClinicNotification[]>([])
   const [isOpen, setIsOpen] = useState(false)
   const [hasPushPermission, setHasPushPermission] = useState(false)
-  const prevCountRef = useRef<number | null>(null)
+  const previousIdsRef = useRef<Set<string> | null>(null)
+  const scopeRef = useRef<string>('')
+  const [needsLogin, setNeedsLogin] = useState(false)
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -47,96 +46,95 @@ export function NotificationCenter({
   }, [])
 
   useEffect(() => {
-    let unsub: () => void
+    const activeClinicId = String(clinicId || clinic?.id || '')
+    const activeSlug = String(slug || clinic?.slug || '')
+    const scope = `${recipientType}:${activeClinicId}:${activeSlug}:${recipientTarget || ''}:${branchId || ''}`
+    if (scope !== scopeRef.current) {
+      scopeRef.current = scope
+      previousIdsRef.current = null
+      setNotifications([])
+      setNeedsLogin(false)
+    }
+    let cancelled = false
+    let busy = false
 
-    if (recipientType === 'staff') {
-      const activeClinicId = clinicId || clinic?.id || recipientTarget
-      const activeSlug = slug || clinic?.slug || ''
-      unsub = subscribeToClinicStaffNotifications(activeClinicId, activeSlug, (list) => {
-        // Integrate Owner Direct Broadcast Message if present on clinic document
+    const refresh = async () => {
+      if (cancelled || busy || (recipientType === 'staff' && !activeSlug && !activeClinicId)) return
+      busy = true
+      try {
+        const params = new URLSearchParams({ recipientType })
+        if (activeSlug) params.set('slug', activeSlug)
+        if (activeClinicId) params.set('clinicId', activeClinicId)
+        if (branchId && branchId !== 'all') params.set('branchId', branchId)
+        const response = await fetch(`/api/notifications?${params}`, {
+          cache: 'no-store', credentials: 'same-origin',
+        })
+        if (cancelled) return
+        if (response.status === 401) {
+          setNeedsLogin(true)
+          setNotifications([])
+          return
+        }
+        if (!response.ok) throw new Error(`NOTIFICATIONS_HTTP_${response.status}`)
+        setNeedsLogin(false)
+        const data = await response.json()
+        const list: ClinicNotification[] = Array.isArray(data.notifications) ? data.notifications : []
         let merged = [...list]
-        if (clinic?.ownerMessage && clinic.ownerMessage.trim()) {
-          const ownerMsgItem: ClinicNotification = {
+        if (recipientType === 'staff' && clinic?.ownerMessage?.trim()) {
+          merged.unshift({
             id: 'owner-broadcast-alert',
             clinicId: activeClinicId,
-            recipientType: 'staff',
-            recipientTarget: activeClinicId,
+            recipientType: 'staff', recipientTarget: activeClinicId,
             title: 'رسالة إدارية من مالك المنصة 📢',
-            body: clinic.ownerMessage.trim(),
-            type: 'system',
-            isRead: false,
-            createdAt: clinic.updatedAt || new Date().toISOString()
-          }
-          // Only add if not already in list
-          if (!merged.some(m => m.id === 'owner-broadcast-alert' || m.body === clinic.ownerMessage.trim())) {
-            merged.unshift(ownerMsgItem)
-          }
+            body: clinic.ownerMessage.trim(), type: 'system', isRead: true,
+            createdAt: clinic.updatedAt || new Date().toISOString(),
+          })
         }
-
-        // Check subscription expiration
-        if (clinic?.expirationDate) {
+        if (recipientType === 'staff' && clinic?.expirationDate) {
           const diffDays = Math.ceil(
-            (new Date(clinic.expirationDate).getTime() - Date.now()) / (1000 * 3600 * 24)
-          )
-          if (diffDays <= 7 && diffDays >= 0) {
-            const expItem: ClinicNotification = {
-              id: 'subscription-exp-alert',
-              clinicId: activeClinicId,
-              recipientType: 'staff',
-              recipientTarget: activeClinicId,
+            (new Date(clinic.expirationDate).getTime() - Date.now()) / 86400000)
+          if (diffDays >= 0 && diffDays <= 7) {
+            merged.unshift({
+              id: 'subscription-exp-alert', clinicId: activeClinicId,
+              recipientType: 'staff', recipientTarget: activeClinicId,
               title: 'تنبيه موعد تجديد الاشتراك ⚠️',
-              body: `يتبقى ${diffDays} أيام على انتهاء اشتراك العيادة. يرجى التواصل مع مالك المنصة للتجديد.`,
-              type: 'system',
-              isRead: false,
-              createdAt: new Date().toISOString()
-            }
-            if (!merged.some(m => m.id === 'subscription-exp-alert')) {
-              merged.unshift(expItem)
-            }
+              body: `يتبقى ${diffDays} أيام على انتهاء اشتراك العيادة.`,
+              type: 'system', isRead: true, createdAt: new Date().toISOString(),
+            })
           }
         }
 
-        // Play sound on arrival of new unread notification
-        if (prevCountRef.current !== null && merged.length > prevCountRef.current) {
-          playNotificationSound('chime')
-          const newest = merged[0]
-          if (newest && !newest.isRead) {
-            toast.info(`🔔 ${newest.title}: ${newest.body}`)
-            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-              try {
-                new Notification(newest.title, { body: newest.body, icon: '/favicon.ico', dir: 'rtl' })
-              } catch (e) {}
-            }
-          }
-        }
-        prevCountRef.current = merged.length
-        setNotifications(merged)
-      }, branchId)
-    } else {
-      // Patient notifications
-      if (!recipientTarget) return
-      unsub = subscribeToRecipientNotifications(recipientTarget, (list) => {
-        if (prevCountRef.current !== null && list.length > prevCountRef.current) {
-          playNotificationSound('turn_ready')
-          const newest = list[0]
+        const nextIds = new Set(list.map(n => n.id))
+        const previousIds = previousIdsRef.current
+        if (previousIds !== null) {
+          const newest = list.find(n => !n.isRead && !previousIds.has(n.id))
           if (newest) {
+            playNotificationSound(recipientType === 'patient' ? 'turn_ready' : 'chime')
             toast.info(`🔔 ${newest.title}: ${newest.body}`)
-            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+            if (typeof window !== 'undefined' && 'Notification' in window &&
+                Notification.permission === 'granted') {
               try {
-                new Notification(newest.title, { body: newest.body, icon: '/favicon.ico', dir: 'rtl' })
-              } catch (e) {}
+                new Notification(newest.title, {
+                  body: newest.body, icon: '/favicon.ico', dir: 'rtl',
+                  tag: newest.id,
+                })
+              } catch {}
             }
           }
         }
-        prevCountRef.current = list.length
-        setNotifications(list)
-      })
+        previousIdsRef.current = nextIds
+        setNotifications(merged)
+      } catch (error) {
+        if (!cancelled) console.warn('[notifications] Keeping last available feed:', error)
+      } finally {
+        busy = false
+      }
     }
-
-    return () => {
-      if (unsub) unsub()
-    }
-  }, [recipientTarget, clinicId, slug, clinic?.id, clinic?.ownerMessage, clinic?.expirationDate, recipientType, branchId])
+    void refresh()
+    const timer = window.setInterval(() => void refresh(), 5000)
+    return () => { cancelled = true; window.clearInterval(timer) }
+  }, [recipientTarget, clinicId, slug, clinic?.id, clinic?.ownerMessage,
+      clinic?.expirationDate, recipientType, branchId])
 
   const unreadCount = notifications.filter((n) => !n.isRead).length
 
@@ -151,14 +149,27 @@ export function NotificationCenter({
     }
   }
 
+  const markRead = async (ids: string[]) => {
+    const safeIds = ids.filter(id => id !== 'owner-broadcast-alert' && id !== 'subscription-exp-alert')
+    if (!safeIds.length) return
+    const params = new URLSearchParams({ recipientType })
+    if (slug || clinic?.slug) params.set('slug', String(slug || clinic.slug))
+    if (clinicId || clinic?.id) params.set('clinicId', String(clinicId || clinic.id))
+    const response = await fetch(`/api/notifications?${params}`, {
+      method: 'PATCH', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: safeIds }),
+    })
+    if (!response.ok) throw new Error('تعذر تحديث حالة قراءة التنبيهات')
+    setNotifications(prev => prev.map(n => safeIds.includes(n.id) ? { ...n, isRead: true } : n))
+  }
   const handleMarkAllRead = async () => {
-    for (const n of notifications.filter((n) => !n.isRead)) {
-      if (n.id !== 'owner-broadcast-alert' && n.id !== 'subscription-exp-alert') {
-        await markNotificationAsRead(n.id)
-      }
+    try {
+      await markRead(notifications.filter(n => !n.isRead).map(n => n.id))
+      toast.success(isRtl ? 'تم تحديد جميع الإشعارات كمقروءة' : 'All notifications marked as read')
+    } catch {
+      toast.error(isRtl ? 'تعذر حفظ حالة قراءة التنبيهات' : 'Could not save read state')
     }
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })))
-    toast.success(isRtl ? 'تم تحديد جميع الإشعارات كمقروءة' : 'All notifications marked as read')
   }
 
   const handleTestSound = () => {
@@ -266,7 +277,9 @@ export function NotificationCenter({
               {notifications.length === 0 ? (
                 <div className="py-12 text-center text-muted-foreground space-y-2">
                   <Bell className="w-8 h-8 mx-auto text-muted-foreground/40" />
-                  <p className="text-xs font-bold text-foreground">{isRtl ? 'لا توجد تنبيهات حالياً' : 'No notifications yet'}</p>
+                  <p className="text-xs font-bold text-foreground">{needsLogin
+                    ? (isRtl ? 'سجل الدخول لعرض تنبيهات حسابك بأمان' : 'Sign in to view account alerts')
+                    : (isRtl ? 'لا توجد تنبيهات حالياً' : 'No notifications yet')}</p>
                   <p className="text-[10px] text-muted-foreground">
                     {isRtl ? 'ستصلك التنبيهات الفورية فور حدوث حجز أو حركة دور' : 'Real-time alerts will appear here as bookings or queue progress'}
                   </p>
@@ -277,7 +290,7 @@ export function NotificationCenter({
                     key={n.id}
                     onClick={() => {
                       if (n.id !== 'owner-broadcast-alert' && n.id !== 'subscription-exp-alert') {
-                        markNotificationAsRead(n.id)
+                        void markRead([n.id]).catch(() => toast.error('تعذر حفظ حالة التنبيه'))
                       }
                     }}
                     className={`p-3 transition-colors cursor-pointer flex items-start gap-3 ${
