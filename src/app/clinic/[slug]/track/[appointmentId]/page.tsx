@@ -228,6 +228,9 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
                 clinicId={appointment.clinic_id}
                 slug={slug}
                 appointmentId={appointmentId}
+                patientAheadCount={liveQueue.aheadCount}
+                patientTurnReady={liveQueue.isCurrentTurn || appointment.status === 'in_progress' || appointment.status === 'examining'}
+                patientStatus={appointment.status}
                 recipientLabel={appointment.patientName}
                 recipientType="patient"
               />
