@@ -78,7 +78,8 @@ export async function markServerNotificationRead(
   const item = await readDocument(`notifications/${id}`)
   if (!item || item.clinicId !== clinicId) return false
   if (recipientType === 'patient') {
-    if (item.recipientType !== 'patient' || item.recipientTarget !== recipientTarget) return false
+    const normalize = (p: unknown) => String(p || '').replace(/\D/g, '').replace(/^20/, '0')
+    if (item.recipientType !== 'patient' || normalize(item.recipientTarget) !== normalize(recipientTarget)) return false
   } else if (item.recipientType !== 'doctor' && item.recipientType !== 'staff') {
     return false
   }
