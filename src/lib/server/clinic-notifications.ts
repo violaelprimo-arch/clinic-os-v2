@@ -25,13 +25,14 @@ export async function listServerNotifications(
   branchId?: string,
 ): Promise<NotificationRecord[]> {
   const records = await queryDocumentsByField('notifications', 'clinicId', clinicId, 100)
+  const normalizedTarget = String(recipientTarget || '').replace(/\D/g, '').replace(/^20/, '0')
   return records.filter((n: any) => {
     if (recipientType === 'staff') {
       return (n.recipientType === 'staff' || n.recipientType === 'doctor') &&
         (!branchId || branchId === 'all' || !n.branchId || n.branchId === branchId)
     }
     return n.recipientType === 'patient' &&
-      n.recipientTarget === recipientTarget
+      String(n.recipientTarget || '').replace(/\D/g, '').replace(/^20/, '0') === normalizedTarget
   }).map((n: any) => ({
     id: String(n.id),
     clinicId: String(n.clinicId),
