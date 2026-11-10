@@ -903,10 +903,10 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
               onClick={() => {
                 const nextState = !isAudioEnabled
                 setAudioState(nextState)
-                if (nextState) {
+                if (nextState && displayedPatient) {
                   triggerPatientVoiceCall(
-                    displayedPatient?.queue_number || displayedPatient?.queueNumber || '1',
-                    displayedPatient?.patientName || 'المريض'
+                    getPatientQueueDisplay(displayedPatient),
+                    displayedPatient.patientName
                   )
                 }
               }}
@@ -978,10 +978,12 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
           <button
             onClick={() => {
               setAudioState(true)
-              triggerPatientVoiceCall(
-                getPatientQueueDisplay(displayedPatient, 1),
-                displayedPatient?.patientName || 'المريض'
-              )
+              if (displayedPatient) {
+                triggerPatientVoiceCall(
+                  getPatientQueueDisplay(displayedPatient),
+                  displayedPatient.patientName
+                )
+              }
             }}
             className="px-3 py-1 rounded-xl bg-blue-600 text-white font-black text-xs cursor-pointer hover:bg-blue-700 shadow-xs transition-transform active:scale-95"
           >
