@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readDocument, queryDocuments } from '@/lib/server/firebase-rest'
+import { readDocument, queryDocuments, queryDocumentsByFields } from '@/lib/server/firebase-rest'
 import { calculatePatientLivePosition } from '@/lib/queueCalculations'
 import { getPhoneSearchVariants, normalizePhoneDigits } from '@/lib/countryPhoneHelper'
 
@@ -45,8 +45,13 @@ export async function GET(
     const nowCairo = new Date()
     const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(nowCairo)
 
-    // 2. Fetch appointments via secure server REST
-    const allAppts = await queryDocuments('appointments')
+    // 2. TV only needs a tenant-scoped current-day snapshot. The previous
+    // unfiltered collection query silently omitted active appointments when
+    // unrelated historical records exceeded the general query limit.
+    const tvOnly = searchParams.get('tv') === '1' && !appointmentId && !phone
+    const allAppts = tvOnly
+      ? await queryDocumentsByFields('appointments', { clinic_id: clinicId, date: todayStr }, 250)
+      : await queryDocuments('appointments')
     const clinicAppts = allAppts.filter((a: any) => a.clinic_id === clinicId || a.clinicId === clinicId)
 
     const allTodayAppts = clinicAppts
