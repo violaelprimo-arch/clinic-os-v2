@@ -50,7 +50,7 @@ export function NotificationCenter({
   useEffect(() => {
     const activeClinicId = String(clinicId || clinic?.id || '')
     const activeSlug = String(slug || clinic?.slug || '')
-    const scope = `${recipientType}:${activeClinicId}:${activeSlug}:${recipientTarget || ''}:${branchId || ''}`
+    const scope = `${recipientType}:${activeClinicId}:${activeSlug}:${recipientTarget || ''}:${branchId || ''}:${appointmentId || ''}`
     if (scope !== scopeRef.current) {
       scopeRef.current = scope
       previousIdsRef.current = null
