@@ -14,6 +14,9 @@ export async function GET(
     const phone = searchParams.get('phone')
     const branchId = searchParams.get('branchId')
     const appointmentId = searchParams.get('appointmentId')
+    if (appointmentId && !/^[A-Za-z0-9_-]{1,128}$/.test(appointmentId)) {
+      return NextResponse.json({ error: 'معرف الحجز غير صالح' }, { status: 400 })
+    }
 
     // 1. Resolve clinic document via secure server REST
     const allClinics = await queryDocuments('clinics')
@@ -45,12 +48,21 @@ export async function GET(
     const nowCairo = new Date()
     const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(nowCairo)
 
-    // 2. TV only needs a tenant-scoped current-day snapshot. The previous
-    // unfiltered collection query silently omitted active appointments when
-    // unrelated historical records exceeded the general query limit.
+    // 2. TV and individual patient tracking use a tenant/date-scoped query.
+    // Unrelated historical appointments must not hide the active queue.
     const tvOnly = searchParams.get('tv') === '1' && !appointmentId && !phone
-    const allAppts = tvOnly
-      ? await queryDocumentsByFields('appointments', { clinic_id: clinicId, date: todayStr }, 250)
+    const directlyRequested = appointmentId
+      ? await readDocument(`appointments/${appointmentId}`)
+      : null
+    if (appointmentId && directlyRequested &&
+        ![directlyRequested.clinic_id, directlyRequested.clinicId].includes(clinicId)) {
+      return NextResponse.json({ error: 'الحجز لا يتبع هذه العيادة' }, { status: 403 })
+    }
+    const snapshotDate = (appointmentId && directlyRequested?.date)
+      ? String(directlyRequested.date) : todayStr
+    const allAppts = (tvOnly || (appointmentId && directlyRequested))
+      ? await queryDocumentsByFields('appointments',
+          { clinic_id: clinicId, date: snapshotDate }, 250)
       : await queryDocuments('appointments')
     const clinicAppts = allAppts.filter((a: any) => a.clinic_id === clinicId || a.clinicId === clinicId)
 
@@ -69,7 +81,7 @@ export async function GET(
       let matchedDocs: any[] = []
 
       if (appointmentId) {
-        const directDoc: any = await readDocument(`appointments/${appointmentId}`)
+        const directDoc: any = directlyRequested
         if (directDoc && (directDoc.clinic_id === clinicId || directDoc.clinicId === clinicId)) {
           matchedDocs.push({ id: appointmentId, ...directDoc })
         }
@@ -135,6 +147,11 @@ export async function GET(
 
         return {
           id: appt.id,
+          clinic_id: appt.clinic_id || appt.clinicId,
+          branch_id: appt.branch_id || appt.branchId,
+          queue_number: appt.queue_number ?? appt.queueNumber,
+          calledAt: appt.calledAt,
+          startedAt: appt.startedAt,
           patientName: appt.patientName,
           phone: appt.phone || appt.patientPhone,
           serviceId: appt.serviceId,
