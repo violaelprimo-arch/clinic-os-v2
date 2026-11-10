@@ -677,6 +677,25 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
     return branchAppointments.find(a => a.status === 'in_progress' || a.status === 'examining') || null
   }, [branchAppointments])
 
+  // The patient card stays visible through the start of the voice call even
+  // if the doctor completes the appointment within a few seconds.
+  const [lastCalledPatient, setLastCalledPatient] = useState<any>(null)
+  const heldUntilRef = useRef(0)
+  const currentCallIdentity = currentPatient
+    ? `${currentPatient.id}:${currentPatient.calledAt || currentPatient.startedAt || ''}`
+    : ''
+  useEffect(() => {
+    if (!currentPatient) return
+    heldUntilRef.current = Date.now() + 15000
+    setLastCalledPatient(currentPatient)
+  }, [currentCallIdentity])
+  useEffect(() => {
+    heldUntilRef.current = 0
+    setLastCalledPatient(null)
+  }, [selectedBranchId])
+  const displayedPatient = currentPatient ||
+    (Date.now() < heldUntilRef.current ? lastCalledPatient : null)
+
   // Next Waiting Patients (use unified sortQueue clinical engine to match doctor's order)
   const nextWaitingPatients = useMemo(() => {
     return sortQueue(branchAppointments, clinic).slice(0, 5)
@@ -684,10 +703,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
 
     // Trigger Voice Call when serving patient changes, enters, or is recalled (A10 Fix)
   useEffect(() => {
-    if (!currentPatient) {
-      lastAnnouncedCallKeyRef.current = null
-      return
-    }
+    if (!currentPatient) return
 
     const displayQ = getPatientQueueDisplay(currentPatient)
     const qNum = displayQ !== '-' ? displayQ : '1'
@@ -889,8 +905,8 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
                 setAudioState(nextState)
                 if (nextState) {
                   triggerPatientVoiceCall(
-                    currentPatient?.queue_number || currentPatient?.queueNumber || '1',
-                    currentPatient?.patientName || 'المريض'
+                    displayedPatient?.queue_number || displayedPatient?.queueNumber || '1',
+                    displayedPatient?.patientName || 'المريض'
                   )
                 }
               }}
@@ -963,8 +979,8 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
             onClick={() => {
               setAudioState(true)
               triggerPatientVoiceCall(
-                getPatientQueueDisplay(currentPatient, 1),
-                currentPatient?.patientName || 'المريض'
+                getPatientQueueDisplay(displayedPatient, 1),
+                displayedPatient?.patientName || 'المريض'
               )
             }}
             className="px-3 py-1 rounded-xl bg-blue-600 text-white font-black text-xs cursor-pointer hover:bg-blue-700 shadow-xs transition-transform active:scale-95"
@@ -1013,7 +1029,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
             </div>
 
             {/* Giant Serving Turn Card */}
-            {currentPatient ? (
+            {displayedPatient ? (
               <div className="py-8 my-auto text-center space-y-6">
                 <div>
                   <span className={`text-base font-bold block tracking-widest uppercase ${
@@ -1022,7 +1038,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
                     رقم الدور
                   </span>
                   <motion.div
-                    key={currentPatient.id + '_' + getPatientQueueDisplay(currentPatient, 1)}
+                    key={displayedPatient.id + '_' + getPatientQueueDisplay(displayedPatient, 1)}
                     initial={{ scale: 0.85, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ type: 'spring', stiffness: 200, damping: 15 }}
@@ -1032,16 +1048,16 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
                         : 'text-blue-600 drop-shadow-md'
                     }`}
                   >
-                    #{getPatientQueueDisplay(currentPatient, 1)}
+                    #{getPatientQueueDisplay(displayedPatient, 1)}
                   </motion.div>
                 </div>
 
                 <div className="space-y-3">
-                  {tvConfig.showPatientName && currentPatient.patientName && (
+                  {tvConfig.showPatientName && displayedPatient.patientName && (
                     <h2 className={`text-3xl sm:text-4xl font-black tracking-wide ${
                       isDark ? 'text-white' : 'text-slate-900'
                     }`}>
-                      {currentPatient.patientName}
+                      {displayedPatient.patientName}
                     </h2>
                   )}
                   <div className="flex items-center justify-center gap-3 flex-wrap">
@@ -1050,11 +1066,11 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
                         ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30'
                         : 'bg-blue-50 text-blue-700 border-blue-200'
                     }`}>
-                      {currentPatient.serviceName || 'كشف طبي'}
+                      {displayedPatient.serviceName || 'كشف طبي'}
                     </span>
-                    {currentPatient.branchName && (
+                    {displayedPatient.branchName && (
                       <span className={`text-sm font-bold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                        • {currentPatient.branchName}
+                        • {displayedPatient.branchName}
                       </span>
                     )}
                   </div>
@@ -1088,7 +1104,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
                 <span>{clinic?.doctorName ? `${clinic?.doctorTitle || 'د.'} ${clinic.doctorName}` : (clinic?.clinicName || 'طبيب العيادة')}</span>
               </div>
               <div className="font-mono text-xs font-semibold">
-                {currentPatient ? 'جارٍ الكشف الآن • يرجى الانتظار' : 'العيادة جاهزة لاستقبال المرضى'}
+                {displayedPatient ? 'جارٍ الكشف الآن • يرجى الانتظار' : 'العيادة جاهزة لاستقبال المرضى'}
               </div>
             </div>
           </motion.div>
