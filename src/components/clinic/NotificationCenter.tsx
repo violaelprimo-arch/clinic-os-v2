@@ -22,7 +22,10 @@ export function NotificationCenter({
   recipientLabel = 'المستخدم',
   recipientType = 'staff',
   branchId,
-  appointmentId
+  appointmentId,
+  patientAheadCount,
+  patientTurnReady,
+  patientStatus
 }: {
   recipientTarget?: string
   clinicId?: string
@@ -32,6 +35,9 @@ export function NotificationCenter({
   recipientType?: 'staff' | 'patient'
   branchId?: string
   appointmentId?: string
+  patientAheadCount?: number
+  patientTurnReady?: boolean
+  patientStatus?: string
 }) {
   const { t, isRtl, dir, language } = useLanguage()
   const [notifications, setNotifications] = useState<ClinicNotification[]>([])
@@ -40,6 +46,7 @@ export function NotificationCenter({
   const previousIdsRef = useRef<Set<string> | null>(null)
   const scopeRef = useRef<string>('')
   const [needsLogin, setNeedsLogin] = useState(false)
+  const [dismissedLocalId, setDismissedLocalId] = useState<string | null>(null)
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -139,7 +146,35 @@ export function NotificationCenter({
   }, [recipientTarget, clinicId, slug, clinic?.id, clinic?.ownerMessage,
       clinic?.expirationDate, recipientType, branchId, appointmentId])
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length
+  // A patient may open the public tracking link before signing into their
+  // account. Show their own computed turn status locally, but do not expose
+  // private persisted notifications without an authenticated patient session.
+  const localTurnAlert: ClinicNotification | null =
+    recipientType === 'patient' && appointmentId &&
+    patientStatus !== 'completed' && patientStatus !== 'cancelled' &&
+    (patientTurnReady || (Number.isFinite(patientAheadCount) &&
+      patientAheadCount! > 0 && patientAheadCount! <= 5))
+      ? {
+          id: patientTurnReady ? `local_ready_${appointmentId}`
+            : `local_ahead_${appointmentId}_${patientAheadCount}`,
+          clinicId: String(clinicId || ''),
+          recipientTarget: recipientTarget || '',
+          recipientType: 'patient',
+          title: patientTurnReady ? 'دورك الآن للدخول!' :
+            patientAheadCount === 1 ? 'أنت المريض التالي للدخول!' : `اقترب دورك: متبقي ${patientAheadCount}`,
+          body: patientTurnReady ? 'يرجى التوجه لغرفة الكشف الآن.' :
+            `متبقي أمامك ${patientAheadCount} مرضى في الانتظار.`,
+          type: patientTurnReady ? 'turn_ready' : 'approaching_turn',
+          isRead: dismissedLocalId === (patientTurnReady ? `local_ready_${appointmentId}`
+            : `local_ahead_${appointmentId}_${patientAheadCount}`),
+          createdAt: new Date().toISOString(),
+        }
+      : null
+  const visibleNotifications = localTurnAlert &&
+      !notifications.some(n => n.appointmentId === appointmentId && n.type === localTurnAlert.type &&
+        n.title === localTurnAlert.title)
+    ? [localTurnAlert, ...notifications] : notifications
+  const unreadCount = visibleNotifications.filter(n => !n.isRead).length
 
   const handleEnablePush = async () => {
     const granted = await requestBrowserNotificationPermission()
@@ -153,7 +188,8 @@ export function NotificationCenter({
   }
 
   const markRead = async (ids: string[]) => {
-    const safeIds = ids.filter(id => id !== 'owner-broadcast-alert' && id !== 'subscription-exp-alert')
+    if (localTurnAlert && ids.includes(localTurnAlert.id)) setDismissedLocalId(localTurnAlert.id)
+    const safeIds = ids.filter(id => !id.startsWith('local_') && id !== 'owner-broadcast-alert' && id !== 'subscription-exp-alert')
     if (!safeIds.length) return
     const params = new URLSearchParams({ recipientType })
     if (slug || clinic?.slug) params.set('slug', String(slug || clinic.slug))
@@ -168,7 +204,7 @@ export function NotificationCenter({
   }
   const handleMarkAllRead = async () => {
     try {
-      await markRead(notifications.filter(n => !n.isRead).map(n => n.id))
+      await markRead(visibleNotifications.filter(n => !n.isRead).map(n => n.id))
       toast.success(isRtl ? 'تم تحديد جميع الإشعارات كمقروءة' : 'All notifications marked as read')
     } catch {
       toast.error(isRtl ? 'تعذر حفظ حالة قراءة التنبيهات' : 'Could not save read state')
@@ -230,7 +266,7 @@ export function NotificationCenter({
               <div className="flex items-center gap-2">
                 <Bell className="w-4 h-4 text-primary" />
                 <h4 className="font-bold text-xs text-foreground">
-                  {t('notifications_center_title', isRtl ? 'مركز التنبيهات' : 'Notifications')} ({notifications.length})
+                  {t('notifications_center_title', isRtl ? 'مركز التنبيهات' : 'Notifications')} ({visibleNotifications.length})
                 </h4>
               </div>
               <div className="flex items-center gap-2">
@@ -277,7 +313,7 @@ export function NotificationCenter({
 
             {/* List */}
             <div className="overflow-y-auto divide-y divide-border flex-1">
-              {notifications.length === 0 ? (
+              {visibleNotifications.length === 0 ? (
                 <div className="py-12 text-center text-muted-foreground space-y-2">
                   <Bell className="w-8 h-8 mx-auto text-muted-foreground/40" />
                   <p className="text-xs font-bold text-foreground">{needsLogin
@@ -288,7 +324,7 @@ export function NotificationCenter({
                   </p>
                 </div>
               ) : (
-                notifications.map((n) => (
+                visibleNotifications.map((n) => (
                   <div
                     key={n.id}
                     onClick={() => {
