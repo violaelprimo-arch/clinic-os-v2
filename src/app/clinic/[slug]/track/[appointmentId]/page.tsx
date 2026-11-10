@@ -8,7 +8,7 @@ import {
   PatientQueueStatusResult,
   formatEstimatedTime
 } from '@/lib/queueCalculations'
-import { checkAndTriggerQueuePositionAlert, playNotificationSound } from '@/lib/notificationService'
+import { playNotificationSound } from '@/lib/notificationService'
 import { doc, getDoc, onSnapshot, collection, query, where } from 'firebase/firestore'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -132,42 +132,37 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
     })
   }, [appointmentId, appointment, allQueueAppts, clinic, branchData, isRtl])
 
-  const prevExaminingRef = useRef<any>(null)
+  const previousExaminingRef = useRef<string | null>(null)
+  const lastReadyAlertRef = useRef<string | null>(null)
 
-  // Fire sound/push notifications when patient's turn arrives or is approaching, or on patient entry
+  // Visual and audio alerts are derived from real queue transitions, not every
+  // API refresh. Persistent notifications are reconciled by the authenticated
+  // /api/notifications endpoint when the account owner is signed in.
   useEffect(() => {
-    if (appointment && appointment.clinic_id) {
-      const currentExaminingNum = liveQueue.currentPatientExamining?.queueNumber
-
-      // Notify on each patient entry to the examination room
-      if (
-        prevExaminingRef.current !== null &&
-        currentExaminingNum &&
-        currentExaminingNum !== prevExaminingRef.current &&
-        appointment.status === 'waiting'
-      ) {
-        playNotificationSound('chime')
-        toast.info(
-          isRtl
-            ? `🔔 دخل الآن المريض رقم #${currentExaminingNum} لغرفة الكشف. دورك رقم #${appointment.queue_number} (متبقي أمامك ${liveQueue.aheadCount} مرضى).`
-            : `🔔 Patient #${currentExaminingNum} has entered the exam room. Your turn is #${appointment.queue_number} (${liveQueue.aheadCount} ahead).`
-        )
-      }
-      prevExaminingRef.current = currentExaminingNum || null
-
-      checkAndTriggerQueuePositionAlert({
-        appointment: { id: appointmentId, ...appointment },
-        waitingAheadCount: liveQueue.aheadCount,
-        clinicId: appointment.clinic_id,
-        branchName: appointment.branchName,
-        currentExaminingQueueNumber: currentExaminingNum
-      })
-
-      if (liveQueue.isCurrentTurn || appointment.status === 'in_progress') {
-        playNotificationSound('turn_ready')
-      }
+    if (!appointment || !appointment.clinic_id) return
+    const examiningNumber = liveQueue.currentPatientExamining?.queueNumber
+    const examiningKey = examiningNumber == null ? null : String(examiningNumber)
+    if (previousExaminingRef.current !== null && examiningKey !== null &&
+        previousExaminingRef.current !== examiningKey &&
+        appointment.status === 'waiting') {
+      playNotificationSound('chime')
+      toast.info(isRtl
+        ? `🔔 دخل الآن المريض رقم #${examiningKey} لغرفة الكشف. متبقي أمامك ${liveQueue.aheadCount} مرضى.`
+        : `🔔 Patient #${examiningKey} entered the examination room. ${liveQueue.aheadCount} ahead.`)
     }
-  }, [appointment, liveQueue.aheadCount, liveQueue.status, liveQueue.isCurrentTurn, liveQueue.currentPatientExamining?.queueNumber, appointmentId])
+    previousExaminingRef.current = examiningKey
+
+    const ready = liveQueue.isCurrentTurn ||
+      appointment.status === 'in_progress' || appointment.status === 'examining'
+    const readyKey = `${appointmentId}:${appointment.calledAt || appointment.startedAt || 'ready'}`
+    if (ready && lastReadyAlertRef.current !== readyKey) {
+      lastReadyAlertRef.current = readyKey
+      playNotificationSound('turn_ready')
+      toast.success(isRtl ? 'حان دورك الآن! تفضل بالدخول إلى غرفة الكشف.' : 'It is your turn. Please enter the examination room.')
+    }
+  }, [appointmentId, appointment?.status, appointment?.calledAt,
+      appointment?.startedAt, liveQueue.aheadCount, liveQueue.isCurrentTurn,
+      liveQueue.currentPatientExamining?.queueNumber, isRtl])
 
   if (loading) {
     return <ClinicLoading fullScreen size="lg" label={t('syncing_queue', 'جاري مزامنة الدور المباشر...')} />
@@ -230,6 +225,9 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
             <div className={`absolute ${isRtl ? 'left-0' : 'right-0'} top-0`}>
               <NotificationCenter
                 recipientTarget={appointment.phone}
+                clinicId={appointment.clinic_id}
+                slug={slug}
+                appointmentId={appointmentId}
                 recipientLabel={appointment.patientName}
                 recipientType="patient"
               />
