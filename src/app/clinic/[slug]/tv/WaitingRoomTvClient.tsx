@@ -3,7 +3,7 @@
 import { use, useEffect, useState, useMemo, useRef } from 'react'
 import { watchPublicClinicProfile } from '@/lib/clinic-profile-client'
 import { db } from '@/lib/firebase'
-import { collection, query, where, onSnapshot, doc, getDoc, updateDoc } from 'firebase/firestore'
+
 import { useSearchParams } from 'next/navigation'
 import { getCairoDateString } from '@/lib/bookingCapacity'
 import {
@@ -564,93 +564,101 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
     return () => unsubClinic()
   }, [slug])
 
-  // 2. Real-time Clinic Branches Listener
+  // 2. Public branch listing. Do not use a second Firestore listener that
+  // races against the TV queue API and renders stale or foreign branches.
   useEffect(() => {
-    if (!clinic?.id) return
-    const qB = query(collection(db, 'branches'), where('clinicId', '==', clinic.id))
-    const unsubB = onSnapshot(qB, (snap) => {
-      setBranches(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
-    }, (err) => {
-      console.warn('TV branches listener error:', err)
-    })
-    return () => unsubB()
-  }, [clinic?.id])
+    if (!slug) return
+    let cancelled = false
+    const loadBranches = async () => {
+      try {
+        const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/branches`, { cache: 'no-store' })
+        if (!res.ok) return
+        const data = await res.json()
+        if (!cancelled && Array.isArray(data.branches)) {
+          setBranches(data.branches.filter((b: any) => !b.isArchived))
+        }
+      } catch (error) {
+        console.warn('[TV] Could not refresh registered branches:', error)
+      }
+    }
+    void loadBranches()
+    return () => { cancelled = true }
+  }, [slug])
 
-  // 3. Real-time Appointments Listener for Today's Queue
+  // 3. One authoritative queue feed (server API only).
+  // Previously the Firestore snapshot and the 5-second poll overwrote the
+  // same appointments state: the patient appeared briefly and disappeared
+  // while the independent voice announcement was still playing.
   useEffect(() => {
-    if (!clinic?.id && !slug) return
-    const clinicId = clinic?.id || slug
-    const targetClinicIds = Array.from(new Set([clinicId, clinic?.id, slug].filter(Boolean)))
-    const todayDate = cairoTodayDate || getCairoDateString()
+    if (!slug) return
+    let cancelled = false
+    let requestInFlight = false
+    const controller = new AbortController()
+    isFirstDataLoadRef.current = true
+    lastAnnouncedCallKeyRef.current = null
 
-    const qAppts = query(
-      collection(db, 'appointments'),
-      where('clinic_id', 'in', targetClinicIds),
-      where('date', '==', todayDate)
-    )
-
-    const unsubAppts = onSnapshot(
-      qAppts,
-      (snapshot) => {
-        const list: any[] = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
-        setAppointments(list)
-
-        // Mark initial snapshot complete; only suppress if patient was already in_progress on page mount
+    const pollTvApi = async () => {
+      if (cancelled || requestInFlight) return
+      requestInFlight = true
+      try {
+        const branchParam = selectedBranchId !== 'all'
+          ? `&branchId=${encodeURIComponent(selectedBranchId)}` : ''
+        const res = await fetch(
+          `/api/clinic/${encodeURIComponent(slug)}/queue?tv=1${branchParam}`,
+          { cache: 'no-store', credentials: 'same-origin', signal: controller.signal },
+        )
+        if (!res.ok) throw new Error(`QUEUE_HTTP_${res.status}`)
+        const data = await res.json()
+        if (cancelled || !data.success || !data.tvQueue) return
+        const list: any[] = []
+        const current = data.tvQueue.currentPatient
+        if (current && current.id) {
+          list.push({
+            ...current,
+            queue_number: current.queueNumber,
+            branch_id: current.branchId || current.branch_id,
+          })
+        }
+        if (Array.isArray(data.tvQueue.nextWaitingPatients)) {
+          for (const patient of data.tvQueue.nextWaitingPatients) {
+            if (!patient?.id || list.some(existing => existing.id === patient.id)) continue
+            list.push({
+              ...patient,
+              queue_number: patient.queueNumber,
+              branch_id: patient.branchId || patient.branch_id,
+            })
+          }
+        }
+        // The initial snapshot is not a new call. It must not unexpectedly
+        // play the announcement when a TV is opened midway through a visit.
         if (isFirstDataLoadRef.current) {
           isFirstDataLoadRef.current = false
-          const initialActive = list.find(a => a.status === 'in_progress' || a.status === 'examining')
-          if (initialActive) {
-            const qNum = initialActive.queue_number ?? initialActive.queueNumber ?? ''
-            lastAnnouncedCallKeyRef.current = `${initialActive.id}_${initialActive.calledAt || initialActive.startedAt || qNum}`
+          const initial = list.find(a => a.status === 'in_progress' || a.status === 'examining')
+          if (initial) {
+            const num = getPatientQueueDisplay(initial)
+            lastAnnouncedCallKeyRef.current =
+              `${initial.id}_${initial.calledAt || initial.startedAt || num}`
           }
         }
-      },
-      (err) => {
-        console.warn('TV Screen in-query error, trying single clinic_id query:', err)
-        try {
-          const fallbackQ = query(
-            collection(db, 'appointments'),
-            where('clinic_id', '==', clinicId),
-            where('date', '==', todayDate)
-          )
-          onSnapshot(fallbackQ, (s) => {
-            setAppointments(s.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
-          })
-        } catch (e) {
-          console.error('TV appointments fallback error:', e)
+        setAppointments(list)
+      } catch (error) {
+        if (!cancelled) {
+          // Preserve last valid state on network failure. Never blank the
+          // screen just because a single HTTP request failed.
+          console.warn('[TV] Queue refresh failed; keeping last valid state:', error)
         }
+      } finally {
+        requestInFlight = false
       }
-    )
-
-    // Secure Server API Polling for TV Screen
-    const pollTvApi = async () => {
-      try {
-        const res = await fetch(`/api/clinic/${slug}/queue?branchId=${encodeURIComponent(selectedBranchId || '')}`)
-        if (res.ok) {
-          const data = await res.json()
-          if (data.tvQueue) {
-            const list: any[] = []
-            if (data.tvQueue.currentPatient) {
-              list.push({ ...data.tvQueue.currentPatient, queue_number: data.tvQueue.currentPatient.queueNumber })
-            }
-            if (Array.isArray(data.tvQueue.nextWaitingPatients)) {
-              data.tvQueue.nextWaitingPatients.forEach((p: any) => {
-                list.push({ ...p, queue_number: p.queueNumber })
-              })
-            }
-            setAppointments(list)
-          }
-        }
-      } catch (e) {}
     }
-    pollTvApi()
-    const tvInterval = setInterval(pollTvApi, 5000)
-
+    void pollTvApi()
+    const tvInterval = window.setInterval(() => { void pollTvApi() }, 4000)
     return () => {
-      clearInterval(tvInterval)
-      unsubAppts()
+      cancelled = true
+      controller.abort()
+      window.clearInterval(tvInterval)
     }
-  }, [clinic?.id, slug, cairoTodayDate, selectedBranchId])
+  }, [slug, selectedBranchId])
 
   // Filter for Active Branch
   const branchAppointments = useMemo(() => {
@@ -689,10 +697,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
     if (lastAnnouncedCallKeyRef.current !== currentCallKey) {
       lastAnnouncedCallKeyRef.current = currentCallKey
       if (isAudioEnabled) {
-        triggerPatientVoiceCall(
-          qNum,
-          currentPatient.patientName
-        )
+        triggerPatientVoiceCall(qNum, currentPatient.patientName)
       }
     }
   }, [currentPatient, isAudioEnabled, tvConfig.announceName, tvConfig.voiceGender, tvConfig.announcementPhrase, tvConfig.speechTone, tvConfig.chimeSound])
@@ -725,9 +730,16 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
 
       const token = typeof window !== 'undefined' ? localStorage.getItem('clinic_session_token') : null
       if (token && clinic?.id) {
-        await updateDoc(doc(db, 'clinics', clinic.id), {
-          tvSettings: tvConfig
-        })
+        const response = await fetch(
+          `/api/clinic/${encodeURIComponent(slug)}/settings`,
+          {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tvSettings: tvConfig }),
+          },
+        )
+        if (!response.ok) throw new Error('TV_SETTINGS_NOT_SAVED_ON_SERVER')
         toast.success('تم حفظ إعدادات الشاشة والنداء الصوتي بنجاح')
       } else {
         toast.success('تم حفظ الإعدادات محلياً للشاشة بنجاح')
