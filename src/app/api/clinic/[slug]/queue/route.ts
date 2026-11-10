@@ -53,7 +53,7 @@ export async function GET(
       .filter((a: any) => a.date === todayStr)
       .filter((a: any) => !branchId || a.branch_id === branchId || a.branchName === branchId)
 
-    const inProgressAppt = allTodayAppts.find((a: any) => a.status === 'in_progress')
+    const inProgressAppt = allTodayAppts.find((a: any) => a.status === 'in_progress' || a.status === 'examining')
     const waitingAppts = allTodayAppts.filter((a: any) => a.status === 'waiting' || !a.status)
 
     // 3. Handle phone / appointment search
