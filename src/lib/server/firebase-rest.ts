@@ -458,6 +458,49 @@ export async function queryDocumentsByField(
   return rows.flatMap(row => row.document ? [unpack(row.document)] : [])
 }
 
+/**
+ * Server-side scoped query for current-day queue snapshots. Do not read only
+ * the first 200 unrelated historical appointments and then filter in memory.
+ */
+export async function queryDocumentsByFields(
+  collection: string,
+  conditions: Record<string, string>,
+  maxResults = 250,
+) {
+  const fields = Object.entries(conditions)
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(collection) ||
+      fields.length < 2 || fields.length > 4 ||
+      fields.some(([field, value]) =>
+        !/^[A-Za-z_][A-Za-z0-9_]*$/.test(field) ||
+        typeof value !== 'string' || !value)) {
+    throw new Error('INVALID_FIRESTORE_SCOPED_LOOKUP')
+  }
+  const response = await request(documentUrl('').replace(/\/$/, '') + ':runQuery', {
+    method: 'POST',
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: collection }],
+        where: {
+          compositeFilter: {
+            op: 'AND',
+            filters: fields.map(([field, value]) => ({
+              fieldFilter: {
+                field: { fieldPath: field },
+                op: 'EQUAL',
+                value: encode(value),
+              },
+            })),
+          },
+        },
+        limit: Math.max(1, Math.min(500, Math.floor(maxResults))),
+      },
+    }),
+  })
+  if (!response.ok) throw new Error('FIRESTORE_SCOPED_LOOKUP_FAILED')
+  const rows = (await response.json()) as Array<{ document?: FirestoreDocument }>
+  return rows.flatMap(row => row.document ? [unpack(row.document)] : [])
+}
+
 export async function queryDocuments(collection: string, approvedOnly = false) {
   // 1. Attempt structured runQuery (without remote composite orderBy to avoid missing-index errors)
   try {
