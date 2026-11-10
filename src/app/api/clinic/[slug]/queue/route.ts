@@ -195,13 +195,19 @@ export async function GET(
           patientName: inProgressAppt.patientName,
           status: inProgressAppt.status,
           calledAt: inProgressAppt.calledAt,
-          startedAt: inProgressAppt.startedAt
+          startedAt: inProgressAppt.startedAt,
+          branchId: inProgressAppt.branch_id || inProgressAppt.branchId || null,
+          branchName: inProgressAppt.branchName || '',
+          serviceName: inProgressAppt.serviceName || 'كشف طبي'
         } : null,
         nextWaitingPatients: waitingAppts.slice(0, 10).map((a: any) => ({
           id: a.id,
           queueNumber: a.queue_number,
           patientName: a.patientName,
-          status: a.status
+          status: a.status,
+          branchId: a.branch_id || a.branchId || null,
+          branchName: a.branchName || '',
+          serviceName: a.serviceName || 'كشف طبي'
         }))
       },
       currentPatientExamining: inProgressAppt
