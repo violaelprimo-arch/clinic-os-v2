@@ -21,7 +21,8 @@ export function NotificationCenter({
   clinic,
   recipientLabel = 'المستخدم',
   recipientType = 'staff',
-  branchId
+  branchId,
+  appointmentId
 }: {
   recipientTarget?: string
   clinicId?: string
@@ -30,6 +31,7 @@ export function NotificationCenter({
   recipientLabel?: string
   recipientType?: 'staff' | 'patient'
   branchId?: string
+  appointmentId?: string
 }) {
   const { t, isRtl, dir, language } = useLanguage()
   const [notifications, setNotifications] = useState<ClinicNotification[]>([])
@@ -66,6 +68,7 @@ export function NotificationCenter({
         if (activeSlug) params.set('slug', activeSlug)
         if (activeClinicId) params.set('clinicId', activeClinicId)
         if (branchId && branchId !== 'all') params.set('branchId', branchId)
+        if (recipientType === 'patient' && appointmentId) params.set('appointmentId', appointmentId)
         const response = await fetch(`/api/notifications?${params}`, {
           cache: 'no-store', credentials: 'same-origin',
         })
@@ -134,7 +137,7 @@ export function NotificationCenter({
     const timer = window.setInterval(() => void refresh(), 5000)
     return () => { cancelled = true; window.clearInterval(timer) }
   }, [recipientTarget, clinicId, slug, clinic?.id, clinic?.ownerMessage,
-      clinic?.expirationDate, recipientType, branchId])
+      clinic?.expirationDate, recipientType, branchId, appointmentId])
 
   const unreadCount = notifications.filter((n) => !n.isRead).length
 
