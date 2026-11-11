@@ -1,68 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { registerDeviceSubscription } from '@/lib/pushDispatcher'
 import { isValidPushEndpoint } from '@/lib/webPushServer'
-import { db } from '@/lib/firebase'
-import { doc, getDoc } from 'firebase/firestore'
+import { authorizePushTarget, sameOriginMutation } from '@/lib/server/push-access'
 
-/**
- * Register or update a device push subscription
- * POST /api/push/subscribe
- * Body: { subscription, appointmentId?, clinicId, patientPhone?, userAgent? }
- */
 export async function POST(req: NextRequest) {
   try {
-    const payload = await req.json()
-    const { subscription, appointmentId, clinicId, patientPhone } = payload
-
-    if (!subscription || !subscription.endpoint || !subscription.keys?.p256dh || !subscription.keys?.auth) {
-      return NextResponse.json(
-        { error: 'Valid subscription with endpoint, p256dh, and auth keys is required' },
-        { status: 400 }
-      )
+    if (!sameOriginMutation(req)) return NextResponse.json({ error: 'INVALID_ORIGIN' }, { status: 403 })
+    const data = await req.json().catch(() => ({}))
+    const subscription = data.subscription
+    const role = data.role === 'staff' ? 'staff' : 'patient'
+    if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth ||
+        !isValidPushEndpoint(subscription.endpoint)) {
+      return NextResponse.json({ error: 'INVALID_SUBSCRIPTION' }, { status: 400 })
     }
-
-    if (!isValidPushEndpoint(subscription.endpoint)) {
-      return NextResponse.json(
-        { error: 'Subscription endpoint is invalid or not allowed' },
-        { status: 400 }
-      )
-    }
-
-    // If appointmentId provided, verify it exists
-    if (appointmentId) {
-      try {
-        const apptSnap = await getDoc(doc(db, 'appointments', appointmentId))
-        if (!apptSnap.exists()) {
-          return NextResponse.json(
-            { error: 'Appointment not found' },
-            { status: 404 }
-          )
-        }
-      } catch (err: any) {
-        console.warn('Could not verify appointment existence:', err)
-      }
-    }
-
-    const userAgent = req.headers.get('user-agent') || payload.userAgent || ''
-
-    const result = await registerDeviceSubscription({
-      subscription,
-      appointmentId,
-      clinicId,
-      patientPhone,
-      userAgent,
+    const target = await authorizePushTarget(req, {
+      role, clinicId: String(data.clinicId || ''), appointmentId: data.appointmentId,
+      pushClaim: data.pushClaim,
     })
-
+    if (!target) {
+      return NextResponse.json({ error: 'PUSH_REGISTRATION_REQUIRES_VERIFIED_BOOKING_OR_LOGIN' }, { status: 403 })
+    }
+    const saved = await registerDeviceSubscription({
+      subscription, clinicId: target.clinicId, appointmentId: target.appointmentId,
+      userAgent: req.headers.get('user-agent') || '', role: target.role,
+    })
     return NextResponse.json({
-      success: true,
-      subscriptionId: result.subscriptionId,
-      message: 'Push notification alerts activated successfully',
-    })
-  } catch (error: any) {
-    console.error('Subscription registration error:', error)
-    return NextResponse.json(
-      { error: error?.message || 'Failed to register push subscription' },
-      { status: 500 }
-    )
+      success: true, subscriptionId: saved.subscriptionId,
+      message: 'DEVICE_SUBSCRIPTION_SAVED',
+    }, { headers: { 'Cache-Control': 'no-store' } })
+  } catch (error) {
+    console.error('[push] Subscribe failed:', error instanceof Error ? error.message : 'UNKNOWN')
+    return NextResponse.json({ error: 'PUSH_SUBSCRIPTION_UNAVAILABLE' }, { status: 503 })
   }
 }
