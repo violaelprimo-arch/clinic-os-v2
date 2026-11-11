@@ -149,6 +149,8 @@ export async function dispatchPatientPushNotification({
         await createDocument('push_outbox', {
           idempotencyKey: eventKey, clinicId, appointmentId: appointmentId || null,
           subscriptionId: sub.id, status: 'processing', attempts: 1,
+          recipientType, payload,
+          nextAttemptAt: new Date(Date.now() + 60000).toISOString(),
           createdAt: new Date().toISOString(),
         }, outboxId)
       } catch (e) {
