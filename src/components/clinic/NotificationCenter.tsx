@@ -45,6 +45,7 @@ export function NotificationCenter({
   const [isOpen, setIsOpen] = useState(false)
   const [hasPushPermission, setHasPushPermission] = useState(false)
   const [pushBusy, setPushBusy] = useState(false)
+  const testPushInFlightRef = useRef(false)
   const previousIdsRef = useRef<Set<string> | null>(null)
   const scopeRef = useRef<string>('')
   const [needsLogin, setNeedsLogin] = useState(false)
@@ -215,6 +216,8 @@ export function NotificationCenter({
   }
 
   const handleTestPush = async () => {
+    if (testPushInFlightRef.current || pushBusy) return
+    testPushInFlightRef.current = true
     setPushBusy(true)
     try {
       const result = await sendDeviceTestPush({
@@ -226,6 +229,7 @@ export function NotificationCenter({
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'فشل اختبار إشعار الموبايل')
     } finally {
+      testPushInFlightRef.current = false
       setPushBusy(false)
     }
   }
@@ -325,6 +329,7 @@ export function NotificationCenter({
                   <button
                     onClick={() => void handleTestPush()}
                     disabled={pushBusy}
+                    aria-busy={pushBusy}
                     className="text-[10px] font-bold text-primary cursor-pointer bg-background px-2 py-1 rounded-lg border border-border"
                   >
                     {pushBusy ? 'جاري الاختبار...' : 'اختبار الموبايل'}

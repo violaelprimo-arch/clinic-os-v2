@@ -4,7 +4,10 @@ import {
   readDocument, queryDocumentsByFields, commitDocumentPatches,
 } from '@/lib/server/firebase-rest'
 import { createServerNotification } from '@/lib/server/clinic-notifications'
-import { dispatchPatientPushNotification } from '@/lib/pushDispatcher'
+import {
+  buildPushTag, dispatchPatientPushNotification,
+  getApproachingEventId, getTurnReadyEventId,
+} from '@/lib/pushDispatcher'
 import { getCairoDateString } from '@/lib/bookingCapacity'
 import { sameOriginMutation } from '@/lib/server/push-access'
 import { sortQueue } from '@/lib/queueCalculations'
@@ -18,8 +21,17 @@ const branch = (a: Record<string, any>) => String(a.branch_id || a.branchId || '
 const queueNumber = (a: Record<string, any>) => Number(a.queue_number || a.queueNumber || 0)
 const stamp = () => new Date().toISOString()
 
-async function sendCalledPatient(clinicId: string, slug: string, appt: Record<string, any>, calledAt: string) {
-  const eventId = `turn_ready_${appt.id}_${calledAt}`
+async function sendCalledPatient(
+  clinicId: string,
+  slug: string,
+  appt: Record<string, any>,
+  calledAction: 'start' | 'skip' | 'recall',
+  calledAt: string,
+) {
+  const eventId = getTurnReadyEventId(appt, calledAction, calledAt)
+  const tagSalt = calledAction === 'recall'
+    ? calledAt.replace(/[^0-9]/g, '').slice(-8)
+    : String(appt.requeuedAt || appt.skippedAt || appt.noShowAt || '0')
   const recipientPhone = String(appt.phone || appt.patientPhone || '').trim()
   const tasks: Promise<unknown>[] = [
     dispatchPatientPushNotification({
@@ -27,6 +39,7 @@ async function sendCalledPatient(clinicId: string, slug: string, appt: Record<st
       title: 'حان دورك الآن للدخول!',
       body: `رقم دورك #${queueNumber(appt)}. يرجى التوجه لغرفة الكشف.`,
       url: `/clinic/${slug}/track/${appt.id}`,
+      tag: buildPushTag('turn_ready', String(appt.id), tagSalt),
       eventId, urgency: 'high', ttl: 600,
     }),
   ]
@@ -51,7 +64,7 @@ async function alertWaitingPatients(
   for (let i = 0; i < waiting.length && i < 5; i++) {
     const appt = waiting[i]
     const ahead = i + 1 // Includes current person in examination.
-    const eventId = `approaching_${appt.id}_${ahead}`
+    const eventId = getApproachingEventId(appt, ahead)
     const recipientPhone = String(appt.phone || appt.patientPhone || '').trim()
     if (recipientPhone) {
       batches.push(createServerNotification({
@@ -67,7 +80,8 @@ async function alertWaitingPatients(
       title: ahead === 1 ? 'أنت المريض التالي للدخول!' : `اقترب دورك: متبقي ${ahead}`,
       body: 'يرجى مراجعة صفحة متابعة الدور والاستعداد للحضور.',
       url: `/clinic/${slug}/track/${appt.id}`,
-      eventId, ttl: 300,
+      tag: buildPushTag('approaching_turn', String(appt.id), String(ahead)),
+      eventId, urgency: 'high', ttl: 300,
     }))
   }
   const results = await Promise.allSettled(batches)
@@ -120,6 +134,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     const patches: Array<{path:string; data:Record<string,unknown>}> = []
     let called: Record<string, any> | null = null
     let calledTime = ''
+    let calledAction: 'start' | 'skip' | 'recall' = 'start'
     if (action === 'start') {
       if (!['waiting','skipped','no_show','in_progress','examining'].includes(String(appt.status || 'waiting'))) {
         return NextResponse.json({ error: 'PATIENT_NOT_AVAILABLE_FOR_CALL' }, { status: 409 })
@@ -134,7 +149,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
         status:'in_progress', startedAt: appt.startedAt || now, calledAt: now,
         arrivedAt: appt.arrivedAt || now, paymentStatus: 'paid',
       } })
-      called = appt; calledTime = now
+      called = appt; calledTime = now; calledAction = 'start'
     } else if (action === 'skip') {
       patches.push({ path: `appointments/${id}`,
         data: { status: 'skipped', skippedAt: now, priorityNext:false } })
@@ -144,7 +159,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
           status:'in_progress', startedAt:now, calledAt:now, arrivedAt:next.arrivedAt || now,
           paymentStatus:'paid', priorityNext:false,
         }})
-        called = next; calledTime = now
+        called = next; calledTime = now; calledAction = 'skip'
       }
     } else if (action === 'complete') {
       if (!['in_progress','examining'].includes(String(appt.status))) {
@@ -160,7 +175,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
         return NextResponse.json({ error: 'PATIENT_NOT_CALLED' }, { status: 409 })
       }
       patches.push({ path: `appointments/${id}`, data: { calledAt: now } })
-      called = appt; calledTime = now
+      called = appt; calledTime = now; calledAction = 'recall'
     } else if (action === 'requeue') {
       patches.push({ path: `appointments/${id}`, data: {
         status: 'waiting', priorityNext: true, requeuedAt:now,
@@ -173,7 +188,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     // Booking state has already committed: delivery errors never undo a visit.
     // The client may display a non-blocking delivery warning separately.
     if (called) {
-      await sendCalledPatient(staff.clinicId, slug, called, calledTime)
+      await sendCalledPatient(staff.clinicId, slug, called, calledAction, calledTime)
       const pending = sameBranch.filter(a => a.id !== called!.id && (a.status === 'waiting' || !a.status))
       await alertWaitingPatients(staff.clinicId, slug, pending, called.id, clinicDoc)
     }

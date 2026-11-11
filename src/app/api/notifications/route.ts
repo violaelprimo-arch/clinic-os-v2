@@ -6,6 +6,7 @@ import { getCairoDateString } from '@/lib/bookingCapacity'
 import {
   listServerNotifications, markServerNotificationRead, createServerNotification,
 } from '@/lib/server/clinic-notifications'
+import { getApproachingEventId, getTurnReadyEventId } from '@/lib/pushDispatcher'
 
 export const dynamic = 'force-dynamic'
 const noStore = { 'Cache-Control': 'private, no-store' }
@@ -57,6 +58,14 @@ async function reconcilePatientTurn(
   const status = String(appointment.status || 'waiting')
   const sourcePhone = String(appointment.phone || appointment.patientPhone || '')
   if (status === 'in_progress' || status === 'examining') {
+    const calledAt = String(appointment.calledAt || '')
+    const startedAt = String(appointment.startedAt || '')
+    const wasRecalled = Boolean(calledAt && startedAt && calledAt !== startedAt)
+    const eventId = getTurnReadyEventId(
+      { ...appointment, id: appointmentId },
+      wasRecalled ? 'recall' : 'start',
+      calledAt || startedAt || 'started',
+    )
     await createServerNotification({
       clinicId: recipient.clinicId,
       branchId: String(appointment.branch_id || appointment.branchId || ''),
@@ -64,7 +73,7 @@ async function reconcilePatientTurn(
       title: 'دورك الآن للدخول!',
       body: `حان دورك للدخول إلى غرفة الكشف (رقم ${appointment.queue_number || appointment.queueNumber}).`,
       type: 'turn_ready', appointmentId,
-      eventId: `turn_ready_${appointmentId}_${appointment.calledAt || appointment.startedAt || 'started'}`,
+      eventId,
     })
     return
   }
@@ -84,7 +93,7 @@ async function reconcilePatientTurn(
     title: ahead === 1 ? 'أنت المريض التالي للدخول!' : `اقترب دورك: متبقي ${ahead}`,
     body: `متبقي أمامك ${ahead} في انتظار الكشف. يرجى الاستعداد والتواجد بالعيادة.`,
     type: 'approaching_turn', appointmentId,
-    eventId: `approaching_${appointmentId}_${ahead}`,
+    eventId: getApproachingEventId({ ...appointment, id: appointmentId }, ahead),
   })
 }
 

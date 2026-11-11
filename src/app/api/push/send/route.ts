@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { dispatchPatientPushNotification } from '@/lib/pushDispatcher'
+import { buildPushTag, dispatchPatientPushNotification } from '@/lib/pushDispatcher'
 import { getCurrentClinicStaff } from '@/lib/server/clinic-staff-access'
 import { sameOriginMutation } from '@/lib/server/push-access'
 import { readDocument } from '@/lib/server/firebase-rest'
@@ -34,8 +34,9 @@ export async function POST(req: NextRequest) {
       type, clinicId: staff.clinicId, appointmentId: data.appointmentId,
       title: titles[type], body: 'راجع صفحة متابعة حجزك لمعرفة التفاصيل.',
       url: `/clinic/${encodeURIComponent(String(staff.user.slug))}/track/${data.appointmentId}`,
+      tag: buildPushTag(type, data.appointmentId, String(appt.calledAt || appt.updatedAt || '').slice(-6)),
       eventId: `staff_${type}_${data.appointmentId}_${String(appt.calledAt || appt.updatedAt || '')}`,
-      urgency: type === 'turn_ready' ? 'high' : 'normal',
+      urgency: type === 'turn_ready' || type === 'approaching_turn' ? 'high' : 'normal',
     })
     return NextResponse.json(result)
   } catch (error) {

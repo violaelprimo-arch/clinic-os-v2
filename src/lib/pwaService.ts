@@ -320,6 +320,8 @@ export async function sendDeviceTestPush({
 
     const res = await fetch('/api/push/test', {
       method: 'POST',
+      credentials: 'same-origin',
+      cache: 'no-store',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         endpoint: sub.endpoint,
@@ -328,7 +330,7 @@ export async function sendDeviceTestPush({
       }),
     })
 
-    const data = await res.json()
+    const data = await res.json().catch(() => ({}))
     if (res.ok && data.success) {
       return { success: true, message: data.message }
     } else {
