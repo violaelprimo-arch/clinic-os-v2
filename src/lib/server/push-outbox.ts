@@ -3,7 +3,7 @@ import {
   queryDocumentsByField, readDocument, writeDocument,
   acquireFirestoreLease, releaseFirestoreLease,
 } from '@/lib/server/firebase-rest'
-import { sendWebPushNotification } from '@/lib/webPushServer'
+import { sendWebPushNotification, getVapidConfig } from '@/lib/webPushServer'
 
 /** Retry temporary Web Push gateway failures from Cloudflare's scheduled handler. */
 export async function processPendingPushOutbox(maxBatch = 20) {
@@ -36,6 +36,7 @@ export async function processPendingPushOutbox(maxBatch = 20) {
       const subscription = await readDocument(`push_subscriptions/${subscriptionId}`)
       const role = fresh.recipientType === 'staff' ? 'staff' : 'patient'
       const valid = subscription?.status === 'active' &&
+        subscription?.vapidPublicKey === getVapidConfig().publicKey &&
         subscription?.clinicId === fresh.clinicId && subscription?.role === role &&
         (role === 'staff' ||
           (Array.isArray(subscription?.appointmentIds) &&
