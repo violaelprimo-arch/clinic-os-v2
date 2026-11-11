@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Building2, ChevronDown, Check, Plus } from 'lucide-react'
 import { Branch } from '@/types/clinic'
-import { getClinicBranches, ensureClinicHasMainBranch } from '@/lib/branchService'
+import { getClinicBranches } from '@/lib/branchService'
 import { sanitizeAddress } from '@/lib/mapsHelper'
 import Link from 'next/link'
 import { useLanguage } from '@/context/LanguageContext'
@@ -32,8 +32,7 @@ export function BranchSelector({
 
     const fetchBranches = async () => {
       try {
-        await ensureClinicHasMainBranch(clinic)
-        const list = await getClinicBranches(clinicId)
+        const list = await getClinicBranches(clinicId, clinic.slug)
         setBranches(list.filter((b) => !b.isArchived))
       } catch (err) {
         console.error('Error fetching branches for selector:', err)
