@@ -331,6 +331,10 @@ function OwnerDashboard() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [globalApiKey, setGlobalApiKey] = useState('')
   const [resendApiKey, setResendApiKey] = useState('')
+  const [savedPlatformSecrets, setSavedPlatformSecrets] = useState({
+    ai: false,
+    resend: false,
+  })
   const [supportNumbers, setSupportNumbers] = useState<any[]>([{phone: '01551007018', label: 'دعم المنصة', isActive: true}])
   const [isSavingGlobal, setIsSavingGlobal] = useState(false)
   const [previewTemplateModal, setPreviewTemplateModal] = useState<string | null>(null)
@@ -422,11 +426,20 @@ function OwnerDashboard() {
   useEffect(() => {
     const fetchGlobal = async () => {
       try {
-        const snap = await getDocs(collection(db, 'system'))
-        const configDoc = snap.docs.find(d => d.id === 'config')
-        if (configDoc) {
-          if (configDoc.data().globalAiKey) setGlobalApiKey(configDoc.data().globalAiKey)
-          if (configDoc.data().resendApiKey) setResendApiKey(configDoc.data().resendApiKey)
+        // Secure server API: Firestore rules intentionally forbid browser
+        // access to system/config because it contains private API keys.
+        const configResponse = await fetch('/api/owner/platform-config', {
+          cache: 'no-store', credentials: 'same-origin',
+        })
+        if (configResponse.ok) {
+          const config = await configResponse.json()
+          setSavedPlatformSecrets({
+            ai: config.hasGlobalAiKey === true,
+            resend: config.hasResendApiKey === true,
+          })
+          if (Array.isArray(config.supportNumbers)) {
+            setSupportNumbers(config.supportNumbers)
+          }
         }
         
         const pSnap = await getDocs(collection(db, 'platformSettings'))
@@ -1150,11 +1163,29 @@ function OwnerDashboard() {
   const saveGlobalKey = async () => {
     setIsSavingGlobal(true)
     try {
-      await setDoc(doc(db, 'system', 'config'), { globalAiKey: globalApiKey, resendApiKey }, { merge: true })
-      await setDoc(doc(db, 'platformSettings', 'main'), { supportNumbers }, { merge: true })
+      const response = await fetch('/api/owner/platform-config', {
+        method: 'PUT', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          globalAiKey: globalApiKey,
+          resendApiKey,
+          supportNumbers,
+        }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok || result.success !== true) {
+        throw new Error(result.error || 'فشل حفظ إعدادات المالك')
+      }
+      setSavedPlatformSecrets(previous => ({
+        ai: previous.ai || !!globalApiKey.trim(),
+        resend: previous.resend || !!resendApiKey.trim(),
+      }))
+      // Never keep a saved secret visible in page state.
+      setGlobalApiKey('')
+      setResendApiKey('')
       toast.success('تم حفظ إعدادات المنصة بنجاح!')
     } catch (err) {
-      toast.error('حدث خطأ أثناء حفظ الإعدادات')
+      toast.error(err instanceof Error ? err.message : 'حدث خطأ أثناء حفظ الإعدادات')
     } finally {
       setIsSavingGlobal(false)
     }
@@ -5202,7 +5233,7 @@ function OwnerDashboard() {
                 value={globalApiKey}
                 onChange={e => setGlobalApiKey(e.target.value)}
                 dir="ltr"
-                placeholder="AIzaSy... أو sk-proj-..."
+                placeholder={savedPlatformSecrets.ai ? 'تم حفظ المفتاح — اتركه فارغًا للإبقاء عليه' : 'AIzaSy... أو sk-proj-...'}
                 className="h-11 text-xs font-mono rounded-xl bg-slate-50 border-[#E5EAF0] focus:bg-white text-right"
               />
               <p className="text-[11px] text-slate-400">
@@ -5216,7 +5247,7 @@ function OwnerDashboard() {
                 value={resendApiKey}
                 onChange={e => setResendApiKey(e.target.value)}
                 dir="ltr"
-                placeholder="re_..."
+                placeholder={savedPlatformSecrets.resend ? 'تم حفظ المفتاح — اتركه فارغًا للإبقاء عليه' : 're_...'}
                 className="h-11 text-xs font-mono rounded-xl bg-slate-50 border-[#E5EAF0] focus:bg-white text-right"
               />
               <p className="text-[11px] text-slate-400">
