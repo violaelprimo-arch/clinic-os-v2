@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { PasswordInput } from '@/components/ui/password-input'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { AlertCircle, ShieldCheck, ArrowLeft, ArrowRight, Lock, CheckCircle2 } from 'lucide-react'
+import { AlertCircle, ShieldCheck, ArrowLeft, ArrowRight, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import Link from 'next/link'
@@ -219,10 +219,15 @@ export default function UniversalClinicLogin() {
 
           {/* Center Brand Statement */}
           <div className="relative z-10 my-auto text-center space-y-6">
-            <div className="relative w-44 h-44 mx-auto rounded-3xl overflow-hidden shadow-2xl border-2 border-white/20 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6">
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-[#087CF4] to-[#0284C7] flex items-center justify-center text-white shadow-lg">
-                <Lock className="w-10 h-10" />
-              </div>
+            <div className="relative w-44 h-44 mx-auto rounded-3xl overflow-hidden shadow-2xl border-2 border-white/20 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-5">
+              <div className="absolute inset-0 bg-gradient-to-tr from-[#087CF4]/20 via-transparent to-[#02CFF3]/20 pointer-events-none" />
+              <img
+                src="/brand/yalla-clinic/app-icon.png"
+                alt="أيقونة Yalla Clinic"
+                width={132}
+                height={132}
+                className="relative z-10 w-32 h-32 object-contain drop-shadow-2xl"
+              />
             </div>
 
             <div className="space-y-2">
