@@ -1,6 +1,6 @@
 import 'server-only'
 import { readDocument, writeDocument, createDocument, queryDocumentsByField } from '@/lib/server/firebase-rest'
-import { isValidPushEndpoint, sendWebPushNotification } from '@/lib/webPushServer'
+import { isValidPushEndpoint, sendWebPushNotification, getVapidConfig } from '@/lib/webPushServer'
 
 export interface PushSubscriptionRecord {
   id: string
@@ -11,6 +11,7 @@ export interface PushSubscriptionRecord {
   appointmentIds: string[]
   status: 'active' | 'deactivated' | 'expired'
   userAgent?: string
+  vapidPublicKey?: string
   createdAt: string
   updatedAt: string
   lastDeliveryAt?: string
@@ -41,6 +42,7 @@ export async function registerDeviceSubscription({
     throw new Error('INVALID_PUSH_SUBSCRIPTION')
   }
   const id = await getSubscriptionId(subscription.endpoint)
+  const currentVapidKey = getVapidConfig().publicKey
   const existing = await readDocument(`push_subscriptions/${id}`)
   // An endpoint is a device credential. On a new authorization, replace any
   // prior clinic ownership; never leak alerts across clinic accounts.
@@ -53,6 +55,7 @@ export async function registerDeviceSubscription({
   await writeDocument(`push_subscriptions/${id}`, {
     id, clinicId, role,
     endpoint: subscription.endpoint, keys: subscription.keys,
+    vapidPublicKey: currentVapidKey,
     appointmentIds: appointmentIds.slice(-50),
     status: 'active', userAgent: String(userAgent || '').slice(0, 256),
     createdAt: sameScope && existing?.createdAt ? existing.createdAt : now,
@@ -73,8 +76,10 @@ export async function findSubscribersForAppointment({
 }): Promise<PushSubscriptionRecord[]> {
   if (!clinicId) return []
   const rows = await queryDocumentsByField('push_subscriptions', 'clinicId', clinicId, 100)
+  const currentVapidKey = getVapidConfig().publicKey
   return rows.filter((row: any) =>
     row.status === 'active' && row.role === recipientType &&
+    row.vapidPublicKey === currentVapidKey &&
     isValidPushEndpoint(row.endpoint) && row.keys?.p256dh && row.keys?.auth &&
     (recipientType === 'staff' || (
       appointmentId && Array.isArray(row.appointmentIds) &&
