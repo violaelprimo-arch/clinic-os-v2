@@ -7,10 +7,6 @@
  * - Detection of iOS Safari Home Screen standalone mode
  */
 
-export const VAPID_PUBLIC_KEY =
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
-  'BCa73xOIycmAG3s96I_I5ra3_cPw7yeV97Wh8hh01Gb24_CsLZYnDH04cJS5MTLr2irpKgc_VlCLgSpqakLmX-Y'
-
 export function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
@@ -117,17 +113,14 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
  * Fetches the active VAPID public key from the server API if needed.
  */
 export async function fetchServerVapidKey(): Promise<string> {
-  if (VAPID_PUBLIC_KEY && VAPID_PUBLIC_KEY.length > 20) {
-    return VAPID_PUBLIC_KEY
+  const response = await fetch('/api/push/vapid-public-key', {
+    cache: 'no-store', credentials: 'same-origin',
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok || typeof data.publicKey !== 'string' || data.publicKey.length < 60) {
+    throw new Error('VAPID_KEY_NOT_CONFIGURED')
   }
-  try {
-    const res = await fetch('/api/push/vapid-public-key')
-    if (res.ok) {
-      const data = await res.json()
-      if (data.publicKey) return data.publicKey
-    }
-  } catch {}
-  return VAPID_PUBLIC_KEY
+  return data.publicKey
 }
 
 /**
