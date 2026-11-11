@@ -170,15 +170,19 @@ export default function TrackQueuePage({
       }
     }
 
+    let retryingQueue = false
+
     const scheduleNext = () => {
       clearScheduled()
       if (cancelled) return
-      const delayMs = document.visibilityState === 'visible' ? 1200 : 6000
+      if (document.visibilityState !== 'visible') return
+      const delayMs = retryingQueue ? 30000 : 5000
       scheduledTimer = window.setTimeout(() => void refreshQueue(false), delayMs)
     }
 
     const refreshQueue = async (immediate = false) => {
       if (cancelled) return
+      if (document.visibilityState !== 'visible') return
       if (immediate) clearScheduled()
       if (inFlight) {
         pendingRefresh = true
@@ -194,8 +198,10 @@ export default function TrackQueuePage({
           { cache: 'no-store', signal: controller.signal }
         )
         const data = await res.json().catch(() => ({}))
-        if (cancelled || !res.ok || !data?.success) return
+        if (cancelled) return
+        if (!res.ok || !data?.success) throw new Error('QUEUE_API_UNAVAILABLE')
 
+        retryingQueue = false
         const incomingWatermark: QueueWatermark | null = data.queueWatermark || null
         if (
           !shouldAcceptQueueSnapshot(trackWatermark, incomingWatermark, {
@@ -223,6 +229,7 @@ export default function TrackQueuePage({
           })
         }
       } catch (err) {
+        retryingQueue = true
         if (!cancelled && !(err instanceof Error && err.name === 'AbortError')) {
           console.warn('[track] Queue refresh warning:', err)
         }
@@ -241,6 +248,7 @@ export default function TrackQueuePage({
     const onSignal = () => { void refreshQueue(true) }
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') void refreshQueue(true)
+      else clearScheduled()
     }
     const unsubscribeSignal = subscribeClinicQueueSignal(slug, onSignal)
     window.addEventListener('focus', onSignal)
@@ -672,4 +680,4 @@ export default function TrackQueuePage({
       </footer>
     </div>
   )
-}
+}
