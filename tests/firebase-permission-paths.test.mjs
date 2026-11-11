@@ -41,3 +41,16 @@ test('firebase readiness probe is owner-only and does not disclose private crede
   assert.doesNotMatch(route, /privateKey:/)
   assert.doesNotMatch(route, /access_token:/)
 })
+
+test('owner token claims match Firestore owner rules before issuing the owner session', () => {
+  const verifier = read('src/lib/server/firebase-owner-auth.ts')
+  const api = read('src/app/api/auth/owner-login/route.ts')
+  assert.match(verifier, /claims\.platformOwner !== true/)
+  assert.match(verifier, /claims\.ownerUid !== ownerUid/)
+  assert.match(verifier, /claims\.ownerEmail !== OWNER_EMAIL/)
+  assert.match(verifier, /claims\.email_verified !== true/)
+  assert.match(api, /OWNER_FIREBASE_CLAIMS_REQUIRED/)
+  const script = read('scripts/verify-owner-firebase-claims.mjs')
+  assert.match(script, /process\.argv\.includes\('--apply'\)/)
+  assert.match(script, /OWNER_IDENTITY_MISMATCH_OR_EMAIL_NOT_VERIFIED/)
+})
