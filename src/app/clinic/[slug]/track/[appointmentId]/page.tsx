@@ -2,14 +2,12 @@
 
 import { use, useEffect, useState, useMemo, useRef } from 'react'
 import { watchPublicClinicProfile } from '@/lib/clinic-profile-client'
-import { db } from '@/lib/firebase'
 import {
   calculatePatientLivePosition,
   PatientQueueStatusResult,
   formatEstimatedTime
 } from '@/lib/queueCalculations'
-import { checkAndTriggerQueuePositionAlert, playNotificationSound } from '@/lib/notificationService'
-import { doc, getDoc, onSnapshot, collection, query, where } from 'firebase/firestore'
+import { playNotificationSound } from '@/lib/notificationService'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -34,140 +32,125 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
   const { dir, t, isRtl } = useLanguage()
 
   const [appointment, setAppointment] = useState<any>(null)
-  const [allQueueAppts, setAllQueueAppts] = useState<any[]>([])
+  const [serverQueueInfo, setServerQueueInfo] = useState<PatientQueueStatusResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [clinic, setClinic] = useState<any>(null)
   const [branchData, setBranchData] = useState<any>(null)
   const [showInvoiceModal, setShowInvoiceModal] = useState(false)
 
   useEffect(() => {
-    let unsubQueue: (() => void) | null = null
-    let isCancelled = false
+    let cancelled = false
+    let inFlight = false
 
-    // Fetch via secure server API
-    const loadFromServerApi = async () => {
+    // Firestore rules intentionally deny public appointment reads. Rely on
+    // the trusted, appointment-scoped queue response for consistent live state.
+    const refreshQueue = async () => {
+      if (cancelled || inFlight) return
+      inFlight = true
       try {
-        const res = await fetch(`/api/clinic/${slug}/queue?appointmentId=${encodeURIComponent(appointmentId)}`)
-        const data = await res.json().catch(() => ({}))
-        if (!isCancelled && res.ok && data.success) {
-          if (data.clinic) setClinic((prev: any) => ({ ...prev, ...data.clinic }))
-          if (data.matchingAppointments && data.matchingAppointments.length > 0) {
-            setAppointment((prev: any) => ({ ...prev, ...data.matchingAppointments[0] }))
-          }
+        const response = await fetch(
+          `/api/clinic/${encodeURIComponent(slug)}/queue?appointmentId=${encodeURIComponent(appointmentId)}`,
+          { cache: 'no-store', credentials: 'same-origin' },
+        )
+        const data = await response.json().catch(() => ({}))
+        if (cancelled) return
+        if (!response.ok || !data.success) throw new Error('QUEUE_API_UNAVAILABLE')
+        if (data.clinic) setClinic((prev: any) => ({ ...prev, ...data.clinic }))
+        const match = Array.isArray(data.matchingAppointments)
+          ? data.matchingAppointments.find((a: any) => a.id === appointmentId)
+          : null
+        if (match) {
+          setAppointment((prev: any) => ({ ...prev, ...match }))
+          setServerQueueInfo(data.patientQueueInfo || null)
+        } else {
+          setAppointment(null)
+          setServerQueueInfo(null)
+        }
+        setLoading(false)
+      } catch (error) {
+        // Keep last-known valid patient turn on intermittent network errors.
+        if (!cancelled) {
+          console.warn('[patient-track] Queue refresh failed:', error)
           setLoading(false)
         }
-      } catch (err) {
-        console.warn('Queue server fetch error:', err)
+      } finally {
+        inFlight = false
       }
     }
-    loadFromServerApi()
-    const apiInterval = setInterval(loadFromServerApi, 7000)
-
-    // 1. Fetch clinic data
-    const unsubClinic = watchPublicClinicProfile(slug, (data) => { setClinic(data) })
-
-    // 2. Listen to this appointment live
-    const unsubscribeAppt = onSnapshot(doc(db, 'appointments', appointmentId), (docSnap) => {
-      if (docSnap.exists()) {
-        const apptData = { id: docSnap.id, ...docSnap.data() } as any
-        setAppointment(apptData)
-
-        // Fetch branch data for isolated duration
-        if (apptData.branch_id) {
-          getDoc(doc(db, 'branches', apptData.branch_id)).then((bSnap) => {
-            if (bSnap.exists()) {
-              setBranchData({ id: bSnap.id, ...bSnap.data() })
-            }
-          }).catch(() => {})
-        }
-
-        // 3. Listen to today's branch queue live
-        if (unsubQueue) {
-          unsubQueue()
-          unsubQueue = null
-        }
-
-        const todayDate = apptData.date || new Date().toISOString().split('T')[0]
-        const constraints: any[] = [
-          where('clinic_id', '==', apptData.clinic_id),
-          where('date', '==', todayDate)
-        ]
-
-        const qQueue = query(collection(db, 'appointments'), ...constraints)
-        unsubQueue = onSnapshot(qQueue, (queueSnap) => {
-          const list = queueSnap.docs.map(d => ({ id: d.id, ...d.data() }))
-          setAllQueueAppts(list)
-          setLoading(false)
-        }, (err) => {
-          console.error('Queue subscription error:', err)
-          setLoading(false)
-        })
-      } else {
-        setAppointment(null)
-        setLoading(false)
-      }
-    }, (err) => {
-      console.error('Appointment subscription error:', err)
-      setLoading(false)
-    })
-
+    void refreshQueue()
+    const timer = window.setInterval(() => void refreshQueue(), 5000)
+    const stopClinic = watchPublicClinicProfile(slug, data => setClinic(data))
     return () => {
-      isCancelled = true
-      clearInterval(apiInterval)
-      unsubClinic()
-      unsubscribeAppt()
-      if (unsubQueue) unsubQueue()
+      cancelled = true
+      window.clearInterval(timer)
+      stopClinic()
     }
   }, [slug, appointmentId])
 
+  useEffect(() => {
+    if (!appointment?.branch_id) return
+    let cancelled = false
+    const loadBranch = async () => {
+      try {
+        const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/branches`, {
+          cache: 'no-store',
+        })
+        const data = await res.json().catch(() => ({}))
+        if (cancelled || !res.ok || !Array.isArray(data.branches)) return
+        const branch = data.branches.find((b: any) => b.id === appointment.branch_id)
+        if (branch) setBranchData(branch)
+      } catch (error) {
+        if (!cancelled) console.warn('[patient-track] Branch lookup failed:', error)
+      }
+    }
+    void loadBranch()
+    return () => { cancelled = true }
+  }, [slug, appointment?.branch_id])
+
   // Compute live queue position using unified clinical schedule & queue engine
   const liveQueue: PatientQueueStatusResult = useMemo(() => {
+    if (serverQueueInfo) return serverQueueInfo
     return calculatePatientLivePosition({
       targetAppointmentId: appointmentId,
       targetAppointment: appointment,
-      allTodayAppointments: allQueueAppts,
+      allTodayAppointments: [],
       clinic,
       branch: branchData,
       isRtl
     })
-  }, [appointmentId, appointment, allQueueAppts, clinic, branchData, isRtl])
+  }, [appointmentId, appointment, serverQueueInfo, clinic, branchData, isRtl])
 
-  const prevExaminingRef = useRef<any>(null)
+  const previousExaminingRef = useRef<string | null>(null)
+  const lastReadyAlertRef = useRef<string | null>(null)
 
-  // Fire sound/push notifications when patient's turn arrives or is approaching, or on patient entry
+  // Visual and audio alerts are derived from real queue transitions, not every
+  // API refresh. Persistent notifications are reconciled by the authenticated
+  // /api/notifications endpoint when the account owner is signed in.
   useEffect(() => {
-    if (appointment && appointment.clinic_id) {
-      const currentExaminingNum = liveQueue.currentPatientExamining?.queueNumber
-
-      // Notify on each patient entry to the examination room
-      if (
-        prevExaminingRef.current !== null &&
-        currentExaminingNum &&
-        currentExaminingNum !== prevExaminingRef.current &&
-        appointment.status === 'waiting'
-      ) {
-        playNotificationSound('chime')
-        toast.info(
-          isRtl
-            ? `🔔 دخل الآن المريض رقم #${currentExaminingNum} لغرفة الكشف. دورك رقم #${appointment.queue_number} (متبقي أمامك ${liveQueue.aheadCount} مرضى).`
-            : `🔔 Patient #${currentExaminingNum} has entered the exam room. Your turn is #${appointment.queue_number} (${liveQueue.aheadCount} ahead).`
-        )
-      }
-      prevExaminingRef.current = currentExaminingNum || null
-
-      checkAndTriggerQueuePositionAlert({
-        appointment: { id: appointmentId, ...appointment },
-        waitingAheadCount: liveQueue.aheadCount,
-        clinicId: appointment.clinic_id,
-        branchName: appointment.branchName,
-        currentExaminingQueueNumber: currentExaminingNum
-      })
-
-      if (liveQueue.isCurrentTurn || appointment.status === 'in_progress') {
-        playNotificationSound('turn_ready')
-      }
+    if (!appointment || !appointment.clinic_id) return
+    const examiningNumber = liveQueue.currentPatientExamining?.queueNumber
+    const examiningKey = examiningNumber == null ? null : String(examiningNumber)
+    if (previousExaminingRef.current !== null && examiningKey !== null &&
+        previousExaminingRef.current !== examiningKey &&
+        appointment.status === 'waiting') {
+      playNotificationSound('chime')
+      toast.info(isRtl
+        ? `🔔 دخل الآن المريض رقم #${examiningKey} لغرفة الكشف. متبقي أمامك ${liveQueue.aheadCount} مرضى.`
+        : `🔔 Patient #${examiningKey} entered the examination room. ${liveQueue.aheadCount} ahead.`)
     }
-  }, [appointment, liveQueue.aheadCount, liveQueue.status, liveQueue.isCurrentTurn, liveQueue.currentPatientExamining?.queueNumber, appointmentId])
+    previousExaminingRef.current = examiningKey
+
+    const ready = liveQueue.isCurrentTurn ||
+      appointment.status === 'in_progress' || appointment.status === 'examining'
+    const readyKey = `${appointmentId}:${appointment.calledAt || appointment.startedAt || 'ready'}`
+    if (ready && lastReadyAlertRef.current !== readyKey) {
+      lastReadyAlertRef.current = readyKey
+      playNotificationSound('turn_ready')
+      toast.success(isRtl ? 'حان دورك الآن! تفضل بالدخول إلى غرفة الكشف.' : 'It is your turn. Please enter the examination room.')
+    }
+  }, [appointmentId, appointment?.status, appointment?.calledAt,
+      appointment?.startedAt, liveQueue.aheadCount, liveQueue.isCurrentTurn,
+      liveQueue.currentPatientExamining?.queueNumber, isRtl])
 
   if (loading) {
     return <ClinicLoading fullScreen size="lg" label={t('syncing_queue', 'جاري مزامنة الدور المباشر...')} />
@@ -230,6 +213,12 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
             <div className={`absolute ${isRtl ? 'left-0' : 'right-0'} top-0`}>
               <NotificationCenter
                 recipientTarget={appointment.phone}
+                clinicId={appointment.clinic_id}
+                slug={slug}
+                appointmentId={appointmentId}
+                patientAheadCount={liveQueue.aheadCount}
+                patientTurnReady={liveQueue.isCurrentTurn || appointment.status === 'in_progress' || appointment.status === 'examining'}
+                patientStatus={appointment.status}
                 recipientLabel={appointment.patientName}
                 recipientType="patient"
               />

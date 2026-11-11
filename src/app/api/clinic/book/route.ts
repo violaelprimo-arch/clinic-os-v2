@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { readDocument, queryDocuments, writeDocument } from '@/lib/server/firebase-rest'
 import { canonicalizeBranches } from '@/lib/branchCanonical'
 
-import { createClinicNotification } from '@/lib/notificationService'
+import { createServerNotification } from '@/lib/server/clinic-notifications'
 import { dispatchPatientPushNotification } from '@/lib/pushDispatcher'
 import { createAtomicAppointmentServer } from '@/lib/server/firebase-rest'
 import { isClinicSuspended } from '@/lib/clinicAccessPolicy'
@@ -294,15 +294,17 @@ export async function POST(req: NextRequest) {
     }
 
     // Trigger clinic notifications
-    createClinicNotification({
+    createServerNotification({
       clinicId,
+      branchId,
       recipientTarget: clinicId,
       recipientType: 'staff',
       type: 'new_booking',
       title: 'حجز جديد',
       body: `حجز جديد للمريض ${cleanName} - دور #${queueNumber} (${verifiedServiceName})`,
+      eventId: `new_booking_${clinicId}_${docRef.id}`,
       appointmentId: docRef.id
-    }).catch((err) => console.error('Failed to trigger in-app notification:', err))
+    }).catch((err) => console.error('Failed to persist staff notification:', err))
 
     // Send push notification
     dispatchPatientPushNotification({

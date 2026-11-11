@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readDocument, queryDocuments } from '@/lib/server/firebase-rest'
+import { readDocument, queryDocuments, queryDocumentsByFields } from '@/lib/server/firebase-rest'
 import { calculatePatientLivePosition } from '@/lib/queueCalculations'
 import { getPhoneSearchVariants, normalizePhoneDigits } from '@/lib/countryPhoneHelper'
 
@@ -14,6 +14,9 @@ export async function GET(
     const phone = searchParams.get('phone')
     const branchId = searchParams.get('branchId')
     const appointmentId = searchParams.get('appointmentId')
+    if (appointmentId && !/^[A-Za-z0-9_-]{1,128}$/.test(appointmentId)) {
+      return NextResponse.json({ error: 'معرف الحجز غير صالح' }, { status: 400 })
+    }
 
     // 1. Resolve clinic document via secure server REST
     const allClinics = await queryDocuments('clinics')
@@ -45,15 +48,29 @@ export async function GET(
     const nowCairo = new Date()
     const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(nowCairo)
 
-    // 2. Fetch appointments via secure server REST
-    const allAppts = await queryDocuments('appointments')
+    // 2. TV and individual patient tracking use a tenant/date-scoped query.
+    // Unrelated historical appointments must not hide the active queue.
+    const tvOnly = searchParams.get('tv') === '1' && !appointmentId && !phone
+    const directlyRequested = appointmentId
+      ? await readDocument(`appointments/${appointmentId}`)
+      : null
+    if (appointmentId && directlyRequested &&
+        ![directlyRequested.clinic_id, directlyRequested.clinicId].includes(clinicId)) {
+      return NextResponse.json({ error: 'الحجز لا يتبع هذه العيادة' }, { status: 403 })
+    }
+    const snapshotDate = (appointmentId && directlyRequested?.date)
+      ? String(directlyRequested.date) : todayStr
+    const allAppts = (tvOnly || (appointmentId && directlyRequested))
+      ? await queryDocumentsByFields('appointments',
+          { clinic_id: clinicId, date: snapshotDate }, 250)
+      : await queryDocuments('appointments')
     const clinicAppts = allAppts.filter((a: any) => a.clinic_id === clinicId || a.clinicId === clinicId)
 
     const allTodayAppts = clinicAppts
       .filter((a: any) => a.date === todayStr)
       .filter((a: any) => !branchId || a.branch_id === branchId || a.branchName === branchId)
 
-    const inProgressAppt = allTodayAppts.find((a: any) => a.status === 'in_progress')
+    const inProgressAppt = allTodayAppts.find((a: any) => a.status === 'in_progress' || a.status === 'examining')
     const waitingAppts = allTodayAppts.filter((a: any) => a.status === 'waiting' || !a.status)
 
     // 3. Handle phone / appointment search
@@ -64,7 +81,7 @@ export async function GET(
       let matchedDocs: any[] = []
 
       if (appointmentId) {
-        const directDoc: any = await readDocument(`appointments/${appointmentId}`)
+        const directDoc: any = directlyRequested
         if (directDoc && (directDoc.clinic_id === clinicId || directDoc.clinicId === clinicId)) {
           matchedDocs.push({ id: appointmentId, ...directDoc })
         }
@@ -130,6 +147,11 @@ export async function GET(
 
         return {
           id: appt.id,
+          clinic_id: appt.clinic_id || appt.clinicId,
+          branch_id: appt.branch_id || appt.branchId,
+          queue_number: appt.queue_number ?? appt.queueNumber,
+          calledAt: appt.calledAt,
+          startedAt: appt.startedAt,
           patientName: appt.patientName,
           phone: appt.phone || appt.patientPhone,
           serviceId: appt.serviceId,
@@ -195,13 +217,19 @@ export async function GET(
           patientName: inProgressAppt.patientName,
           status: inProgressAppt.status,
           calledAt: inProgressAppt.calledAt,
-          startedAt: inProgressAppt.startedAt
+          startedAt: inProgressAppt.startedAt,
+          branchId: inProgressAppt.branch_id || inProgressAppt.branchId || null,
+          branchName: inProgressAppt.branchName || '',
+          serviceName: inProgressAppt.serviceName || 'كشف طبي'
         } : null,
         nextWaitingPatients: waitingAppts.slice(0, 10).map((a: any) => ({
           id: a.id,
           queueNumber: a.queue_number,
           patientName: a.patientName,
-          status: a.status
+          status: a.status,
+          branchId: a.branch_id || a.branchId || null,
+          branchName: a.branchName || '',
+          serviceName: a.serviceName || 'كشف طبي'
         }))
       },
       currentPatientExamining: inProgressAppt

@@ -7,9 +7,6 @@ import {
 } from 'lucide-react'
 import { ClinicNotification } from '@/types/clinic'
 import {
-  subscribeToRecipientNotifications,
-  subscribeToClinicStaffNotifications,
-  markNotificationAsRead,
   requestBrowserNotificationPermission,
   playNotificationSound
 } from '@/lib/notificationService'
@@ -24,7 +21,11 @@ export function NotificationCenter({
   clinic,
   recipientLabel = 'المستخدم',
   recipientType = 'staff',
-  branchId
+  branchId,
+  appointmentId,
+  patientAheadCount,
+  patientTurnReady,
+  patientStatus
 }: {
   recipientTarget?: string
   clinicId?: string
@@ -33,12 +34,19 @@ export function NotificationCenter({
   recipientLabel?: string
   recipientType?: 'staff' | 'patient'
   branchId?: string
+  appointmentId?: string
+  patientAheadCount?: number
+  patientTurnReady?: boolean
+  patientStatus?: string
 }) {
   const { t, isRtl, dir, language } = useLanguage()
   const [notifications, setNotifications] = useState<ClinicNotification[]>([])
   const [isOpen, setIsOpen] = useState(false)
   const [hasPushPermission, setHasPushPermission] = useState(false)
-  const prevCountRef = useRef<number | null>(null)
+  const previousIdsRef = useRef<Set<string> | null>(null)
+  const scopeRef = useRef<string>('')
+  const [needsLogin, setNeedsLogin] = useState(false)
+  const [dismissedLocalId, setDismissedLocalId] = useState<string | null>(null)
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -47,98 +55,126 @@ export function NotificationCenter({
   }, [])
 
   useEffect(() => {
-    let unsub: () => void
+    const activeClinicId = String(clinicId || clinic?.id || '')
+    const activeSlug = String(slug || clinic?.slug || '')
+    const scope = `${recipientType}:${activeClinicId}:${activeSlug}:${recipientTarget || ''}:${branchId || ''}:${appointmentId || ''}`
+    if (scope !== scopeRef.current) {
+      scopeRef.current = scope
+      previousIdsRef.current = null
+      setNotifications([])
+      setNeedsLogin(false)
+    }
+    let cancelled = false
+    let busy = false
 
-    if (recipientType === 'staff') {
-      const activeClinicId = clinicId || clinic?.id || recipientTarget
-      const activeSlug = slug || clinic?.slug || ''
-      unsub = subscribeToClinicStaffNotifications(activeClinicId, activeSlug, (list) => {
-        // Integrate Owner Direct Broadcast Message if present on clinic document
+    const refresh = async () => {
+      if (cancelled || busy || (recipientType === 'staff' && !activeSlug && !activeClinicId)) return
+      busy = true
+      try {
+        const params = new URLSearchParams({ recipientType })
+        if (activeSlug) params.set('slug', activeSlug)
+        if (activeClinicId) params.set('clinicId', activeClinicId)
+        if (branchId && branchId !== 'all') params.set('branchId', branchId)
+        if (recipientType === 'patient' && appointmentId) params.set('appointmentId', appointmentId)
+        const response = await fetch(`/api/notifications?${params}`, {
+          cache: 'no-store', credentials: 'same-origin',
+        })
+        if (cancelled) return
+        if (response.status === 401) {
+          setNeedsLogin(true)
+          setNotifications([])
+          return
+        }
+        if (!response.ok) throw new Error(`NOTIFICATIONS_HTTP_${response.status}`)
+        setNeedsLogin(false)
+        const data = await response.json()
+        const list: ClinicNotification[] = Array.isArray(data.notifications) ? data.notifications : []
         let merged = [...list]
-        if (clinic?.ownerMessage && clinic.ownerMessage.trim()) {
-          const ownerMsgItem: ClinicNotification = {
+        if (recipientType === 'staff' && clinic?.ownerMessage?.trim()) {
+          merged.unshift({
             id: 'owner-broadcast-alert',
             clinicId: activeClinicId,
-            recipientType: 'staff',
-            recipientTarget: activeClinicId,
+            recipientType: 'staff', recipientTarget: activeClinicId,
             title: 'رسالة إدارية من مالك المنصة 📢',
-            body: clinic.ownerMessage.trim(),
-            type: 'system',
-            isRead: false,
-            createdAt: clinic.updatedAt || new Date().toISOString()
-          }
-          // Only add if not already in list
-          if (!merged.some(m => m.id === 'owner-broadcast-alert' || m.body === clinic.ownerMessage.trim())) {
-            merged.unshift(ownerMsgItem)
-          }
+            body: clinic.ownerMessage.trim(), type: 'system', isRead: true,
+            createdAt: clinic.updatedAt || new Date().toISOString(),
+          })
         }
-
-        // Check subscription expiration
-        if (clinic?.expirationDate) {
+        if (recipientType === 'staff' && clinic?.expirationDate) {
           const diffDays = Math.ceil(
-            (new Date(clinic.expirationDate).getTime() - Date.now()) / (1000 * 3600 * 24)
-          )
-          if (diffDays <= 7 && diffDays >= 0) {
-            const expItem: ClinicNotification = {
-              id: 'subscription-exp-alert',
-              clinicId: activeClinicId,
-              recipientType: 'staff',
-              recipientTarget: activeClinicId,
+            (new Date(clinic.expirationDate).getTime() - Date.now()) / 86400000)
+          if (diffDays >= 0 && diffDays <= 7) {
+            merged.unshift({
+              id: 'subscription-exp-alert', clinicId: activeClinicId,
+              recipientType: 'staff', recipientTarget: activeClinicId,
               title: 'تنبيه موعد تجديد الاشتراك ⚠️',
-              body: `يتبقى ${diffDays} أيام على انتهاء اشتراك العيادة. يرجى التواصل مع مالك المنصة للتجديد.`,
-              type: 'system',
-              isRead: false,
-              createdAt: new Date().toISOString()
-            }
-            if (!merged.some(m => m.id === 'subscription-exp-alert')) {
-              merged.unshift(expItem)
-            }
+              body: `يتبقى ${diffDays} أيام على انتهاء اشتراك العيادة.`,
+              type: 'system', isRead: true, createdAt: new Date().toISOString(),
+            })
           }
         }
 
-        // Play sound on arrival of new unread notification
-        if (prevCountRef.current !== null && merged.length > prevCountRef.current) {
-          playNotificationSound('chime')
-          const newest = merged[0]
-          if (newest && !newest.isRead) {
-            toast.info(`🔔 ${newest.title}: ${newest.body}`)
-            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-              try {
-                new Notification(newest.title, { body: newest.body, icon: '/favicon.ico', dir: 'rtl' })
-              } catch (e) {}
-            }
-          }
-        }
-        prevCountRef.current = merged.length
-        setNotifications(merged)
-      }, branchId)
-    } else {
-      // Patient notifications
-      if (!recipientTarget) return
-      unsub = subscribeToRecipientNotifications(recipientTarget, (list) => {
-        if (prevCountRef.current !== null && list.length > prevCountRef.current) {
-          playNotificationSound('turn_ready')
-          const newest = list[0]
+        const nextIds = new Set(list.map(n => n.id))
+        const previousIds = previousIdsRef.current
+        if (previousIds !== null) {
+          const newest = list.find(n => !n.isRead && !previousIds.has(n.id))
           if (newest) {
+            playNotificationSound(recipientType === 'patient' ? 'turn_ready' : 'chime')
             toast.info(`🔔 ${newest.title}: ${newest.body}`)
-            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+            if (typeof window !== 'undefined' && 'Notification' in window &&
+                Notification.permission === 'granted') {
               try {
-                new Notification(newest.title, { body: newest.body, icon: '/favicon.ico', dir: 'rtl' })
-              } catch (e) {}
+                new Notification(newest.title, {
+                  body: newest.body, icon: '/favicon.ico', dir: 'rtl',
+                  tag: newest.id,
+                })
+              } catch {}
             }
           }
         }
-        prevCountRef.current = list.length
-        setNotifications(list)
-      })
+        previousIdsRef.current = nextIds
+        setNotifications(merged)
+      } catch (error) {
+        if (!cancelled) console.warn('[notifications] Keeping last available feed:', error)
+      } finally {
+        busy = false
+      }
     }
+    void refresh()
+    const timer = window.setInterval(() => void refresh(), 5000)
+    return () => { cancelled = true; window.clearInterval(timer) }
+  }, [recipientTarget, clinicId, slug, clinic?.id, clinic?.ownerMessage,
+      clinic?.expirationDate, recipientType, branchId, appointmentId])
 
-    return () => {
-      if (unsub) unsub()
-    }
-  }, [recipientTarget, clinicId, slug, clinic?.id, clinic?.ownerMessage, clinic?.expirationDate, recipientType, branchId])
-
-  const unreadCount = notifications.filter((n) => !n.isRead).length
+  // A patient may open the public tracking link before signing into their
+  // account. Show their own computed turn status locally, but do not expose
+  // private persisted notifications without an authenticated patient session.
+  const localTurnAlert: ClinicNotification | null =
+    recipientType === 'patient' && appointmentId &&
+    patientStatus !== 'completed' && patientStatus !== 'cancelled' &&
+    (patientTurnReady || (Number.isFinite(patientAheadCount) &&
+      patientAheadCount! > 0 && patientAheadCount! <= 5))
+      ? {
+          id: patientTurnReady ? `local_ready_${appointmentId}`
+            : `local_ahead_${appointmentId}_${patientAheadCount}`,
+          clinicId: String(clinicId || ''),
+          recipientTarget: recipientTarget || '',
+          recipientType: 'patient',
+          title: patientTurnReady ? 'دورك الآن للدخول!' :
+            patientAheadCount === 1 ? 'أنت المريض التالي للدخول!' : `اقترب دورك: متبقي ${patientAheadCount}`,
+          body: patientTurnReady ? 'يرجى التوجه لغرفة الكشف الآن.' :
+            `متبقي أمامك ${patientAheadCount} مرضى في الانتظار.`,
+          type: patientTurnReady ? 'turn_ready' : 'approaching_turn',
+          isRead: dismissedLocalId === (patientTurnReady ? `local_ready_${appointmentId}`
+            : `local_ahead_${appointmentId}_${patientAheadCount}`),
+          createdAt: new Date().toISOString(),
+        }
+      : null
+  const visibleNotifications = localTurnAlert &&
+      !notifications.some(n => n.appointmentId === appointmentId && n.type === localTurnAlert.type &&
+        n.title === localTurnAlert.title)
+    ? [localTurnAlert, ...notifications] : notifications
+  const unreadCount = visibleNotifications.filter(n => !n.isRead).length
 
   const handleEnablePush = async () => {
     const granted = await requestBrowserNotificationPermission()
@@ -151,14 +187,28 @@ export function NotificationCenter({
     }
   }
 
+  const markRead = async (ids: string[]) => {
+    if (localTurnAlert && ids.includes(localTurnAlert.id)) setDismissedLocalId(localTurnAlert.id)
+    const safeIds = ids.filter(id => !id.startsWith('local_') && id !== 'owner-broadcast-alert' && id !== 'subscription-exp-alert')
+    if (!safeIds.length) return
+    const params = new URLSearchParams({ recipientType })
+    if (slug || clinic?.slug) params.set('slug', String(slug || clinic.slug))
+    if (clinicId || clinic?.id) params.set('clinicId', String(clinicId || clinic.id))
+    const response = await fetch(`/api/notifications?${params}`, {
+      method: 'PATCH', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: safeIds }),
+    })
+    if (!response.ok) throw new Error('تعذر تحديث حالة قراءة التنبيهات')
+    setNotifications(prev => prev.map(n => safeIds.includes(n.id) ? { ...n, isRead: true } : n))
+  }
   const handleMarkAllRead = async () => {
-    for (const n of notifications.filter((n) => !n.isRead)) {
-      if (n.id !== 'owner-broadcast-alert' && n.id !== 'subscription-exp-alert') {
-        await markNotificationAsRead(n.id)
-      }
+    try {
+      await markRead(visibleNotifications.filter(n => !n.isRead).map(n => n.id))
+      toast.success(isRtl ? 'تم تحديد جميع الإشعارات كمقروءة' : 'All notifications marked as read')
+    } catch {
+      toast.error(isRtl ? 'تعذر حفظ حالة قراءة التنبيهات' : 'Could not save read state')
     }
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })))
-    toast.success(isRtl ? 'تم تحديد جميع الإشعارات كمقروءة' : 'All notifications marked as read')
   }
 
   const handleTestSound = () => {
@@ -216,7 +266,7 @@ export function NotificationCenter({
               <div className="flex items-center gap-2">
                 <Bell className="w-4 h-4 text-primary" />
                 <h4 className="font-bold text-xs text-foreground">
-                  {t('notifications_center_title', isRtl ? 'مركز التنبيهات' : 'Notifications')} ({notifications.length})
+                  {t('notifications_center_title', isRtl ? 'مركز التنبيهات' : 'Notifications')} ({visibleNotifications.length})
                 </h4>
               </div>
               <div className="flex items-center gap-2">
@@ -263,21 +313,23 @@ export function NotificationCenter({
 
             {/* List */}
             <div className="overflow-y-auto divide-y divide-border flex-1">
-              {notifications.length === 0 ? (
+              {visibleNotifications.length === 0 ? (
                 <div className="py-12 text-center text-muted-foreground space-y-2">
                   <Bell className="w-8 h-8 mx-auto text-muted-foreground/40" />
-                  <p className="text-xs font-bold text-foreground">{isRtl ? 'لا توجد تنبيهات حالياً' : 'No notifications yet'}</p>
+                  <p className="text-xs font-bold text-foreground">{needsLogin
+                    ? (isRtl ? 'سجل الدخول لعرض تنبيهات حسابك بأمان' : 'Sign in to view account alerts')
+                    : (isRtl ? 'لا توجد تنبيهات حالياً' : 'No notifications yet')}</p>
                   <p className="text-[10px] text-muted-foreground">
                     {isRtl ? 'ستصلك التنبيهات الفورية فور حدوث حجز أو حركة دور' : 'Real-time alerts will appear here as bookings or queue progress'}
                   </p>
                 </div>
               ) : (
-                notifications.map((n) => (
+                visibleNotifications.map((n) => (
                   <div
                     key={n.id}
                     onClick={() => {
                       if (n.id !== 'owner-broadcast-alert' && n.id !== 'subscription-exp-alert') {
-                        markNotificationAsRead(n.id)
+                        void markRead([n.id]).catch(() => toast.error('تعذر حفظ حالة التنبيه'))
                       }
                     }}
                     className={`p-3 transition-colors cursor-pointer flex items-start gap-3 ${

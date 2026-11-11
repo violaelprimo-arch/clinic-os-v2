@@ -3,7 +3,7 @@
 import { use, useEffect, useState, useMemo, useRef } from 'react'
 import { watchPublicClinicProfile } from '@/lib/clinic-profile-client'
 import { db } from '@/lib/firebase'
-import { collection, query, where, onSnapshot, doc, getDoc, updateDoc } from 'firebase/firestore'
+
 import { useSearchParams } from 'next/navigation'
 import { getCairoDateString } from '@/lib/bookingCapacity'
 import {
@@ -564,93 +564,101 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
     return () => unsubClinic()
   }, [slug])
 
-  // 2. Real-time Clinic Branches Listener
+  // 2. Public branch listing. Do not use a second Firestore listener that
+  // races against the TV queue API and renders stale or foreign branches.
   useEffect(() => {
-    if (!clinic?.id) return
-    const qB = query(collection(db, 'branches'), where('clinicId', '==', clinic.id))
-    const unsubB = onSnapshot(qB, (snap) => {
-      setBranches(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
-    }, (err) => {
-      console.warn('TV branches listener error:', err)
-    })
-    return () => unsubB()
-  }, [clinic?.id])
+    if (!slug) return
+    let cancelled = false
+    const loadBranches = async () => {
+      try {
+        const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/branches`, { cache: 'no-store' })
+        if (!res.ok) return
+        const data = await res.json()
+        if (!cancelled && Array.isArray(data.branches)) {
+          setBranches(data.branches.filter((b: any) => !b.isArchived))
+        }
+      } catch (error) {
+        console.warn('[TV] Could not refresh registered branches:', error)
+      }
+    }
+    void loadBranches()
+    return () => { cancelled = true }
+  }, [slug])
 
-  // 3. Real-time Appointments Listener for Today's Queue
+  // 3. One authoritative queue feed (server API only).
+  // Previously the Firestore snapshot and the 5-second poll overwrote the
+  // same appointments state: the patient appeared briefly and disappeared
+  // while the independent voice announcement was still playing.
   useEffect(() => {
-    if (!clinic?.id && !slug) return
-    const clinicId = clinic?.id || slug
-    const targetClinicIds = Array.from(new Set([clinicId, clinic?.id, slug].filter(Boolean)))
-    const todayDate = cairoTodayDate || getCairoDateString()
+    if (!slug) return
+    let cancelled = false
+    let requestInFlight = false
+    const controller = new AbortController()
+    isFirstDataLoadRef.current = true
+    lastAnnouncedCallKeyRef.current = null
 
-    const qAppts = query(
-      collection(db, 'appointments'),
-      where('clinic_id', 'in', targetClinicIds),
-      where('date', '==', todayDate)
-    )
-
-    const unsubAppts = onSnapshot(
-      qAppts,
-      (snapshot) => {
-        const list: any[] = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
-        setAppointments(list)
-
-        // Mark initial snapshot complete; only suppress if patient was already in_progress on page mount
+    const pollTvApi = async () => {
+      if (cancelled || requestInFlight) return
+      requestInFlight = true
+      try {
+        const branchParam = selectedBranchId !== 'all'
+          ? `&branchId=${encodeURIComponent(selectedBranchId)}` : ''
+        const res = await fetch(
+          `/api/clinic/${encodeURIComponent(slug)}/queue?tv=1${branchParam}`,
+          { cache: 'no-store', credentials: 'same-origin', signal: controller.signal },
+        )
+        if (!res.ok) throw new Error(`QUEUE_HTTP_${res.status}`)
+        const data = await res.json()
+        if (cancelled || !data.success || !data.tvQueue) return
+        const list: any[] = []
+        const current = data.tvQueue.currentPatient
+        if (current && current.id) {
+          list.push({
+            ...current,
+            queue_number: current.queueNumber,
+            branch_id: current.branchId || current.branch_id,
+          })
+        }
+        if (Array.isArray(data.tvQueue.nextWaitingPatients)) {
+          for (const patient of data.tvQueue.nextWaitingPatients) {
+            if (!patient?.id || list.some(existing => existing.id === patient.id)) continue
+            list.push({
+              ...patient,
+              queue_number: patient.queueNumber,
+              branch_id: patient.branchId || patient.branch_id,
+            })
+          }
+        }
+        // The initial snapshot is not a new call. It must not unexpectedly
+        // play the announcement when a TV is opened midway through a visit.
         if (isFirstDataLoadRef.current) {
           isFirstDataLoadRef.current = false
-          const initialActive = list.find(a => a.status === 'in_progress' || a.status === 'examining')
-          if (initialActive) {
-            const qNum = initialActive.queue_number ?? initialActive.queueNumber ?? ''
-            lastAnnouncedCallKeyRef.current = `${initialActive.id}_${initialActive.calledAt || initialActive.startedAt || qNum}`
+          const initial = list.find(a => a.status === 'in_progress' || a.status === 'examining')
+          if (initial) {
+            const num = getPatientQueueDisplay(initial)
+            lastAnnouncedCallKeyRef.current =
+              `${initial.id}_${initial.calledAt || initial.startedAt || num}`
           }
         }
-      },
-      (err) => {
-        console.warn('TV Screen in-query error, trying single clinic_id query:', err)
-        try {
-          const fallbackQ = query(
-            collection(db, 'appointments'),
-            where('clinic_id', '==', clinicId),
-            where('date', '==', todayDate)
-          )
-          onSnapshot(fallbackQ, (s) => {
-            setAppointments(s.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
-          })
-        } catch (e) {
-          console.error('TV appointments fallback error:', e)
+        setAppointments(list)
+      } catch (error) {
+        if (!cancelled) {
+          // Preserve last valid state on network failure. Never blank the
+          // screen just because a single HTTP request failed.
+          console.warn('[TV] Queue refresh failed; keeping last valid state:', error)
         }
+      } finally {
+        requestInFlight = false
       }
-    )
-
-    // Secure Server API Polling for TV Screen
-    const pollTvApi = async () => {
-      try {
-        const res = await fetch(`/api/clinic/${slug}/queue?branchId=${encodeURIComponent(selectedBranchId || '')}`)
-        if (res.ok) {
-          const data = await res.json()
-          if (data.tvQueue) {
-            const list: any[] = []
-            if (data.tvQueue.currentPatient) {
-              list.push({ ...data.tvQueue.currentPatient, queue_number: data.tvQueue.currentPatient.queueNumber })
-            }
-            if (Array.isArray(data.tvQueue.nextWaitingPatients)) {
-              data.tvQueue.nextWaitingPatients.forEach((p: any) => {
-                list.push({ ...p, queue_number: p.queueNumber })
-              })
-            }
-            setAppointments(list)
-          }
-        }
-      } catch (e) {}
     }
-    pollTvApi()
-    const tvInterval = setInterval(pollTvApi, 5000)
-
+    void pollTvApi()
+    const tvInterval = window.setInterval(() => { void pollTvApi() }, 4000)
     return () => {
-      clearInterval(tvInterval)
-      unsubAppts()
+      cancelled = true
+      controller.abort()
+      window.clearInterval(tvInterval)
     }
-  }, [clinic?.id, slug, cairoTodayDate, selectedBranchId])
+  }, [slug, selectedBranchId])
 
   // Filter for Active Branch
   const branchAppointments = useMemo(() => {
@@ -669,6 +677,25 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
     return branchAppointments.find(a => a.status === 'in_progress' || a.status === 'examining') || null
   }, [branchAppointments])
 
+  // The patient card stays visible through the start of the voice call even
+  // if the doctor completes the appointment within a few seconds.
+  const [lastCalledPatient, setLastCalledPatient] = useState<any>(null)
+  const heldUntilRef = useRef(0)
+  const currentCallIdentity = currentPatient
+    ? `${currentPatient.id}:${currentPatient.calledAt || currentPatient.startedAt || ''}`
+    : ''
+  useEffect(() => {
+    if (!currentPatient) return
+    heldUntilRef.current = Date.now() + 15000
+    setLastCalledPatient(currentPatient)
+  }, [currentCallIdentity])
+  useEffect(() => {
+    heldUntilRef.current = 0
+    setLastCalledPatient(null)
+  }, [selectedBranchId])
+  const displayedPatient = currentPatient ||
+    (Date.now() < heldUntilRef.current ? lastCalledPatient : null)
+
   // Next Waiting Patients (use unified sortQueue clinical engine to match doctor's order)
   const nextWaitingPatients = useMemo(() => {
     return sortQueue(branchAppointments, clinic).slice(0, 5)
@@ -676,10 +703,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
 
     // Trigger Voice Call when serving patient changes, enters, or is recalled (A10 Fix)
   useEffect(() => {
-    if (!currentPatient) {
-      lastAnnouncedCallKeyRef.current = null
-      return
-    }
+    if (!currentPatient) return
 
     const displayQ = getPatientQueueDisplay(currentPatient)
     const qNum = displayQ !== '-' ? displayQ : '1'
@@ -689,10 +713,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
     if (lastAnnouncedCallKeyRef.current !== currentCallKey) {
       lastAnnouncedCallKeyRef.current = currentCallKey
       if (isAudioEnabled) {
-        triggerPatientVoiceCall(
-          qNum,
-          currentPatient.patientName
-        )
+        triggerPatientVoiceCall(qNum, currentPatient.patientName)
       }
     }
   }, [currentPatient, isAudioEnabled, tvConfig.announceName, tvConfig.voiceGender, tvConfig.announcementPhrase, tvConfig.speechTone, tvConfig.chimeSound])
@@ -725,9 +746,16 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
 
       const token = typeof window !== 'undefined' ? localStorage.getItem('clinic_session_token') : null
       if (token && clinic?.id) {
-        await updateDoc(doc(db, 'clinics', clinic.id), {
-          tvSettings: tvConfig
-        })
+        const response = await fetch(
+          `/api/clinic/${encodeURIComponent(slug)}/settings`,
+          {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tvSettings: tvConfig }),
+          },
+        )
+        if (!response.ok) throw new Error('TV_SETTINGS_NOT_SAVED_ON_SERVER')
         toast.success('تم حفظ إعدادات الشاشة والنداء الصوتي بنجاح')
       } else {
         toast.success('تم حفظ الإعدادات محلياً للشاشة بنجاح')
@@ -875,10 +903,10 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
               onClick={() => {
                 const nextState = !isAudioEnabled
                 setAudioState(nextState)
-                if (nextState) {
+                if (nextState && displayedPatient) {
                   triggerPatientVoiceCall(
-                    currentPatient?.queue_number || currentPatient?.queueNumber || '1',
-                    currentPatient?.patientName || 'المريض'
+                    getPatientQueueDisplay(displayedPatient),
+                    displayedPatient.patientName
                   )
                 }
               }}
@@ -950,10 +978,12 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
           <button
             onClick={() => {
               setAudioState(true)
-              triggerPatientVoiceCall(
-                getPatientQueueDisplay(currentPatient, 1),
-                currentPatient?.patientName || 'المريض'
-              )
+              if (displayedPatient) {
+                triggerPatientVoiceCall(
+                  getPatientQueueDisplay(displayedPatient),
+                  displayedPatient.patientName
+                )
+              }
             }}
             className="px-3 py-1 rounded-xl bg-blue-600 text-white font-black text-xs cursor-pointer hover:bg-blue-700 shadow-xs transition-transform active:scale-95"
           >
@@ -1001,7 +1031,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
             </div>
 
             {/* Giant Serving Turn Card */}
-            {currentPatient ? (
+            {displayedPatient ? (
               <div className="py-8 my-auto text-center space-y-6">
                 <div>
                   <span className={`text-base font-bold block tracking-widest uppercase ${
@@ -1010,7 +1040,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
                     رقم الدور
                   </span>
                   <motion.div
-                    key={currentPatient.id + '_' + getPatientQueueDisplay(currentPatient, 1)}
+                    key={displayedPatient.id + '_' + getPatientQueueDisplay(displayedPatient, 1)}
                     initial={{ scale: 0.85, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ type: 'spring', stiffness: 200, damping: 15 }}
@@ -1020,16 +1050,16 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
                         : 'text-blue-600 drop-shadow-md'
                     }`}
                   >
-                    #{getPatientQueueDisplay(currentPatient, 1)}
+                    #{getPatientQueueDisplay(displayedPatient, 1)}
                   </motion.div>
                 </div>
 
                 <div className="space-y-3">
-                  {tvConfig.showPatientName && currentPatient.patientName && (
+                  {tvConfig.showPatientName && displayedPatient.patientName && (
                     <h2 className={`text-3xl sm:text-4xl font-black tracking-wide ${
                       isDark ? 'text-white' : 'text-slate-900'
                     }`}>
-                      {currentPatient.patientName}
+                      {displayedPatient.patientName}
                     </h2>
                   )}
                   <div className="flex items-center justify-center gap-3 flex-wrap">
@@ -1038,11 +1068,11 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
                         ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30'
                         : 'bg-blue-50 text-blue-700 border-blue-200'
                     }`}>
-                      {currentPatient.serviceName || 'كشف طبي'}
+                      {displayedPatient.serviceName || 'كشف طبي'}
                     </span>
-                    {currentPatient.branchName && (
+                    {displayedPatient.branchName && (
                       <span className={`text-sm font-bold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                        • {currentPatient.branchName}
+                        • {displayedPatient.branchName}
                       </span>
                     )}
                   </div>
@@ -1076,7 +1106,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
                 <span>{clinic?.doctorName ? `${clinic?.doctorTitle || 'د.'} ${clinic.doctorName}` : (clinic?.clinicName || 'طبيب العيادة')}</span>
               </div>
               <div className="font-mono text-xs font-semibold">
-                {currentPatient ? 'جارٍ الكشف الآن • يرجى الانتظار' : 'العيادة جاهزة لاستقبال المرضى'}
+                {displayedPatient ? 'جارٍ الكشف الآن • يرجى الانتظار' : 'العيادة جاهزة لاستقبال المرضى'}
               </div>
             </div>
           </motion.div>
