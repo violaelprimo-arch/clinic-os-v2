@@ -112,6 +112,146 @@ export async function unsubscribeDevice({
   return { success: true }
 }
 
+export interface PushDispatchDeps {
+  readDocument: typeof readDocument
+  writeDocument: typeof writeDocument
+  createDocument: typeof createDocument
+  queryDocumentsByField: typeof queryDocumentsByField
+  sendWebPushNotification: typeof sendWebPushNotification
+  getVapidConfig: typeof getVapidConfig
+  now?: () => number
+}
+
+const defaultDispatchDeps: PushDispatchDeps = {
+  readDocument,
+  writeDocument,
+  createDocument,
+  queryDocumentsByField,
+  sendWebPushNotification,
+  getVapidConfig,
+  now: () => Date.now(),
+}
+
+const SHORT_PUSH_TAG_PREFIX: Record<string, string> = {
+  approaching_turn: 'appr',
+  turn_ready: 'turn',
+  booking_confirmed: 'book',
+  booking_cancelled: 'cncl',
+  booking_rescheduled: 'rsch',
+  test_notification: 'push-test',
+}
+
+function sanitizeTagPart(value: string, maxLen: number): string {
+  return value.replace(/[^A-Za-z0-9_-]/g, '').slice(-maxLen)
+}
+
+/** Build an RFC 8030 Topic-safe tag (<= 32 chars) preserving trailing ID entropy. */
+export function buildPushTag(type: string, targetId?: string, salt?: string): string {
+  const prefix = SHORT_PUSH_TAG_PREFIX[type] || sanitizeTagPart(type, 8) || 'msg'
+  const idPart = sanitizeTagPart(String(targetId || 'staff'), 14) || 's'
+  const saltPart = salt ? sanitizeTagPart(String(salt), 8) : ''
+  return (saltPart ? `${prefix}-${idPart}-${saltPart}` : `${prefix}-${idPart}`).slice(0, 32)
+}
+
+/** Generate a unique <= 32-char tag per test push so consecutive tests never collapse. */
+export function buildDeviceTestTag(): string {
+  return `push-test-${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`.slice(0, 32)
+}
+
+/** Canonical idempotency key for an appointment approaching_turn step. */
+export function getApproachingEventId(appt: Record<string, any>, ahead: number): string {
+  const cycle = appt.requeuedAt ? `_${String(appt.requeuedAt)}` : ''
+  return `approaching_${appt.id}_${ahead}${cycle}`
+}
+
+/** Canonical idempotency key for a turn_ready call vs explicit recall. */
+export function getTurnReadyEventId(
+  appt: Record<string, any>,
+  action: 'start' | 'skip' | 'recall',
+  calledAt: string,
+): string {
+  if (action === 'recall') {
+    return `turn_ready_${appt.id}_recall_${calledAt}`
+  }
+  const cycle = String(appt.requeuedAt || appt.skippedAt || appt.noShowAt || '0')
+  return `turn_ready_${appt.id}_call_${cycle}`
+}
+
+/** Immediately send a verified test notification to a registered device with zero cooldown. */
+export async function executeDeviceTestPush({
+  endpoint,
+  clinicId,
+  clinicSlug,
+  appointmentId,
+  role = 'patient',
+}: {
+  endpoint: string
+  clinicId: string
+  clinicSlug?: string
+  appointmentId?: string
+  role?: 'patient' | 'staff'
+}, deps: Partial<PushDispatchDeps> = {}): Promise<
+  | { ok: true; status: 200; gatewayStatus?: number; tag: string; message: string }
+  | { ok: false; status: 403 | 502; error: string; gatewayStatus?: number }
+> {
+  const io = { ...defaultDispatchDeps, ...deps }
+  const id = await getSubscriptionId(endpoint)
+  const path = `push_subscriptions/${id}`
+  const sub = await io.readDocument(path)
+  if (
+    !sub || sub.endpoint !== endpoint || sub.status !== 'active' ||
+    sub.clinicId !== clinicId || sub.role !== role ||
+    sub.vapidPublicKey !== io.getVapidConfig().publicKey ||
+    (role === 'patient' && (!Array.isArray(sub.appointmentIds) ||
+      !appointmentId || !sub.appointmentIds.includes(appointmentId)))
+  ) {
+    return { ok: false, status: 403, error: 'DEVICE_NOT_REGISTERED_FOR_THIS_BOOKING' }
+  }
+
+  const tag = buildDeviceTestTag()
+  const result = await io.sendWebPushNotification({
+    endpoint: String(sub.endpoint),
+    keys: sub.keys as { p256dh: string; auth: string },
+  }, {
+    title: 'اختبار إشعارات Yalla Clinic',
+    body: 'تم إرسال تنبيه تجريبي لجهازك. إذا ظهر في شريط النظام فالخدمة تعمل.',
+    url: role === 'patient' && appointmentId && clinicSlug
+      ? `/clinic/${encodeURIComponent(String(clinicSlug))}/track/${encodeURIComponent(String(appointmentId))}`
+      : '/',
+    type: 'test_notification',
+    tag,
+    ttl: 120,
+    urgency: 'high',
+  })
+
+  const nowIso = new Date(io.now ? io.now() : Date.now()).toISOString()
+  if (!result.success) {
+    if (result.gone) {
+      await io.writeDocument(path, { status: 'expired', updatedAt: nowIso }, true).catch(() => {})
+    }
+    return {
+      ok: false,
+      status: 502,
+      error: result.error || 'PUSH_GATEWAY_REJECTED',
+      gatewayStatus: result.status,
+    }
+  }
+
+  await io.writeDocument(path, {
+    lastTestAt: nowIso,
+    lastDeliveryAt: nowIso,
+    failureCount: 0,
+  }, true).catch(() => {})
+
+  return {
+    ok: true,
+    status: 200,
+    gatewayStatus: result.status,
+    tag,
+    message: 'تم قبول الإشعار بواسطة خدمة Push، تأكد من وصوله لشريط إشعارات جهازك.',
+  }
+}
+
 export async function dispatchPatientPushNotification({
   type, appointmentId, clinicId, title, body, icon, url, tag, eventId,
   ttl, urgency, recipientType = 'patient',
@@ -130,57 +270,81 @@ export async function dispatchPatientPushNotification({
   ttl?: number
   urgency?: 'low' | 'normal' | 'high'
   recipientType?: 'patient' | 'staff'
-}) {
+}, deps: Partial<PushDispatchDeps> = {}) {
   if (!clinicId || !title || !body || !['patient','staff'].includes(recipientType) ||
       (recipientType === 'patient' && !appointmentId)) throw new Error('INVALID_PUSH_DISPATCH')
-  const subscribers = await findSubscribersForAppointment({ appointmentId, clinicId, recipientType })
+  const io = { ...defaultDispatchDeps, ...deps }
+  const subscribers = deps.queryDocumentsByField || deps.getVapidConfig
+    ? ((await io.queryDocumentsByField('push_subscriptions', 'clinicId', clinicId, 100)).filter((row: any) =>
+      row.status === 'active' && row.role === recipientType &&
+      row.vapidPublicKey === io.getVapidConfig().publicKey &&
+      isValidPushEndpoint(row.endpoint) && row.keys?.p256dh && row.keys?.auth &&
+      (recipientType === 'staff' || (
+        appointmentId && Array.isArray(row.appointmentIds) &&
+        row.appointmentIds.includes(appointmentId)
+      ))
+    ) as unknown as PushSubscriptionRecord[])
+    : await findSubscribersForAppointment({ appointmentId, clinicId, recipientType })
   let deliveredCount = 0, failedCount = 0
+  const nowMs = io.now ? io.now() : Date.now()
   for (const sub of subscribers) {
     const eventKey = `${clinicId}:${eventId || type + '_' + appointmentId}:${sub.id}`
     const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(eventKey)))
     const outboxId = 'push_' + [...digest].map(x => x.toString(16).padStart(2,'0')).join('').slice(0, 40)
     const path = `push_outbox/${outboxId}`
-    const old = await readDocument(path)
+    const old = await io.readDocument(path)
     if (old?.status === 'delivered') { deliveredCount++; continue }
+    if (old?.status === 'expired' || old?.status === 'failed') continue
+    if (old?.status === 'processing') {
+      const createdAtMs = old.createdAt ? Date.parse(String(old.createdAt)) : Number.NaN
+      if (!Number.isFinite(createdAtMs) || nowMs - createdAtMs < 60000) continue
+    }
+    const resolvedTag = tag ? tag.slice(0, 32) : buildPushTag(type, appointmentId)
     const payload = {
       title: title.slice(0, 100), body: body.slice(0, 300),
       icon: icon || '/brand/yalla-clinic/app-icon.png',
       badge: '/favicon-32x32.png',
-      url: url || '/', tag: tag || `yalla-${type}-${appointmentId || 'staff'}`,
+      url: url || '/', tag: resolvedTag,
       type, appointmentId, ttl: ttl || 900, urgency: urgency || 'normal' as const,
     }
     if (!old) {
       try {
-        await createDocument('push_outbox', {
+        await io.createDocument('push_outbox', {
           idempotencyKey: eventKey, clinicId, appointmentId: appointmentId || null,
           subscriptionId: sub.id, status: 'processing', attempts: 1,
           recipientType, payload,
-          nextAttemptAt: new Date(Date.now() + 60000).toISOString(),
-          createdAt: new Date().toISOString(),
+          nextAttemptAt: new Date(nowMs + 60000).toISOString(),
+          createdAt: new Date(nowMs).toISOString(),
         }, outboxId)
       } catch (e) {
         if (!(e instanceof Error) || e.message !== 'RATE_LIMITED') throw e
         // Another runner created the same event. Do not send it twice.
         continue
       }
+    } else {
+      await io.writeDocument(path, {
+        status: 'processing',
+        attempts: Math.max(1, Number(old.attempts || 1)) + 1,
+        createdAt: new Date(nowMs).toISOString(),
+      }, true).catch(() => {})
     }
-    const result = await sendWebPushNotification(
+    const result = await io.sendWebPushNotification(
       { endpoint: sub.endpoint, keys: sub.keys }, payload)
-    const now = new Date().toISOString()
+    const now = new Date(io.now ? io.now() : Date.now()).toISOString()
     if (result.success) {
       deliveredCount++
-      await writeDocument(path, { status: 'delivered', deliveredAt: now }, true)
-      await writeDocument(`push_subscriptions/${sub.id}`, {
+      await io.writeDocument(path, { status: 'delivered', deliveredAt: now }, true)
+      await io.writeDocument(`push_subscriptions/${sub.id}`, {
         lastDeliveryAt: now, failureCount: 0,
       }, true)
     } else {
       failedCount++
-      await writeDocument(path, {
+      await io.writeDocument(path, {
         status: result.gone ? 'expired' : 'pending',
         lastError: String(result.error || 'PUSH_GATEWAY_FAILED').slice(0, 150),
-        nextAttemptAt: new Date(Date.now() + 60000).toISOString(),
+        nextAttemptAt: new Date(nowMs + 60000).toISOString(),
       }, true)
-      if (result.gone) await writeDocument(`push_subscriptions/${sub.id}`, {
+      if (result.gone) await io.writeDocument(`push_subscriptions/${sub.id}`, {
         status: 'expired', updatedAt: now,
       }, true)
     }

@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSubscriptionId } from '@/lib/pushDispatcher'
-import { sendWebPushNotification } from '@/lib/webPushServer'
+import { executeDeviceTestPush } from '@/lib/pushDispatcher'
 import { authorizePushTarget, sameOriginMutation } from '@/lib/server/push-access'
-import { readDocument, writeDocument } from '@/lib/server/firebase-rest'
-import { getVapidConfig } from '@/lib/webPushServer'
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,41 +14,24 @@ export async function POST(req: NextRequest) {
     if (!target || typeof data.endpoint !== 'string') {
       return NextResponse.json({ error: 'VERIFIED_DEVICE_REQUIRED' }, { status: 403 })
     }
-    const id = await getSubscriptionId(data.endpoint)
-    const path = `push_subscriptions/${id}`
-    const sub = await readDocument(path)
-    if (!sub || sub.endpoint !== data.endpoint || sub.status !== 'active' ||
-        sub.clinicId !== target.clinicId || sub.role !== target.role ||
-        sub.vapidPublicKey !== getVapidConfig().publicKey ||
-        (role === 'patient' && (!Array.isArray(sub.appointmentIds) ||
-          !sub.appointmentIds.includes(target.appointmentId)))) {
-      return NextResponse.json({ error: 'DEVICE_NOT_REGISTERED_FOR_THIS_BOOKING' }, { status: 403 })
-    }
-    if (sub.lastTestAt && Date.now() - Date.parse(String(sub.lastTestAt)) < 60000) {
-      return NextResponse.json({ error: 'TEST_RATE_LIMITED_TRY_AGAIN_IN_ONE_MINUTE' }, { status: 429 })
-    }
-    await writeDocument(path, { lastTestAt: new Date().toISOString() }, true)
-    const result = await sendWebPushNotification({
-      endpoint: String(sub.endpoint),
-      keys: sub.keys as { p256dh: string; auth: string },
-    }, {
-      title: 'اختبار إشعارات Yalla Clinic',
-      body: 'تم إرسال تنبيه تجريبي لجهازك. إذا ظهر في شريط النظام فالخدمة تعمل.',
-      url: role === 'patient' && data.appointmentId && data.clinicSlug
-        ? `/clinic/${encodeURIComponent(String(data.clinicSlug))}/track/${encodeURIComponent(String(data.appointmentId))}`
-        : '/',
-      type: 'test_notification', tag: `push-test-${id}-${Date.now()}`,
-      ttl: 120, urgency: 'high',
+    const result = await executeDeviceTestPush({
+      endpoint: data.endpoint,
+      role: target.role,
+      clinicId: target.clinicId,
+      clinicSlug: typeof data.clinicSlug === 'string' ? data.clinicSlug : undefined,
+      appointmentId: target.appointmentId,
     })
-    if (!result.success) {
+    if (!result.ok) {
       return NextResponse.json({
-        success: false, error: result.error || 'PUSH_GATEWAY_REJECTED',
-        gatewayStatus: result.status,
-      }, { status: 502 })
+        success: false,
+        error: result.error,
+        ...(result.gatewayStatus !== undefined ? { gatewayStatus: result.gatewayStatus } : {}),
+      }, { status: result.status })
     }
     return NextResponse.json({
-      success: true, gatewayStatus: result.status,
-      message: 'تم قبول الإشعار بواسطة خدمة Push، تأكد من وصوله لشريط إشعارات جهازك.',
+      success: true,
+      gatewayStatus: result.gatewayStatus,
+      message: result.message,
     })
   } catch (error) {
     console.error('[push] Test failed:', error instanceof Error ? error.message : 'UNKNOWN')

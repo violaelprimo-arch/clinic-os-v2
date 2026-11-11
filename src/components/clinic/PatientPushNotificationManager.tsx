@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   Bell,
   BellRing,
@@ -46,6 +46,7 @@ export function PatientPushNotificationManager({
   const [isSubscribed, setIsSubscribed] = useState(false)
   const [loading, setLoading] = useState(false)
   const [testing, setTesting] = useState(false)
+  const testInFlightRef = useRef(false)
   const [showIosGuide, setShowIosGuide] = useState(false)
 
   // A browser PushSubscription does NOT prove our server saved this device.
@@ -137,6 +138,8 @@ export function PatientPushNotificationManager({
   }
 
   const handleTestPush = async () => {
+    if (testInFlightRef.current || testing || loading) return
+    testInFlightRef.current = true
     setTesting(true)
     try {
       const res = await sendDeviceTestPush({
@@ -151,6 +154,7 @@ export function PatientPushNotificationManager({
     } catch (err: any) {
       toast.error(err?.message || 'فشل الاتصال بخدمة الإشعارات')
     } finally {
+      testInFlightRef.current = false
       setTesting(false)
     }
   }
@@ -193,6 +197,7 @@ export function PatientPushNotificationManager({
             size="sm"
             onClick={handleTestPush}
             disabled={testing || loading}
+            aria-busy={testing}
             className="h-8 text-xs font-bold gap-1.5 rounded-xl border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/40"
           >
             {testing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}

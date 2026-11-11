@@ -57,16 +57,21 @@ export async function authorizePushTarget(req: NextRequest, options: {
     return { clinicId, role: 'staff' }
   }
   if (!appointmentId || !/^[A-Za-z0-9_-]{1,128}$/.test(appointmentId)) return null
+  const verifiedClaim = await verifyBookingPushClaim(pushClaim, clinicId, appointmentId)
+  const session = verifiedClaim
+    ? null
+    : await verifySessionToken(req.cookies.get('patient_session')?.value || '')
+  if (!verifiedClaim && (
+    !session?.valid || session.payload?.role !== 'patient' ||
+    session.payload?.clinicId !== clinicId || !session.payload?.phone
+  )) {
+    return null
+  }
   const appt = await readDocument(`appointments/${appointmentId}`)
   if (!appt || ![appt.clinic_id, appt.clinicId].includes(clinicId)) return null
-  const verifiedClaim = await verifyBookingPushClaim(pushClaim, clinicId, appointmentId)
   if (!verifiedClaim) {
-    const session = await verifySessionToken(req.cookies.get('patient_session')?.value || '')
     const normalize = (p: unknown) => String(p || '').replace(/\D/g, '').replace(/^20/, '0')
-    if (!session.valid || session.payload?.role !== 'patient' ||
-        session.payload?.clinicId !== clinicId ||
-        !session.payload?.phone ||
-        normalize(session.payload.phone) !== normalize(appt.phone || appt.patientPhone)) return null
+    if (normalize(session!.payload!.phone) !== normalize(appt.phone || appt.patientPhone)) return null
   }
   return { clinicId, appointmentId, role: 'patient', phone: String(appt.phone || appt.patientPhone || '') }
 }
