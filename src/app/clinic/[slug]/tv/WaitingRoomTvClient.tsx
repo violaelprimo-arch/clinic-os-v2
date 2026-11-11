@@ -660,15 +660,19 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
       }
     }
 
+    let retryingQueue = false
+
     const scheduleNext = () => {
       clearScheduled()
       if (cancelled) return
-      const delayMs = document.visibilityState === 'visible' ? 1000 : 8000
+      if (document.visibilityState !== 'visible') return
+      const delayMs = retryingQueue ? 30000 : 4000
       scheduledTimer = window.setTimeout(() => void pollTvApi(false), delayMs)
     }
 
     const pollTvApi = async (immediate = false) => {
       if (cancelled) return
+      if (document.visibilityState !== 'visible') return
       if (immediate) clearScheduled()
       if (requestInFlight) {
         pendingPoll = true
@@ -689,6 +693,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
         const data = await res.json()
         if (cancelled || !data.success || !data.tvQueue) return
 
+        retryingQueue = false
         const incomingWatermark: QueueWatermark | null = data.queueWatermark || null
         if (
           !shouldAcceptQueueSnapshot(tvWatermark, incomingWatermark, {
@@ -734,6 +739,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
         setTotalWaitingCount(typeof data.totalWaiting === 'number' ? data.totalWaiting : null)
         setAppointments(list)
       } catch (error) {
+        retryingQueue = true
         if (!cancelled && !(error instanceof Error && error.name === 'AbortError')) {
           // Preserve last valid state on network failure. Never blank the
           // screen just because a single HTTP request failed.
@@ -754,6 +760,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
     const onSignal = () => { void pollTvApi(true) }
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') void pollTvApi(true)
+      else clearScheduled()
     }
     const unsubscribeSignal = subscribeClinicQueueSignal(slug, onSignal)
     window.addEventListener('focus', onSignal)

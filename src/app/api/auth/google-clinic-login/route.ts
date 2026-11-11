@@ -55,10 +55,16 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     const code = err instanceof Error ? err.message : 'GOOGLE_LOGIN_FAILED'
     const setup = code === 'FIREBASE_SETUP_REQUIRED'
+    if (code === 'GOOGLE_TOKEN_INVALID' || code === 'GOOGLE_ACCOUNT_NOT_VERIFIED') {
+      return NextResponse.json({
+        error: 'تعذر إثبات هوية حساب Google. تأكد من تسجيل الدخول بجيميل الطبيب المرتبط بالعيادة.',
+      }, { status: 401 })
+    }
+    console.error('[clinic-google-login] Login request failed:', code)
     return NextResponse.json({
       error: setup
         ? 'تسجيل Google غير مهيأ على الخادم بعد'
-        : 'تعذر إثبات هوية حساب Google. تأكد من تسجيل الدخول بجيميل الطبيب المرتبط بالعيادة.',
-    }, { status: setup ? 503 : 401 })
+        : 'خدمة تسجيل الدخول غير متاحة مؤقتاً. يرجى المحاولة لاحقاً.',
+    }, { status: 503 })
   }
 }

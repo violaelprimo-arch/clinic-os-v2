@@ -211,15 +211,19 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
       }
     }
 
+    let retryingQueue = false
+
     const scheduleNext = () => {
       clearScheduled()
       if (!active) return
-      const delayMs = document.visibilityState === 'visible' ? 2000 : 8000
+      if (document.visibilityState !== 'visible') return
+      const delayMs = retryingQueue ? 30000 : 5000
       scheduledTimer = window.setTimeout(() => void refresh(false), delayMs)
     }
 
     const refresh = async (immediate = false) => {
       if (!active) return
+      if (document.visibilityState !== 'visible') return
       if (immediate) clearScheduled()
       if (inFlight) {
         pendingRefresh = true
@@ -239,6 +243,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
             !Array.isArray(data.appointments)) {
           throw new Error(data.error || 'CLINIC_DAY_QUEUE_UNAVAILABLE')
         }
+        retryingQueue = false
         if (!active) return
         applyAppointmentsWithWatermark(
           data.appointments,
@@ -249,6 +254,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
         setQueueLoadError(null)
         setIsLoading(false)
       } catch (err) {
+        retryingQueue = true
         if (!active || (err instanceof Error && err.name === 'AbortError')) return
         console.warn('[clinic-dashboard] Queue refresh failed:',
           err instanceof Error ? err.message : 'UNKNOWN')
@@ -269,6 +275,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     const onImmediateSignal = () => { void refresh(true) }
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') void refresh(true)
+      else clearScheduled()
     }
     const unsubscribeSignal = subscribeClinicQueueSignal(clinic.slug, onImmediateSignal)
     window.addEventListener('focus', onImmediateSignal)

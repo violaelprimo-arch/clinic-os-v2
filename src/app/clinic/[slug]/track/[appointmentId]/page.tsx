@@ -61,10 +61,13 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
       }
     }
 
+    let retryingQueue = false
+
     const scheduleNext = () => {
       clearScheduled()
       if (cancelled) return
-      const delayMs = document.visibilityState === 'visible' ? 1200 : 6000
+      if (document.visibilityState !== 'visible') return
+      const delayMs = retryingQueue ? 30000 : 5000
       scheduledTimer = window.setTimeout(() => void refreshQueue(false), delayMs)
     }
 
@@ -73,6 +76,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
     // with instant push / tab-signal wakeup and monotonic staleness checks.
     const refreshQueue = async (immediate = false) => {
       if (cancelled) return
+      if (document.visibilityState !== 'visible') return
       if (immediate) clearScheduled()
       if (inFlight) {
         pendingRefresh = true
@@ -91,6 +95,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
         if (cancelled) return
         if (!response.ok || !data.success) throw new Error('QUEUE_API_UNAVAILABLE')
 
+        retryingQueue = false
         const incomingWatermark: QueueWatermark | null = data.queueWatermark || null
         if (
           !shouldAcceptQueueSnapshot(trackWatermark, incomingWatermark, {
@@ -116,6 +121,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
         }
         setLoading(false)
       } catch (error) {
+        retryingQueue = true
         // Keep last-known valid patient turn on intermittent network errors.
         if (!cancelled && !(error instanceof Error && error.name === 'AbortError')) {
           console.warn('[patient-track] Queue refresh failed:', error)
@@ -136,6 +142,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
     const onSignal = () => { void refreshQueue(true) }
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') void refreshQueue(true)
+      else clearScheduled()
     }
     const unsubscribeSignal = subscribeClinicQueueSignal(slug, onSignal)
     window.addEventListener('focus', onSignal)
