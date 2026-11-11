@@ -4,7 +4,6 @@ import {
   query,
   where,
   getDocs,
-  addDoc,
   updateDoc,
   doc,
   writeBatch
@@ -97,71 +96,17 @@ export function checkScheduleConflicts(
 }
 
 /**
- * Ensures that a clinic has at least one default branch ("الفرع الرئيسي")
- * and securely links existing appointments without losing IDs or historic data.
+ * Legacy compatibility helper: a doctor may only select a branch that the
+ * platform owner previously created. Never auto-create a placeholder branch
+ * from the browser: Firestore rules intentionally forbid tenant creation.
  */
 export async function ensureClinicHasMainBranch(clinic: any): Promise<Branch> {
-  const clinicId = clinic.id || clinic.slug
-  const branchesRef = collection(db, 'branches')
-
-  try {
-    const [snap1, snap2] = await Promise.all([
-      getDocs(query(branchesRef, where('clinicId', '==', clinicId))),
-      getDocs(query(branchesRef, where('clinic_id', '==', clinicId)))
-    ])
-
-    const allDocs = [...snap1.docs, ...snap2.docs]
-    if (allDocs.length > 0) {
-      const existingBranches = allDocs.map((d) => ({ id: d.id, ...(d.data() as any) })) as Branch[]
-      const mainBranch = existingBranches.find((b) => b.isMain) || existingBranches[0]
-      if (clinic.weeklySchedule && clinic.weeklySchedule.length > 0 && (!mainBranch.weeklySchedule || mainBranch.weeklySchedule.length === 0)) {
-        mainBranch.weeklySchedule = clinic.weeklySchedule
-      }
-      return mainBranch
-    }
-  } catch (readErr) {
-    console.warn('Branch read warning in ensureClinicHasMainBranch:', readErr)
-  }
-
-  // Create default main branch
-  const schedule = clinic.weeklySchedule && clinic.weeklySchedule.length > 0
-    ? clinic.weeklySchedule
-    : DEFAULT_WEEKLY_SCHEDULE
-
-  const defaultBranchData: any = {
-    clinicId,
-    clinic_id: clinicId,
-    name: 'الفرع الرئيسي',
-    governorate: 'القاهرة',
-    city: 'القاهرة',
-    area: '',
-    address: sanitizeAddress(clinic.clinicAddress || clinic.address) || 'عنوان العيادة الرئيسي',
-    mapsLink: clinic.mapsLink || '',
-    phone: clinic.clinicPhone || (clinic.clinicPhones?.[0] || '01012345678'),
-    whatsapp: clinic.clinicPhone || '',
-    weeklySchedule: schedule,
-    workingHours: formatWeeklyScheduleSummary(schedule, true),
-    slotDuration: Number(clinic.averageVisitTime) || 15,
-    maxDailyBookings: Number(clinic.maxDailyBookings) || 0,
-    services: clinic.services || [
-      { id: '1', name: 'كشف عادي', price: 250, duration: '15 دقيقة' },
-      { id: '2', name: 'استشارة', price: 150, duration: '10 دقائق' },
-      { id: '3', name: 'كشف مستعجل', price: 400, duration: 'فوري' }
-    ],
-    isOpen: clinic.isClinicOpen !== false,
-    isArchived: false,
-    isMain: true,
-    createdAt: new Date().toISOString()
-  }
-
-  try {
-    const newDocRef = await addDoc(branchesRef, defaultBranchData)
-    const createdBranch: Branch = { id: newDocRef.id, ...defaultBranchData }
-    return createdBranch
-  } catch (err) {
-    console.warn('Could not addDoc main branch, returning memory fallback:', err)
-    return { id: 'main', ...defaultBranchData } as Branch
-  }
+  const clinicId = String(clinic?.id || clinic?.slug || '')
+  if (!clinicId) throw new Error('CLINIC_ID_REQUIRED')
+  const registered = await getClinicBranches(clinicId, clinic?.slug)
+  const main = registered.find((item) => item.isMain) || registered[0]
+  if (!main) throw new Error('CLINIC_HAS_NO_REGISTERED_BRANCH')
+  return main
 }
 
 /**
@@ -176,8 +121,10 @@ export async function getClinicBranches(clinicId: string, slug?: string): Promis
         const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/branches`)
         if (res.ok) {
           const data = await res.json()
-          if (Array.isArray(data.branches) && data.branches.length > 0) {
-            return data.branches
+          if (Array.isArray(data.branches)) {
+            // An empty verified owner-managed catalog must stay empty:
+            // never revive fabricated or legacy branch records.
+            return data.branches.filter((branch: Branch) => !branch.isArchived)
           }
         }
       } catch (apiErr) {
