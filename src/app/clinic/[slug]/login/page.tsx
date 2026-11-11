@@ -1,17 +1,15 @@
 'use client'
 
-import { use, useState, useEffect } from 'react'
+import { use, useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { auth, db } from '@/lib/firebase'
+import { auth } from '@/lib/firebase'
 import { signInWithCustomToken } from 'firebase/auth'
-import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { PasswordInput } from '@/components/ui/password-input'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { AlertCircle, Stethoscope, Sparkles, ShieldCheck, ArrowLeft, Lock } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { AlertCircle, ShieldCheck, ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import Link from 'next/link'
@@ -42,6 +40,97 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
   const [newPasswordConfirm, setNewPasswordConfirm] = useState('')
   const [clinicHero, setClinicHero] = useState('https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=1000&auto=format&fit=crop')
   const router = useRouter()
+  const googlePopupRef = useRef<Window | null>(null)
+  const googleNonceRef = useRef<string | null>(null)
+  const googleCloseTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const clearGooglePopupTracking = () => {
+    if (googleCloseTimerRef.current) {
+      clearInterval(googleCloseTimerRef.current)
+      googleCloseTimerRef.current = null
+    }
+    googleNonceRef.current = null
+    googlePopupRef.current = null
+  }
+
+  useEffect(() => {
+    const onGoogleBridgeMessage = async (event: MessageEvent) => {
+      const currentHost = window.location.hostname.toLowerCase()
+      const isLocal = currentHost === 'localhost' || currentHost.endsWith('.localhost') ||
+        currentHost === '127.0.0.1'
+      const expectedOrigin = isLocal ? window.location.origin : 'https://yalla-clinic.com'
+      if (event.origin !== expectedOrigin || event.source !== googlePopupRef.current ||
+          !googleNonceRef.current || !event.data ||
+          event.data.type !== 'YALLA_CLINIC_GOOGLE_COMPLETED' ||
+          event.data.state !== googleNonceRef.current || event.data.slug !== slug) {
+        return
+      }
+      // The OAuth token was verified on the main domain and never travels
+      // via postMessage. Only the shared, httpOnly clinic_session cookie is
+      // used to create a Firebase SDK session on the original clinic origin.
+      clearGooglePopupTracking()
+      setIsLoading(true)
+      setError(null)
+      try {
+        const response = await fetch('/api/auth/session', {
+          method: 'POST', credentials: 'same-origin', cache: 'no-store',
+        })
+        const session = await response.json().catch(() => ({}))
+        if (!response.ok || !session.authenticated ||
+            session.user?.role !== 'doctor' || session.user?.slug !== slug ||
+            !session.firebaseCustomToken) {
+          throw new Error('تعذر استعادة جلسة عيادتك بعد تسجيل Google؛ أعد المحاولة من نفس صفحة العيادة.')
+        }
+        await signInWithCustomToken(auth, session.firebaseCustomToken)
+        localStorage.setItem('clinic_role', 'doctor')
+        localStorage.removeItem('clinic_locked_branch')
+        localStorage.removeItem('clinic_locked_branch_name')
+        toast.success('تم تسجيل الدخول إلى عيادتك باستخدام Google')
+        router.replace(`/clinic/${slug}/admin`)
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'تعذر إكمال تسجيل Google في العيادة.')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    window.addEventListener('message', onGoogleBridgeMessage)
+    return () => {
+      window.removeEventListener('message', onGoogleBridgeMessage)
+      clearGooglePopupTracking()
+    }
+  }, [slug, router])
+
+  const handleGoogleClinicLogin = () => {
+    const host = window.location.hostname.toLowerCase()
+    const isLocal = host === 'localhost' || host.endsWith('.localhost') ||
+      host === '127.0.0.1'
+    const platformOrigin = isLocal ? window.location.origin : 'https://yalla-clinic.com'
+    const nonce = window.crypto.randomUUID()
+    const url = new URL('/auth/clinic-google', platformOrigin)
+    url.searchParams.set('clinic', slug)
+    url.searchParams.set('origin', window.location.origin)
+    url.searchParams.set('state', nonce)
+
+    clearGooglePopupTracking()
+    setError(null)
+    const popup = window.open(
+      url.toString(), 'YallaClinicGoogle',
+      'width=520,height=720,resizable=yes,scrollbars=yes',
+    )
+    if (!popup) {
+      setError('المتصفح منع نافذة Google. اسمح بالنوافذ المنبثقة لهذا الموقع ثم حاول مرة أخرى.')
+      return
+    }
+    googlePopupRef.current = popup
+    googleNonceRef.current = nonce
+    popup.focus()
+    googleCloseTimerRef.current = setInterval(() => {
+      if (popup.closed && googleNonceRef.current === nonce) {
+        clearGooglePopupTracking()
+        setError('تم إغلاق نافذة Google قبل إكمال تسجيل الدخول. يمكنك إعادة المحاولة من هنا.')
+      }
+    }, 800)
+  }
 
   useEffect(() => {
     const fetchClinic = async () => {
@@ -417,18 +506,12 @@ export default function DoctorLogin({ params }: { params: Promise<{ slug: string
               </span>
             </div>
 
-            {/* Google OAuth is performed on the primary platform domain:
-                clinic subdomains cannot all be registered as Firebase authorized origins. */}
+            {/* Open a verified OAuth bridge popup on the platform origin.
+                The clinic login stays open and returns to this tenant only. */}
             <Button
               type="button"
               variant="outline"
-              onClick={() => {
-                const host = window.location.hostname
-                const base = host === 'localhost' || host.endsWith('.localhost')
-                  ? window.location.origin
-                  : 'https://yalla-clinic.com'
-                window.location.assign(`${base}/login?clinic=${encodeURIComponent(slug)}`)
-              }}
+              onClick={handleGoogleClinicLogin}
               className="w-full h-11 text-xs font-bold text-foreground border-border hover:bg-muted/40 rounded-xl flex items-center justify-center gap-2"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24">
