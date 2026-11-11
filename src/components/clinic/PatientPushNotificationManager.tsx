@@ -18,6 +18,7 @@ import { toast } from 'sonner'
 import {
   getPushCapabilityStatus,
   subscribeToPush,
+  getRegisteredPushStatus,
   unsubscribeFromPush,
   sendDeviceTestPush,
   isIosDevice,
@@ -47,24 +48,21 @@ export function PatientPushNotificationManager({
   const [testing, setTesting] = useState(false)
   const [showIosGuide, setShowIosGuide] = useState(false)
 
-  // Check initial capability and subscription state
+  // A browser PushSubscription does NOT prove our server saved this device.
+  // Only show the green enabled state when the authorized server confirms it.
   useEffect(() => {
-    if (typeof window === 'undefined') return
-
-    const cap = getPushCapabilityStatus()
-    setCapability(cap)
-
-    if (cap.hasServiceWorker && cap.hasPushManager && cap.permission === 'granted') {
-      navigator.serviceWorker.ready
-        .then((reg) => reg.pushManager.getSubscription())
-        .then((sub) => {
-          if (sub) {
-            setIsSubscribed(true)
-          }
-        })
-        .catch(() => {})
+    let cancelled = false
+    const verify = async () => {
+      const cap = getPushCapabilityStatus()
+      if (cancelled) return
+      setCapability(cap)
+      if (cap.permission !== 'granted') { setIsSubscribed(false); return }
+      const active = await getRegisteredPushStatus({ clinicId, appointmentId, role: 'patient' })
+      if (!cancelled) setIsSubscribed(active)
     }
-  }, [])
+    void verify()
+    return () => { cancelled = true }
+  }, [clinicId, appointmentId])
 
   const handleSubscribe = async () => {
     const cap = getPushCapabilityStatus()
@@ -101,7 +99,7 @@ export function PatientPushNotificationManager({
 
       if (res.success) {
         setIsSubscribed(true)
-        toast.success('تم تفعيل تنبيهات حجزك بنجاح! ستصلك إشعارات الدور والروشتة فوراً.')
+        toast.success('تم تسجيل جهازك لاستقبال تنبيهات الحجز. استخدم زر التجربة للتأكد من وصول الإشعار.')
       } else {
         if (res.error === 'permission_denied') {
           toast.error('تم رفض إذن الإشعارات من المتصفح.')
@@ -124,7 +122,7 @@ export function PatientPushNotificationManager({
 
     setLoading(true)
     try {
-      const res = await unsubscribeFromPush({ appointmentId })
+      const res = await unsubscribeFromPush({ appointmentId, clinicId, role: 'patient' })
       if (res.success) {
         setIsSubscribed(false)
         toast.info('تم إلغاء تنبيهات هذا الحجز بنجاح.')
@@ -143,10 +141,10 @@ export function PatientPushNotificationManager({
     try {
       const res = await sendDeviceTestPush({
         appointmentId,
-        clinicSlug,
+        clinicSlug, clinicId, role: 'patient',
       })
       if (res.success) {
-        toast.success(res.message || 'تم إرسال إشعار تجريبي بنجاح! راجع شريط الإشعارات.')
+        toast.success(res.message || 'قَبِلت خدمة Push الإشعار التجريبي. تحقق من وصوله لشريط إشعارات جهازك.')
       } else {
         toast.error(res.error || 'تعذر إرسال الإشعار التجريبي')
       }
@@ -175,11 +173,11 @@ export function PatientPushNotificationManager({
             </div>
             <div>
               <div className="font-extrabold text-sm text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
-                <span>تنبيهات الموبايل مفعّلة على هذا الجهاز</span>
+                <span>تم تسجيل هذا الجهاز لاستقبال إشعارات الحجز</span>
                 <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               </div>
               <p className="text-[11px] text-emerald-700 dark:text-emerald-300/80 mt-0.5">
-                ستصلك إشعارات حقيقية على شاشة القفل وشريط الإشعارات باقتراب دورك وحلوله وجاهزية الروشتة حتى أثناء إغلاق الصفحة.
+                الإشعارات الخارجية متاحة عند وجود اشتراك فعّال وخدمة Push تعمل؛ جرّب الإرسال وتحقق من إعدادات الجهاز.
               </p>
             </div>
           </div>

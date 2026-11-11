@@ -1,63 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { dispatchPatientPushNotification } from '@/lib/pushDispatcher'
+import { getCurrentClinicStaff } from '@/lib/server/clinic-staff-access'
+import { sameOriginMutation } from '@/lib/server/push-access'
+import { readDocument } from '@/lib/server/firebase-rest'
 
-/**
- * Real Web Push Central Dispatch API Route
- * POST /api/push/send
- * Body: { type, appointmentId?, clinicId, branchId?, patientPhone?, title, body, icon?, url?, tag?, eventId?, ttl?, urgency? }
- */
+/** Staff-only manual push dispatch. Unauthenticated arbitrary text is forbidden. */
 export async function POST(req: NextRequest) {
   try {
-    const payload = await req.json()
-    const {
-      type = 'general',
-      appointmentId,
-      clinicId,
-      branchId,
-      patientPhone,
-      title,
-      body,
-      icon,
-      url,
-      tag,
-      eventId,
-      ttl,
-      urgency,
-    } = payload
-
-    if (!title || !body) {
-      return NextResponse.json({ error: 'Title and body are required' }, { status: 400 })
+    if (!sameOriginMutation(req)) return NextResponse.json({ error: 'INVALID_ORIGIN' }, { status: 403 })
+    const staff = await getCurrentClinicStaff(req)
+    if (!staff) return NextResponse.json({ error: 'STAFF_SESSION_REQUIRED' }, { status: 401 })
+    const data = await req.json().catch(() => ({}))
+    if (data.clinicId && data.clinicId !== staff.clinicId) {
+      return NextResponse.json({ error: 'WRONG_CLINIC' }, { status: 403 })
     }
-
-    if (!clinicId && !appointmentId && !patientPhone) {
-      return NextResponse.json(
-        { error: 'At least one target (clinicId, appointmentId, or patientPhone) is required' },
-        { status: 400 }
-      )
+    const allowedTypes = ['turn_ready', 'approaching_turn', 'booking_rescheduled', 'booking_cancelled']
+    if (!allowedTypes.includes(data.type) || typeof data.appointmentId !== 'string' ||
+        !/^[A-Za-z0-9_-]{1,128}$/.test(data.appointmentId)) {
+      return NextResponse.json({ error: 'INVALID_EVENT_OR_APPOINTMENT' }, { status: 400 })
     }
-
+    const appt = await readDocument(`appointments/${data.appointmentId}`)
+    if (!appt || ![appt.clinic_id, appt.clinicId].includes(staff.clinicId)) {
+      return NextResponse.json({ error: 'FORBIDDEN_APPOINTMENT' }, { status: 403 })
+    }
+    const type = String(data.type)
+    const titles: Record<string, string> = {
+      turn_ready: 'حان دورك الآن!',
+      approaching_turn: 'اقترب دورك',
+      booking_rescheduled: 'تم تعديل موعد حجزك',
+      booking_cancelled: 'تم إلغاء الحجز',
+    }
     const result = await dispatchPatientPushNotification({
-      type,
-      appointmentId,
-      clinicId: clinicId || '',
-      branchId,
-      patientPhone,
-      title,
-      body,
-      icon,
-      url,
-      tag,
-      eventId,
-      ttl,
-      urgency,
+      type, clinicId: staff.clinicId, appointmentId: data.appointmentId,
+      title: titles[type], body: 'راجع صفحة متابعة حجزك لمعرفة التفاصيل.',
+      url: `/clinic/${encodeURIComponent(String(staff.user.slug))}/track/${data.appointmentId}`,
+      eventId: `staff_${type}_${data.appointmentId}_${String(appt.calledAt || appt.updatedAt || '')}`,
+      urgency: type === 'turn_ready' ? 'high' : 'normal',
     })
-
     return NextResponse.json(result)
-  } catch (error: any) {
-    console.error('Error dispatching push notification:', error)
-    return NextResponse.json(
-      { error: error.message || 'Internal Server Error' },
-      { status: 500 }
-    )
+  } catch (error) {
+    console.error('[push] Dispatch failed:', error instanceof Error ? error.message : 'UNKNOWN')
+    return NextResponse.json({ error: 'PUSH_DISPATCH_UNAVAILABLE' }, { status: 503 })
   }
 }

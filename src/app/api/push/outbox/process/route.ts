@@ -1,112 +1,26 @@
-import { NextResponse } from 'next/server'
-import { db } from '@/lib/firebase'
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  updateDoc,
-  doc,
-  limit,
-} from 'firebase/firestore'
-import { sendWebPushNotification } from '@/lib/webPushServer'
-import { getSubscriptionId, PushSubscriptionRecord } from '@/lib/pushDispatcher'
+import { NextRequest, NextResponse } from 'next/server'
+import { processPendingPushOutbox } from '@/lib/server/push-outbox'
 
-/**
- * Background worker/cron endpoint for processing pending outbox push tasks
- * POST /api/push/outbox/process
+/** Manually run push retries with an independent high-entropy admin secret.
+ * Scheduled Cloudflare events invoke the worker directly, not this endpoint.
  */
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const secret = process.env.PUSH_OUTBOX_CRON_SECRET
+  if (!secret || secret.length < 32) {
+    return NextResponse.json({ error: 'OUTBOX_ADMIN_NOT_CONFIGURED' }, { status: 503 })
+  }
+  const provided = req.headers.get('authorization') || ''
+  const expected = 'Bearer ' + secret
+  if (provided.length !== expected.length ||
+      [...provided].reduce((diff, char, i) => diff | (char.charCodeAt(0) ^ expected.charCodeAt(i)), 0) !== 0) {
+    return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+  }
   try {
-    const now = new Date().toISOString()
-    const q = query(
-      collection(db, 'push_outbox'),
-      where('status', '==', 'pending'),
-      where('nextAttemptAt', '<=', now),
-      limit(25)
-    )
-
-    const snap = await getDocs(q)
-    let processed = 0
-    let delivered = 0
-    let failed = 0
-
-    for (const taskDoc of snap.docs) {
-      const task = taskDoc.data() as any
-      processed++
-
-      // Lock task
-      await updateDoc(doc(db, 'push_outbox', taskDoc.id), {
-        status: 'processing',
-        attempts: (task.attempts || 1) + 1,
-      })
-
-      // Get current subscriber keys
-      const subSnap = await getDocs(
-        query(
-          collection(db, 'push_subscriptions'),
-          where('endpoint', '==', task.endpoint),
-          limit(1)
-        )
-      )
-
-      if (subSnap.empty || subSnap.docs[0].data().status !== 'active') {
-        await updateDoc(doc(db, 'push_outbox', taskDoc.id), {
-          status: 'expired',
-          lastError: 'Subscriber no longer active',
-        })
-        failed++
-        continue
-      }
-
-      const subscriber = subSnap.docs[0].data() as PushSubscriptionRecord
-      const result = await sendWebPushNotification(
-        {
-          endpoint: subscriber.endpoint,
-          keys: subscriber.keys,
-        },
-        task.payload
-      )
-
-      if (result.success) {
-        delivered++
-        await updateDoc(doc(db, 'push_outbox', taskDoc.id), {
-          status: 'delivered',
-          deliveredAt: new Date().toISOString(),
-        })
-      } else {
-        failed++
-        const attempts = (task.attempts || 1) + 1
-        if (result.gone || attempts >= 5) {
-          await updateDoc(doc(db, 'push_outbox', taskDoc.id), {
-            status: result.gone ? 'expired' : 'failed',
-            lastError: result.error,
-          })
-          if (result.gone) {
-            await updateDoc(doc(db, 'push_subscriptions', subscriber.id), {
-              status: 'expired',
-              updatedAt: new Date().toISOString(),
-            })
-          }
-        } else {
-          const delayMinutes = Math.pow(2, attempts) // 2, 4, 8, 16 mins
-          await updateDoc(doc(db, 'push_outbox', taskDoc.id), {
-            status: 'pending',
-            nextAttemptAt: new Date(Date.now() + delayMinutes * 60 * 1000).toISOString(),
-            lastError: result.error,
-          })
-        }
-      }
-    }
-
-    return NextResponse.json({
-      success: true,
-      processed,
-      delivered,
-      failed,
-    })
-  } catch (err: any) {
-    console.error('Error in outbox processor:', err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    const result = await processPendingPushOutbox(20)
+    return NextResponse.json({ success: true, ...result })
+  } catch (error) {
+    console.error('[push-outbox] Manual run failed:',
+      error instanceof Error ? error.message : 'UNKNOWN')
+    return NextResponse.json({ error: 'PUSH_OUTBOX_UNAVAILABLE' }, { status: 503 })
   }
 }

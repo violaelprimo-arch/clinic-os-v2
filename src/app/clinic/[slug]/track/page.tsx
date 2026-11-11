@@ -2,10 +2,7 @@
 
 import { use, useEffect, useState, useMemo, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { db } from '@/lib/firebase'
-import { collection, query, where, onSnapshot } from 'firebase/firestore'
 import {
-  calculatePatientLivePosition,
   PatientQueueStatusResult,
   formatWaitDuration
 } from '@/lib/queueCalculations'
@@ -63,7 +60,10 @@ export default function TrackQueuePage({
   const [searchedOnce, setSearchedOnce] = useState(false)
   const [matchingAppointments, setMatchingAppointments] = useState<any[]>([])
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null)
-  const [allTodayBranchAppts, setAllTodayBranchAppts] = useState<any[]>([])
+  const [liveQueueOverride, setLiveQueueOverride] = useState<{
+    appointmentId: string
+    queueInfo: PatientQueueStatusResult | null
+  } | null>(null)
 
   // 1. Public, minimized clinic information comes from a server API, never
   // from a direct Firestore read of the credential-bearing clinic document.
@@ -138,33 +138,58 @@ export default function TrackQueuePage({
     return matchingAppointments.find((a) => a.id === selectedAppointmentId) || matchingAppointments[0]
   }, [selectedAppointmentId, matchingAppointments])
 
-  // 3. Live Subscription to Today's Branch Queue (when selected appointment is for today)
+  // 3. Live Polling of Today's Queue via Scoped Server API
+  // (Public Firestore rules forbid unauthenticated appointment list reads).
   useEffect(() => {
-    if (!clinic?.id || !selectedAppointment || !selectedAppointment.isToday) {
-      setAllTodayBranchAppts([])
+    const targetId = selectedAppointment?.id
+    const isToday = Boolean(selectedAppointment?.isToday)
+    if (!clinic?.id || !slug || !targetId || !isToday) {
+      setLiveQueueOverride(null)
       return
     }
 
-    const todayDate = selectedAppointment.date
-    const constraints: any[] = [
-      where('clinic_id', '==', clinic.id),
-      where('date', '==', todayDate)
-    ]
+    let cancelled = false
+    let inFlight = false
 
-    const q = query(collection(db, 'appointments'), ...constraints)
-    const unsub = onSnapshot(
-      q,
-      (snapshot) => {
-        const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }))
-        setAllTodayBranchAppts(list)
-      },
-      (err) => {
-        console.error('Live queue subscription error:', err)
+    const refreshQueue = async () => {
+      if (cancelled || inFlight) return
+      inFlight = true
+      try {
+        const res = await fetch(
+          `/api/clinic/${encodeURIComponent(slug)}/queue?appointmentId=${encodeURIComponent(targetId)}`,
+          { cache: 'no-store' }
+        )
+        const data = await res.json().catch(() => ({}))
+        if (cancelled || !res.ok || !data?.success) return
+        const match = Array.isArray(data.matchingAppointments)
+          ? data.matchingAppointments.find((a: any) => a.id === targetId)
+          : null
+        if (match) {
+          setMatchingAppointments((prev) =>
+            prev.map((item) => (item.id === targetId ? { ...item, ...match } : item))
+          )
+        }
+        if (data.patientQueueInfo || match?.queueInfo) {
+          setLiveQueueOverride({
+            appointmentId: targetId,
+            queueInfo: data.patientQueueInfo || match?.queueInfo || null
+          })
+        }
+      } catch (err) {
+        if (!cancelled) console.warn('[track] Queue refresh warning:', err)
+      } finally {
+        inFlight = false
       }
-    )
+    }
 
-    return () => unsub()
-  }, [clinic?.id, selectedAppointment])
+    void refreshQueue()
+    const timer = window.setInterval(() => void refreshQueue(), 5000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [clinic?.id, slug, selectedAppointment?.id, selectedAppointment?.isToday])
 
   // 4. Calculate Live Position & State
   const liveQueueStatus = useMemo(() => {
@@ -215,20 +240,14 @@ export default function TrackQueuePage({
       }
     }
 
-    // Today's appointment - calculate live using real-time Firestore queue
-    if (allTodayBranchAppts.length > 0) {
-      const liveAppt = allTodayBranchAppts.find((a) => a.id === selectedAppointment.id) || selectedAppointment
-      return calculatePatientLivePosition({
-        targetAppointmentId: liveAppt.id,
-        targetAppointment: liveAppt,
-        allTodayAppointments: allTodayBranchAppts,
-        clinic
-      })
+    // Today's appointment - use latest server-computed queue snapshot
+    if (liveQueueOverride && liveQueueOverride.appointmentId === selectedAppointment.id && liveQueueOverride.queueInfo) {
+      return liveQueueOverride.queueInfo
     }
 
-    // Fallback to queueInfo precomputed by API
+    // Fallback to queueInfo precomputed by initial search API
     return selectedAppointment.queueInfo
-  }, [selectedAppointment, allTodayBranchAppts, clinic, isRtl])
+  }, [selectedAppointment, liveQueueOverride, isRtl])
 
   if (loadingClinic) {
     return <ClinicLoading fullScreen size="lg" label={isRtl ? 'جاري تحميل بيانات العيادة...' : 'Loading clinic details...'} />

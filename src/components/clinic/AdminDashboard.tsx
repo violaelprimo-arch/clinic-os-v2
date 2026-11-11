@@ -252,24 +252,8 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     return Number(clinic?.averageVisitTime) || 15
   }, [branchFilteredAppointments, selectedBranchId, branches, clinic?.averageVisitTime])
 
-  // Check 5-patient threshold and trigger notification
-  useEffect(() => {
-    if (!clinic?.id || waitingPatients.length < 5) return
-
-    const today = new Date().toISOString().split('T')[0]
-    const hourKey = new Date().getHours()
-    const eventId = `wait_5_${clinic.id}_${today}_${hourKey}`
-
-    createClinicNotification({
-      clinicId: clinic.id,
-      recipientType: 'staff',
-      recipientTarget: clinic.id,
-      title: 'تنبيه طابور الانتظار ⚠️',
-      body: `يوجد ${waitingPatients.length} مرضى في الانتظار حالياً. يرجى متابعة الدور لتسريع الدخول.`,
-      type: 'system',
-      eventId
-    })
-  }, [clinic?.id, waitingPatients.length])
+  // Threshold alerts are emitted by server-side queue transitions,
+  // not by a client effect that attempts forbidden Firestore writes.
 
   // Calculate totals
   const totalRevenue = useMemo(() => {
@@ -462,318 +446,101 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     }
   }
 
+  /** Queue transitions and phone notifications now share one trusted backend.
+   * The browser can no longer mutate protected appointments or create alerts
+   * directly with the Firebase client SDK. */
+  const runQueueTransition = async (
+    appointmentId: string,
+    action: 'start' | 'complete' | 'recall' | 'skip' | 'requeue' | 'no_show',
+  ) => {
+    const response = await fetch(
+      `/api/clinic/${encodeURIComponent(String(clinic?.slug || ''))}/appointments/transition`,
+      {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appointmentId, action }),
+      },
+    )
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || 'تعذر تحديث حالة الدور')
+    }
+    return data
+  }
+
   const handleStartExam = async (patient: any) => {
     if (!patient || isProcessing) return
-
     if (patient.paymentStatus !== 'paid' && patient.status !== 'completed') {
-      const confirmPayment = window.confirm(
-        `⚠️ المريض لم يقم بتأكيد الدفع (المبلغ المطلوب: ${patient.servicePrice || 0} ج.م).\n\nهل استلمت المبلغ وتريد تأكيد الدفع وإدخال المريض؟`
+      const confirmed = window.confirm(
+        `⚠️ لم يتم تأكيد الدفع (${patient.servicePrice || 0} ج.م). هل استلمت المبلغ وتريد إدخال المريض؟`
       )
-      if (!confirmPayment) {
-        toast.info('تم إلغاء دخول المريض بانتظار الدفع.')
-        return
-      }
+      if (!confirmed) return
     }
-
     setIsProcessing(true)
     try {
-      if (currentPatient && currentPatient.id !== patient.id) {
-        let prevDuration: number | null = null
-        if (currentPatient.startedAt) {
-          const startMs = new Date(currentPatient.startedAt).getTime()
-          prevDuration = Math.max(1, Math.round((new Date().getTime() - startMs) / 60000))
-        }
-        await updateDoc(doc(db, 'appointments', currentPatient.id), {
-          status: 'completed',
-          completedAt: new Date().toISOString(),
-          ...(prevDuration ? { durationMinutes: prevDuration } : {})
-        })
-      }
-
-      await updateDoc(doc(db, 'appointments', patient.id), {
-        status: 'in_progress',
-        paymentStatus: 'paid',
-        startedAt: new Date().toISOString(),
-        calledAt: new Date().toISOString(),
-        ...(!patient.arrivedAt ? { arrivedAt: patient.createdAt || new Date().toISOString() } : {})
-      })
-      if (patient.phone) {
-        await createClinicNotification({
-          clinicId: clinic?.id || patient.clinic_id,
-          branchId: patient.branch_id,
-          recipientType: 'patient',
-          recipientTarget: patient.phone,
-          title: 'دورك الآن للدخول!',
-          body: `مرحباً ${patient.patientName}، حان دورك الآن للدخول لغرفة الكشف (تذكرة #${patient.queue_number || ''}). يرجى الدخول مباشرة.`,
-          type: 'turn_ready',
-          eventId: `turn_ready_${patient.id}`,
-          appointmentId: patient.id
-        })
-
-        // Real Web Push dispatch to the called patient
-        import('@/lib/patientNotificationHelper').then(({ triggerPatientEventPush }) => {
-          triggerPatientEventPush({
-            type: 'turn_ready',
-            appointmentId: patient.id,
-            clinicId: clinic?.id || patient.clinic_id,
-            clinicSlug: clinic?.slug,
-            clinicName: clinic?.clinicName || 'العيادة',
-            patientPhone: patient.phone,
-            queueNumber: patient.queue_number,
-            eventId: `push_turn_ready_${patient.id}`,
-          }).catch(() => {})
-        });
-      }
-
-      // Notify all other waiting patients about the entry & remaining turn count
-      const otherWaiting = bookings.filter(b => b.status === 'waiting' && b.id !== patient.id)
-      for (const wp of otherWaiting) {
-        if (!wp.phone) continue
-        const aheadCount = otherWaiting.filter(o => (Number(o.queue_number) || 0) < (Number(wp.queue_number) || 0)).length
-        const eventId = `enter_${patient.queue_number || patient.id}_for_${wp.id}`
-        
-        let title = 'حركة الدور: دخول مريض للكشف'
-        let body = `دخل الآن المريض رقم #${patient.queue_number || ''} لغرفة الكشف. دورك رقم #${wp.queue_number} (متبقي أمامك ${aheadCount} مرضى).`
-        let type: any = 'system'
-
-        if (aheadCount <= 5 && aheadCount > 0) {
-          title = `تنبيه: اقترب دورك (متبقي ${aheadCount} أدوار)`
-          body = `دخل الآن المريض رقم #${patient.queue_number || ''}. متبقي أمامك ${aheadCount} مرضى فقط. يرجى التواجد بقاعة الانتظار للاستعداد.`
-          type = 'approaching_turn'
-        }
-
-        createClinicNotification({
-          clinicId: clinic?.id || wp.clinic_id,
-          branchId: wp.branch_id,
-          recipientType: 'patient',
-          recipientTarget: wp.phone,
-          title,
-          body,
-          type,
-          eventId,
-          appointmentId: wp.id
-        }).catch(() => {})
-        if (aheadCount <= 5 && aheadCount > 0) {
-          import('@/lib/patientNotificationHelper').then(({ triggerPatientEventPush }) => {
-            triggerPatientEventPush({
-              type: 'approaching_turn',
-              appointmentId: wp.id,
-              clinicId: clinic?.id || wp.clinic_id,
-              clinicSlug: clinic?.slug,
-              clinicName: clinic?.clinicName || 'العيادة',
-              patientPhone: wp.phone,
-              aheadCount,
-              eventId: `push_approaching_${aheadCount}_${wp.id}`,
-            }).catch(() => {})
-          });
-        }
-      }
-
+      await runQueueTransition(patient.id, 'start')
       toast.success(`بدأ كشف المريض: ${patient.patientName}`)
-    } catch (err) {
-      toast.error('حدث خطأ أثناء بدء الكشف.')
-    } finally {
-      setIsProcessing(false)
-    }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'تعذر إدخال المريض')
+    } finally { setIsProcessing(false) }
   }
 
   const handleCompleteExam = async (patientId: string, patientName: string) => {
     if (isProcessing) return
     setIsProcessing(true)
     try {
-      const appt = bookings.find(b => b.id === patientId)
-      let durationMinutes: number | null = null
-      if (appt?.startedAt) {
-        const startMs = new Date(appt.startedAt).getTime()
-        const nowMs = new Date().getTime()
-        durationMinutes = Math.max(1, Math.round((nowMs - startMs) / 60000))
-      }
-
-      const updateData: any = {
-        status: 'completed',
-        completedAt: new Date().toISOString()
-      }
-      if (durationMinutes) {
-        updateData.durationMinutes = durationMinutes
-      }
-
-      await updateDoc(doc(db, 'appointments', patientId), updateData)
-      // Dynamically recalculate average visit time for this branch only
-      if (durationMinutes && clinic?.id) {
-        const targetAppt = rawAppointments.find(a => a.id === patientId)
-        const targetBranchId = targetAppt?.branch_id || targetAppt?.branchId || selectedBranchId
-
-        if (targetBranchId && targetBranchId !== 'all') {
-          const branchCompleted = rawAppointments
-            .filter(a => ((a.branch_id === targetBranchId || a.branchId === targetBranchId) || (!a.branch_id && !a.branchId && targetBranchId === 'main')) && a.id !== patientId && a.status === 'completed' && a.durationMinutes)
-            .map(a => Number(a.durationMinutes))
-          branchCompleted.push(durationMinutes)
-          const newAvg = Math.round(branchCompleted.reduce((a, b) => a + b, 0) / branchCompleted.length)
-          if (newAvg > 0) {
-            updateDoc(doc(db, 'branches', targetBranchId), {
-              slotDuration: newAvg,
-              averageVisitTime: newAvg
-            }).catch(() => {})
-          }
-        }
-      }
-
-      toast.success(`تم إنهاء كشف: ${patientName}${durationMinutes ? ` (استغرق ${durationMinutes} دقيقة)` : ''}`)
-    } catch (err) {
-      toast.error('حدث خطأ أثناء إنهاء الكشف.')
-    } finally {
-      setIsProcessing(false)
-    }
+      await runQueueTransition(patientId, 'complete')
+      toast.success(`تم إنهاء كشف: ${patientName}`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'تعذر إنهاء الكشف')
+    } finally { setIsProcessing(false) }
   }
 
   const handleRecallPatient = async (patient: any) => {
     if (!patient || isProcessing) return
     setIsProcessing(true)
     try {
-      const now = new Date().toISOString()
-      await updateDoc(doc(db, 'appointments', patient.id), {
-        calledAt: now,
-      })
-
-      if (patient.phone) {
-        createClinicNotification({
-          clinicId: clinic?.id || patient.clinic_id,
-          branchId: patient.branch_id,
-          recipientType: 'patient',
-          recipientTarget: patient.phone,
-          title: 'تذكير: دورك الآن للدخول!',
-          body: `مرحباً ${patient.patientName}، يرجى التوجه لغرفة الكشف فوراً (تذكرة #${patient.queue_number || ''}). الطبيب بانتظارك.`,
-          type: 'turn_ready',
-          eventId: `turn_recall_${patient.id}_${Date.now()}`,
-          appointmentId: patient.id
-        }).catch(() => {})
-
-        import('@/lib/patientNotificationHelper').then(({ triggerPatientEventPush }) => {
-          triggerPatientEventPush({
-            type: 'turn_ready',
-            appointmentId: patient.id,
-            clinicId: clinic?.id || patient.clinic_id,
-            clinicSlug: clinic?.slug,
-            clinicName: clinic?.clinicName || 'العيادة',
-            patientPhone: patient.phone,
-            queueNumber: patient.queue_number,
-            eventId: `push_turn_recall_${patient.id}_${Date.now()}`,
-          }).catch(() => {})
-        })
-      }
-
-      toast.success(`تمت إعادة النداء على المريض #${patient.queue_number} (${patient.patientName}) بنجاح.`)
-    } catch (err) {
-      console.error('Error recalling patient:', err)
-      toast.error('حدث خطأ أثناء إعادة النداء.')
-    } finally {
-      setIsProcessing(false)
-    }
+      await runQueueTransition(patient.id, 'recall')
+      toast.success(`تمت إعادة النداء على المريض #${patient.queue_number}`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'تعذر إعادة النداء')
+    } finally { setIsProcessing(false) }
   }
 
   const handleSkipPatient = async (patient: any) => {
     if (!patient || isProcessing) return
     setIsProcessing(true)
     try {
-      // 1. Mark patient as skipped, strictly preserving their original queue_number
-      await updateDoc(doc(db, 'appointments', patient.id), {
-        status: 'skipped',
-        skippedAt: new Date().toISOString(),
-        priorityNext: false
-      })
-
-      // 2. Automatically admit the next waiting patient into the exam room
-      const upcoming = waitingPatients.find((p: any) => p.id !== patient.id)
-      if (upcoming) {
-        let prevDuration: number | null = null
-        if (patient.startedAt) {
-          const startMs = new Date(patient.startedAt).getTime()
-          prevDuration = Math.max(1, Math.round((new Date().getTime() - startMs) / 60000))
-        }
-
-        await updateDoc(doc(db, 'appointments', upcoming.id), {
-          status: 'in_progress',
-          paymentStatus: 'paid',
-          startedAt: new Date().toISOString(),
-          calledAt: new Date().toISOString(),
-          ...(!patient.arrivedAt ? { arrivedAt: patient.createdAt || new Date().toISOString() } : {}),
-          priorityNext: false
-        })
-
-        if (upcoming.phone) {
-          createClinicNotification({
-            clinicId: clinic?.id || upcoming.clinic_id,
-            branchId: upcoming.branch_id,
-            recipientType: 'patient',
-            recipientTarget: upcoming.phone,
-            title: 'دورك الآن للدخول!',
-            body: `مرحباً ${upcoming.patientName}، حان دورك الآن للدخول لغرفة الكشف (تذكرة #${upcoming.queue_number || ''}). يرجى الدخول مباشرة.`,
-            type: 'turn_ready',
-            eventId: `turn_ready_${upcoming.id}`,
-            appointmentId: upcoming.id
-          }).catch(() => {})
-
-          import('@/lib/patientNotificationHelper').then(({ triggerPatientEventPush }) => {
-            triggerPatientEventPush({
-              type: 'turn_ready',
-              appointmentId: upcoming.id,
-              clinicId: clinic?.id || upcoming.clinic_id,
-              clinicSlug: clinic?.slug,
-              clinicName: clinic?.clinicName || 'العيادة',
-              patientPhone: upcoming.phone,
-              queueNumber: upcoming.queue_number,
-              eventId: `push_turn_ready_${upcoming.id}`,
-            }).catch(() => {})
-          })
-        }
-
-        toast.info(`تم تخطي دور المريض #${patient.queue_number} وإدخال الدور التالي #${upcoming.queue_number} (${upcoming.patientName}).`)
-      } else {
-        toast.info(`تم تخطي دور المريض #${patient.queue_number}. لا يوجد مرضى آخرون في الانتظار حالياً.`)
-      }
-    } catch (err) {
-      console.error('Error skipping patient:', err)
-      toast.error('حدث خطأ أثناء تخطي المريض.')
-    } finally {
-      setIsProcessing(false)
-    }
+      const result = await runQueueTransition(patient.id, 'skip')
+      toast.info(result.calledId
+        ? `تم تخطي المريض #${patient.queue_number} واستدعاء التالي`
+        : `تم تخطي المريض #${patient.queue_number}. لا يوجد مريض آخر في الانتظار.`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'تعذر تخطي المريض')
+    } finally { setIsProcessing(false) }
   }
 
   const handleRequeueSkippedPatient = async (patient: any) => {
     if (!patient || isProcessing) return
     setIsProcessing(true)
     try {
-      await updateDoc(doc(db, 'appointments', patient.id), {
-        status: 'waiting',
-        priorityNext: true,
-        requeuedAt: new Date().toISOString(),
-        arrivedAt: new Date().toISOString()
-      })
-      if (statusTabFilter === 'skipped') {
-        setStatusTabFilter('all')
-      }
-      toast.success(`تم إدخال المريض رقم #${patient.queue_number} (${patient.patientName}) في الدور القادم مباشرة بعد الحالة الحالية.`)
-    } catch (err) {
-      console.error('Error requeueing patient:', err)
-      toast.error('حدث خطأ أثناء إعادة إدخال المريض.')
-    } finally {
-      setIsProcessing(false)
-    }
+      await runQueueTransition(patient.id, 'requeue')
+      if (statusTabFilter === 'skipped') setStatusTabFilter('all')
+      toast.success(`عاد المريض #${patient.queue_number} لقائمة الانتظار`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'تعذر إعادة المريض للانتظار')
+    } finally { setIsProcessing(false) }
   }
 
   const handleNoShow = async (patientId: string) => {
     if (isProcessing) return
     setIsProcessing(true)
     try {
-      await updateDoc(doc(db, 'appointments', patientId), {
-        status: 'no_show'
-      })
+      await runQueueTransition(patientId, 'no_show')
       toast.warning('تم تسجيل المريض: لم يحضر')
-    } catch (err) {
-      toast.error('حدث خطأ أثناء تسجيل الغياب.')
-    } finally {
-      setIsProcessing(false)
-    }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'تعذر تسجيل الغياب')
+    } finally { setIsProcessing(false) }
   }
 
   const handleManualWhatsApp = (patient: any) => {

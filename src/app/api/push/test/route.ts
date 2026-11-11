@@ -1,96 +1,60 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { sendWebPushNotification } from '@/lib/webPushServer'
 import { getSubscriptionId } from '@/lib/pushDispatcher'
-import { db } from '@/lib/firebase'
-import { doc, getDoc } from 'firebase/firestore'
+import { sendWebPushNotification } from '@/lib/webPushServer'
+import { authorizePushTarget, sameOriginMutation } from '@/lib/server/push-access'
+import { readDocument, writeDocument } from '@/lib/server/firebase-rest'
+import { getVapidConfig } from '@/lib/webPushServer'
 
-/**
- * Send an immediate real test notification to verify device connectivity
- * POST /api/push/test
- * Body: { endpoint, clinicId?, appointmentId?, clinicSlug? }
- */
 export async function POST(req: NextRequest) {
   try {
-    const payload = await req.json()
-    const { endpoint, clinicSlug, appointmentId } = payload
-
-    if (!endpoint) {
-      return NextResponse.json(
-        { error: 'Subscription endpoint is required' },
-        { status: 400 }
-      )
+    if (!sameOriginMutation(req)) return NextResponse.json({ error: 'INVALID_ORIGIN' }, { status: 403 })
+    const data = await req.json().catch(() => ({}))
+    const role = data.role === 'staff' ? 'staff' : 'patient'
+    const target = await authorizePushTarget(req, {
+      role, clinicId: String(data.clinicId || ''), appointmentId: data.appointmentId,
+      pushClaim: data.pushClaim,
+    })
+    if (!target || typeof data.endpoint !== 'string') {
+      return NextResponse.json({ error: 'VERIFIED_DEVICE_REQUIRED' }, { status: 403 })
     }
-
-    const subId = await getSubscriptionId(endpoint)
-    const docRef = doc(db, 'push_subscriptions', subId)
-    const snap = await getDoc(docRef)
-
-    let subscriptionKeys: { p256dh: string; auth: string } | null = null
-
-    if (snap.exists()) {
-      const data = snap.data()
-      subscriptionKeys = data.keys
-    } else {
-      // Check legacy doc
-      const legacySnap = await getDoc(doc(db, 'pushSubscriptions', subId))
-      if (legacySnap.exists()) {
-        const leg = legacySnap.data()
-        subscriptionKeys = leg.keys || leg.subscription?.keys
-      }
+    const id = await getSubscriptionId(data.endpoint)
+    const path = `push_subscriptions/${id}`
+    const sub = await readDocument(path)
+    if (!sub || sub.endpoint !== data.endpoint || sub.status !== 'active' ||
+        sub.clinicId !== target.clinicId || sub.role !== target.role ||
+        sub.vapidPublicKey !== getVapidConfig().publicKey ||
+        (role === 'patient' && (!Array.isArray(sub.appointmentIds) ||
+          !sub.appointmentIds.includes(target.appointmentId)))) {
+      return NextResponse.json({ error: 'DEVICE_NOT_REGISTERED_FOR_THIS_BOOKING' }, { status: 403 })
     }
-
-    if (!subscriptionKeys?.p256dh || !subscriptionKeys?.auth) {
-      return NextResponse.json(
-        { error: 'Subscription keys not found for this device. Please reactivate alerts.' },
-        { status: 404 }
-      )
+    if (sub.lastTestAt && Date.now() - Date.parse(String(sub.lastTestAt)) < 60000) {
+      return NextResponse.json({ error: 'TEST_RATE_LIMITED_TRY_AGAIN_IN_ONE_MINUTE' }, { status: 429 })
     }
-
-    const targetUrl = appointmentId && clinicSlug
-      ? `/clinic/${clinicSlug}/track/${appointmentId}`
-      : '/'
-
-    const result = await sendWebPushNotification(
-      {
-        endpoint,
-        keys: subscriptionKeys,
-      },
-      {
-        title: '🔔 اختبار تنبيهات Yalla Clinic',
-        body: 'تم استلام الإشعار التجريبي بنجاح! جهازك متصل الآن ومستعد لاستقبال تنبيهات حجزك في الخلفية.',
-        icon: '/brand/yalla-clinic/app-icon.png',
-        badge: '/favicon-32x32.png',
-        url: targetUrl,
-        tag: `test-push-${Date.now()}`,
-        type: 'test_notification',
-        appointmentId,
-        ttl: 120,
-        urgency: 'high',
-      }
-    )
-
-    if (result.success) {
+    await writeDocument(path, { lastTestAt: new Date().toISOString() }, true)
+    const result = await sendWebPushNotification({
+      endpoint: String(sub.endpoint),
+      keys: sub.keys as { p256dh: string; auth: string },
+    }, {
+      title: 'اختبار إشعارات Yalla Clinic',
+      body: 'تم إرسال تنبيه تجريبي لجهازك. إذا ظهر في شريط النظام فالخدمة تعمل.',
+      url: role === 'patient' && data.appointmentId && data.clinicSlug
+        ? `/clinic/${encodeURIComponent(String(data.clinicSlug))}/track/${encodeURIComponent(String(data.appointmentId))}`
+        : '/',
+      type: 'test_notification', tag: `push-test-${id}-${Date.now()}`,
+      ttl: 120, urgency: 'high',
+    })
+    if (!result.success) {
       return NextResponse.json({
-        success: true,
-        message: 'تم إرسال الإشعار التجريبي بنجاح إلى جهازك',
+        success: false, error: result.error || 'PUSH_GATEWAY_REJECTED',
         gatewayStatus: result.status,
-      })
-    } else {
-      return NextResponse.json(
-        {
-          success: false,
-          error: result.error || 'Gateway returned non-success response',
-          gatewayStatus: result.status,
-          gone: result.gone,
-        },
-        { status: 502 }
-      )
+      }, { status: 502 })
     }
-  } catch (error: any) {
-    console.error('Error sending test push:', error)
-    return NextResponse.json(
-      { error: error?.message || 'Failed to dispatch test notification' },
-      { status: 500 }
-    )
+    return NextResponse.json({
+      success: true, gatewayStatus: result.status,
+      message: 'تم قبول الإشعار بواسطة خدمة Push، تأكد من وصوله لشريط إشعارات جهازك.',
+    })
+  } catch (error) {
+    console.error('[push] Test failed:', error instanceof Error ? error.message : 'UNKNOWN')
+    return NextResponse.json({ error: 'PUSH_TEST_UNAVAILABLE' }, { status: 503 })
   }
 }

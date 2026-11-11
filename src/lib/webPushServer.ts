@@ -22,18 +22,11 @@ export interface WebPushSendResult {
  * Priority: Environment Variables -> Cloudflare Secrets -> Project-Generated Permanent Keys.
  */
 export function getVapidConfig(): VapidConfig {
-  const publicKey =
-    process.env.VAPID_PUBLIC_KEY ||
-    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
-    'BCa73xOIycmAG3s96I_I5ra3_cPw7yeV97Wh8hh01Gb24_CsLZYnDH04cJS5MTLr2irpKgc_VlCLgSpqakLmX-Y'
-
-  const privateKey =
-    process.env.VAPID_PRIVATE_KEY ||
-    'FSkeN1Vr-hVLRluYn_jMY2ixfMF-GZKBBw94Kyih2o4'
-
-  const subject =
-    process.env.VAPID_SUBJECT ||
-    'mailto:support@yalla-clinic.com'
+  // Do not bundle credentials into source. A previous private key was
+  // embedded in the repository and must be rotated in Cloudflare secrets.
+  const publicKey = process.env.VAPID_PUBLIC_KEY || ''
+  const privateKey = process.env.VAPID_PRIVATE_KEY || ''
+  const subject = process.env.VAPID_SUBJECT || 'mailto:support@yalla-clinic.com'
 
   if (!publicKey || !privateKey) {
     throw new Error('VAPID credentials missing. Cannot dispatch Web Push notifications.')

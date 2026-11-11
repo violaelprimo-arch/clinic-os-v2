@@ -8,6 +8,7 @@ import {
   getCairoDateString
 } from './medicine-sync-service'
 import { readDocument } from './firebase-rest'
+import { processPendingPushOutbox } from './push-outbox'
 
 export interface ScheduledEventResult {
   success?: boolean
@@ -43,6 +44,20 @@ export async function handleScheduledEvent(
       if (typeof val === 'string' && !process.env[key]) {
         process.env[key] = val
       }
+    }
+  }
+
+  // The 15-minute retry trigger also drains expired mobile push gateway
+  // retries, independent of the medicine sync window and patient web tabs.
+  if (cronExpr === '*/15 * * * *') {
+    try {
+      const push = await processPendingPushOutbox(15)
+      if (push.processed > 0) {
+        console.log('[Worker Scheduled] Push retry:', push)
+      }
+    } catch (error) {
+      console.warn('[Worker Scheduled] Push retry unavailable:',
+        error instanceof Error ? error.message : 'UNKNOWN')
     }
   }
 

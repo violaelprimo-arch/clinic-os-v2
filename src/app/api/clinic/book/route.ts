@@ -4,6 +4,7 @@ import { readDocument, queryDocuments, writeDocument } from '@/lib/server/fireba
 import { canonicalizeBranches } from '@/lib/branchCanonical'
 
 import { createServerNotification } from '@/lib/server/clinic-notifications'
+import { issueBookingPushClaim } from '@/lib/server/push-access'
 import { dispatchPatientPushNotification } from '@/lib/pushDispatcher'
 import { createAtomicAppointmentServer } from '@/lib/server/firebase-rest'
 import { isClinicSuspended } from '@/lib/clinicAccessPolicy'
@@ -293,30 +294,57 @@ export async function POST(req: NextRequest) {
       console.warn('Patient account auto creation notice:', e)
     }
 
-    // Trigger clinic notifications
-    createServerNotification({
-      clinicId,
-      branchId,
-      recipientTarget: clinicId,
-      recipientType: 'staff',
-      type: 'new_booking',
-      title: 'حجز جديد',
-      body: `حجز جديد للمريض ${cleanName} - دور #${queueNumber} (${verifiedServiceName})`,
-      eventId: `new_booking_${clinicId}_${docRef.id}`,
-      appointmentId: docRef.id
-    }).catch((err) => console.error('Failed to persist staff notification:', err))
+    // Persist both patient and staff notifications on the trusted server.
+    // Client Firestore rules forbid direct anonymous writes to this collection.
+    await Promise.allSettled([
+      createServerNotification({
+        clinicId, branchId, recipientTarget: clinicId,
+        recipientType: 'staff', type: 'new_booking', title: 'حجز جديد',
+        body: `حجز جديد برقم دور #${queueNumber} (${verifiedServiceName})`,
+        eventId: `new_booking_${clinicId}_${docRef.id}`,
+        appointmentId: docRef.id,
+      }),
+      createServerNotification({
+        clinicId, branchId, recipientTarget: cleanPhone,
+        recipientType: 'patient', type: 'booking_confirmed',
+        title: 'تم تسجيل حجزك بنجاح',
+        body: `تم تأكيد حجزك برقم دور #${queueNumber} بتاريخ ${bookingDate}.`,
+        eventId: `booking_confirmed_${docRef.id}`,
+        appointmentId: docRef.id,
+      }),
+      // The browser may already have a subscription from an earlier
+      // confirmed booking; only tenant-authorized subscriptions are matched.
+      dispatchPatientPushNotification({
+        type: 'booking_confirmed', clinicId, appointmentId: docRef.id,
+        title: 'تم تأكيد الحجز', body: `رقم دورك #${queueNumber}.`,
+        url: `/clinic/${slug}/track/${docRef.id}`,
+        eventId: `booking_push_${docRef.id}`,
+      }),
+      dispatchPatientPushNotification({
+        type: 'new_booking', clinicId, recipientType: 'staff',
+        title: 'حجز جديد في العيادة',
+        body: `حجز جديد برقم دور #${queueNumber}.`,
+        url: `/clinic/${slug}/admin`,
+        eventId: `staff_booking_push_${docRef.id}`,
+      }),
+    ]).then(results => {
+      for (const result of results) {
+        if (result.status === 'rejected') {
+          console.warn('[booking] Notification delivery unavailable:',
+            result.reason instanceof Error ? result.reason.message : 'UNKNOWN')
+        }
+      }
+    })
 
-    // Send push notification
-    dispatchPatientPushNotification({
-      type: 'booking_confirmed',
-      clinicId,
-      patientPhone: cleanPhone,
-      appointmentId: docRef.id,
-      title: 'تم تأكيد حجزك بنجاح ✓',
-      body: `مرحباً ${cleanName}، دورك هو #${queueNumber} في عيادة ${cData.name || 'العيادة'}.`,
-      url: `/clinic/${slug}/track/${docRef.id}`,
-      tag: `booking-${docRef.id}`
-    }).catch((err) => console.error('Push notification failed non-blockingly:', err))
+    // A signed, appointment-scoped capability allows the booking device to
+    // opt in to background push without granting access to patient records.
+    let pushRegistrationToken: string | null = null
+    try {
+      pushRegistrationToken = await issueBookingPushClaim(clinicId, docRef.id)
+    } catch (error) {
+      console.warn('[booking] Push opt-in unavailable:',
+        error instanceof Error ? error.message : 'UNKNOWN')
+    }
 
     // Compute schedule-anchored queue position and entrance estimate
     const livePos = calculatePatientLivePosition({
@@ -350,6 +378,7 @@ export async function POST(req: NextRequest) {
       success: true,
       appointmentId: docRef.id,
       id: docRef.id,
+      pushRegistrationToken,
       queueNumber,
       aheadCount: livePos.aheadCount,
       effectivePosition: livePos.effectivePosition,

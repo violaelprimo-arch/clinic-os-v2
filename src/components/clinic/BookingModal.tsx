@@ -25,12 +25,9 @@ import {
   Globe,
   MessageSquare
 } from 'lucide-react'
-import { db } from '@/lib/firebase'
-import { createAtomicAppointment, removeUndefinedFields } from '@/lib/queueService'
 import { calculatePatientLivePosition } from '@/lib/queueCalculations'
 import {
   resolveEffectiveDailyLimit,
-  isAppointmentActive,
   getCairoDateString,
   parseDateSafe,
   filterAvailableDays,
@@ -39,9 +36,6 @@ import {
   validateBookingAvailability,
   CAPACITY_FULL_MESSAGE
 } from '@/lib/bookingCapacity'
-import { collection, addDoc, getDocs, query, where } from 'firebase/firestore'
-import { getClinicBranches, ensureClinicHasMainBranch } from '@/lib/branchService'
-import { createClinicNotification } from '@/lib/notificationService'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
@@ -196,13 +190,14 @@ export function BookingModal({
     return calendarDays.filter((d) => d.isSelectable)
   }, [calendarDays])
 
-  // Real-time synchronization of daily booking counts
+  // Real-time synchronization of daily booking counts via scoped server API
+  // (Public Firestore rules forbid direct appointment collection reads).
   useEffect(() => {
-    if (!clinicId) return
+    if (!clinicId || !slug || isPreview) return
     let isCancelled = false
 
     const todayCairo = getCairoDateString()
-    const maxDaysToScan = isTodayOnly ? 14 : 21
+    const maxDaysToScan = 14
     const candidateDays: string[] = []
 
     const baseDate = parseDateSafe(todayCairo)
@@ -214,35 +209,29 @@ export function BookingModal({
       candidateDays.push(`${year}-${month}-${day}`)
     }
 
-    Promise.all(
-      candidateDays.map(async (iso) => {
-        const q = query(
-          collection(db, 'appointments'),
-          where('clinic_id', '==', clinicId),
-          where('date', '==', iso)
-        )
-        const snap = await getDocs(q)
-        let active = snap.docs.filter((d) => isAppointmentActive(d.data().status))
-        if (selectedBranch?.id && maxLimit > 0 && selectedBranch.id !== 'main') {
-          active = active.filter((d) => (d.data().branch_id || d.data().branchId || null) === selectedBranch.id)
-        }
-        return { iso, count: active.length }
+    const params = new URLSearchParams({ dates: candidateDays.join(',') })
+    if (selectedBranch?.id && selectedBranch.id !== 'main') {
+      params.set('branchId', selectedBranch.id)
+    }
+
+    fetch(`/api/clinic/${encodeURIComponent(slug)}/queue?${params.toString()}`, {
+      cache: 'no-store'
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok || !data?.success) throw new Error('CAPACITY_UNAVAILABLE')
+        return data
       })
-    )
-      .then((results) => {
+      .then((data) => {
         if (isCancelled) return
-        const map: Record<string, number> = {}
-        results.forEach((r) => {
-          map[r.iso] = r.count
-        })
-        setDailyBookingCounts(map)
+        setDailyBookingCounts(data.dailyCounts || {})
       })
       .catch((err) => console.warn('Error fetching daily booking counts:', err))
 
     return () => {
       isCancelled = true
     }
-  }, [clinicId, maxLimit, isTodayOnly, selectedBranch?.id, selectedBranch?.weeklySchedule, clinic?.weeklySchedule])
+  }, [clinicId, slug, isPreview, selectedBranch?.id])
 
   // Auto-select nearest available date and display auto-forward notice if today is unavailable
   useEffect(() => {
@@ -276,38 +265,59 @@ export function BookingModal({
     }
   }, [availableDays, calendarDays, selectedDate])
 
-  // Live estimated queue & wait time calculation
+  // Live estimated queue & wait time calculation via scoped server API
   const [estimatedQueueNumber, setEstimatedQueueNumber] = useState<number>(1)
   const [estimatedWaitMins, setEstimatedWaitMins] = useState<number>(0)
   const [isEstimating, setIsEstimating] = useState<boolean>(false)
 
   useEffect(() => {
     if (!selectedDate || !clinicId) return
+    const dayCount = dailyBookingCounts[selectedDate] || 0
+    const avgMins = Number(clinic?.averageVisitTime) || 15
+    const todayCairo = getCairoDateString()
+
+    if (isPreview || !slug || selectedDate !== todayCairo) {
+      setEstimatedQueueNumber(dayCount + 1)
+      setEstimatedWaitMins(dayCount * avgMins)
+      setIsEstimating(false)
+      return
+    }
+
     let isCancelled = false
     setIsEstimating(true)
 
-    const q = query(
-      collection(db, 'appointments'),
-      where('clinic_id', '==', clinicId),
-      where('date', '==', selectedDate)
-    )
+    const params = new URLSearchParams({ tv: '1' })
+    if (selectedBranch?.id && selectedBranch.id !== 'main') {
+      params.set('branchId', selectedBranch.id)
+    }
 
-    getDocs(q)
-      .then((snap) => {
-        if (isCancelled) return
-        const existingNums = snap.docs.map((d) => Number(d.data().queue_number) || 0)
-        const maxQueue = existingNums.length > 0 ? Math.max(0, ...existingNums) : 0
-        const nextQueue = maxQueue + 1
-
-        const waitingAhead = snap.docs.filter(
-          (d) => d.data().status === 'waiting' || !d.data().status
-        ).length
-        const avgMins = Number(clinic?.averageVisitTime) || 15
-
-        setEstimatedQueueNumber(nextQueue)
-        setEstimatedWaitMins(waitingAhead * avgMins)
+    fetch(`/api/clinic/${encodeURIComponent(slug)}/queue?${params.toString()}`, {
+      cache: 'no-store'
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok || !data?.success) throw new Error('QUEUE_ESTIMATE_UNAVAILABLE')
+        return data
       })
-      .catch((e) => console.warn('Error fetching estimated queue:', e))
+      .then((data) => {
+        if (isCancelled) return
+        const totalWaiting = Number(data?.totalWaiting || 0)
+        const inProgressNum = Number(data?.tvQueue?.currentPatient?.queueNumber || 0)
+        const maxWaitingNum = Array.isArray(data?.tvQueue?.nextWaitingPatients)
+          ? data.tvQueue.nextWaitingPatients.reduce(
+              (m: number, p: any) => Math.max(m, Number(p?.queueNumber || 0)),
+              0
+            )
+          : 0
+        const nextQueue = Math.max(dayCount + 1, inProgressNum + 1, maxWaitingNum + 1)
+        setEstimatedQueueNumber(nextQueue)
+        setEstimatedWaitMins(totalWaiting * avgMins)
+      })
+      .catch(() => {
+        if (isCancelled) return
+        setEstimatedQueueNumber(dayCount + 1)
+        setEstimatedWaitMins(dayCount * avgMins)
+      })
       .finally(() => {
         if (!isCancelled) setIsEstimating(false)
       })
@@ -315,7 +325,7 @@ export function BookingModal({
     return () => {
       isCancelled = true
     }
-  }, [clinicId, selectedDate, clinic?.averageVisitTime])
+  }, [clinicId, slug, isPreview, selectedDate, selectedBranch?.id, dailyBookingCounts, clinic?.averageVisitTime])
 
   // Patient Form State (No birthdate - only name, phone, age, gender)
   const [patientName, setPatientName] = useState<string>('')
@@ -510,27 +520,6 @@ export function BookingModal({
         }
       }
 
-      // Check max daily bookings quota directly from DB
-      const q = query(
-        collection(db, 'appointments'),
-        where('clinic_id', '==', clinicId),
-        where('date', '==', selectedDate)
-      )
-      const qSnap = await getDocs(q)
-      const activeAppts = qSnap.docs.filter((d) => d.data().status !== 'cancelled')
-
-      if (maxLimit > 0 && activeAppts.length >= maxLimit) {
-        toast.error(`عذراً، اكتمل الحد الأقصى للحجوزات لهذا اليوم (${maxLimit} كشف). يرجى اختيار يوم آخر.`)
-        setSubmitting(false)
-        return
-      }
-
-      let waitingCount = 0
-      qSnap.docs.forEach((docSnap) => {
-        const st = docSnap.data().status
-        if (st === 'waiting' || !st) waitingCount++
-      })
-
       const serviceName = selectedService?.name || 'كشف عادي'
       const isUrgent =
         selectedService?.isUrgent ||
@@ -601,9 +590,10 @@ export function BookingModal({
         return
       }
 
-      // Atomically allocate next sequential queue number via Server API (prevents client permission errors)
+      // Atomically allocate next sequential queue number and check capacity via Server API
       let newApptId = ''
       let myQueueNumber = 1
+      let bookData: any = null
 
       try {
         const bookRes = await fetch('/api/clinic/book', {
@@ -629,15 +619,18 @@ export function BookingModal({
           })
         })
 
-        const bookData = await bookRes.json()
-        if (!bookRes.ok) {
-          throw new Error(bookData.error || 'فشل في إتمام الحجز')
+        bookData = await bookRes.json().catch(() => ({}))
+        if (!bookRes.ok || !bookData?.success) {
+          if (bookData?.isFull || bookData?.status === 'full' || String(bookData?.error || '').includes('QUOTA_EXCEEDED')) {
+            throw new Error(`QUOTA_EXCEEDED: ${bookData?.error || CAPACITY_FULL_MESSAGE}`)
+          }
+          throw new Error(bookData?.error || 'فشل في إتمام الحجز')
         }
 
-        newApptId = bookData.appointmentId || bookData.id || bookData.appointment?.id
-        myQueueNumber = bookData.queueNumber || bookData.appointment?.queueNumber || 1
+        newApptId = String(bookData.appointmentId || bookData.id || bookData.appointment?.id || '')
+        myQueueNumber = Number(bookData.queueNumber || bookData.appointment?.queueNumber || 1)
       } catch (serverErr: any) {
-        if (serverErr.message && !serverErr.message.includes('fetch') && !serverErr.message.includes('Network')) {
+        if (serverErr?.message && !serverErr.message.includes('fetch') && !serverErr.message.includes('Network')) {
           throw serverErr
         }
         // Never bypass server-side branch, subscription and quota validation.
@@ -645,45 +638,15 @@ export function BookingModal({
         throw new Error('تعذر الاتصال بخدمة الحجز الآمنة. تأكد من الاتصال ثم حاول مرة أخرى.')
       }
 
-      const docRef = { id: newApptId }
-
-      // Auto ensure patient account exists for frictionless patient portal access
-      try {
-        const accQ = query(
-          collection(db, 'patient_accounts'),
-          where('clinic_id', '==', clinicId),
-          where('phone', '==', cleanPhone)
-        )
-        const accSnap = await getDocs(accQ)
-        if (accSnap.empty) {
-          await addDoc(collection(db, 'patient_accounts'), removeUndefinedFields({
-            clinic_id: clinicId,
-            name: patientName.trim(),
-            phone: cleanPhone,
-            age: age.trim() || null,
-            gender: gender || 'أنثى',
-            residence: residence?.governorateId ? {
-              governorateId: residence.governorateId,
-              governorateNameAr: residence.governorateNameAr || '',
-              governorateNameEn: residence.governorateNameEn || '',
-              cityId: residence.cityId || '',
-              cityNameAr: residence.cityNameAr || '',
-              cityNameEn: residence.cityNameEn || '',
-              areaId: residence.areaId || '',
-              areaNameAr: residence.areaNameAr || '',
-              areaNameEn: residence.areaNameEn || '',
-              customAreaName: residence.customAreaName || null,
-              source: residence.source || 'manual',
-              updatedAt: new Date().toISOString()
-            } : null,
-            createdAt: new Date().toISOString()
-          }))
+      if (typeof bookData?.pushRegistrationToken === 'string' && bookData.pushRegistrationToken && newApptId) {
+        try {
+          localStorage.setItem(`yalla_push_claim_${newApptId}`, bookData.pushRegistrationToken)
+        } catch {
+          // User can still track without background notification opt-in.
         }
-      } catch (e) {
-        console.warn('Could not auto-provision patient account:', e)
       }
 
-      // Auto-login patient session
+      // Auto-login local patient session convenience cache (patient_accounts provisioned server-side by /api/clinic/book)
       try {
         localStorage.setItem(
           'patient_auth',
@@ -700,55 +663,17 @@ export function BookingModal({
         console.warn('Could not write patient session:', e)
       }
 
-      createClinicNotification({
-        clinicId,
-        branchId: branchId,
-        recipientType: 'patient',
-        recipientTarget: cleanPhone,
-        title: 'تم تسجيل حجزك بنجاح',
-        body: `مرحباً ${patientName.trim()}، تم تأكيد حجزك في فرع "${branchName}" برقم دور #${myQueueNumber} لتاريخ ${selectedDate}.`,
-        type: 'booking_confirmed',
-        appointmentId: docRef.id
-      }).catch(() => {})
-
       toast.success(`تم تأكيد الحجز بنجاح! رقم دورك: #${myQueueNumber}`)
 
-      const posResult = calculatePatientLivePosition({
-        targetAppointment: {
-          id: docRef.id,
-          queue_number: myQueueNumber,
-          date: selectedDate,
-          branch_id: branchId,
-          serviceId: selectedService?.id,
-          serviceName: serviceName,
-          status: 'waiting'
-        },
-        allTodayAppointments: [
-          ...qSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          {
-            id: docRef.id,
-            queue_number: myQueueNumber,
-            date: selectedDate,
-            branch_id: branchId,
-            serviceId: selectedService?.id,
-            serviceName: serviceName,
-            status: 'waiting'
-          }
-        ],
-        clinic,
-        branch: selectedBranch,
-        bookingDateStr: selectedDate
-      })
-
       setBookingSuccess({
-        appointmentId: docRef.id,
+        appointmentId: newApptId,
         queueNumber: myQueueNumber,
-        aheadCount: posResult.aheadCount,
-        effectivePosition: posResult.effectivePosition,
-        estimatedEntranceTime12H: posResult.estimatedEntranceTime12H,
-        isEstimateConfirmed: posResult.isEstimateConfirmed,
-        branchName: branchName,
-        date: selectedDate,
+        aheadCount: Number(bookData?.aheadCount ?? 0),
+        effectivePosition: bookData?.effectivePosition,
+        estimatedEntranceTime12H: bookData?.estimatedEntranceTime12H,
+        isEstimateConfirmed: bookData?.isEstimateConfirmed,
+        branchName: bookData?.branchName || branchName,
+        date: bookData?.date || selectedDate,
         paymentMethod: paymentMethod === 'cash' ? 'كاش بالعيادة' : paymentMethod === 'instapay' ? 'InstaPay' : 'محفظة إلكترونية'
       })
     } catch (err: any) {
@@ -770,7 +695,7 @@ export function BookingModal({
           toast.error(CAPACITY_FULL_MESSAGE)
         }
       } else {
-        toast.error('حدث خطأ أثناء إتمام الحجز، يرجى المحاولة ثانيةً')
+        toast.error(err?.message || 'حدث خطأ أثناء إتمام الحجز، يرجى المحاولة ثانيةً')
       }
     } finally {
       setSubmitting(false)
