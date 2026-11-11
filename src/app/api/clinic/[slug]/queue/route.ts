@@ -1,7 +1,59 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readDocument, queryDocuments, queryDocumentsByFields } from '@/lib/server/firebase-rest'
+import {
+  readDocument,
+  queryDocuments,
+  queryDocumentsByField,
+  queryDocumentsByFields,
+} from '@/lib/server/firebase-rest'
 import { calculatePatientLivePosition, sortQueue } from '@/lib/queueCalculations'
 import { getPhoneSearchVariants, normalizePhoneDigits } from '@/lib/countryPhoneHelper'
+import { computeQueueWatermark } from '@/lib/queueSync'
+
+export const dynamic = 'force-dynamic'
+
+const noStore = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate',
+}
+
+// Clinic IDs are immutable per slug; caching the lookup removes a redundant
+// Firestore scan on every 1s TV / patient-track poll.
+const clinicIdBySlugCache = new Map<string, string>()
+
+async function resolveClinicDoc(slug: string): Promise<{ clinicId: string; clinicData: any | null }> {
+  const cachedId = clinicIdBySlugCache.get(slug)
+  if (cachedId) {
+    const cachedDoc = await readDocument(`clinics/${cachedId}`)
+    if (cachedDoc && (cachedDoc.slug === slug || cachedDoc.id === slug)) {
+      return { clinicId: cachedDoc.id || cachedId, clinicData: cachedDoc }
+    }
+    clinicIdBySlugCache.delete(slug)
+  }
+
+  const [directDoc, bySlug] = await Promise.all([
+    /^[a-zA-Z0-9_-]{1,128}$/.test(slug) ? readDocument(`clinics/${slug}`).catch(() => null) : Promise.resolve(null),
+    queryDocumentsByFields('clinics', { slug }, 1).catch(() => []),
+  ])
+
+  let clinicDoc: any =
+    (bySlug && bySlug[0]) ||
+    (directDoc && (directDoc.slug === slug || directDoc.id === slug) ? directDoc : null)
+
+  if (!clinicDoc) {
+    const allClinics = await queryDocuments('clinics')
+    clinicDoc = allClinics.find((c: any) => c.slug === slug || c.id === slug) || null
+  }
+
+  const clinicId = clinicDoc ? String(clinicDoc.id) : slug
+  if (clinicDoc) {
+    if (clinicIdBySlugCache.size >= 200) {
+      const oldestKey = clinicIdBySlugCache.keys().next().value
+      if (oldestKey) clinicIdBySlugCache.delete(oldestKey)
+    }
+    clinicIdBySlugCache.set(slug, clinicId)
+  }
+
+  return { clinicId, clinicData: clinicDoc || null }
+}
 
 export async function GET(
   req: NextRequest,
@@ -15,58 +67,112 @@ export async function GET(
     const branchId = searchParams.get('branchId')
     const appointmentId = searchParams.get('appointmentId')
     if (appointmentId && !/^[A-Za-z0-9_-]{1,128}$/.test(appointmentId)) {
-      return NextResponse.json({ error: 'معرف الحجز غير صالح' }, { status: 400 })
+      return NextResponse.json({ error: 'معرف الحجز غير صالح' }, { status: 400, headers: noStore })
     }
-
-    // 1. Resolve clinic document via secure server REST
-    const allClinics = await queryDocuments('clinics')
-    const clinicDoc = allClinics.find((c: any) => c.slug === slug || c.id === slug)
-    const clinicId = clinicDoc ? clinicDoc.id : slug
-    const clinicData: any = clinicDoc || null
 
     const datesParam = searchParams.get('dates')
-    if (datesParam) {
-      // Clinic/date scoped capacity rather than reading only the first 200
-      // historical appointments and undercounting future bookings.
-      const requestedDates = [...new Set(datesParam.split(',').map(d => d.trim()).filter(Boolean))]
-      if (requestedDates.length > 14 ||
-          requestedDates.some(d => !/^\d{4}-\d{2}-\d{2}$/.test(d))) {
-        return NextResponse.json({ error: 'INVALID_DATE_RANGE' }, { status: 400 })
-      }
-      const results = await Promise.all(requestedDates.map(async day => {
-        const items = await queryDocumentsByFields('appointments',
-          { clinic_id: clinicId, date: day }, 250)
-        const active = items.filter((a: any) =>
-          a.status !== 'cancelled' && a.status !== 'no_show' &&
-          (!branchId || (a.branch_id || a.branchId) === branchId))
-        return [day, active.length] as const
-      }))
-      return NextResponse.json({
-        success: true,
-        dailyCounts: Object.fromEntries(results),
-        maxDailyBookings: Number(clinicData?.maxDailyBookings) || 0
-      }, { headers: { 'Cache-Control': 'no-store' } })
-    }
-
+    const tvOnly = searchParams.get('tv') === '1' && !appointmentId && !phone
     const nowCairo = new Date()
     const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(nowCairo)
+    const snapshotStartedAt = new Date().toISOString()
 
-    // 2. TV and individual patient tracking use a tenant/date-scoped query.
-    // Unrelated historical appointments must not hide the active queue.
-    const tvOnly = searchParams.get('tv') === '1' && !appointmentId && !phone
-    const directlyRequested = appointmentId
-      ? await readDocument(`appointments/${appointmentId}`)
-      : null
+    // Warm path: start clinic, direct appointment, and today's queue queries in one parallel round-trip.
+    const cachedId = !datesParam ? clinicIdBySlugCache.get(slug) : undefined
+    let clinicId = slug
+    let clinicData: any = null
+    let directlyRequested: any = null
+    let allAppts: any[] = []
+
+    if (cachedId) {
+      const [cachedClinicDoc, directAppt, prefetchedAppts, historyAppts] = await Promise.all([
+        readDocument(`clinics/${cachedId}`),
+        appointmentId ? readDocument(`appointments/${appointmentId}`) : Promise.resolve(null),
+        queryDocumentsByFields('appointments', { clinic_id: cachedId, date: todayStr }, 250),
+        phone && !appointmentId
+          ? queryDocumentsByField('appointments', 'clinic_id', cachedId, 500)
+          : Promise.resolve([]),
+      ])
+
+      if (cachedClinicDoc && (cachedClinicDoc.slug === slug || cachedClinicDoc.id === slug)) {
+        clinicId = String(cachedClinicDoc.id || cachedId)
+        clinicData = cachedClinicDoc
+        directlyRequested = directAppt
+        if (phone && !appointmentId && historyAppts.length > 0) {
+          const byId = new Map<string, any>()
+          for (const a of prefetchedAppts) byId.set(String(a.id), a)
+          for (const a of historyAppts) byId.set(String(a.id), a)
+          allAppts = Array.from(byId.values())
+        } else {
+          allAppts = prefetchedAppts
+        }
+      } else {
+        clinicIdBySlugCache.delete(slug)
+      }
+    }
+
+    if (!clinicData && !allAppts.length) {
+      const resolved = await resolveClinicDoc(slug)
+      clinicId = resolved.clinicId
+      clinicData = resolved.clinicData
+
+      if (datesParam) {
+        // Clinic/date scoped capacity rather than reading only the first 200
+        // historical appointments and undercounting future bookings.
+        const requestedDates = [...new Set(datesParam.split(',').map(d => d.trim()).filter(Boolean))]
+        if (requestedDates.length > 14 ||
+            requestedDates.some(d => !/^\d{4}-\d{2}-\d{2}$/.test(d))) {
+          return NextResponse.json({ error: 'INVALID_DATE_RANGE' }, { status: 400, headers: noStore })
+        }
+        const results = await Promise.all(requestedDates.map(async day => {
+          const items = await queryDocumentsByFields('appointments',
+            { clinic_id: clinicId, date: day }, 250)
+          const active = items.filter((a: any) =>
+            a.status !== 'cancelled' && a.status !== 'no_show' &&
+            (!branchId || (a.branch_id || a.branchId) === branchId))
+          return [day, active.length] as const
+        }))
+        return NextResponse.json({
+          success: true,
+          dailyCounts: Object.fromEntries(results),
+          maxDailyBookings: Number(clinicData?.maxDailyBookings) || 0
+        }, { headers: noStore })
+      }
+
+      const [directAppt, todayAppts, historyAppts] = await Promise.all([
+        appointmentId ? readDocument(`appointments/${appointmentId}`) : Promise.resolve(null),
+        queryDocumentsByFields('appointments', { clinic_id: clinicId, date: todayStr }, 250),
+        phone && !appointmentId && !tvOnly
+          ? queryDocumentsByField('appointments', 'clinic_id', clinicId, 500)
+          : Promise.resolve([]),
+      ])
+      directlyRequested = directAppt
+      if (historyAppts.length > 0) {
+        const byId = new Map<string, any>()
+        for (const a of todayAppts) byId.set(String(a.id), a)
+        for (const a of historyAppts) byId.set(String(a.id), a)
+        allAppts = Array.from(byId.values())
+      } else {
+        allAppts = todayAppts
+      }
+    }
+
     if (appointmentId && directlyRequested &&
         ![directlyRequested.clinic_id, directlyRequested.clinicId].includes(clinicId)) {
-      return NextResponse.json({ error: 'الحجز لا يتبع هذه العيادة' }, { status: 403 })
+      return NextResponse.json({ error: 'الحجز لا يتبع هذه العيادة' }, { status: 403, headers: noStore })
     }
-    const snapshotDate = (appointmentId && directlyRequested?.date)
-      ? String(directlyRequested.date) : todayStr
-    const allAppts = (tvOnly || (appointmentId && directlyRequested))
-      ? await queryDocumentsByFields('appointments',
-          { clinic_id: clinicId, date: snapshotDate }, 250)
-      : await queryDocuments('appointments')
+
+    if (appointmentId && directlyRequested?.date && String(directlyRequested.date) !== todayStr && !phone) {
+      const targetDateAppts = await queryDocumentsByFields(
+        'appointments',
+        { clinic_id: clinicId, date: String(directlyRequested.date) },
+        250
+      )
+      const byId = new Map<string, any>()
+      for (const a of allAppts) byId.set(String(a.id), a)
+      for (const a of targetDateAppts) byId.set(String(a.id), a)
+      allAppts = Array.from(byId.values())
+    }
+
     const clinicAppts = allAppts.filter((a: any) => a.clinic_id === clinicId || a.clinicId === clinicId)
 
     const allTodayAppts = clinicAppts
@@ -199,8 +305,15 @@ export async function GET(
     const aheadCount = patientQueueInfo?.aheadCount ?? waitingAppts.length
     const waitMinutes = patientQueueInfo?.estimatedWaitMins ?? (aheadCount * 15)
 
+    const queueWatermark = computeQueueWatermark(
+      directlyRequested ? [...allTodayAppts, { id: appointmentId, ...directlyRequested }] : allTodayAppts,
+      snapshotStartedAt
+    )
+
     return NextResponse.json({
       success: true,
+      serverTime: new Date().toISOString(),
+      queueWatermark,
       currentTurn,
       aheadCount,
       waitMinutes,
@@ -252,12 +365,12 @@ export async function GET(
       patientQueueInfo,
       patientAppointment: matchingAppointments[0] || null,
       matchingAppointments
-    })
+    }, { headers: noStore })
   } catch (error: any) {
     console.error('Queue API error:', error)
     return NextResponse.json(
       { error: 'حدث خطأ في الخادم أثناء جلب بيانات الانتظار' },
-      { status: 500 }
+      { status: 500, headers: noStore }
     )
   }
 }

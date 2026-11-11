@@ -24,10 +24,17 @@ import { ExaminationTicketModal } from '@/components/clinic/ExaminationTicketMod
 import { ThermalReceiptData, generateExaminationTicketHtml, printHtmlViaIframe } from '@/lib/printService'
 import { openManualWhatsAppChat, formatQueueAlertWhatsAppMessage, formatPaymentConfirmationWhatsAppMessage } from '@/lib/whatsappShare'
 import { exportAppointmentsToExcel } from '@/lib/excelExport'
-import { createClinicNotification } from '@/lib/notificationService'
 import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 import { useLanguage } from '@/context/LanguageContext'
 import { resolveEffectiveDailyLimit, isAppointmentActive } from '@/lib/bookingCapacity'
+import {
+  computeQueueWatermark,
+  mergeQueueWatermark,
+  publishClinicQueueSignal,
+  shouldAcceptQueueSnapshot,
+  subscribeClinicQueueSignal,
+  type QueueWatermark,
+} from '@/lib/queueSync'
 
 export function AdminDashboard({ clinic }: { clinic: any }) {
   const { t, tDynamic, language, dir, isRtl } = useLanguage()
@@ -119,6 +126,65 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
 
   const [selectedDashboardDate, setSelectedDashboardDate] = useState<string>(getCairoTodayDate())
   const refreshDayQueueRef = useRef<(() => Promise<void>) | null>(null)
+  const transitionLockRef = useRef(false)
+  const syncWatermarkRef = useRef<QueueWatermark | null>(null)
+  const pollSeqRef = useRef(0)
+  const lastAcceptedSeqRef = useRef(0)
+
+  const applyAppointmentsWithWatermark = (
+    nextAppointments: any[],
+    incomingWatermark?: QueueWatermark | null,
+    isMutation = false,
+    reqSeq?: number,
+  ) => {
+    const resolvedWatermark =
+      incomingWatermark ||
+      computeQueueWatermark(
+        nextAppointments,
+        Date.now(),
+        isMutation ? Date.now() : null,
+      )
+    if (
+      !shouldAcceptQueueSnapshot(syncWatermarkRef.current, resolvedWatermark, {
+        isMutation,
+        reqSeq,
+        lastAcceptedSeq: lastAcceptedSeqRef.current,
+      })
+    ) {
+      return false
+    }
+    if (reqSeq !== undefined) {
+      lastAcceptedSeqRef.current = Math.max(lastAcceptedSeqRef.current, reqSeq)
+    }
+    syncWatermarkRef.current = mergeQueueWatermark(
+      syncWatermarkRef.current,
+      resolvedWatermark,
+      { isMutation },
+    )
+    setRawAppointments(nextAppointments)
+    return true
+  }
+
+  const patchLocalAppointment = (
+    appointmentId: string,
+    patch: Record<string, any>,
+    nowIso: string = new Date().toISOString(),
+  ) => {
+    const patchWithTime = { ...patch, updatedAt: nowIso }
+    setRawAppointments((prev) => {
+      const next = prev.map((item) =>
+        item.id === appointmentId ? { ...item, ...patchWithTime } : item,
+      )
+      const watermark = computeQueueWatermark(next, nowIso, nowIso)
+      syncWatermarkRef.current = mergeQueueWatermark(
+        syncWatermarkRef.current,
+        watermark,
+        { isMutation: true },
+      )
+      if (clinic?.slug) publishClinicQueueSignal(clinic.slug, watermark)
+      return next
+    })
+  }
 
   // A single authenticated clinic/day feed now powers the doctor dashboard.
   // The TV and patient tracking already read from the server's Firestore REST
@@ -130,16 +196,39 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     let active = true
     let inFlight = false
     let pendingRefresh = false
-    const controller = new AbortController()
+    let scheduledTimer: number | null = null
+    let currentController: AbortController | null = null
+    syncWatermarkRef.current = null
+    lastAcceptedSeqRef.current = 0
+    pollSeqRef.current += 1
     setIsLoading(true)
     setQueueLoadError(null)
-    const refresh = async () => {
+
+    const clearScheduled = () => {
+      if (scheduledTimer !== null) {
+        window.clearTimeout(scheduledTimer)
+        scheduledTimer = null
+      }
+    }
+
+    const scheduleNext = () => {
+      clearScheduled()
       if (!active) return
+      const delayMs = document.visibilityState === 'visible' ? 2000 : 8000
+      scheduledTimer = window.setTimeout(() => void refresh(false), delayMs)
+    }
+
+    const refresh = async (immediate = false) => {
+      if (!active) return
+      if (immediate) clearScheduled()
       if (inFlight) {
         pendingRefresh = true
         return
       }
       inFlight = true
+      const reqSeq = ++pollSeqRef.current
+      const controller = new AbortController()
+      currentController = controller
       try {
         const response = await fetch(
           `/api/clinic/${encodeURIComponent(clinic.slug)}/appointments/day?date=${encodeURIComponent(selectedDashboardDate)}`,
@@ -151,33 +240,54 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
           throw new Error(data.error || 'CLINIC_DAY_QUEUE_UNAVAILABLE')
         }
         if (!active) return
-        setRawAppointments(data.appointments)
+        applyAppointmentsWithWatermark(
+          data.appointments,
+          data.queueWatermark || null,
+          false,
+          reqSeq,
+        )
         setQueueLoadError(null)
         setIsLoading(false)
       } catch (err) {
-        if (!active) return
+        if (!active || (err instanceof Error && err.name === 'AbortError')) return
         console.warn('[clinic-dashboard] Queue refresh failed:',
           err instanceof Error ? err.message : 'UNKNOWN')
         setQueueLoadError('تعذر تحميل حجوزات هذا اليوم من Firebase. نحتفظ بآخر بيانات سليمة إلى أن يعود الاتصال.')
         setIsLoading(false)
       } finally {
+        if (currentController === controller) currentController = null
         inFlight = false
         if (pendingRefresh && active) {
           pendingRefresh = false
-          void refresh()
+          void refresh(true)
+        } else {
+          scheduleNext()
         }
       }
     }
-    refreshDayQueueRef.current = refresh
-    void refresh()
-    const timer = window.setInterval(() => void refresh(), 5000)
+
+    const onImmediateSignal = () => { void refresh(true) }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void refresh(true)
+    }
+    const unsubscribeSignal = subscribeClinicQueueSignal(clinic.slug, onImmediateSignal)
+    window.addEventListener('focus', onImmediateSignal)
+    window.addEventListener('clinic_payment_confirmed', onImmediateSignal)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    refreshDayQueueRef.current = () => refresh(true)
+    void refresh(true)
     return () => {
       active = false
-      if (refreshDayQueueRef.current === refresh) {
+      if (refreshDayQueueRef.current) {
         refreshDayQueueRef.current = null
       }
-      controller.abort()
-      window.clearInterval(timer)
+      clearScheduled()
+      currentController?.abort()
+      unsubscribeSignal()
+      window.removeEventListener('focus', onImmediateSignal)
+      window.removeEventListener('clinic_payment_confirmed', onImmediateSignal)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
     }
   }, [clinic?.id, clinic?.slug, selectedDashboardDate])
 
@@ -368,11 +478,15 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     setIsUpdatingQueue(true)
     try {
       const isUrgent = editServiceName.includes('مستعجل') || editServiceName.includes('طوارئ')
-      await updateDoc(doc(db, 'appointments', editingPatient.id), {
+      const nowIso = new Date().toISOString()
+      const patch = {
         queue_number: Number(editQueueNumber) || editingPatient.queue_number,
         serviceName: editServiceName || editingPatient.serviceName,
         isUrgent: isUrgent,
-      })
+        updatedAt: nowIso,
+      }
+      await updateDoc(doc(db, 'appointments', editingPatient.id), patch)
+      patchLocalAppointment(editingPatient.id, patch, nowIso)
       toast.success(`تم تعديل دور المريض ${editingPatient.patientName} بنجاح`)
       setEditingPatient(null)
     } catch (err) {
@@ -384,79 +498,69 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
 
   // Payment Confirmation Handler (No queue impact!)
   const handleConfirmPayment = async (patient: any) => {
-    if (!patient || isProcessing) return
+    if (!patient || transitionLockRef.current || isProcessing) return
+    transitionLockRef.current = true
     setIsProcessing(true)
     const effectiveSlug = clinic?.slug || 'demo'
     try {
       const res = await fetch(`/api/clinic/${encodeURIComponent(effectiveSlug)}/payments/confirm`, {
         method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ appointmentId: patient.id })
       })
-
-      if (!res.ok) {
-        await updateDoc(doc(db, 'appointments', patient.id), {
-          paymentStatus: 'paid',
-          paymentConfirmedAt: new Date().toISOString(),
-          paymentConfirmedBy: 'staff'
-        })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'PAYMENT_CONFIRM_FAILED')
       }
-      toast.success('تم تأكيد استلام الدفع بنجاح')
+
+      if (data.appointment) {
+        patchLocalAppointment(
+          patient.id,
+          data.appointment,
+          data.serverTime || new Date().toISOString(),
+        )
+      } else {
+        await refreshDayQueueRef.current?.()
+      }
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('clinic_payment_confirmed', { detail: { appointmentId: patient.id } }))
       }
-      if (patient.phone) {
-        await createClinicNotification({
-          clinicId: clinic?.id || patient.clinic_id,
-          branchId: patient.branch_id,
-          recipientType: 'patient',
-          recipientTarget: patient.phone,
-          title: 'تم تأكيد استلام الدفع بنجاح',
-          body: `مرحباً ${patient.patientName}، تم تأكيد دفع رسوم كشف "${patient.serviceName}". نتمنى لك الشفاء العاجل.`,
-          type: 'payment_confirmed',
-          eventId: `pay_conf_${patient.id}`,
-          appointmentId: patient.id
-        })
-
-        // Real Web Push dispatch
-        import('@/lib/patientNotificationHelper').then(({ triggerPatientEventPush }) => {
-          triggerPatientEventPush({
-            type: 'payment_confirmed',
-            appointmentId: patient.id,
-            clinicId: clinic?.id || patient.clinic_id,
-            clinicSlug: clinic?.slug,
-            clinicName: clinic?.clinicName || 'العيادة',
-            patientPhone: patient.phone,
-            queueNumber: patient.queue_number,
-            eventId: `push_pay_conf_${patient.id}`,
-          }).catch(() => {})
-        });
-      }
       toast.success(`تم تأكيد استلام الدفع للمريض ${patient.patientName} بنجاح`)
     } catch (err) {
-      toast.error('حدث خطأ أثناء تأكيد الدفع.')
+      toast.error(err instanceof Error && err.message !== 'PAYMENT_CONFIRM_FAILED'
+        ? err.message
+        : 'حدث خطأ أثناء تأكيد الدفع.')
     } finally {
+      transitionLockRef.current = false
       setIsProcessing(false)
     }
   }
 
   // Payment Rejection Handler
   const handleRejectPayment = async (patient: any) => {
-    if (!patient || isProcessing) return
+    if (!patient || transitionLockRef.current || isProcessing) return
     const confirmed = window.confirm(`هل أنت متأكد من رفض التحويل للمريض ${patient.patientName}؟`)
     if (!confirmed) return
 
+    transitionLockRef.current = true
     setIsProcessing(true)
     try {
-      await updateDoc(doc(db, 'appointments', patient.id), {
+      const nowIso = new Date().toISOString()
+      const patch = {
         paymentStatus: 'unpaid',
-        paymentRejectedAt: new Date().toISOString(),
-        paymentRejectedBy: 'staff'
-      })
+        paymentRejectedAt: nowIso,
+        paymentRejectedBy: 'staff',
+        updatedAt: nowIso,
+      }
+      await updateDoc(doc(db, 'appointments', patient.id), patch)
+      patchLocalAppointment(patient.id, patch, nowIso)
       toast.warning(`تم تسجيل رفض الدفع للمريض ${patient.patientName}`)
     } catch (err) {
       toast.error('حدث خطأ أثناء رفض الدفع.')
     } finally {
+      transitionLockRef.current = false
       setIsProcessing(false)
     }
   }
@@ -492,16 +596,21 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
         }
       }
 
-      await updateDoc(doc(db, 'appointments', discountModalAppt.id), {
+      const nowIso = new Date().toISOString()
+      const patch = {
         originalPrice: origPrice,
         servicePrice: newPrice,
         discount: val > 0 ? {
           type: discountType,
           value: val,
           amount: discountAmount,
-          appliedAt: new Date().toISOString()
-        } : null
-      })
+          appliedAt: nowIso
+        } : null,
+        updatedAt: nowIso,
+      }
+
+      await updateDoc(doc(db, 'appointments', discountModalAppt.id), patch)
+      patchLocalAppointment(discountModalAppt.id, patch, nowIso)
 
       toast.success(`تم تطبيق الخصم بنجاح! السعر الجديد: ${newPrice} ج.م`)
       setDiscountModalAppt(null)
@@ -519,10 +628,13 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     appointmentId: string,
     action: 'start' | 'complete' | 'recall' | 'skip' | 'requeue' | 'no_show',
   ) => {
+    const slug = String(clinic?.slug || '')
     const response = await fetch(
-      `/api/clinic/${encodeURIComponent(String(clinic?.slug || ''))}/appointments/transition`,
+      `/api/clinic/${encodeURIComponent(slug)}/appointments/transition`,
       {
-        method: 'POST', credentials: 'same-origin',
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ appointmentId, action }),
       },
@@ -531,51 +643,75 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     if (!response.ok || !data.success) {
       throw new Error(data.error || 'تعذر تحديث حالة الدور')
     }
-    await refreshDayQueueRef.current?.()
+
+    if (Array.isArray(data.appointments)) {
+      const serverTs = data.serverTime || new Date().toISOString()
+      const nextWatermark: QueueWatermark =
+        data.queueWatermark ||
+        computeQueueWatermark(data.appointments, serverTs, serverTs)
+      applyAppointmentsWithWatermark(data.appointments, nextWatermark, true)
+      publishClinicQueueSignal(slug, nextWatermark)
+    } else {
+      await refreshDayQueueRef.current?.()
+    }
     return data
   }
 
   const handleStartExam = async (patient: any) => {
-    if (!patient || isProcessing) return
+    if (!patient || transitionLockRef.current || isProcessing) return
     if (patient.paymentStatus !== 'paid' && patient.status !== 'completed') {
       const confirmed = window.confirm(
         `⚠️ لم يتم تأكيد الدفع (${patient.servicePrice || 0} ج.م). هل استلمت المبلغ وتريد إدخال المريض؟`
       )
       if (!confirmed) return
     }
+    if (transitionLockRef.current) return
+    transitionLockRef.current = true
     setIsProcessing(true)
     try {
       await runQueueTransition(patient.id, 'start')
       toast.success(`بدأ كشف المريض: ${patient.patientName}`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'تعذر إدخال المريض')
-    } finally { setIsProcessing(false) }
+    } finally {
+      transitionLockRef.current = false
+      setIsProcessing(false)
+    }
   }
 
   const handleCompleteExam = async (patientId: string, patientName: string) => {
-    if (isProcessing) return
+    if (transitionLockRef.current || isProcessing) return
+    transitionLockRef.current = true
     setIsProcessing(true)
     try {
       await runQueueTransition(patientId, 'complete')
       toast.success(`تم إنهاء كشف: ${patientName}`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'تعذر إنهاء الكشف')
-    } finally { setIsProcessing(false) }
+    } finally {
+      transitionLockRef.current = false
+      setIsProcessing(false)
+    }
   }
 
   const handleRecallPatient = async (patient: any) => {
-    if (!patient || isProcessing) return
+    if (!patient || transitionLockRef.current || isProcessing) return
+    transitionLockRef.current = true
     setIsProcessing(true)
     try {
       await runQueueTransition(patient.id, 'recall')
       toast.success(`تمت إعادة النداء على المريض #${patient.queue_number}`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'تعذر إعادة النداء')
-    } finally { setIsProcessing(false) }
+    } finally {
+      transitionLockRef.current = false
+      setIsProcessing(false)
+    }
   }
 
   const handleSkipPatient = async (patient: any) => {
-    if (!patient || isProcessing) return
+    if (!patient || transitionLockRef.current || isProcessing) return
+    transitionLockRef.current = true
     setIsProcessing(true)
     try {
       const result = await runQueueTransition(patient.id, 'skip')
@@ -584,11 +720,15 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
         : `تم تخطي المريض #${patient.queue_number}. لا يوجد مريض آخر في الانتظار.`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'تعذر تخطي المريض')
-    } finally { setIsProcessing(false) }
+    } finally {
+      transitionLockRef.current = false
+      setIsProcessing(false)
+    }
   }
 
   const handleRequeueSkippedPatient = async (patient: any) => {
-    if (!patient || isProcessing) return
+    if (!patient || transitionLockRef.current || isProcessing) return
+    transitionLockRef.current = true
     setIsProcessing(true)
     try {
       await runQueueTransition(patient.id, 'requeue')
@@ -596,18 +736,25 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
       toast.success(`عاد المريض #${patient.queue_number} لقائمة الانتظار`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'تعذر إعادة المريض للانتظار')
-    } finally { setIsProcessing(false) }
+    } finally {
+      transitionLockRef.current = false
+      setIsProcessing(false)
+    }
   }
 
   const handleNoShow = async (patientId: string) => {
-    if (isProcessing) return
+    if (transitionLockRef.current || isProcessing) return
+    transitionLockRef.current = true
     setIsProcessing(true)
     try {
       await runQueueTransition(patientId, 'no_show')
       toast.warning('تم تسجيل المريض: لم يحضر')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'تعذر تسجيل الغياب')
-    } finally { setIsProcessing(false) }
+    } finally {
+      transitionLockRef.current = false
+      setIsProcessing(false)
+    }
   }
 
   const handleManualWhatsApp = (patient: any) => {
@@ -1456,21 +1603,33 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                                 title="عند حضور المريض، اضغط هنا ليكون دوره هو القادم مباشرة بعد المريض الحالي"
                               >
                                 <RotateCcw className={`w-3.5 h-3.5 ${isRtl ? 'ml-1' : 'mr-1'}`} />
-                                <span>لم يحضر (إدخال الدور التالي)</span>
+                                <span>{t('requeue_next', 'إرجاع للدور القادم')}</span>
                               </Button>
                             )}
 
                             {/* Primary Button */}
                             {b.status === 'waiting' && (
-                              <Button
-                                size="sm"
-                                className="flex-1 h-9 text-xs font-bold bg-primary hover:bg-primary-hover text-white rounded-xl shadow-xs"
-                                onClick={() => handleStartExam(b)}
-                                disabled={isProcessing}
-                              >
-                                <Play className={`w-3.5 h-3.5 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
-                                {t('patient_entry', 'دخول المريض')}
-                              </Button>
+                              <div className="flex items-center gap-1.5 flex-1">
+                                <Button
+                                  size="sm"
+                                  className="flex-1 h-9 text-xs font-bold bg-primary hover:bg-primary-hover text-white rounded-xl shadow-xs"
+                                  onClick={() => handleStartExam(b)}
+                                  disabled={isProcessing}
+                                >
+                                  <Play className={`w-3.5 h-3.5 ${isRtl ? 'ml-1.5' : 'mr-1.5'}`} />
+                                  {t('patient_entry', 'دخول المريض')}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-9 px-2.5 text-xs font-bold text-rose-600 dark:text-rose-400 border-rose-500/30 hover:bg-rose-500/10 rounded-xl"
+                                  onClick={() => handleNoShow(b.id)}
+                                  disabled={isProcessing}
+                                  title="تسجيل المريض كـ لم يحضر"
+                                >
+                                  <UserX className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
                             )}
 
                             {isCurrent && (
@@ -1758,7 +1917,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                                 title="عند حضور المريض، اضغط هنا ليكون دوره هو القادم مباشرة بعد المريض الحالي"
                               >
                                 <RotateCcw className="w-3.5 h-3.5" />
-                                <span>لم يحضر (إدخال الدور التالي)</span>
+                                <span>{t('requeue_next', 'إرجاع للدور القادم')}</span>
                               </Button>
                             )}
 
@@ -1769,16 +1928,28 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                               </span>
                             )}
 
-                            {/* Start exam button if waiting */}
+                            {/* Start exam & No-show buttons if waiting */}
                             {b.status === 'waiting' && (
-                              <Button
-                                size="sm"
-                                className="h-8 px-3 text-xs font-bold bg-primary hover:bg-primary-hover text-white rounded-xl shadow-xs"
-                                onClick={() => handleStartExam(b)}
-                                disabled={isProcessing}
-                              >
-                                {t('entry', 'دخول')}
-                              </Button>
+                              <div className="flex items-center gap-1.5">
+                                <Button
+                                  size="sm"
+                                  className="h-8 px-3 text-xs font-bold bg-primary hover:bg-primary-hover text-white rounded-xl shadow-xs"
+                                  onClick={() => handleStartExam(b)}
+                                  disabled={isProcessing}
+                                >
+                                  {t('entry', 'دخول')}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 px-2.5 text-xs font-bold text-rose-600 dark:text-rose-400 border-rose-500/30 hover:bg-rose-500/10 rounded-xl"
+                                  onClick={() => handleNoShow(b.id)}
+                                  disabled={isProcessing}
+                                  title="تسجيل المريض كـ لم يحضر"
+                                >
+                                  <UserX className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
                             )}
 
                             {/* Recall button if current */}

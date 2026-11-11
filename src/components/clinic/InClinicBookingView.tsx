@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useLanguage } from '@/context/LanguageContext'
+import { publishClinicQueueSignal } from '@/lib/queueSync'
 import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import {
   CountryInfo,
@@ -307,6 +308,7 @@ export function InClinicBookingView({
       }
 
       toast.success(isRtl ? 'تم تسجيل الحجز بنجاح وتوليد رقم الدور!' : 'Booking confirmed successfully!')
+      publishClinicQueueSignal(slug)
       setBookingConfirmedResult(data.appointment)
     } catch (err: any) {
       console.error('Booking submission error:', err)

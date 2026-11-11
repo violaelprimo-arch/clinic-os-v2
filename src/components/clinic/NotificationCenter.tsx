@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { ClinicNotification } from '@/types/clinic'
 import { playNotificationSound } from '@/lib/notificationService'
+import { subscribeClinicQueueSignal } from '@/lib/queueSync'
 import {
   subscribeToPush, getRegisteredPushStatus, sendDeviceTestPush,
   getPushCapabilityStatus,
@@ -151,10 +152,45 @@ export function NotificationCenter({
         busy = false
       }
     }
-    void refresh()
-    const timer = window.setInterval(() => void refresh(), 5000)
-    return () => { cancelled = true; window.clearInterval(timer) }
-  }, [recipientTarget, clinicId, slug, clinic?.id, clinic?.ownerMessage,
+    let scheduledTimer: number | null = null
+    const clearScheduled = () => {
+      if (scheduledTimer !== null) {
+        window.clearTimeout(scheduledTimer)
+        scheduledTimer = null
+      }
+    }
+    const scheduleNext = () => {
+      clearScheduled()
+      if (cancelled) return
+      const delayMs = document.visibilityState === 'visible' ? 2500 : 8000
+      scheduledTimer = window.setTimeout(() => void runAndSchedule(), delayMs)
+    }
+    const runAndSchedule = async (immediate = false) => {
+      if (cancelled) return
+      if (immediate) clearScheduled()
+      await refresh()
+      scheduleNext()
+    }
+    const effectiveSignalSlug = slug || clinic?.slug || ''
+    const onSignal = () => { void runAndSchedule(true) }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void runAndSchedule(true)
+    }
+    const unsubscribeSignal = effectiveSignalSlug
+      ? subscribeClinicQueueSignal(effectiveSignalSlug, onSignal)
+      : () => {}
+    window.addEventListener('focus', onSignal)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    void runAndSchedule(true)
+    return () => {
+      cancelled = true
+      clearScheduled()
+      unsubscribeSignal()
+      window.removeEventListener('focus', onSignal)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [recipientTarget, clinicId, slug, clinic?.id, clinic?.slug, clinic?.ownerMessage,
       clinic?.expirationDate, recipientType, branchId, appointmentId])
 
   // A patient may open the public tracking link before signing into their

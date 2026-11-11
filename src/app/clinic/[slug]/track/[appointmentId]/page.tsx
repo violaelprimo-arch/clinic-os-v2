@@ -8,6 +8,12 @@ import {
   formatEstimatedTime
 } from '@/lib/queueCalculations'
 import { playNotificationSound } from '@/lib/notificationService'
+import {
+  mergeQueueWatermark,
+  shouldAcceptQueueSnapshot,
+  subscribeClinicQueueSignal,
+  type QueueWatermark,
+} from '@/lib/queueSync'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -41,20 +47,62 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
   useEffect(() => {
     let cancelled = false
     let inFlight = false
+    let pendingRefresh = false
+    let scheduledTimer: number | null = null
+    let currentController: AbortController | null = null
+    let trackWatermark: QueueWatermark | null = null
+    let pollSeq = 0
+    let lastAcceptedSeq = 0
+
+    const clearScheduled = () => {
+      if (scheduledTimer !== null) {
+        window.clearTimeout(scheduledTimer)
+        scheduledTimer = null
+      }
+    }
+
+    const scheduleNext = () => {
+      clearScheduled()
+      if (cancelled) return
+      const delayMs = document.visibilityState === 'visible' ? 1200 : 6000
+      scheduledTimer = window.setTimeout(() => void refreshQueue(false), delayMs)
+    }
 
     // Firestore rules intentionally deny public appointment reads. Rely on
-    // the trusted, appointment-scoped queue response for consistent live state.
-    const refreshQueue = async () => {
-      if (cancelled || inFlight) return
+    // the trusted, appointment-scoped queue response for consistent live state
+    // with instant push / tab-signal wakeup and monotonic staleness checks.
+    const refreshQueue = async (immediate = false) => {
+      if (cancelled) return
+      if (immediate) clearScheduled()
+      if (inFlight) {
+        pendingRefresh = true
+        return
+      }
       inFlight = true
+      const reqSeq = ++pollSeq
+      const controller = new AbortController()
+      currentController = controller
       try {
         const response = await fetch(
           `/api/clinic/${encodeURIComponent(slug)}/queue?appointmentId=${encodeURIComponent(appointmentId)}`,
-          { cache: 'no-store', credentials: 'same-origin' },
+          { cache: 'no-store', credentials: 'same-origin', signal: controller.signal },
         )
         const data = await response.json().catch(() => ({}))
         if (cancelled) return
         if (!response.ok || !data.success) throw new Error('QUEUE_API_UNAVAILABLE')
+
+        const incomingWatermark: QueueWatermark | null = data.queueWatermark || null
+        if (
+          !shouldAcceptQueueSnapshot(trackWatermark, incomingWatermark, {
+            reqSeq,
+            lastAcceptedSeq,
+          })
+        ) {
+          return
+        }
+        lastAcceptedSeq = Math.max(lastAcceptedSeq, reqSeq)
+        trackWatermark = mergeQueueWatermark(trackWatermark, incomingWatermark)
+
         if (data.clinic) setClinic((prev: any) => ({ ...prev, ...data.clinic }))
         const match = Array.isArray(data.matchingAppointments)
           ? data.matchingAppointments.find((a: any) => a.id === appointmentId)
@@ -69,20 +117,39 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
         setLoading(false)
       } catch (error) {
         // Keep last-known valid patient turn on intermittent network errors.
-        if (!cancelled) {
+        if (!cancelled && !(error instanceof Error && error.name === 'AbortError')) {
           console.warn('[patient-track] Queue refresh failed:', error)
           setLoading(false)
         }
       } finally {
+        if (currentController === controller) currentController = null
         inFlight = false
+        if (pendingRefresh && !cancelled) {
+          pendingRefresh = false
+          void refreshQueue(true)
+        } else {
+          scheduleNext()
+        }
       }
     }
-    void refreshQueue()
-    const timer = window.setInterval(() => void refreshQueue(), 5000)
+
+    const onSignal = () => { void refreshQueue(true) }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void refreshQueue(true)
+    }
+    const unsubscribeSignal = subscribeClinicQueueSignal(slug, onSignal)
+    window.addEventListener('focus', onSignal)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    void refreshQueue(true)
     const stopClinic = watchPublicClinicProfile(slug, data => setClinic(data))
     return () => {
       cancelled = true
-      window.clearInterval(timer)
+      clearScheduled()
+      currentController?.abort()
+      unsubscribeSignal()
+      window.removeEventListener('focus', onSignal)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
       stopClinic()
     }
   }, [slug, appointmentId])

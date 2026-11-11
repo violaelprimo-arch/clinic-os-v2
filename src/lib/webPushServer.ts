@@ -164,6 +164,10 @@ export async function sendWebPushNotification(
       method: 'POST',
       headers,
       body,
+      signal:
+        typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+          ? AbortSignal.timeout(8000)
+          : undefined,
     })
 
     if (response.status === 201 || response.status === 200 || response.status === 202) {
