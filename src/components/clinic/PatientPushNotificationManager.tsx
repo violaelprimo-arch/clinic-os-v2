@@ -172,8 +172,11 @@ export function PatientPushNotificationManager({
               <CheckCircle2 className="w-5 h-5" />
             </div>
             <div>
-              <div className="font-extrabold text-sm text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
+              <div className="font-extrabold text-sm text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5 flex-wrap">
                 <span>تم تسجيل هذا الجهاز لاستقبال إشعارات الحجز</span>
+                <span className="inline-flex items-center rounded-full bg-emerald-600/15 px-2 py-0.5 text-[11px] font-black text-emerald-700 dark:text-emerald-300">
+                  مفعّلة
+                </span>
                 <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               </div>
               <p className="text-[11px] text-emerald-700 dark:text-emerald-300/80 mt-0.5">

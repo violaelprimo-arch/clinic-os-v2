@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readDocument, queryDocuments, queryDocumentsByFields } from '@/lib/server/firebase-rest'
-import { calculatePatientLivePosition } from '@/lib/queueCalculations'
+import { calculatePatientLivePosition, sortQueue } from '@/lib/queueCalculations'
 import { getPhoneSearchVariants, normalizePhoneDigits } from '@/lib/countryPhoneHelper'
 
 export async function GET(
@@ -71,10 +71,10 @@ export async function GET(
 
     const allTodayAppts = clinicAppts
       .filter((a: any) => a.date === todayStr)
-      .filter((a: any) => !branchId || a.branch_id === branchId || a.branchName === branchId)
+      .filter((a: any) => !branchId || a.branch_id === branchId || a.branchId === branchId || a.branchName === branchId)
 
     const inProgressAppt = allTodayAppts.find((a: any) => a.status === 'in_progress' || a.status === 'examining')
-    const waitingAppts = allTodayAppts.filter((a: any) => a.status === 'waiting' || !a.status)
+    const waitingAppts = sortQueue(allTodayAppts, clinicData)
 
     // 3. Handle phone / appointment search
     let matchingAppointments: any[] = []
@@ -163,7 +163,7 @@ export async function GET(
           branchName: appt.branchName || 'الفرع الرئيسي',
           date: appt.date,
           time: appt.time || 'حسب الدور',
-          queueNumber: appt.queue_number,
+          queueNumber: appt.queue_number ?? appt.queueNumber,
           status: appt.status || 'waiting',
           paymentStatus: appt.paymentStatus || 'unpaid',
           isToday,
@@ -193,7 +193,9 @@ export async function GET(
       }
     }
 
-    const currentTurn = inProgressAppt?.queue_number || (waitingAppts[0]?.queue_number ?? 1)
+    const currentTurn =
+      (inProgressAppt?.queue_number ?? inProgressAppt?.queueNumber) ||
+      ((waitingAppts[0]?.queue_number ?? waitingAppts[0]?.queueNumber) ?? 1)
     const aheadCount = patientQueueInfo?.aheadCount ?? waitingAppts.length
     const waitMinutes = patientQueueInfo?.estimatedWaitMins ?? (aheadCount * 15)
 
@@ -216,23 +218,29 @@ export async function GET(
       tvQueue: {
         currentPatient: inProgressAppt ? {
           id: inProgressAppt.id,
-          queueNumber: inProgressAppt.queue_number,
+          queueNumber: inProgressAppt.queue_number ?? inProgressAppt.queueNumber,
           patientName: inProgressAppt.patientName,
           status: inProgressAppt.status,
           calledAt: inProgressAppt.calledAt,
           startedAt: inProgressAppt.startedAt,
           branchId: inProgressAppt.branch_id || inProgressAppt.branchId || null,
           branchName: inProgressAppt.branchName || '',
+          serviceId: inProgressAppt.serviceId || '',
           serviceName: inProgressAppt.serviceName || 'كشف طبي'
         } : null,
         nextWaitingPatients: waitingAppts.slice(0, 10).map((a: any) => ({
           id: a.id,
-          queueNumber: a.queue_number,
+          queueNumber: a.queue_number ?? a.queueNumber,
           patientName: a.patientName,
-          status: a.status,
+          status: a.status || 'waiting',
           branchId: a.branch_id || a.branchId || null,
           branchName: a.branchName || '',
-          serviceName: a.serviceName || 'كشف طبي'
+          serviceId: a.serviceId || '',
+          serviceName: a.serviceName || 'كشف طبي',
+          priorityNext: Boolean(a.priorityNext),
+          isUrgent: Boolean(a.isUrgent),
+          createdAt: a.createdAt || null,
+          requeuedAt: a.requeuedAt || null,
         }))
       },
       currentPatientExamining: inProgressAppt

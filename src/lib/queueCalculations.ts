@@ -433,7 +433,7 @@ export function simulateQueueTimeline(options: {
     const aBranch = a.branch_id || a.branchId
     if (targetBranchId && aBranch && aBranch !== targetBranchId) return false
     // Only active waiting or in_progress cases occupy queue
-    return a.status === 'waiting' || a.status === 'in_progress' || !a.status
+    return a.status === 'waiting' || a.status === 'in_progress' || a.status === 'examining' || !a.status
   })
 
   // 3. Find in-progress examining patient
@@ -869,13 +869,13 @@ export function calculatePatientLivePosition(options: {
 
   const currentExamining = simulation.inProgressAppt
     ? {
-        queueNumber: simulation.inProgressAppt.queue_number,
+        queueNumber: simulation.inProgressAppt.queue_number ?? simulation.inProgressAppt.queueNumber,
         patientName: simulation.inProgressAppt.patientName,
       }
     : null
 
   // In-progress status
-  if (rawStatus === 'in_progress' && isToday) {
+  if ((rawStatus === 'in_progress' || rawStatus === 'examining') && isToday) {
     return {
       status: 'in_progress',
       statusLabel: isRtl ? 'دورك الآن — تفضل بالدخول للطبيب' : 'Your turn now — please enter',

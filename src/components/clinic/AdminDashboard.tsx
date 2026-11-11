@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -118,6 +118,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
   }
 
   const [selectedDashboardDate, setSelectedDashboardDate] = useState<string>(getCairoTodayDate())
+  const refreshDayQueueRef = useRef<(() => Promise<void>) | null>(null)
 
   // A single authenticated clinic/day feed now powers the doctor dashboard.
   // The TV and patient tracking already read from the server's Firestore REST
@@ -128,11 +129,16 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     if (!clinic?.id || !clinic?.slug) return
     let active = true
     let inFlight = false
+    let pendingRefresh = false
     const controller = new AbortController()
     setIsLoading(true)
     setQueueLoadError(null)
     const refresh = async () => {
-      if (!active || inFlight) return
+      if (!active) return
+      if (inFlight) {
+        pendingRefresh = true
+        return
+      }
       inFlight = true
       try {
         const response = await fetch(
@@ -156,12 +162,20 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
         setIsLoading(false)
       } finally {
         inFlight = false
+        if (pendingRefresh && active) {
+          pendingRefresh = false
+          void refresh()
+        }
       }
     }
+    refreshDayQueueRef.current = refresh
     void refresh()
     const timer = window.setInterval(() => void refresh(), 5000)
     return () => {
       active = false
+      if (refreshDayQueueRef.current === refresh) {
+        refreshDayQueueRef.current = null
+      }
       controller.abort()
       window.clearInterval(timer)
     }
@@ -517,6 +531,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     if (!response.ok || !data.success) {
       throw new Error(data.error || 'تعذر تحديث حالة الدور')
     }
+    await refreshDayQueueRef.current?.()
     return data
   }
 

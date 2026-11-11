@@ -104,6 +104,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
   const [clinic, setClinic] = useState<any>(null)
   const [branches, setBranches] = useState<any[]>([])
   const [appointments, setAppointments] = useState<any[]>([])
+  const [totalWaitingCount, setTotalWaitingCount] = useState<number | null>(null)
   const [selectedBranchId, setSelectedBranchId] = useState<string>(branchFromUrl || 'all')
   const [currentTime, setCurrentTime] = useState<string>('')
   const [currentDateStr, setCurrentDateStr] = useState<string>('')
@@ -164,29 +165,53 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
     }
   }
 
+  const getPatientCallKey = (patient: any) => {
+    const displayQ = getPatientQueueDisplay(patient)
+    const qNum = displayQ !== '-' ? displayQ : '1'
+    return `${patient.id}_${patient.calledAt || patient.startedAt || qNum}`
+  }
+
+  const resumeTvAudioContext = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+      if (AudioCtx) {
+        if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+          audioCtxRef.current = new AudioCtx()
+        }
+        if (audioCtxRef.current.state === 'suspended') {
+          void audioCtxRef.current.resume().catch(() => {})
+        }
+      }
+    } catch {}
+  }
+
+  const toggleTvAudio = (nextState: boolean) => {
+    if (nextState) {
+      resumeTvAudioContext()
+      if (displayedPatient) {
+        lastAnnouncedCallKeyRef.current = getPatientCallKey(displayedPatient)
+        triggerPatientVoiceCall(
+          getPatientQueueDisplay(displayedPatient),
+          displayedPatient.patientName
+        )
+      }
+    }
+    setAudioState(nextState)
+  }
+
   // Auto-unlock Web Audio Context on first user interaction anywhere on the screen
   useEffect(() => {
     const unlockAudio = () => {
-      try {
-        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
-        if (AudioCtx) {
-          if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
-            audioCtxRef.current = new AudioCtx()
+      resumeTvAudioContext()
+      setIsAudioEnabled(prev => {
+        if (!prev) {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(`clinic_${slug}_tv_audio`, 'true')
           }
-          if (audioCtxRef.current.state === 'suspended') {
-            audioCtxRef.current.resume()
-          }
+          return true
         }
-        setIsAudioEnabled(prev => {
-          if (!prev) {
-            if (typeof window !== 'undefined') {
-              localStorage.setItem(`clinic_${slug}_tv_audio`, 'true')
-            }
-            return true
-          }
-          return prev
-        })
-      } catch (e) {}
+        return prev
+      })
     }
 
     window.addEventListener('click', unlockAudio, { once: true })
@@ -210,7 +235,23 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
 
       const savedAudio = localStorage.getItem(`clinic_${slug}_tv_audio`)
       if (savedAudio === 'true') {
-        setIsAudioEnabled(true)
+        try {
+          const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+          if (AudioCtx) {
+            if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+              audioCtxRef.current = new AudioCtx()
+            }
+            if (audioCtxRef.current.state === 'running') {
+              setIsAudioEnabled(true)
+            } else {
+              void audioCtxRef.current.resume().then(() => {
+                if (audioCtxRef.current?.state === 'running') {
+                  setIsAudioEnabled(true)
+                }
+              }).catch(() => {})
+            }
+          }
+        } catch (e) {}
       }
 
       const savedConfig = localStorage.getItem(`clinic_${slug}_tv_settings`)
@@ -401,7 +442,13 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
       }
       const ctx = audioCtxRef.current
       if (ctx.state === 'suspended') {
-        await ctx.resume()
+        await Promise.race([
+          ctx.resume().catch(() => {}),
+          new Promise<void>((resolve) => setTimeout(resolve, 400)),
+        ])
+      }
+      if (ctx.state !== 'running') {
+        throw new Error('AudioContext requires user interaction')
       }
 
       const cacheKey = `${gender}_${text}`
@@ -640,6 +687,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
               `${initial.id}_${initial.calledAt || initial.startedAt || num}`
           }
         }
+        setTotalWaitingCount(typeof data.totalWaiting === 'number' ? data.totalWaiting : null)
         setAppointments(list)
       } catch (error) {
         if (!cancelled) {
@@ -692,6 +740,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
   useEffect(() => {
     heldUntilRef.current = 0
     setLastCalledPatient(null)
+    setTotalWaitingCount(null)
   }, [selectedBranchId])
   const displayedPatient = currentPatient ||
     (Date.now() < heldUntilRef.current ? lastCalledPatient : null)
@@ -707,14 +756,13 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
 
     const displayQ = getPatientQueueDisplay(currentPatient)
     const qNum = displayQ !== '-' ? displayQ : '1'
-    const currentCallKey = `${currentPatient.id}_${currentPatient.calledAt || currentPatient.startedAt || qNum}`
+    const currentCallKey = getPatientCallKey(currentPatient)
 
     // When first patient enters, turn changes, or patient is called/recalled, trigger announcement
     if (lastAnnouncedCallKeyRef.current !== currentCallKey) {
+      if (!isAudioEnabled) return
       lastAnnouncedCallKeyRef.current = currentCallKey
-      if (isAudioEnabled) {
-        triggerPatientVoiceCall(qNum, currentPatient.patientName)
-      }
+      triggerPatientVoiceCall(qNum, currentPatient.patientName)
     }
   }, [currentPatient, isAudioEnabled, tvConfig.announceName, tvConfig.voiceGender, tvConfig.announcementPhrase, tvConfig.speechTone, tvConfig.chimeSound])
 
@@ -900,16 +948,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
             
             {/* Audio Toggle Button */}
             <button
-              onClick={() => {
-                const nextState = !isAudioEnabled
-                setAudioState(nextState)
-                if (nextState && displayedPatient) {
-                  triggerPatientVoiceCall(
-                    getPatientQueueDisplay(displayedPatient),
-                    displayedPatient.patientName
-                  )
-                }
-              }}
+              onClick={() => toggleTvAudio(!isAudioEnabled)}
               className={`p-3 rounded-2xl border transition-all cursor-pointer ${
                 isAudioEnabled
                   ? isDark
@@ -976,15 +1015,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
           <Megaphone className="w-4 h-4 text-blue-500 animate-bounce" />
           <span>انقر هنا لتفعيل النداء الصوتي الآلي للمرضى والرنين التنبيهي عند استدعاء كل دور 📢</span>
           <button
-            onClick={() => {
-              setAudioState(true)
-              if (displayedPatient) {
-                triggerPatientVoiceCall(
-                  getPatientQueueDisplay(displayedPatient),
-                  displayedPatient.patientName
-                )
-              }
-            }}
+            onClick={() => toggleTvAudio(true)}
             className="px-3 py-1 rounded-xl bg-blue-600 text-white font-black text-xs cursor-pointer hover:bg-blue-700 shadow-xs transition-transform active:scale-95"
           >
             تفعيل النداء الصوتي الآن 🔊
@@ -1135,7 +1166,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
                   ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
                   : 'bg-amber-50 text-amber-800 border-amber-200'
               }`}>
-                {nextWaitingPatients.length} بالانتظار
+                {totalWaitingCount ?? nextWaitingPatients.length} بالانتظار
               </span>
             </div>
 
