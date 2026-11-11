@@ -1,5 +1,6 @@
-import { PatientPushNotificationManager } from '@/components/clinic/PatientPushNotificationManager'
 'use client'
+
+import { PatientPushNotificationManager } from '@/components/clinic/PatientPushNotificationManager'
 
 import { useState, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
@@ -14,8 +15,6 @@ import {
   ExternalLink, Upload, AlertCircle, Bell
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { db } from '@/lib/firebase'
-import { createAtomicAppointment } from '@/lib/queueService'
 import { calculatePatientLivePosition } from '@/lib/queueCalculations'
 import {
   resolveEffectiveDailyLimit,
@@ -27,15 +26,11 @@ import {
   validateBookingAvailability,
   CAPACITY_FULL_MESSAGE
 } from '@/lib/bookingCapacity'
-import { collection, addDoc, getDocs, query, where } from 'firebase/firestore'
 import Link from 'next/link'
 import { Branch } from '@/types/clinic'
 import {
-  getClinicBranches,
-  ensureClinicHasMainBranch,
   calculateHaversineDistanceKm
 } from '@/lib/branchService'
-import { createClinicNotification } from '@/lib/notificationService'
 import { useLanguage } from '@/context/LanguageContext'
 import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import {
@@ -87,26 +82,34 @@ export function BookingForm({
   const [locationError, setLocationError] = useState<string | null>(null)
   const [areaFilter, setAreaFilter] = useState<string>('ALL')
 
-  // Fetch branches on mount
+  // Only branches explicitly registered with this clinic may be used.
   useEffect(() => {
-    if (!clinic?.id && !clinic?.slug) return
-    const clinicId = clinic.id || clinic.slug
-
-    const loadBranches = async () => {
+    const slug = String(clinic?.slug || '')
+    if (!slug) return
+    let cancelled = false
+    const load = async () => {
       try {
-        const main = await ensureClinicHasMainBranch(clinic)
-        const list = await getClinicBranches(clinicId)
-        const activeList = list.filter((b) => !b.isArchived)
-        setBranches(activeList)
-        if (activeList.length > 0) {
-          setSelectedBranchId((prev) => prev || activeList[0].id)
+        const response = await fetch(`/api/clinic/${encodeURIComponent(slug)}/branches`, {
+          cache: 'no-store',
+        })
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok || !Array.isArray(data.branches)) throw new Error('BRANCH_LIST_UNAVAILABLE')
+        if (cancelled) return
+        const registered = data.branches.filter((b: Branch) => !b.isArchived)
+        setBranches(registered)
+        setSelectedBranchId(prev =>
+          registered.some((b: Branch) => b.id === prev) ? prev : (registered[0]?.id || ''))
+      } catch (error) {
+        if (!cancelled) {
+          console.warn('[booking] Could not load authorized branches', error)
+          setBranches([])
+          setSelectedBranchId('')
         }
-      } catch (err) {
-        console.error('Error fetching branches for booking:', err)
       }
     }
-    loadBranches()
-  }, [clinic])
+    void load()
+    return () => { cancelled = true }
+  }, [clinic?.slug])
 
   const selectedBranch = useMemo(() => {
     return branches.find((b) => b.id === selectedBranchId) || branches[0] || null
@@ -215,40 +218,36 @@ export function BookingForm({
   const [autoForwardedNotice, setAutoForwardedNotice] = useState<string>('')
   const [selectedDate, setSelectedDate] = useState<string>('')
 
-  // Fetch existing appointments count for this branch / clinic
+  // Read public capacity counts from a scoped server API, not protected
+  // appointment documents in Firestore (which caused permission-denied toasts).
   useEffect(() => {
-    if (!clinic?.id && !clinic?.slug) return
-    const clinicId = clinic.id || clinic.slug
-
+    const slug = String(clinic?.slug || '')
+    if (!slug) return
+    let cancelled = false
     const fetchCounts = async () => {
+      const start = getCairoDateString()
+      const dates = Array.from({ length: 14 }, (_, i) => {
+        const date = new Date(start + 'T12:00:00Z')
+        date.setUTCDate(date.getUTCDate() + i)
+        return date.toISOString().slice(0,10)
+      })
       try {
-        const q = query(
-          collection(db, 'appointments'),
-          where('clinic_id', '==', clinicId)
+        const params = new URLSearchParams({ dates: dates.join(',') })
+        if (selectedBranch?.id) params.set('branchId', selectedBranch.id)
+        const response = await fetch(
+          `/api/clinic/${encodeURIComponent(slug)}/queue?${params}`,
+          { cache: 'no-store' },
         )
-        const snap = await getDocs(q)
-        const counts: { [date: string]: number } = {}
-        const isMultiBranch = (branches?.length || 0) > 1
-
-        snap.docs.forEach((docSnap) => {
-          const d = docSnap.data()
-          if (isMultiBranch && selectedBranch?.id && selectedBranch.id !== 'main') {
-            const apptBranch = d.branch_id || d.branchId || null
-            if (apptBranch && apptBranch !== selectedBranch.id) {
-              return
-            }
-          }
-          if (d.date && isAppointmentActive(d.status)) {
-            counts[d.date] = (counts[d.date] || 0) + 1
-          }
-        })
-        setDailyBookingCounts(counts)
-      } catch (err) {
-        console.error('Error fetching booking counts:', err)
+        const result = await response.json().catch(() => ({}))
+        if (!response.ok || !result.success) throw new Error('CAPACITY_UNAVAILABLE')
+        if (!cancelled) setDailyBookingCounts(result.dailyCounts || {})
+      } catch (error) {
+        if (!cancelled) console.warn('[booking] Capacity refresh failed', error)
       }
     }
-    fetchCounts()
-  }, [clinic?.id, clinic?.slug, selectedBranch?.id, branches])
+    void fetchCounts()
+    return () => { cancelled = true }
+  }, [clinic?.slug, selectedBranch?.id])
 
   // Smart Date State (Today only or forward multi-day scheduling)
   const isTodayOnly = clinic?.bookingAvailability === 'today_only' || clinic?.allowFutureBookings === false
@@ -433,29 +432,6 @@ export function BookingForm({
     const clinicId = clinic.id || clinic.slug
 
     try {
-      // Branch-isolated queue counting for the chosen date:
-      const q = query(
-        collection(db, 'appointments'),
-        where('clinic_id', '==', clinicId)
-      )
-
-      const querySnapshot = await getDocs(q)
-      const branchDateAppts = querySnapshot.docs.filter((d) => {
-        const data = d.data()
-        const matchesDate = data.date === selectedDate
-        const matchesBranch = selectedBranch?.id
-          ? data.branch_id === selectedBranch.id
-          : true
-        return matchesDate && matchesBranch
-      })
-
-
-      // Count waiting ahead in this branch
-      let waitingCount = 0
-      branchDateAppts.forEach((docSnap) => {
-        if (docSnap.data().status === 'waiting') waitingCount++
-      })
-
       const isOnlinePay = paymentMethod === 'instapay' || paymentMethod === 'wallet'
       const paymentStatus = isOnlinePay ? 'pending_verification' : 'unpaid'
 
@@ -514,61 +490,22 @@ export function BookingForm({
       const docRef = { id: newApptId }
       const myQueueNumber = allocatedQueueNumber
 
-      // Send In-Site Notification to Patient
-      await createClinicNotification({
-        clinicId,
-        branchId: selectedBranch?.id,
-        recipientType: 'patient',
-        recipientTarget: phone,
-        title: 'تم تسجيل حجزك بنجاح',
-        body: `مرحباً ${name}، تم تأكيد حجزك في فرع "${selectedBranch?.name || 'الرئيسي'}" برقم دور #${myQueueNumber} لتاريخ ${selectedDate}.`,
-        type: 'booking_confirmed',
-        appointmentId: docRef.id
-      })
+      // Notification events are persisted by /api/clinic/book after a confirmed
+      // write. Do not attempt unauthenticated client Firestore writes.
 
-      // Send Staff Notification for Reception
-      await createClinicNotification({
-        clinicId,
-        branchId: selectedBranch?.id,
-        recipientType: 'staff',
-        recipientTarget: clinicId,
-        title: isOnlinePay ? 'حجز جديد مع تحويل بانتظار التأكيد' : 'حجز جديد مسجل',
-        body: `حجز جديد للمريض ${name} في فرع "${selectedBranch?.name}" (${selectedService.name} - ${paymentMethod}).`,
-        type: isOnlinePay ? 'payment_pending' : 'new_booking',
-        appointmentId: docRef.id
-      })
+      // Use the same authoritative queue estimate returned by the booking API.
+      const posResult = bookingResult
 
-      const posResult = calculatePatientLivePosition({
-        targetAppointment: {
-          id: docRef.id,
-          queue_number: myQueueNumber,
-          date: selectedDate,
-          branch_id: selectedBranch?.id,
-          serviceId: selectedService.id,
-          serviceName: selectedService.name,
-          status: 'waiting'
-        },
-        allTodayAppointments: [
-          ...branchDateAppts.map(d => ({ id: d.id, ...d.data() })),
-          {
-            id: docRef.id,
-            queue_number: myQueueNumber,
-            date: selectedDate,
-            branch_id: selectedBranch?.id,
-            serviceId: selectedService.id,
-            serviceName: selectedService.name,
-            status: 'waiting'
-          }
-        ],
-        clinic,
-        branch: selectedBranch,
-        bookingDateStr: selectedDate
-      })
+      if (typeof bookingResult.pushRegistrationToken === 'string') {
+        try {
+          localStorage.setItem(`yalla_push_claim_${newApptId}`, bookingResult.pushRegistrationToken)
+        } catch { /* User can still track without background notification opt-in. */ }
+      }
 
       setSuccessInfo({
         queueNumber: myQueueNumber,
         trackingId: docRef.id,
-        aheadCount: posResult.aheadCount,
+        aheadCount: Number(posResult.aheadCount || 0),
         effectivePosition: posResult.effectivePosition,
         estimatedEntranceTime12H: posResult.estimatedEntranceTime12H,
         isEstimateConfirmed: posResult.isEstimateConfirmed,
