@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { db } from '@/lib/firebase'
-import { collection, query, where, onSnapshot, updateDoc, doc } from 'firebase/firestore'
+import { updateDoc, doc } from 'firebase/firestore'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { sortQueue } from '@/lib/queueCalculations'
 import { ThermalReceiptModal } from '@/components/clinic/ThermalReceiptModal'
@@ -38,6 +38,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
 
   const [rawAppointments, setRawAppointments] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [queueLoadError, setQueueLoadError] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [serviceFilter, setServiceFilter] = useState('ALL')
   const [searchQuery, setSearchQuery] = useState('')
@@ -118,48 +119,99 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
 
   const [selectedDashboardDate, setSelectedDashboardDate] = useState<string>(getCairoTodayDate())
 
-  // Subscribe to real-time appointments for selected date
+  // A single authenticated clinic/day feed now powers the doctor dashboard.
+  // The TV and patient tracking already read from the server's Firestore REST
+  // source. Reading the same records avoids diverging counts when Firebase
+  // client credentials are expired, missing claims, or blocked by Firestore
+  // rules. Never silently turn a failed query into "zero appointments".
   useEffect(() => {
-    if (!clinic?.id) return
+    if (!clinic?.id || !clinic?.slug) return
+    let active = true
+    let inFlight = false
+    const controller = new AbortController()
     setIsLoading(true)
-    const q = query(
-      collection(db, 'appointments'),
-      where('clinic_id', '==', clinic.id),
-      where('date', '==', selectedDashboardDate)
-    )
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const data = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
-        setRawAppointments(data)
+    setQueueLoadError(null)
+    const refresh = async () => {
+      if (!active || inFlight) return
+      inFlight = true
+      try {
+        const response = await fetch(
+          `/api/clinic/${encodeURIComponent(clinic.slug)}/appointments/day?date=${encodeURIComponent(selectedDashboardDate)}`,
+          { cache: 'no-store', credentials: 'same-origin', signal: controller.signal },
+        )
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok || data.success !== true ||
+            !Array.isArray(data.appointments)) {
+          throw new Error(data.error || 'CLINIC_DAY_QUEUE_UNAVAILABLE')
+        }
+        if (!active) return
+        setRawAppointments(data.appointments)
+        setQueueLoadError(null)
         setIsLoading(false)
-      },
-      (error) => {
-        console.error('Error fetching dashboard appointments:', error)
+      } catch (err) {
+        if (!active) return
+        console.warn('[clinic-dashboard] Queue refresh failed:',
+          err instanceof Error ? err.message : 'UNKNOWN')
+        setQueueLoadError('تعذر تحميل حجوزات هذا اليوم من Firebase. نحتفظ بآخر بيانات سليمة إلى أن يعود الاتصال.')
         setIsLoading(false)
+      } finally {
+        inFlight = false
       }
-    )
-    return () => unsubscribe()
-  }, [clinic?.id, selectedDashboardDate])
+    }
+    void refresh()
+    const timer = window.setInterval(() => void refresh(), 5000)
+    return () => {
+      active = false
+      controller.abort()
+      window.clearInterval(timer)
+    }
+  }, [clinic?.id, clinic?.slug, selectedDashboardDate])
 
   const [branches, setBranches] = useState<any[]>([])
 
-  // Subscribe to clinic branches
+  // Read the same real, owner-registered branch list as the clinic header
+  // and booking API. Never rely on a legacy "main" placeholder or a stale
+  // browser-only Firestore snapshot that may exclude clinic_id-only records.
   useEffect(() => {
-    if (!clinic?.id) return
-    const qB = query(collection(db, 'branches'), where('clinicId', '==', clinic.id))
-    const unsub = onSnapshot(
-      qB,
-      (snap) => {
-        setBranches(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
-      },
-      (error) => {
-        console.warn('Error fetching branches:', error)
+    if (!clinic?.id || !clinic?.slug) return
+    let cancelled = false
+    const load = async () => {
+      try {
+        const response = await fetch(
+          `/api/clinic/${encodeURIComponent(clinic.slug)}/branches`,
+          { credentials: 'same-origin', cache: 'no-store' },
+        )
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok || !Array.isArray(data.branches)) {
+          throw new Error(data.error || 'BRANCH_CATALOG_UNAVAILABLE')
+        }
+        if (cancelled) return
+        const registered = data.branches.filter((b: any) => b && !b.isArchived)
+        setBranches(registered)
+        // Normalize a stale persisted branch without side effects inside a
+        // React state updater. The layout also receives the same event.
+        const previous = localStorage.getItem('clinic_selected_branch') || 'all'
+        if (previous !== 'all' &&
+            !registered.some((branch: any) => branch.id === previous)) {
+          const next = (previous === 'main'
+            ? registered.find((branch: any) => branch.isMain)?.id : null) || 'all'
+          localStorage.setItem('clinic_selected_branch', next)
+          setSelectedBranchId(next)
+          window.dispatchEvent(new CustomEvent('clinic_branch_changed', {
+            detail: { branchId: next },
+          }))
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.warn('[clinic-dashboard] Registered branches unavailable:',
+            error instanceof Error ? error.message : 'UNKNOWN')
+          setQueueLoadError('تعذر تحميل قائمة الفروع. لن نعرض فروعًا افتراضية غير مسجلة.')
+        }
       }
-    )
-    return () => unsub()
-  }, [clinic?.id])
+    }
+    void load()
+    return () => { cancelled = true }
+  }, [clinic?.id, clinic?.slug])
 
   // Filter by selected branch
   const branchFilteredAppointments = useMemo(() => {
@@ -703,6 +755,13 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
           </div>
         </div>
       </div>
+
+      {queueLoadError && (
+        <div role="alert" className="flex items-start gap-3 rounded-2xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+          <span>{queueLoadError}</span>
+        </div>
+      )}
 
       {/* TOP STATS CARDS */}
       <div className={`grid grid-cols-2 ${isFinanceEnabled ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-4 sm:gap-5`}>

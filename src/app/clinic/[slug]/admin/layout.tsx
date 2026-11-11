@@ -108,6 +108,17 @@ export default function AdminLayout({
     return () => window.removeEventListener('open_upgrade_modal', handleOpenModal)
   }, [showPackagesInClinics])
 
+  // A branch can be normalized by the dashboard when an old or phantom
+  // browser-saved branch ID no longer exists. Keep the header in sync.
+  useEffect(() => {
+    const onBranchChanged = (event: Event) => {
+      const next = (event as CustomEvent<{ branchId?: string }>).detail?.branchId
+      if (typeof next === 'string' && next) setSelectedBranchId(next)
+    }
+    window.addEventListener('clinic_branch_changed', onBranchChanged)
+    return () => window.removeEventListener('clinic_branch_changed', onBranchChanged)
+  }, [])
+
   const handleSelectBranch = (bId: string) => {
     // If assistant is locked to a specific branch, never permit switching
     const locked = typeof window !== 'undefined' ? localStorage.getItem('clinic_locked_branch') : null

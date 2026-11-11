@@ -27,6 +27,9 @@ export async function POST(request: NextRequest) {
         throw new ApiError(503, 'OWNER_SETUP_REQUIRED', 'إعداد Firebase أو معرف المالك غير مكتمل.')
       if (code === 'OWNER_AUTH_SERVICE_UNAVAILABLE')
         throw new ApiError(503, 'OWNER_AUTH_UNAVAILABLE', 'خدمة تسجيل الدخول غير متاحة مؤقتًا.')
+      if (code === 'OWNER_CLAIMS_MISSING_OR_INVALID')
+        throw new ApiError(403, 'OWNER_FIREBASE_CLAIMS_REQUIRED',
+          'صلاحيات مالك المنصة داخل Firebase غير متطابقة مع قواعد Firestore. تحقق من platformOwner وownerUid وownerEmail ثم سجّل الدخول مجددًا.')
       if (code === 'OWNER_ACCESS_DENIED')
         throw new ApiError(403, 'OWNER_ACCESS_DENIED', 'هذا الحساب لا يملك صلاحية مالك المنصة.')
       throw new ApiError(401, 'OWNER_TOKEN_INVALID', 'جلسة Firebase غير صالحة. سجّل الدخول مرة أخرى.')
