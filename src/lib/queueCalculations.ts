@@ -102,7 +102,7 @@ export function cairoWallClockEpochMs(dateStr: string, totalMinutes: number): nu
   const offsetMinutesAt = (epoch: number): number => {
     const label = formatter.formatToParts(new Date(epoch))
       .find(part => part.type === 'timeZoneName')?.value || ''
-    const match = /^GMT([+-])(\\d{2}):(\\d{2})$/.exec(label)
+    const match = /^GMT([+-])(\d{2}):(\d{2})$/.exec(label)
     if (!match) throw new Error('CAIRO_TIMEZONE_UNAVAILABLE')
     const minutes = Number(match[2]) * 60 + Number(match[3])
     return match[1] === '-' ? -minutes : minutes
