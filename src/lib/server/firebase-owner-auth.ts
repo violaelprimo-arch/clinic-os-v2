@@ -19,6 +19,8 @@ type TokenClaims = {
   email_verified?: boolean
   platformOwner?: boolean
   ownerEmail?: string
+  ownerUid?: string
+  email_verified?: boolean
   iat?: number
   exp?: number
   auth_time?: number
@@ -52,14 +54,16 @@ export async function verifyFirebaseOwnerIdToken(idToken: unknown) {
     typeof claims.sub !== 'string' || !claims.sub ||
     claims.sub !== ownerUid ||
     claims.email?.toLowerCase() !== OWNER_EMAIL ||
-    claims.platformOwner === false ||
-    (claims.ownerEmail && claims.ownerEmail !== OWNER_EMAIL) ||
+    claims.platformOwner !== true ||
+    claims.ownerEmail !== OWNER_EMAIL ||
+    claims.ownerUid !== ownerUid ||
+    claims.email_verified !== true ||
     !Number.isFinite(claims.iat) || !Number.isFinite(claims.exp) ||
     !Number.isFinite(claims.auth_time) ||
     Number(claims.iat) > now + 60 ||
     Number(claims.auth_time) > now + 60 ||
     Number(claims.exp) <= now
-  ) throw Error('OWNER_ACCESS_DENIED')
+  ) throw Error('OWNER_CLAIMS_MISSING_OR_INVALID')
 
   // Google verifies token signature, expiration, revocation and user existence.
   // The trusted server response must identify the same account as the ID token.
@@ -86,6 +90,7 @@ export async function verifyFirebaseOwnerIdToken(idToken: unknown) {
     account.localId !== ownerUid ||
     account.localId !== claims.sub ||
     account.email?.toLowerCase() !== OWNER_EMAIL ||
+    account.emailVerified !== true ||
     (account.validSince && Number(claims.iat) < Number(account.validSince))
   ) throw Error('OWNER_ACCESS_DENIED')
 
