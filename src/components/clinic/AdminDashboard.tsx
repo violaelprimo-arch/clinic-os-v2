@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { db } from '@/lib/firebase'
-import { collection, query, where, onSnapshot, updateDoc, doc } from 'firebase/firestore'
+import { updateDoc, doc } from 'firebase/firestore'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { sortQueue } from '@/lib/queueCalculations'
 import { ThermalReceiptModal } from '@/components/clinic/ThermalReceiptModal'
@@ -169,21 +169,49 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
 
   const [branches, setBranches] = useState<any[]>([])
 
-  // Subscribe to clinic branches
+  // Read the same real, owner-registered branch list as the clinic header
+  // and booking API. Never rely on a legacy "main" placeholder or a stale
+  // browser-only Firestore snapshot that may exclude clinic_id-only records.
   useEffect(() => {
-    if (!clinic?.id) return
-    const qB = query(collection(db, 'branches'), where('clinicId', '==', clinic.id))
-    const unsub = onSnapshot(
-      qB,
-      (snap) => {
-        setBranches(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
-      },
-      (error) => {
-        console.warn('Error fetching branches:', error)
+    if (!clinic?.id || !clinic?.slug) return
+    let cancelled = false
+    const load = async () => {
+      try {
+        const response = await fetch(
+          `/api/clinic/${encodeURIComponent(clinic.slug)}/branches`,
+          { credentials: 'same-origin', cache: 'no-store' },
+        )
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok || !Array.isArray(data.branches)) {
+          throw new Error(data.error || 'BRANCH_CATALOG_UNAVAILABLE')
+        }
+        if (cancelled) return
+        const registered = data.branches.filter((b: any) => b && !b.isArchived)
+        setBranches(registered)
+        setSelectedBranchId(previous => {
+          if (!previous || previous === 'all') return 'all'
+          if (registered.some((branch: any) => branch.id === previous)) return previous
+          const main = previous === 'main'
+            ? registered.find((branch: any) => branch.isMain)
+            : null
+          const next = main?.id || 'all'
+          localStorage.setItem('clinic_selected_branch', next)
+          window.dispatchEvent(new CustomEvent('clinic_branch_changed', {
+            detail: { branchId: next },
+          }))
+          return next
+        })
+      } catch (error) {
+        if (!cancelled) {
+          console.warn('[clinic-dashboard] Registered branches unavailable:',
+            error instanceof Error ? error.message : 'UNKNOWN')
+          setQueueLoadError('تعذر تحميل قائمة الفروع. لن نعرض فروعًا افتراضية غير مسجلة.')
+        }
       }
-    )
-    return () => unsub()
-  }, [clinic?.id])
+    }
+    void load()
+    return () => { cancelled = true }
+  }, [clinic?.id, clinic?.slug])
 
   // Filter by selected branch
   const branchFilteredAppointments = useMemo(() => {
