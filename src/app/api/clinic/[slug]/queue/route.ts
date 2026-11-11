@@ -26,23 +26,26 @@ export async function GET(
 
     const datesParam = searchParams.get('dates')
     if (datesParam) {
-      const dateList = datesParam.split(',').map((d) => d.trim()).filter(Boolean)
-      const dailyCounts: Record<string, number> = {}
-
-      const allAppts = await queryDocuments('appointments')
-      const clinicAppts = allAppts.filter(
-        (a: any) => (a.clinic_id === clinicId || a.clinicId === clinicId) && a.status !== 'cancelled'
-      )
-
-      for (const dStr of dateList) {
-        dailyCounts[dStr] = clinicAppts.filter((a: any) => a.date === dStr).length
+      // Clinic/date scoped capacity rather than reading only the first 200
+      // historical appointments and undercounting future bookings.
+      const requestedDates = [...new Set(datesParam.split(',').map(d => d.trim()).filter(Boolean))]
+      if (requestedDates.length > 14 ||
+          requestedDates.some(d => !/^\\d{4}-\\d{2}-\\d{2}$/.test(d))) {
+        return NextResponse.json({ error: 'INVALID_DATE_RANGE' }, { status: 400 })
       }
-
+      const results = await Promise.all(requestedDates.map(async day => {
+        const items = await queryDocumentsByFields('appointments',
+          { clinic_id: clinicId, date: day }, 250)
+        const active = items.filter((a: any) =>
+          a.status !== 'cancelled' && a.status !== 'no_show' &&
+          (!branchId || (a.branch_id || a.branchId) === branchId))
+        return [day, active.length] as const
+      }))
       return NextResponse.json({
         success: true,
-        dailyCounts,
+        dailyCounts: Object.fromEntries(results),
         maxDailyBookings: Number(clinicData?.maxDailyBookings) || 0
-      })
+      }, { headers: { 'Cache-Control': 'no-store' } })
     }
 
     const nowCairo = new Date()
