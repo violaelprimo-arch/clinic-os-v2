@@ -54,3 +54,17 @@ test('owner token claims match Firestore owner rules before issuing the owner se
   assert.match(script, /process\.argv\.includes\('--apply'\)/)
   assert.match(script, /OWNER_IDENTITY_MISMATCH_OR_EMAIL_NOT_VERIFIED/)
 })
+
+test('doctor dashboard and TV share the server-side scoped queue source', () => {
+  const dashboard = read('src/components/clinic/AdminDashboard.tsx')
+  const endpoint = read('src/app/api/clinic/[slug]/appointments/day/route.ts')
+  const tv = read('src/app/clinic/[slug]/tv/WaitingRoomTvClient.tsx')
+  assert.match(dashboard, /appointments\\/day\\?date=/)
+  assert.match(dashboard, /setQueueLoadError/)
+  assert.doesNotMatch(dashboard, /onSnapshot\\(\\s*q,\\s*\\(snapshot\\)/)
+  assert.match(endpoint, /await getCurrentClinicStaff\\(req, slug\\)/)
+  assert.match(endpoint, /queryDocumentsByFields\\('appointments'/)
+  assert.match(endpoint, /staff\\.user\\.role === 'assistant'/)
+  assert.match(endpoint, /QUEUE_RESULT_LIMIT_REACHED/)
+  assert.match(tv, /queue\\?tv=1/)
+})
