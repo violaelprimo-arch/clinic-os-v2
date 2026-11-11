@@ -30,7 +30,7 @@ export async function GET(
       // historical appointments and undercounting future bookings.
       const requestedDates = [...new Set(datesParam.split(',').map(d => d.trim()).filter(Boolean))]
       if (requestedDates.length > 14 ||
-          requestedDates.some(d => !/^\\d{4}-\\d{2}-\\d{2}$/.test(d))) {
+          requestedDates.some(d => !/^\d{4}-\d{2}-\d{2}$/.test(d))) {
         return NextResponse.json({ error: 'INVALID_DATE_RANGE' }, { status: 400 })
       }
       const results = await Promise.all(requestedDates.map(async day => {
