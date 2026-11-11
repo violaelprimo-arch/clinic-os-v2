@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { authorizePushTarget, sameOriginMutation } from '@/lib/server/push-access'
 import { getSubscriptionId } from '@/lib/pushDispatcher'
 import { readDocument } from '@/lib/server/firebase-rest'
+import { getVapidConfig } from '@/lib/webPushServer'
 
 /** Checks actual server-side subscription; browser permission alone is insufficient. */
 export async function POST(req: NextRequest) {
@@ -22,6 +23,7 @@ export async function POST(req: NextRequest) {
     const registered = !!record && record.status === 'active' &&
       record.endpoint === data.endpoint && record.clinicId === target.clinicId &&
       record.role === target.role &&
+      record.vapidPublicKey === getVapidConfig().publicKey &&
       (role === 'staff' ||
         (Array.isArray(record.appointmentIds) && record.appointmentIds.includes(target.appointmentId)))
     return NextResponse.json({ registered, status: registered ? 'active' : 'not_registered' }, {
