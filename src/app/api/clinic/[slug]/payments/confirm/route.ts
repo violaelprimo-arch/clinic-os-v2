@@ -1,103 +1,128 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { doc, getDoc, updateDoc } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
-import { verifySessionToken } from '@/lib/auth-crypto'
-import { createClinicNotification } from '@/lib/notificationService'
-import { triggerPatientEventPush } from '@/lib/patientNotificationHelper'
+import { getCurrentClinicStaff } from '@/lib/server/clinic-staff-access'
+import { sameOriginMutation } from '@/lib/server/push-access'
+import { readDocument, writeDocument } from '@/lib/server/firebase-rest'
+import { createServerNotification } from '@/lib/server/clinic-notifications'
+import { dispatchPatientPushNotification } from '@/lib/pushDispatcher'
+import { scheduleBackgroundTask } from '@/lib/server/background-task'
+
+export const dynamic = 'force-dynamic'
+
+const noStore = {
+  'Cache-Control': 'private, no-store, no-cache, must-revalidate',
+}
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
-    const { slug } = await params
-    const sessionToken =
-      req.cookies.get('clinic_session')?.value ||
-      req.headers.get('Authorization')?.replace('Bearer ', '')
-
-    if (!sessionToken) {
-      return NextResponse.json({ error: 'غير مصرح بالوصول — يرجى تسجيل الدخول' }, { status: 401 })
+    if (!sameOriginMutation(req)) {
+      return NextResponse.json({ error: 'INVALID_ORIGIN' }, { status: 403, headers: noStore })
     }
 
-    const session = await verifySessionToken(sessionToken)
-    if (!session.valid || !session.payload) {
-      return NextResponse.json({ error: 'جلسة الدخول غير صالحة أو منتهية' }, { status: 401 })
+    const { slug } = await params
+    const staff = await getCurrentClinicStaff(req, slug)
+    if (!staff) {
+      return NextResponse.json(
+        { error: 'غير مصرح بالوصول — يرجى تسجيل الدخول' },
+        { status: 401, headers: noStore }
+      )
     }
 
     const body = await req.json().catch(() => ({}))
-    const { appointmentId, paymentMethod, amount } = body
+    const appointmentId = String(body?.appointmentId || '')
+    const paymentMethod = body?.paymentMethod
+    const amount = body?.amount
 
-    if (!appointmentId) {
-      return NextResponse.json({ error: 'معرف الحجز مطلوب' }, { status: 400 })
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(appointmentId)) {
+      return NextResponse.json({ error: 'معرف الحجز مطلوب' }, { status: 400, headers: noStore })
     }
 
-    const apptRef = doc(db, 'appointments', appointmentId)
-    const apptSnap = await getDoc(apptRef)
-
-    if (!apptSnap.exists()) {
-      return NextResponse.json({ error: 'الحجز غير موجود' }, { status: 404 })
+    const apptData = await readDocument(`appointments/${appointmentId}`)
+    if (!apptData || ![apptData.clinic_id, apptData.clinicId].includes(staff.clinicId)) {
+      return NextResponse.json({ error: 'الحجز غير موجود في هذه العيادة' }, { status: 404, headers: noStore })
     }
 
-    const apptData = apptSnap.data()
-    const actorName = session.payload.name || 'إدارة العيادة'
+    const apptBranch = String(apptData.branch_id || apptData.branchId || '')
+    if (staff.user.role === 'assistant' && staff.user.branchId && staff.user.branchId !== apptBranch) {
+      return NextResponse.json({ error: 'BRANCH_ACCESS_DENIED' }, { status: 403, headers: noStore })
+    }
 
-    const updatePayload: any = {
+    const actorName = String(staff.user.name || 'إدارة العيادة')
+    const now = new Date().toISOString()
+
+    const updatePayload: Record<string, unknown> = {
       paymentStatus: 'paid',
-      paymentConfirmedAt: new Date().toISOString(),
+      paymentConfirmedAt: now,
       paymentConfirmedBy: actorName,
-      confirmedAt: new Date().toISOString(),
-      confirmedBy: actorName
+      confirmedAt: now,
+      confirmedBy: actorName,
+      updatedAt: now,
     }
 
     if (paymentMethod) {
-      updatePayload.paymentMethod = paymentMethod
+      updatePayload.paymentMethod = String(paymentMethod)
     }
-    if (amount !== undefined) {
+    if (amount !== undefined && amount !== null && Number.isFinite(Number(amount))) {
       updatePayload.collectedAmount = Number(amount)
     }
 
-    await updateDoc(apptRef, updatePayload)
+    await writeDocument(`appointments/${appointmentId}`, updatePayload, true)
 
-    // Trigger clinic and push notifications
-    if (apptData.phone) {
-      try {
-        await createClinicNotification({
-          clinicId: apptData.clinic_id,
-          branchId: apptData.branch_id,
-          recipientType: 'patient',
-          recipientTarget: apptData.phone,
-          title: 'تم تأكيد استلام الدفع بنجاح',
-          body: `مرحباً ${apptData.patientName}، تم تأكيد دفع رسوم كشف "${apptData.serviceName || 'العيادة'}". نتمنى لك الشفاء العاجل.`,
-          type: 'payment_confirmed',
-          eventId: `pay_conf_${appointmentId}`,
-          appointmentId
-        })
+    const updatedAppointment = { ...apptData, ...updatePayload, id: appointmentId }
+    const patientPhone = String(apptData.phone || apptData.patientPhone || '').trim()
+    const clinicName = String(staff.clinic?.clinicName || staff.clinic?.name || 'العيادة')
 
-        triggerPatientEventPush({
-          type: 'payment_confirmed',
-          appointmentId,
-          clinicId: apptData.clinic_id,
-          clinicSlug: slug,
-          clinicName: 'العيادة',
-          patientPhone: apptData.phone,
-          queueNumber: apptData.queue_number,
-          eventId: `push_pay_conf_${appointmentId}`
-        }).catch(() => {})
-      } catch (notifyErr) {
-        console.warn('Payment confirmation notification warning:', notifyErr)
-      }
+    if (patientPhone) {
+      const eventId = `pay_conf_${appointmentId}`
+      const title = 'تم تأكيد استلام الدفع بنجاح'
+      const bodyText = `مرحباً ${apptData.patientName || ''}، تم تأكيد دفع رسوم كشف "${apptData.serviceName || clinicName}". نتمنى لك الشفاء العاجل.`
+
+      scheduleBackgroundTask(
+        () =>
+          Promise.allSettled([
+            createServerNotification({
+              clinicId: staff.clinicId,
+              branchId: apptBranch,
+              recipientType: 'patient',
+              recipientTarget: patientPhone,
+              type: 'payment_confirmed',
+              title,
+              body: bodyText,
+              appointmentId,
+              eventId,
+            }),
+            dispatchPatientPushNotification({
+              clinicId: staff.clinicId,
+              appointmentId,
+              type: 'payment_confirmed',
+              title,
+              body: bodyText,
+              url: `/clinic/${slug}/track/${appointmentId}`,
+              eventId: `push_${eventId}`,
+              urgency: 'normal',
+              ttl: 3600,
+            }),
+          ]),
+        'payment-confirm-notify'
+      )
     }
 
-    return NextResponse.json({
-      success: true,
-      message: 'تم تأكيد استلام الدفع بنجاح وتسجيله في الحسابات',
-      appointment: { id: appointmentId, ...apptData, ...updatePayload }
-    })
+    return NextResponse.json(
+      {
+        success: true,
+        serverTime: now,
+        message: 'تم تأكيد استلام الدفع بنجاح وتسجيله في الحسابات',
+        appointment: updatedAppointment,
+      },
+      { headers: noStore }
+    )
   } catch (err: any) {
     console.error('Error in payment confirm POST:', err)
     return NextResponse.json(
-      { error: 'فشل في تأكيد استلام الدفع: ' + (err.message || '') },
-      { status: 500 }
+      { error: 'فشل في تأكيد استلام الدفع: ' + (err?.message || '') },
+      { status: 500, headers: noStore }
     )
   }
 }

@@ -94,14 +94,17 @@ test('5. calculatePatientLivePosition supports examining status and camelCase qu
 test('6. Queue API, transition API, TV client, and Push manager maintain sync contracts', () => {
   const queueRoute = fs.readFileSync('src/app/api/clinic/[slug]/queue/route.ts', 'utf8');
   const transitionRoute = fs.readFileSync('src/app/api/clinic/[slug]/appointments/transition/route.ts', 'utf8');
+  const queueTransition = fs.readFileSync('src/lib/server/queue-transition.ts', 'utf8');
   const tvClient = fs.readFileSync('src/app/clinic/[slug]/tv/WaitingRoomTvClient.tsx', 'utf8');
   const pushMgr = fs.readFileSync('src/components/clinic/PatientPushNotificationManager.tsx', 'utf8');
 
   assert.match(queueRoute, /sortQueue\(allTodayAppts/);
   assert.match(queueRoute, /a\.branchId === branchId/);
-  assert.match(transitionRoute, /alertWaitingPatients\([^)]+clinicDoc\)/);
-  assert.doesNotMatch(transitionRoute, /if\s*\(\s*called\s*&&\s*String\(called\.phone/);
+  assert.match(transitionRoute, /executeQueueTransition/);
+  assert.match(queueTransition, /alertWaitingPatients\([\s\S]*?clinicDoc/);
+  assert.doesNotMatch(queueTransition, /if\s*\(\s*called\s*&&\s*String\(called\.phone/);
   assert.match(tvClient, /totalWaitingCount \?\? nextWaitingPatients\.length/);
   assert.match(tvClient, /if \(!isAudioEnabled\) return\s+lastAnnouncedCallKeyRef\.current = currentCallKey/);
+  assert.doesNotMatch(tvClient, /heldUntilRef/);
   assert.match(pushMgr, /if \(isSubscribed\)[\s\S]*مفعّلة/);
 });

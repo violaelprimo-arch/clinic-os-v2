@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentClinicStaff } from '@/lib/server/clinic-staff-access'
 import { queryDocumentsByFields } from '@/lib/server/firebase-rest'
 import { getCairoDateString } from '@/lib/bookingCapacity'
+import { computeQueueWatermark } from '@/lib/queueSync'
 
 export const dynamic = 'force-dynamic'
-const noStore = { 'Cache-Control': 'private, no-store' }
+const noStore = { 'Cache-Control': 'private, no-store, no-cache, must-revalidate' }
 
 /** Full clinic/day queue for authenticated doctor and reception only.
  *
@@ -33,6 +34,7 @@ export async function GET(
       })
     }
 
+    const snapshotStartedAt = new Date().toISOString()
     const records = await queryDocumentsByFields('appointments', {
       clinic_id: staff.clinicId, date,
     }, 500)
@@ -50,9 +52,12 @@ export async function GET(
         (a.branch_id || a.branchId) === staff.user.branchId)
     )
 
+    const serverTime = new Date().toISOString()
     return NextResponse.json({
       success: true,
       date,
+      serverTime,
+      queueWatermark: computeQueueWatermark(permitted, snapshotStartedAt),
       appointments: permitted,
       scope: staff.user.role === 'assistant' ? 'assigned_branch' : 'clinic',
     }, { headers: noStore })

@@ -1,203 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentClinicStaff } from '@/lib/server/clinic-staff-access'
-import {
-  readDocument, queryDocumentsByFields, commitDocumentPatches,
-} from '@/lib/server/firebase-rest'
-import { createServerNotification } from '@/lib/server/clinic-notifications'
-import {
-  buildPushTag, dispatchPatientPushNotification,
-  getApproachingEventId, getTurnReadyEventId,
-} from '@/lib/pushDispatcher'
-import { getCairoDateString } from '@/lib/bookingCapacity'
 import { sameOriginMutation } from '@/lib/server/push-access'
-import { sortQueue } from '@/lib/queueCalculations'
+import {
+  executeQueueTransition,
+  type QueueTransitionAction,
+} from '@/lib/server/queue-transition'
 
 export const dynamic = 'force-dynamic'
-type Action = 'start' | 'complete' | 'skip' | 'recall' | 'requeue' | 'no_show'
 
-const inClinic = (a: Record<string, any>, clinicId: string) =>
-  (a.clinic_id || a.clinicId) === clinicId
-const branch = (a: Record<string, any>) => String(a.branch_id || a.branchId || '')
-const queueNumber = (a: Record<string, any>) => Number(a.queue_number || a.queueNumber || 0)
-const stamp = () => new Date().toISOString()
-
-async function sendCalledPatient(
-  clinicId: string,
-  slug: string,
-  appt: Record<string, any>,
-  calledAction: 'start' | 'skip' | 'recall',
-  calledAt: string,
-) {
-  const eventId = getTurnReadyEventId(appt, calledAction, calledAt)
-  const tagSalt = calledAction === 'recall'
-    ? calledAt.replace(/[^0-9]/g, '').slice(-8)
-    : String(appt.requeuedAt || appt.skippedAt || appt.noShowAt || '0')
-  const recipientPhone = String(appt.phone || appt.patientPhone || '').trim()
-  const tasks: Promise<unknown>[] = [
-    dispatchPatientPushNotification({
-      clinicId, appointmentId: String(appt.id), type: 'turn_ready',
-      title: 'حان دورك الآن للدخول!',
-      body: `رقم دورك #${queueNumber(appt)}. يرجى التوجه لغرفة الكشف.`,
-      url: `/clinic/${slug}/track/${appt.id}`,
-      tag: buildPushTag('turn_ready', String(appt.id), tagSalt),
-      eventId, urgency: 'high', ttl: 600,
-    }),
-  ]
-  if (recipientPhone) {
-    tasks.push(createServerNotification({
-      clinicId, branchId: branch(appt), recipientType: 'patient',
-      recipientTarget: recipientPhone,
-      type: 'turn_ready', title: 'حان دورك الآن للدخول!',
-      body: `رقم دورك #${queueNumber(appt)}. يرجى التوجه لغرفة الكشف.`,
-      appointmentId: String(appt.id), eventId,
-    }))
-  }
-  await Promise.allSettled(tasks)
+const noStore = {
+  'Cache-Control': 'private, no-store, no-cache, must-revalidate',
 }
 
-async function alertWaitingPatients(
-  clinicId: string, slug: string, entries: Record<string, any>[], currentId: string,
-  clinic?: Record<string, any> | null,
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ slug: string }> },
 ) {
-  const waiting = sortQueue(entries.filter(a => a.id !== currentId), clinic)
-  const batches: Promise<unknown>[] = []
-  for (let i = 0; i < waiting.length && i < 5; i++) {
-    const appt = waiting[i]
-    const ahead = i + 1 // Includes current person in examination.
-    const eventId = getApproachingEventId(appt, ahead)
-    const recipientPhone = String(appt.phone || appt.patientPhone || '').trim()
-    if (recipientPhone) {
-      batches.push(createServerNotification({
-        clinicId, branchId: branch(appt), recipientType: 'patient',
-        recipientTarget: recipientPhone,
-        title: ahead === 1 ? 'أنت المريض التالي للدخول!' : `اقترب دورك: متبقي ${ahead}`,
-        body: `متبقي أمامك ${ahead} في الانتظار، يرجى الاستعداد.`,
-        type: 'approaching_turn', eventId, appointmentId: String(appt.id),
-      }))
-    }
-    batches.push(dispatchPatientPushNotification({
-      clinicId, appointmentId: String(appt.id), type: 'approaching_turn',
-      title: ahead === 1 ? 'أنت المريض التالي للدخول!' : `اقترب دورك: متبقي ${ahead}`,
-      body: 'يرجى مراجعة صفحة متابعة الدور والاستعداد للحضور.',
-      url: `/clinic/${slug}/track/${appt.id}`,
-      tag: buildPushTag('approaching_turn', String(appt.id), String(ahead)),
-      eventId, urgency: 'high', ttl: 300,
-    }))
-  }
-  const results = await Promise.allSettled(batches)
-  for (const result of results) {
-    if (result.status === 'rejected') {
-      console.warn('[queue-transition] Notification delivery failed:',
-        result.reason instanceof Error ? result.reason.message : 'UNKNOWN')
-    }
-  }
-}
-
-export async function POST(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     if (!sameOriginMutation(req)) {
-      return NextResponse.json({ error: 'INVALID_ORIGIN' }, { status: 403 })
+      return NextResponse.json({ error: 'INVALID_ORIGIN' }, { status: 403, headers: noStore })
     }
     const { slug } = await params
     const staff = await getCurrentClinicStaff(req, slug)
-    if (!staff) return NextResponse.json({ error: 'STAFF_SESSION_REQUIRED' }, { status: 401 })
-    const data = await req.json().catch(() => ({}))
-    const id = String(data.appointmentId || '')
-    const action = String(data.action || '') as Action
-    if (!/^[A-Za-z0-9_-]{1,128}$/.test(id) ||
-        !(['start','complete','skip','recall','requeue','no_show'] as string[]).includes(action)) {
-      return NextResponse.json({ error: 'INVALID_QUEUE_TRANSITION' }, { status: 400 })
+    if (!staff) {
+      return NextResponse.json({ error: 'STAFF_SESSION_REQUIRED' }, { status: 401, headers: noStore })
     }
-    const appt = await readDocument(`appointments/${id}`)
-    if (!appt || !inClinic(appt, staff.clinicId)) {
-      return NextResponse.json({ error: 'APPOINTMENT_NOT_IN_CLINIC' }, { status: 404 })
-    }
-    const now = stamp()
-    const today = getCairoDateString()
-    if (!appt.date || String(appt.date) !== today) {
-      return NextResponse.json({ error: 'QUEUE_TRANSITION_REQUIRES_TODAY' }, { status: 409 })
-    }
-    const [records, clinicDoc] = await Promise.all([
-      queryDocumentsByFields('appointments', {
-        clinic_id: staff.clinicId, date: today,
-      }, 250),
-      readDocument(`clinics/${staff.clinicId}`).catch(() => null),
-    ])
-    const sameBranch = records.filter(a => branch(a) === branch(appt)) as Record<string, any>[]
-    if (!sameBranch.some(a => a.id === id)) {
-      return NextResponse.json({ error: 'APPOINTMENT_QUEUE_UNAVAILABLE' }, { status: 409 })
-    }
-    if (staff.user.role === 'assistant' && staff.user.branchId &&
-        staff.user.branchId !== branch(appt)) {
-      return NextResponse.json({ error: 'BRANCH_ACCESS_DENIED' }, { status: 403 })
-    }
-    const patches: Array<{path:string; data:Record<string,unknown>}> = []
-    let called: Record<string, any> | null = null
-    let calledTime = ''
-    let calledAction: 'start' | 'skip' | 'recall' = 'start'
-    if (action === 'start') {
-      if (!['waiting','skipped','no_show','in_progress','examining'].includes(String(appt.status || 'waiting'))) {
-        return NextResponse.json({ error: 'PATIENT_NOT_AVAILABLE_FOR_CALL' }, { status: 409 })
-      }
-      for (const prev of sameBranch.filter(a => a.id !== id &&
-          ['in_progress','examining'].includes(String(a.status)))) {
-        patches.push({ path: `appointments/${prev.id}`,
-          data: { status: 'completed', completedAt: now,
-            ...(prev.startedAt ? {durationMinutes: Math.max(1, Math.round((Date.now()-Date.parse(String(prev.startedAt)))/60000))}: {}) } })
-      }
-      patches.push({ path: `appointments/${id}`, data: {
-        status:'in_progress', startedAt: appt.startedAt || now, calledAt: now,
-        arrivedAt: appt.arrivedAt || now, paymentStatus: 'paid',
-      } })
-      called = appt; calledTime = now; calledAction = 'start'
-    } else if (action === 'skip') {
-      patches.push({ path: `appointments/${id}`,
-        data: { status: 'skipped', skippedAt: now, priorityNext:false } })
-      const next = sortQueue(sameBranch.filter(a => a.id !== id), clinicDoc)[0]
-      if (next) {
-        patches.push({ path: `appointments/${next.id}`, data: {
-          status:'in_progress', startedAt:now, calledAt:now, arrivedAt:next.arrivedAt || now,
-          paymentStatus:'paid', priorityNext:false,
-        }})
-        called = next; calledTime = now; calledAction = 'skip'
-      }
-    } else if (action === 'complete') {
-      if (!['in_progress','examining'].includes(String(appt.status))) {
-        return NextResponse.json({ error: 'PATIENT_NOT_IN_EXAM' }, { status: 409 })
-      }
-      const durationMinutes = appt.startedAt
-        ? Math.max(1, Math.round((Date.now()-Date.parse(String(appt.startedAt)))/60000)) : null
-      patches.push({ path: `appointments/${id}`, data: {
-        status: 'completed', completedAt: now, ...(durationMinutes ? { durationMinutes } : {}),
-      }})
-    } else if (action === 'recall') {
-      if (!['in_progress','examining'].includes(String(appt.status))) {
-        return NextResponse.json({ error: 'PATIENT_NOT_CALLED' }, { status: 409 })
-      }
-      patches.push({ path: `appointments/${id}`, data: { calledAt: now } })
-      called = appt; calledTime = now; calledAction = 'recall'
-    } else if (action === 'requeue') {
-      patches.push({ path: `appointments/${id}`, data: {
-        status: 'waiting', priorityNext: true, requeuedAt:now,
-      }})
-    } else {
-      patches.push({ path: `appointments/${id}`, data: { status:'no_show', noShowAt:now } })
-    }
-    await commitDocumentPatches(patches)
 
-    // Booking state has already committed: delivery errors never undo a visit.
-    // The client may display a non-blocking delivery warning separately.
-    if (called) {
-      await sendCalledPatient(staff.clinicId, slug, called, calledAction, calledTime)
-      const pending = sameBranch.filter(a => a.id !== called!.id && (a.status === 'waiting' || !a.status))
-      await alertWaitingPatients(staff.clinicId, slug, pending, called.id, clinicDoc)
+    const data = await req.json().catch(() => ({}))
+    const result = await executeQueueTransition({
+      slug,
+      staff,
+      appointmentId: String(data?.appointmentId || ''),
+      action: String(data?.action || '') as QueueTransitionAction,
+    })
+
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: result.status, headers: noStore })
     }
-    return NextResponse.json({
-      success: true, action, updatedIds: patches.map(p => p.path.split('/').pop()),
-      calledId: called?.id || null,
-    }, { headers: {'Cache-Control':'no-store'} })
-  } catch (error) {
-    console.error('[queue-transition] Failed:', error instanceof Error ? error.message : 'UNKNOWN')
-    return NextResponse.json({ error:'QUEUE_TRANSITION_FAILED' }, { status:503 })
+
+    return NextResponse.json(result.body, { status: result.status, headers: noStore })
+  } catch (err: any) {
+    console.error('Error in transition POST:', err)
+    return NextResponse.json(
+      { error: 'INTERNAL_TRANSITION_ERROR', detail: err?.message || '' },
+      { status: 500, headers: noStore },
+    )
   }
 }

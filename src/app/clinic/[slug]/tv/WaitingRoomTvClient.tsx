@@ -18,6 +18,12 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 import { sortQueue } from '@/lib/queueCalculations'
+import {
+  mergeQueueWatermark,
+  shouldAcceptQueueSnapshot,
+  subscribeClinicQueueSignal,
+  type QueueWatermark,
+} from '@/lib/queueSync'
 
 interface TvConfig {
   tickerText: string
@@ -632,21 +638,46 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
     return () => { cancelled = true }
   }, [slug])
 
-  // 3. One authoritative queue feed (server API only).
-  // Previously the Firestore snapshot and the 5-second poll overwrote the
-  // same appointments state: the patient appeared briefly and disappeared
-  // while the independent voice announcement was still playing.
+  // 3. One authoritative queue feed (server API only) with strict monotonic
+  // watermark protection and instant cross-tab / push wakeup signals.
   useEffect(() => {
     if (!slug) return
     let cancelled = false
     let requestInFlight = false
-    const controller = new AbortController()
+    let pendingPoll = false
+    let scheduledTimer: number | null = null
+    let currentController: AbortController | null = null
+    let tvWatermark: QueueWatermark | null = null
+    let pollSeq = 0
+    let lastAcceptedSeq = 0
     isFirstDataLoadRef.current = true
     lastAnnouncedCallKeyRef.current = null
 
-    const pollTvApi = async () => {
-      if (cancelled || requestInFlight) return
+    const clearScheduled = () => {
+      if (scheduledTimer !== null) {
+        window.clearTimeout(scheduledTimer)
+        scheduledTimer = null
+      }
+    }
+
+    const scheduleNext = () => {
+      clearScheduled()
+      if (cancelled) return
+      const delayMs = document.visibilityState === 'visible' ? 1000 : 8000
+      scheduledTimer = window.setTimeout(() => void pollTvApi(false), delayMs)
+    }
+
+    const pollTvApi = async (immediate = false) => {
+      if (cancelled) return
+      if (immediate) clearScheduled()
+      if (requestInFlight) {
+        pendingPoll = true
+        return
+      }
       requestInFlight = true
+      const reqSeq = ++pollSeq
+      const controller = new AbortController()
+      currentController = controller
       try {
         const branchParam = selectedBranchId !== 'all'
           ? `&branchId=${encodeURIComponent(selectedBranchId)}` : ''
@@ -657,6 +688,19 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
         if (!res.ok) throw new Error(`QUEUE_HTTP_${res.status}`)
         const data = await res.json()
         if (cancelled || !data.success || !data.tvQueue) return
+
+        const incomingWatermark: QueueWatermark | null = data.queueWatermark || null
+        if (
+          !shouldAcceptQueueSnapshot(tvWatermark, incomingWatermark, {
+            reqSeq,
+            lastAcceptedSeq,
+          })
+        ) {
+          return
+        }
+        lastAcceptedSeq = Math.max(lastAcceptedSeq, reqSeq)
+        tvWatermark = mergeQueueWatermark(tvWatermark, incomingWatermark)
+
         const list: any[] = []
         const current = data.tvQueue.currentPatient
         if (current && current.id) {
@@ -690,21 +734,39 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
         setTotalWaitingCount(typeof data.totalWaiting === 'number' ? data.totalWaiting : null)
         setAppointments(list)
       } catch (error) {
-        if (!cancelled) {
+        if (!cancelled && !(error instanceof Error && error.name === 'AbortError')) {
           // Preserve last valid state on network failure. Never blank the
           // screen just because a single HTTP request failed.
           console.warn('[TV] Queue refresh failed; keeping last valid state:', error)
         }
       } finally {
+        if (currentController === controller) currentController = null
         requestInFlight = false
+        if (pendingPoll && !cancelled) {
+          pendingPoll = false
+          void pollTvApi(true)
+        } else {
+          scheduleNext()
+        }
       }
     }
-    void pollTvApi()
-    const tvInterval = window.setInterval(() => { void pollTvApi() }, 4000)
+
+    const onSignal = () => { void pollTvApi(true) }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void pollTvApi(true)
+    }
+    const unsubscribeSignal = subscribeClinicQueueSignal(slug, onSignal)
+    window.addEventListener('focus', onSignal)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    void pollTvApi(true)
     return () => {
       cancelled = true
-      controller.abort()
-      window.clearInterval(tvInterval)
+      clearScheduled()
+      currentController?.abort()
+      unsubscribeSignal()
+      window.removeEventListener('focus', onSignal)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
     }
   }, [slug, selectedBranchId])
 
@@ -725,25 +787,10 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
     return branchAppointments.find(a => a.status === 'in_progress' || a.status === 'examining') || null
   }, [branchAppointments])
 
-  // The patient card stays visible through the start of the voice call even
-  // if the doctor completes the appointment within a few seconds.
-  const [lastCalledPatient, setLastCalledPatient] = useState<any>(null)
-  const heldUntilRef = useRef(0)
-  const currentCallIdentity = currentPatient
-    ? `${currentPatient.id}:${currentPatient.calledAt || currentPatient.startedAt || ''}`
-    : ''
   useEffect(() => {
-    if (!currentPatient) return
-    heldUntilRef.current = Date.now() + 15000
-    setLastCalledPatient(currentPatient)
-  }, [currentCallIdentity])
-  useEffect(() => {
-    heldUntilRef.current = 0
-    setLastCalledPatient(null)
     setTotalWaitingCount(null)
   }, [selectedBranchId])
-  const displayedPatient = currentPatient ||
-    (Date.now() < heldUntilRef.current ? lastCalledPatient : null)
+  const displayedPatient = currentPatient
 
   // Next Waiting Patients (use unified sortQueue clinical engine to match doctor's order)
   const nextWaitingPatients = useMemo(() => {
