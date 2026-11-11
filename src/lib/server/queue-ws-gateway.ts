@@ -139,6 +139,25 @@ export async function maybeHandleQueueWebSocketRequest(
   }
 
   try {
+    let preVerifiedStaff: Record<string, any> | undefined
+    if (role === 'staff') {
+      const token =
+        parseCookieValue(request.headers.get('cookie'), 'clinic_session') ||
+        (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim()
+
+      const session = await verifySessionToken(token)
+      const user = session.payload
+      if (
+        !session.valid ||
+        !user ||
+        !['doctor', 'assistant'].includes(String(user.role)) ||
+        String(user.slug || '') !== slug
+      ) {
+        return new Response('Unauthorized staff socket', { status: 401 })
+      }
+      preVerifiedStaff = user
+    }
+
     const clinicInfo = await resolveClinicForSocket(slug)
     if (!clinicInfo) {
       return new Response('Clinic not found', { status: 404 })
@@ -151,18 +170,10 @@ export async function maybeHandleQueueWebSocketRequest(
     let accountKey: string | undefined
 
     if (role === 'staff') {
-      const token =
-        parseCookieValue(request.headers.get('cookie'), 'clinic_session') ||
-        (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim()
-
-      const session = await verifySessionToken(token)
-      const user = session.payload
+      const user = preVerifiedStaff
       if (
-        !session.valid ||
         !user ||
-        !['doctor', 'assistant'].includes(String(user.role)) ||
         String(user.clinicId || '') !== clinicId ||
-        String(user.slug || '') !== slug ||
         Number(user.credentialsVersion || 0) !== Number(clinicDoc.credentialsVersion || 0)
       ) {
         return new Response('Unauthorized staff socket', { status: 401 })
