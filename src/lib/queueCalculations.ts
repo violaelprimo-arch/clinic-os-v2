@@ -85,6 +85,36 @@ export function formatCairo12Hour(date: Date, isRtl: boolean = true): string {
 }
 
 /**
+ * Interpret a clinic's wall-clock appointment time as Africa/Cairo, not the
+ * browser's or Cloudflare Worker's own timezone. This handles winter UTC+2
+ * and summer UTC+3, including upcoming DST changes.
+ */
+export function cairoWallClockEpochMs(dateStr: string, totalMinutes: number): number {
+  const [year, month, day] = dateStr.split('-').map(Number)
+  if (!year || !month || !day || !Number.isFinite(totalMinutes)) {
+    throw new Error('INVALID_CAIRO_APPOINTMENT_TIME')
+  }
+  const localAsUtc = Date.UTC(year, month - 1, day) +
+    Math.floor(totalMinutes) * 60_000
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Africa/Cairo', timeZoneName: 'longOffset',
+  })
+  const offsetMinutesAt = (epoch: number): number => {
+    const label = formatter.formatToParts(new Date(epoch))
+      .find(part => part.type === 'timeZoneName')?.value || ''
+    const match = /^GMT([+-])(\\d{2}):(\\d{2})$/.exec(label)
+    if (!match) throw new Error('CAIRO_TIMEZONE_UNAVAILABLE')
+    const minutes = Number(match[2]) * 60 + Number(match[3])
+    return match[1] === '-' ? -minutes : minutes
+  }
+  let epoch = localAsUtc - offsetMinutesAt(localAsUtc) * 60_000
+  // At a daylight-saving boundary, the offset at UTC noon can differ from
+  // the offset at the desired Cairo-local hour.
+  epoch = localAsUtc - offsetMinutesAt(epoch) * 60_000
+  return epoch
+}
+
+/**
  * Converts estimated minutes to 12-hour formatted time in Cairo timezone.
  * Backwards compatible with legacy calls.
  */
@@ -591,10 +621,12 @@ export function simulateQueueTimeline(options: {
   const m24 = entranceMinutes % 60
   const estimatedEntranceDateTime = `${bookingDateStr}T${String(h24).padStart(2, '0')}:${String(m24).padStart(2, '0')}:00`
 
-  // 10. Calculate Remaining Time Countdown
-  const targetDateObj = new Date(estimatedEntranceDateTime)
-  const nowDateObj = customNowDate || new Date()
-  const diffMs = Math.max(0, targetDateObj.getTime() - nowDateObj.getTime())
+  // 10. Calculate Remaining Time Countdown using Cairo civil time.
+  // Parsing an offset-less YYYY-MM-DDTHH:mm in a Cloudflare Worker (UTC)
+  // used to add two hours to the displayed wait time in winter.
+  const targetEpoch = cairoWallClockEpochMs(bookingDateStr, entranceMinutes)
+  const nowEpoch = (customNowDate || new Date()).getTime()
+  const diffMs = Math.max(0, targetEpoch - nowEpoch)
   const remainingTotalMinutes = Math.floor(diffMs / 60000)
 
   const isCurrentTurn = Boolean(
