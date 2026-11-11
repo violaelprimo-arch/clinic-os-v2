@@ -6,10 +6,11 @@ import {
   X, Volume2, Sparkles, MessageCircle
 } from 'lucide-react'
 import { ClinicNotification } from '@/types/clinic'
+import { playNotificationSound } from '@/lib/notificationService'
 import {
-  requestBrowserNotificationPermission,
-  playNotificationSound
-} from '@/lib/notificationService'
+  subscribeToPush, getRegisteredPushStatus, sendDeviceTestPush,
+  getPushCapabilityStatus,
+} from '@/lib/pwaService'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/LanguageContext'
 import { toast } from 'sonner'
@@ -43,16 +44,25 @@ export function NotificationCenter({
   const [notifications, setNotifications] = useState<ClinicNotification[]>([])
   const [isOpen, setIsOpen] = useState(false)
   const [hasPushPermission, setHasPushPermission] = useState(false)
+  const [pushBusy, setPushBusy] = useState(false)
   const previousIdsRef = useRef<Set<string> | null>(null)
   const scopeRef = useRef<string>('')
   const [needsLogin, setNeedsLogin] = useState(false)
   const [dismissedLocalId, setDismissedLocalId] = useState<string | null>(null)
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      setHasPushPermission(Notification.permission === 'granted')
+    const id = String(clinicId || clinic?.id || '')
+    let cancelled = false
+    const check = async () => {
+      const verified = await getRegisteredPushStatus({
+        clinicId: id, appointmentId,
+        role: recipientType,
+      })
+      if (!cancelled) setHasPushPermission(verified)
     }
-  }, [])
+    void check()
+    return () => { cancelled = true }
+  }, [clinicId, clinic?.id, recipientType, appointmentId])
 
   useEffect(() => {
     const activeClinicId = String(clinicId || clinic?.id || '')
@@ -177,13 +187,46 @@ export function NotificationCenter({
   const unreadCount = visibleNotifications.filter(n => !n.isRead).length
 
   const handleEnablePush = async () => {
-    const granted = await requestBrowserNotificationPermission()
-    if (granted) {
+    if (pushBusy) return
+    const id = String(clinicId || clinic?.id || '')
+    if (!id) {
+      toast.error('يرجى تسجيل الدخول أو فتح الحجز أولاً')
+      return
+    }
+    const capabilities = getPushCapabilityStatus()
+    if (capabilities.isIos && !capabilities.isStandalone) {
+      toast.info('على iPhone أضف الموقع للشاشة الرئيسية وافتحه من الأيقونة لتفعيل إشعارات الخلفية.')
+      return
+    }
+    setPushBusy(true)
+    try {
+      const result = await subscribeToPush({
+        clinicId: id, appointmentId, role: recipientType,
+      })
+      if (!result.success) throw new Error(result.error || 'PUSH_SUBSCRIPTION_FAILED')
       setHasPushPermission(true)
-      playNotificationSound('chime')
-      toast.success(isRtl ? 'تم تفعيل التنبيهات المباشرة والصوتية على هذا الجهاز بنجاح!' : 'Live push & sound notifications enabled successfully!')
-    } else {
-      toast.info(isRtl ? 'تم رفض إذن التنبيهات أو غير مدعوم في متصفحك' : 'Notification permission was denied or is not supported')
+      toast.success('تم تسجيل الجهاز لاستقبال إشعارات الموبايل. جرّب إرسال اختبار للتأكد من الاستلام.')
+    } catch (error) {
+      setHasPushPermission(false)
+      toast.error(error instanceof Error ? error.message : 'تعذر تفعيل إشعارات الموبايل')
+    } finally {
+      setPushBusy(false)
+    }
+  }
+
+  const handleTestPush = async () => {
+    setPushBusy(true)
+    try {
+      const result = await sendDeviceTestPush({
+        clinicId: String(clinicId || clinic?.id || ''), clinicSlug: String(slug || clinic?.slug || ''),
+        appointmentId, role: recipientType,
+      })
+      if (!result.success) throw new Error(result.error || 'PUSH_TEST_FAILED')
+      toast.success('تم قبول تنبيه التجربة من خدمة Push، تأكد من ظهوره في إشعارات جهازك.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'فشل اختبار إشعار الموبايل')
+    } finally {
+      setPushBusy(false)
     }
   }
 
@@ -278,6 +321,15 @@ export function NotificationCenter({
                   <Volume2 className="w-3 h-3 text-primary" />
                   <span>{t('sound_test', isRtl ? 'صوت' : 'Sound')}</span>
                 </button>
+                {hasPushPermission && (
+                  <button
+                    onClick={() => void handleTestPush()}
+                    disabled={pushBusy}
+                    className="text-[10px] font-bold text-primary cursor-pointer bg-background px-2 py-1 rounded-lg border border-border"
+                  >
+                    {pushBusy ? 'جاري الاختبار...' : 'اختبار الموبايل'}
+                  </button>
+                )}
                 {unreadCount > 0 && (
                   <button
                     onClick={handleMarkAllRead}
@@ -299,11 +351,12 @@ export function NotificationCenter({
             {!hasPushPermission && typeof window !== 'undefined' && 'Notification' in window && (
               <div className="p-2.5 bg-primary/10 border-b border-primary/20 flex items-center justify-between text-xs">
                 <span className="text-[11px] font-semibold text-foreground">
-                  {isRtl ? 'تفعيل الإشعارات الصوتية والمباشرة' : 'Enable live push and sound alerts'}
+                  {isRtl ? 'اربط جهازك لتلقي إشعارات الموبايل في الخلفية' : 'Connect this device for background push alerts'}
                 </span>
                 <Button
                   size="sm"
-                  onClick={handleEnablePush}
+                  onClick={() => void handleEnablePush()}
+                  disabled={pushBusy}
                   className="h-7 text-[10px] px-2.5 yalla-gradient-btn text-white font-bold rounded-lg cursor-pointer"
                 >
                   {isRtl ? 'تفعيل التنبيه' : 'Enable'}
