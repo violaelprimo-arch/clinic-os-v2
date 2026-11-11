@@ -3,6 +3,7 @@ import { getSubscriptionId } from '@/lib/pushDispatcher'
 import { sendWebPushNotification } from '@/lib/webPushServer'
 import { authorizePushTarget, sameOriginMutation } from '@/lib/server/push-access'
 import { readDocument, writeDocument } from '@/lib/server/firebase-rest'
+import { getVapidConfig } from '@/lib/webPushServer'
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,6 +22,7 @@ export async function POST(req: NextRequest) {
     const sub = await readDocument(path)
     if (!sub || sub.endpoint !== data.endpoint || sub.status !== 'active' ||
         sub.clinicId !== target.clinicId || sub.role !== target.role ||
+        sub.vapidPublicKey !== getVapidConfig().publicKey ||
         (role === 'patient' && (!Array.isArray(sub.appointmentIds) ||
           !sub.appointmentIds.includes(target.appointmentId)))) {
       return NextResponse.json({ error: 'DEVICE_NOT_REGISTERED_FOR_THIS_BOOKING' }, { status: 403 })
