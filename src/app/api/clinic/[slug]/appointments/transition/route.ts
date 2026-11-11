@@ -7,6 +7,7 @@ import { createServerNotification } from '@/lib/server/clinic-notifications'
 import { dispatchPatientPushNotification } from '@/lib/pushDispatcher'
 import { getCairoDateString } from '@/lib/bookingCapacity'
 import { sameOriginMutation } from '@/lib/server/push-access'
+import { sortQueue } from '@/lib/queueCalculations'
 
 export const dynamic = 'force-dynamic'
 type Action = 'start' | 'complete' | 'skip' | 'recall' | 'requeue' | 'no_show'
@@ -19,14 +20,8 @@ const stamp = () => new Date().toISOString()
 
 async function sendCalledPatient(clinicId: string, slug: string, appt: Record<string, any>, calledAt: string) {
   const eventId = `turn_ready_${appt.id}_${calledAt}`
-  const tasks = [
-    createServerNotification({
-      clinicId, branchId: branch(appt), recipientType: 'patient',
-      recipientTarget: String(appt.phone || appt.patientPhone || ''),
-      type: 'turn_ready', title: 'حان دورك الآن للدخول!',
-      body: `رقم دورك #${queueNumber(appt)}. يرجى التوجه لغرفة الكشف.`,
-      appointmentId: String(appt.id), eventId,
-    }),
+  const recipientPhone = String(appt.phone || appt.patientPhone || '').trim()
+  const tasks: Promise<unknown>[] = [
     dispatchPatientPushNotification({
       clinicId, appointmentId: String(appt.id), type: 'turn_ready',
       title: 'حان دورك الآن للدخول!',
@@ -35,26 +30,38 @@ async function sendCalledPatient(clinicId: string, slug: string, appt: Record<st
       eventId, urgency: 'high', ttl: 600,
     }),
   ]
+  if (recipientPhone) {
+    tasks.push(createServerNotification({
+      clinicId, branchId: branch(appt), recipientType: 'patient',
+      recipientTarget: recipientPhone,
+      type: 'turn_ready', title: 'حان دورك الآن للدخول!',
+      body: `رقم دورك #${queueNumber(appt)}. يرجى التوجه لغرفة الكشف.`,
+      appointmentId: String(appt.id), eventId,
+    }))
+  }
   await Promise.allSettled(tasks)
 }
 
 async function alertWaitingPatients(
   clinicId: string, slug: string, entries: Record<string, any>[], currentId: string,
+  clinic?: Record<string, any> | null,
 ) {
-  const waiting = entries.filter(a => a.status === 'waiting' && a.id !== currentId)
-    .sort((a,b) => queueNumber(a)-queueNumber(b))
+  const waiting = sortQueue(entries.filter(a => a.id !== currentId), clinic)
   const batches: Promise<unknown>[] = []
   for (let i = 0; i < waiting.length && i < 5; i++) {
     const appt = waiting[i]
     const ahead = i + 1 // Includes current person in examination.
     const eventId = `approaching_${appt.id}_${ahead}`
-    batches.push(createServerNotification({
-      clinicId, branchId: branch(appt), recipientType: 'patient',
-      recipientTarget: String(appt.phone || appt.patientPhone || ''),
-      title: ahead === 1 ? 'أنت المريض التالي للدخول!' : `اقترب دورك: متبقي ${ahead}`,
-      body: `متبقي أمامك ${ahead} في الانتظار، يرجى الاستعداد.`,
-      type: 'approaching_turn', eventId, appointmentId: String(appt.id),
-    }))
+    const recipientPhone = String(appt.phone || appt.patientPhone || '').trim()
+    if (recipientPhone) {
+      batches.push(createServerNotification({
+        clinicId, branchId: branch(appt), recipientType: 'patient',
+        recipientTarget: recipientPhone,
+        title: ahead === 1 ? 'أنت المريض التالي للدخول!' : `اقترب دورك: متبقي ${ahead}`,
+        body: `متبقي أمامك ${ahead} في الانتظار، يرجى الاستعداد.`,
+        type: 'approaching_turn', eventId, appointmentId: String(appt.id),
+      }))
+    }
     batches.push(dispatchPatientPushNotification({
       clinicId, appointmentId: String(appt.id), type: 'approaching_turn',
       title: ahead === 1 ? 'أنت المريض التالي للدخول!' : `اقترب دورك: متبقي ${ahead}`,
@@ -96,9 +103,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     if (!appt.date || String(appt.date) !== today) {
       return NextResponse.json({ error: 'QUEUE_TRANSITION_REQUIRES_TODAY' }, { status: 409 })
     }
-    const records = await queryDocumentsByFields('appointments', {
-      clinic_id: staff.clinicId, date: today,
-    }, 250)
+    const [records, clinicDoc] = await Promise.all([
+      queryDocumentsByFields('appointments', {
+        clinic_id: staff.clinicId, date: today,
+      }, 250),
+      readDocument(`clinics/${staff.clinicId}`).catch(() => null),
+    ])
     const sameBranch = records.filter(a => branch(a) === branch(appt)) as Record<string, any>[]
     if (!sameBranch.some(a => a.id === id)) {
       return NextResponse.json({ error: 'APPOINTMENT_QUEUE_UNAVAILABLE' }, { status: 409 })
@@ -128,8 +138,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     } else if (action === 'skip') {
       patches.push({ path: `appointments/${id}`,
         data: { status: 'skipped', skippedAt: now, priorityNext:false } })
-      const next = sameBranch.filter(a => a.id !== id && a.status === 'waiting')
-        .sort((a,b) => queueNumber(a)-queueNumber(b))[0]
+      const next = sortQueue(sameBranch.filter(a => a.id !== id), clinicDoc)[0]
       if (next) {
         patches.push({ path: `appointments/${next.id}`, data: {
           status:'in_progress', startedAt:now, calledAt:now, arrivedAt:next.arrivedAt || now,
@@ -163,10 +172,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
 
     // Booking state has already committed: delivery errors never undo a visit.
     // The client may display a non-blocking delivery warning separately.
-    if (called && String(called.phone || called.patientPhone || '')) {
+    if (called) {
       await sendCalledPatient(staff.clinicId, slug, called, calledTime)
-      const pending = sameBranch.filter(a => a.id !== called!.id && a.status === 'waiting')
-      await alertWaitingPatients(staff.clinicId, slug, pending, called.id)
+      const pending = sameBranch.filter(a => a.id !== called!.id && (a.status === 'waiting' || !a.status))
+      await alertWaitingPatients(staff.clinicId, slug, pending, called.id, clinicDoc)
     }
     return NextResponse.json({
       success: true, action, updatedIds: patches.map(p => p.path.split('/').pop()),
