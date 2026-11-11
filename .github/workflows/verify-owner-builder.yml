@@ -21,7 +21,7 @@ jobs:
       - name: TypeScript
         run: npx tsc --noEmit
       - name: Policy unit tests
-        run: node --import ./scripts/register-test-loader.mjs --test tests/clinic-access-policy.test.mjs tests/clinic-credential-policy.test.mjs tests/branch-canonical.test.mjs tests/booking-capacity-enforcement.test.mjs tests/booking-capacity-comprehensive.test.mjs tests/in-clinic-booking.test.mjs tests/dawaagate-parser.test.mjs tests/firebase-credentials.test.mjs tests/firebase-permission-paths.test.mjs tests/assistant-credentials.test.mjs
+        run: node --import ./scripts/register-test-loader.mjs --test tests/clinic-access-policy.test.mjs tests/clinic-credential-policy.test.mjs tests/branch-canonical.test.mjs tests/booking-capacity-enforcement.test.mjs tests/booking-capacity-comprehensive.test.mjs tests/in-clinic-booking.test.mjs tests/dawaagate-parser.test.mjs tests/firebase-credentials.test.mjs tests/firebase-permission-paths.test.mjs tests/cairo-queue-eta.test.mjs tests/assistant-credentials.test.mjs
       - name: Firestore access rules emulator (no deployment)
         run: npx --yes firebase-tools@13.35.1 emulators:exec --only firestore --project demo-clinic-access --config firebase.landing.compat.json 'node --import ./scripts/register-test-loader.mjs --test tests/firestore-clinic-access.rules.test.mjs tests/firestore-sync-lease.test.mjs'
       - name: Next production build (no deploy)
