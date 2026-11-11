@@ -188,19 +188,19 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
         if (cancelled) return
         const registered = data.branches.filter((b: any) => b && !b.isArchived)
         setBranches(registered)
-        setSelectedBranchId(previous => {
-          if (!previous || previous === 'all') return 'all'
-          if (registered.some((branch: any) => branch.id === previous)) return previous
-          const main = previous === 'main'
-            ? registered.find((branch: any) => branch.isMain)
-            : null
-          const next = main?.id || 'all'
+        // Normalize a stale persisted branch without side effects inside a
+        // React state updater. The layout also receives the same event.
+        const previous = localStorage.getItem('clinic_selected_branch') || 'all'
+        if (previous !== 'all' &&
+            !registered.some((branch: any) => branch.id === previous)) {
+          const next = (previous === 'main'
+            ? registered.find((branch: any) => branch.isMain)?.id : null) || 'all'
           localStorage.setItem('clinic_selected_branch', next)
+          setSelectedBranchId(next)
           window.dispatchEvent(new CustomEvent('clinic_branch_changed', {
             detail: { branchId: next },
           }))
-          return next
-        })
+        }
       } catch (error) {
         if (!cancelled) {
           console.warn('[clinic-dashboard] Registered branches unavailable:',
