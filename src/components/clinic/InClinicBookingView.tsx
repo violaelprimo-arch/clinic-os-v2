@@ -28,7 +28,7 @@ import {
 import { ResidentialAreaSelector, ResidentialAreaValue } from '@/components/common/ResidentialAreaSelector'
 import { openManualWhatsAppChat, formatInClinicBookingWhatsAppMessage } from '@/lib/whatsappShare'
 import { Branch } from '@/types/clinic'
-import { getClinicBranches, ensureClinicHasMainBranch } from '@/lib/branchService'
+import { getClinicBranches } from '@/lib/branchService'
 import Link from 'next/link'
 
 interface PatientMatch {
@@ -76,7 +76,6 @@ export function InClinicBookingView({
 
     const loadBranches = async () => {
       try {
-        await ensureClinicHasMainBranch(clinic)
         const list = await getClinicBranches(clinicId, slug)
         const activeList = list.filter((b) => !b.isArchived)
         setBranches(activeList)
