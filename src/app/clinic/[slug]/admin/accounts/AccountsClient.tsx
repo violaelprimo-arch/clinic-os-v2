@@ -111,17 +111,19 @@ export default function AccountsClient({ slug }: { slug: string }) {
     try {
       const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/payments/confirm`, {
         method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ appointmentId: item.id })
       })
-
-      if (!res.ok) {
-        // Fallback to client update
-        await updateDoc(doc(db, 'appointments', item.id), {
-          paymentStatus: 'paid',
-          confirmedAt: new Date().toISOString(),
-          confirmedBy: clinic?.doctorName || 'إدارة العيادة'
-        })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'PAYMENT_CONFIRM_FAILED')
+      }
+      if (data.appointment) {
+        setAppointments((prev) =>
+          prev.map((a) => (a.id === item.id ? { ...a, ...data.appointment } : a)),
+        )
       }
       toast.success('تم تأكيد استلام الدفعة بنجاح وتسجيلها في الحسابات')
       if (typeof window !== 'undefined') {
@@ -139,12 +141,25 @@ export default function AccountsClient({ slug }: { slug: string }) {
     if (!item.id || isProcessing || isReadOnly) return
     setIsProcessing(true)
     try {
-      const currentPrice = Number(item.servicePrice) || 0
-      const newPrice = Math.max(0, currentPrice - discountAmount)
-      await updateDoc(doc(db, 'appointments', item.id), {
-        servicePrice: newPrice,
-        discountApplied: (Number(item.discountApplied) || 0) + discountAmount
+      const res = await fetch(`/api/clinic/${encodeURIComponent(slug)}/appointments/manage`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'discount',
+          appointmentId: item.id,
+          discountType: 'fixed',
+          discountValue: Number(discountAmount) || 0,
+        }),
       })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.success || !data.appointment) {
+        throw new Error(data.error || 'DISCOUNT_FAILED')
+      }
+      setAppointments((prev) =>
+        prev.map((a) => (a.id === item.id ? { ...a, ...data.appointment } : a)),
+      )
       toast.success('تم تطبيق الخصم وتحديث الإجمالي المالي')
     } catch {
       toast.error('خطأ في تطبيق الخصم')

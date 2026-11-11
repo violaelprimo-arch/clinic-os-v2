@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getClinicDoctorAccount } from '@/lib/server/clinic-credential-access'
-import { writeDocument, queryDocumentsByField, readDocument, commitDocumentPatches } from '@/lib/server/firebase-rest'
+import {
+  isFirestoreQuotaError,
+  writeDocument,
+  queryDocumentsByField,
+  readDocument,
+  commitDocumentPatches,
+} from '@/lib/server/firebase-rest'
+import {
+  getClinicMetaFromRoom,
+  resolveClinicSlugFromRoom,
+  setClinicSlugInRoom,
+  updateClinicMetaInRoom,
+} from '@/lib/server/queue-room-client'
 import { normalizeAssistantAccounts } from '@/lib/server/assistant-credentials'
 import { createSessionToken } from '@/lib/auth-crypto'
 import { pickNormalClinicSettings } from '@/lib/clinic-credential-policy'
@@ -101,8 +113,19 @@ export async function GET(
       return NextResponse.json({ error: 'معرف العيادة مطلوب' }, { status: 400 })
     }
 
-    const cDoc = (await queryDocumentsByField('clinics', 'slug', slug))[0]
-      || (/^[a-zA-Z0-9_-]{1,128}$/.test(slug) ? await readDocument(`clinics/${slug}`) : null)
+    const mappedClinicId = await resolveClinicSlugFromRoom(slug)
+    let cDoc = mappedClinicId ? await getClinicMetaFromRoom(mappedClinicId) : null
+    if (!cDoc || (cDoc.slug !== slug && cDoc.id !== slug)) {
+      cDoc = (await queryDocumentsByField('clinics', 'slug', slug))[0]
+        || (/^[a-zA-Z0-9_-]{1,128}$/.test(slug) ? await readDocument(`clinics/${slug}`) : null)
+      if (cDoc) {
+        const resolvedId = String(cDoc.id || slug)
+        await Promise.all([
+          setClinicSlugInRoom(String(cDoc.slug || slug), resolvedId).catch(() => null),
+          updateClinicMetaInRoom({ clinicId: resolvedId, clinic: cDoc }).catch(() => null),
+        ])
+      }
+    }
     if (!cDoc) {
       return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404 })
     }
@@ -152,9 +175,10 @@ export async function GET(
     })
   } catch (err: any) {
     console.error('Error in settings GET:', err)
+    const isQuota = isFirestoreQuotaError(err)
     return NextResponse.json(
-      { error: 'فشل في استرجاع بيانات العيادة' },
-      { status: 500 }
+      { error: isQuota ? 'الخدمة مزدحمة مؤقتاً، يرجى المحاولة بعد قليل' : 'فشل في استرجاع بيانات العيادة' },
+      { status: isQuota ? 503 : 500 }
     )
   }
 }
@@ -204,6 +228,11 @@ export async function POST(
       }
     }
     await writeDocument(`clinics/${clinicId}`, cleanedPayload, true)
+
+    await updateClinicMetaInRoom({
+      clinicId,
+      clinic: { ...account.clinic, ...cleanedPayload, id: clinicId },
+    }).catch(() => null)
 
     // Sync schedule to main branch if weeklySchedule provided
     if (Array.isArray(cleanedPayload.weeklySchedule) && cleanedPayload.weeklySchedule.length > 0) {

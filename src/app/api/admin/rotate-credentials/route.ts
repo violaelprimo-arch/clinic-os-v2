@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { readDocument, writeDocument, createDocument } from '@/lib/server/firebase-rest'
 import { hashPassword } from '@/lib/auth-crypto'
 import { authenticateOwnerRequest, assertSameOrigin } from '@/lib/server/owner-access'
+import { updateClinicMetaInRoom } from '@/lib/server/queue-room-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,13 +52,20 @@ export async function POST(req: NextRequest) {
     const doctorHash = await hashPassword(doctorPass)
     const now = new Date().toISOString()
 
-    await writeDocument(`clinics/${targetClinicId}`, {
+    const rotationPatch = {
       doctorPassword: null,
       doctorPasswordHash: doctorHash,
       passwordLastChangedAt: now,
       mustChangePassword: true,
-      updatedAt: now
-    }, true)
+      credentialsVersion: Date.parse(now),
+      updatedAt: now,
+    }
+    await writeDocument(`clinics/${targetClinicId}`, rotationPatch, true)
+
+    await updateClinicMetaInRoom({
+      clinicId: targetClinicId,
+      clinic: { ...doc, ...rotationPatch, id: targetClinicId },
+    }).catch(() => null)
 
     // Record credential rotation in audit_logs
     await createDocument('audit_logs', {

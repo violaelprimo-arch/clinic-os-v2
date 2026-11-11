@@ -5,6 +5,7 @@ import {
   executeQueueTransition,
   type QueueTransitionAction,
 } from '@/lib/server/queue-transition'
+import { isFirestoreQuotaError } from '@/lib/server/firebase-rest'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,9 +42,10 @@ export async function POST(
     return NextResponse.json(result.body, { status: result.status, headers: noStore })
   } catch (err: any) {
     console.error('Error in transition POST:', err)
+    const isQuota = isFirestoreQuotaError(err)
     return NextResponse.json(
-      { error: 'INTERNAL_TRANSITION_ERROR', detail: err?.message || '' },
-      { status: 500, headers: noStore },
+      { error: isQuota ? 'FIRESTORE_QUOTA_EXHAUSTED' : 'INTERNAL_TRANSITION_ERROR', detail: err?.message || '' },
+      { status: isQuota ? 503 : 500, headers: noStore },
     )
   }
 }

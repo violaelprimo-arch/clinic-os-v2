@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentClinicStaff } from '@/lib/server/clinic-staff-access'
-import { queryDocumentsByFields } from '@/lib/server/firebase-rest'
+import { isFirestoreQuotaError, queryDocumentsByFields } from '@/lib/server/firebase-rest'
+import { getOrHydrateDayFromRoom } from '@/lib/server/queue-room-client'
 import { getCairoDateString } from '@/lib/bookingCapacity'
 import { computeQueueWatermark } from '@/lib/queueSync'
 
@@ -35,9 +36,12 @@ export async function GET(
     }
 
     const snapshotStartedAt = new Date().toISOString()
-    const records = await queryDocumentsByFields('appointments', {
-      clinic_id: staff.clinicId, date,
-    }, 500)
+    const roomSnapshot = await getOrHydrateDayFromRoom(staff.clinicId, date)
+    const records = roomSnapshot
+      ? roomSnapshot.appointments
+      : await queryDocumentsByFields('appointments', {
+          clinic_id: staff.clinicId, date,
+        }, 500)
     if (records.length >= 500) {
       // Never report a partial clinic queue as complete.
       return NextResponse.json({ error: 'QUEUE_RESULT_LIMIT_REACHED' }, {
@@ -52,20 +56,21 @@ export async function GET(
         (a.branch_id || a.branchId) === staff.user.branchId)
     )
 
-    const serverTime = new Date().toISOString()
+    const serverTime = roomSnapshot?.serverTime || new Date().toISOString()
     return NextResponse.json({
       success: true,
       date,
       serverTime,
-      queueWatermark: computeQueueWatermark(permitted, snapshotStartedAt),
+      source: roomSnapshot?.source || 'firestore',
+      queueWatermark: computeQueueWatermark(permitted, snapshotStartedAt, roomSnapshot?.queueWatermark?.lastMutationCommitMs),
       appointments: permitted,
       scope: staff.user.role === 'assistant' ? 'assigned_branch' : 'clinic',
     }, { headers: noStore })
   } catch (err) {
     const code = err instanceof Error ? err.message : ''
-    console.error('[clinic-day-queue] Failed:', /^[A-Z_]+$/.test(code) ? code : 'UNKNOWN')
+    console.error('[clinic-day-queue] Failed:', isFirestoreQuotaError(err) ? 'FIRESTORE_QUOTA_EXHAUSTED' : (/^[A-Z_]+$/.test(code) ? code : 'UNKNOWN'))
     return NextResponse.json({
-      error: 'CLINIC_DAY_QUEUE_UNAVAILABLE',
+      error: isFirestoreQuotaError(err) ? 'FIRESTORE_QUOTA_EXHAUSTED' : 'CLINIC_DAY_QUEUE_UNAVAILABLE',
     }, { status: 503, headers: noStore })
   }
 }

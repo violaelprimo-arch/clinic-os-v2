@@ -210,3 +210,216 @@ export function subscribeClinicQueueSignal(
     }
   }
 }
+
+export interface QueueWebSocketOptions {
+  slug: string
+  role: 'staff' | 'tv' | 'patient'
+  date?: string
+  branchId?: string | null
+  appointmentId?: string | null
+  onSnapshot: (payload: Record<string, any>) => void
+  onConnectionChange?: (connected: boolean) => void
+  onAuthRevoked?: () => void
+  pingIntervalMs?: number
+}
+
+export interface QueueWebSocketHandle {
+  isConnected: () => boolean
+  requestResync: () => void
+  close: () => void
+}
+
+/**
+ * Connect a screen (`AdminDashboard`, `TV`, `Track`) to the clinic's
+ * Cloudflare Durable Object WebSocket room with automatic keepalive & backoff.
+ */
+export function connectClinicQueueWebSocket(
+  options: QueueWebSocketOptions,
+): QueueWebSocketHandle {
+  const noop: QueueWebSocketHandle = {
+    isConnected: () => false,
+    requestResync: () => {},
+    close: () => {},
+  }
+  if (typeof window === 'undefined' || typeof WebSocket === 'undefined') {
+    return noop
+  }
+  const slug = String(options.slug || '').trim()
+  if (!slug) return noop
+
+  let closedByCaller = false
+  let ws: WebSocket | null = null
+  let connected = false
+  let reconnectAttempt = 0
+  let reconnectTimer: number | null = null
+  let pingTimer: number | null = null
+  let pongTimeoutTimer: number | null = null
+  const pingMs = Math.max(10000, options.pingIntervalMs ?? 25000)
+
+  const clearTimers = () => {
+    if (reconnectTimer !== null) {
+      window.clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
+    if (pingTimer !== null) {
+      window.clearInterval(pingTimer)
+      pingTimer = null
+    }
+    if (pongTimeoutTimer !== null) {
+      window.clearTimeout(pongTimeoutTimer)
+      pongTimeoutTimer = null
+    }
+  }
+
+  const setConnState = (next: boolean) => {
+    if (connected === next) return
+    connected = next
+    options.onConnectionChange?.(next)
+  }
+
+  const buildUrl = () => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const query = new URLSearchParams({ role: options.role })
+    if (options.date) query.set('date', options.date)
+    if (options.branchId && options.branchId !== 'all') query.set('branchId', options.branchId)
+    if (options.appointmentId) query.set('appointmentId', options.appointmentId)
+    return `${protocol}//${window.location.host}/api/clinic/${encodeURIComponent(slug)}/queue/ws?${query.toString()}`
+  }
+
+  const scheduleReconnect = () => {
+    if (closedByCaller || reconnectTimer !== null) return
+    const delay = Math.min(30000, 1000 * Math.pow(2, reconnectAttempt))
+    reconnectAttempt = Math.min(reconnectAttempt + 1, 5)
+    reconnectTimer = window.setTimeout(() => {
+      reconnectTimer = null
+      if (!closedByCaller) connect()
+    }, delay)
+  }
+
+  const startKeepalive = () => {
+    if (pingTimer !== null) window.clearInterval(pingTimer)
+    pingTimer = window.setInterval(() => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return
+      if (document.visibilityState !== 'visible') return
+      try {
+        ws.send(JSON.stringify({ type: 'ping' }))
+        if (pongTimeoutTimer !== null) window.clearTimeout(pongTimeoutTimer)
+        pongTimeoutTimer = window.setTimeout(() => {
+          try {
+            ws?.close(4000, 'PING_TIMEOUT')
+          } catch {}
+        }, 8000)
+      } catch {}
+    }, pingMs)
+  }
+
+  const connect = () => {
+    if (closedByCaller) return
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+      return
+    }
+    try {
+      const socket = new WebSocket(buildUrl())
+      ws = socket
+
+      socket.onopen = () => {
+        if (closedByCaller) {
+          try { socket.close(1000, 'UNMOUNTED') } catch {}
+          return
+        }
+        reconnectAttempt = 0
+        setConnState(true)
+        startKeepalive()
+      }
+
+      socket.onmessage = (event) => {
+        if (typeof event.data !== 'string') return
+        let payload: Record<string, any> | null = null
+        try {
+          payload = JSON.parse(event.data)
+        } catch {
+          return
+        }
+        if (!payload || typeof payload !== 'object') return
+
+        if (payload.type === 'pong') {
+          if (pongTimeoutTimer !== null) {
+            window.clearTimeout(pongTimeoutTimer)
+            pongTimeoutTimer = null
+          }
+          return
+        }
+
+        if (payload.type === 'snapshot' || payload.type === 'queue_update') {
+          if (payload.notificationsChanged) {
+            window.dispatchEvent(
+              new CustomEvent('yalla_notifications_changed', { detail: { slug } }),
+            )
+          }
+          options.onSnapshot(payload)
+        }
+      }
+
+      socket.onclose = (event) => {
+        if (ws === socket) ws = null
+        clearTimers()
+        setConnState(false)
+        if (closedByCaller) return
+        if (event.code === 4001 || event.code === 4003) {
+          closedByCaller = true
+          options.onAuthRevoked?.()
+          return
+        }
+        scheduleReconnect()
+      }
+
+      socket.onerror = () => {
+        // Error leads to onclose where backoff reconnect triggers cleanly.
+      }
+    } catch {
+      setConnState(false)
+      scheduleReconnect()
+    }
+  }
+
+  const onVisibilityOrOnline = () => {
+    if (closedByCaller) return
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+    if (!ws || ws.readyState === WebSocket.CLOSED) {
+      reconnectAttempt = 0
+      if (reconnectTimer !== null) {
+        window.clearTimeout(reconnectTimer)
+        reconnectTimer = null
+      }
+      connect()
+    }
+  }
+
+  window.addEventListener('online', onVisibilityOrOnline)
+  document.addEventListener('visibilitychange', onVisibilityOrOnline)
+  connect()
+
+  return {
+    isConnected: () => connected && ws?.readyState === WebSocket.OPEN,
+    requestResync: () => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(JSON.stringify({ type: 'resync' }))
+        } catch {}
+      } else if (!closedByCaller) {
+        connect()
+      }
+    },
+    close: () => {
+      closedByCaller = true
+      clearTimers()
+      setConnState(false)
+      window.removeEventListener('online', onVisibilityOrOnline)
+      document.removeEventListener('visibilitychange', onVisibilityOrOnline)
+      if (ws) {
+        try { ws.close(1000, 'CLOSED') } catch {}
+        ws = null
+      }
+    },
+  }
+}

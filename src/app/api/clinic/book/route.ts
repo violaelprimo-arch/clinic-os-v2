@@ -1,6 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 // firebase client SDK removed - all server operations use firebase-rest
-import { readDocument, queryDocuments, writeDocument } from '@/lib/server/firebase-rest'
+import {
+  isFirestoreQuotaError,
+  readDocument,
+  queryDocumentsByField,
+  queryDocumentsByFields,
+  writeDocument,
+} from '@/lib/server/firebase-rest'
+import {
+  getClinicMetaFromRoom,
+  getOrHydrateDayFromRoom,
+  resolveClinicSlugFromRoom,
+  setClinicSlugInRoom,
+  updateClinicMetaInRoom,
+  upsertAppointmentInRoom,
+} from '@/lib/server/queue-room-client'
+import { scheduleBackgroundTask } from '@/lib/server/background-task'
 import { canonicalizeBranches } from '@/lib/branchCanonical'
 
 import { createServerNotification } from '@/lib/server/clinic-notifications'
@@ -51,22 +66,44 @@ export async function POST(req: NextRequest) {
     const cleanPhone = String(patientPhone).replace(/\s+/g, '')
     const cleanName = String(patientName).trim()
 
-    // 1. Resolve clinic by clinicId or slug
+    // 1. Resolve clinic by clinicId or slug (DO/indexed lookup — never scan all clinics)
     let clinicId = body.clinicId
     let cData: any = null
 
     if (clinicId && typeof clinicId === 'string') {
-      const direct = await readDocument('clinics/' + clinicId)
-      if (direct) {
-        cData = direct
+      cData =
+        (await getClinicMetaFromRoom(clinicId)) ||
+        (await readDocument('clinics/' + clinicId))
+    }
+
+    if (!cData) {
+      const mappedId = await resolveClinicSlugFromRoom(String(slug))
+      if (mappedId) {
+        cData =
+          (await getClinicMetaFromRoom(mappedId)) ||
+          (await readDocument('clinics/' + mappedId))
+        if (cData && (cData.slug === slug || cData.id === slug)) {
+          clinicId = String(cData.id || mappedId)
+        } else {
+          cData = null
+        }
       }
     }
 
     if (!cData) {
-      const allClinics = await queryDocuments('clinics')
-      const found = allClinics.find((c: any) => c.slug === slug || c.id === slug)
+      const [directSlugDoc, bySlug] = await Promise.all([
+        /^[A-Za-z0-9_-]{1,128}$/.test(String(slug))
+          ? readDocument('clinics/' + String(slug)).catch(() => null)
+          : Promise.resolve(null),
+        queryDocumentsByField('clinics', 'slug', String(slug), 1).catch(() => []),
+      ])
+      const found =
+        (bySlug && bySlug[0]) ||
+        (directSlugDoc && (directSlugDoc.slug === slug || directSlugDoc.id === slug)
+          ? directSlugDoc
+          : null)
       if (found) {
-        clinicId = found.id
+        clinicId = String(found.id)
         cData = found
       }
     }
@@ -74,6 +111,11 @@ export async function POST(req: NextRequest) {
     if (!cData) {
       return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404 })
     }
+
+    await Promise.all([
+      setClinicSlugInRoom(String(cData.slug || slug), clinicId).catch(() => null),
+      updateClinicMetaInRoom({ clinicId, clinic: cData }).catch(() => null),
+    ])
 
     // 2. Check subscription consistently with doctor access and Cairo timezone.
     if (isClinicSuspended(cData)) {
@@ -92,17 +134,23 @@ export async function POST(req: NextRequest) {
     if (typeof branchId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(branchId)) {
       return NextResponse.json({ error: 'يرجى اختيار فرع مسجل ومتاح للحجز' }, { status: 400 })
     }
-    const bData = await readDocument(`branches/${branchId}`)
+    const [bData, byClinicIdBranches, byClinicUnderscoreBranches] = await Promise.all([
+      readDocument(`branches/${branchId}`),
+      queryDocumentsByField('branches', 'clinicId', clinicId, 50).catch(() => []),
+      queryDocumentsByField('branches', 'clinic_id', clinicId, 50).catch(() => []),
+    ])
     if (!bData || bData.isArchived === true || bData.isOpen === false) {
       return NextResponse.json({ error: 'الفرع مغلق أو غير متاح للحجز' }, { status: 409 })
     }
     if (![bData.clinicId, bData.clinic_id].includes(clinicId)) {
       return NextResponse.json({ error: 'الفرع المحدد لا يتبع هذه العيادة' }, { status: 403 })
     }
-    const allRegistered = await queryDocuments('branches')
-    const publishedBranches = canonicalizeBranches(
-      allRegistered.filter((b: any) => (b.clinicId === clinicId || b.clinic_id === clinicId))
-    )
+    const clinicRegisteredBranches = [
+      ...new Map(
+        [...byClinicIdBranches, ...byClinicUnderscoreBranches].map((b: any) => [String(b.id), b]),
+      ).values(),
+    ]
+    const publishedBranches = canonicalizeBranches(clinicRegisteredBranches)
     if (!publishedBranches.some((b) => b.id === branchId && b.isOpen !== false)) {
       return NextResponse.json({ error: 'يوجد سجل مكرر أو موقوف لهذا الفرع؛ يرجى تحديث الصفحة أو التواصل مع إدارة العيادة' }, { status: 409 })
     }
@@ -128,8 +176,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'لا توجد خدمات طبية متاحة للحجز حالياً' }, { status: 409 })
     }
 
-    // 4. Calculate existing active appointments for this date via secure server REST
-    const allAppts = await queryDocuments('appointments')
+    // 4. Calculate existing active appointments for this clinic/date (DO cache first, scoped REST fallback)
+    const warmDay = await getOrHydrateDayFromRoom(clinicId, bookingDate).catch(() => null)
+    const allAppts = warmDay
+      ? warmDay.appointments
+      : await queryDocumentsByFields('appointments', { clinic_id: clinicId, date: bookingDate }, 250)
     const activeAppts = allAppts.filter((d: any) =>
       (d.clinic_id === clinicId || d.clinicId === clinicId) &&
       d.date === bookingDate &&
@@ -273,15 +324,11 @@ export async function POST(req: NextRequest) {
 
     const docRef = { id: newApptId }
 
-    // Auto-create patient account if missing via server REST
+    // Auto-create patient account if missing via direct document read (zero collection scan)
     try {
-      const existingAccs = await queryDocuments('patient_accounts')
-      const foundAcc = existingAccs.find((a: any) =>
-        (a.clinic_id === clinicId || a.clinicId === clinicId) &&
-        (a.phone === cleanPhone || a.phone === '+' + cleanPhone.replace(/^\+/, ''))
-      )
-      if (!foundAcc) {
-        const accId = 'patient-' + cleanPhone.replace(/\+/g, '')
+      const accId = 'patient-' + cleanPhone.replace(/\+/g, '')
+      const existingAcc = await readDocument('patient_accounts/' + accId).catch(() => null)
+      if (!existingAcc) {
         await writeDocument('patient_accounts/' + accId, {
           clinic_id: clinicId,
           name: cleanName,
@@ -294,8 +341,8 @@ export async function POST(req: NextRequest) {
       console.warn('Patient account auto creation notice:', e)
     }
 
-    // Persist both patient and staff notifications on the trusted server.
-    // Client Firestore rules forbid direct anonymous writes to this collection.
+    // Persist both patient and staff notifications on the trusted server first,
+    // then push the new appointment + notification ping into Durable Object.
     await Promise.allSettled([
       createServerNotification({
         clinicId, branchId, recipientTarget: clinicId,
@@ -312,29 +359,42 @@ export async function POST(req: NextRequest) {
         eventId: `booking_confirmed_${docRef.id}`,
         appointmentId: docRef.id,
       }),
-      // The browser may already have a subscription from an earlier
-      // confirmed booking; only tenant-authorized subscriptions are matched.
-      dispatchPatientPushNotification({
-        type: 'booking_confirmed', clinicId, appointmentId: docRef.id,
-        title: 'تم تأكيد الحجز', body: `رقم دورك #${queueNumber}.`,
-        url: `/clinic/${slug}/track/${docRef.id}`,
-        eventId: `booking_push_${docRef.id}`,
-      }),
-      dispatchPatientPushNotification({
-        type: 'new_booking', clinicId, recipientType: 'staff',
-        title: 'حجز جديد في العيادة',
-        body: `حجز جديد برقم دور #${queueNumber}.`,
-        url: `/clinic/${slug}/admin`,
-        eventId: `staff_booking_push_${docRef.id}`,
-      }),
-    ]).then(results => {
-      for (const result of results) {
-        if (result.status === 'rejected') {
-          console.warn('[booking] Notification delivery unavailable:',
-            result.reason instanceof Error ? result.reason.message : 'UNKNOWN')
-        }
-      }
-    })
+    ])
+
+    const committedAppointment = {
+      ...newAppt,
+      id: docRef.id,
+      queue_number: queueNumber,
+      updatedAt: newAppt.createdAt,
+    }
+    await upsertAppointmentInRoom({
+      clinicId,
+      date: bookingDate,
+      appointment: committedAppointment,
+      clinic: cData,
+      commitIso: newAppt.createdAt,
+      notifyChanged: true,
+    }).catch(() => null)
+
+    scheduleBackgroundTask(
+      () =>
+        Promise.allSettled([
+          dispatchPatientPushNotification({
+            type: 'booking_confirmed', clinicId, appointmentId: docRef.id,
+            title: 'تم تأكيد الحجز', body: `رقم دورك #${queueNumber}.`,
+            url: `/clinic/${slug}/track/${docRef.id}`,
+            eventId: `booking_push_${docRef.id}`,
+          }),
+          dispatchPatientPushNotification({
+            type: 'new_booking', clinicId, recipientType: 'staff',
+            title: 'حجز جديد في العيادة',
+            body: `حجز جديد برقم دور #${queueNumber}.`,
+            url: `/clinic/${slug}/admin`,
+            eventId: `staff_booking_push_${docRef.id}`,
+          }),
+        ]),
+      'booking-push-fanout',
+    )
 
     // A signed, appointment-scoped capability allows the booking device to
     // opt in to background push without granting access to patient records.
@@ -405,9 +465,10 @@ export async function POST(req: NextRequest) {
     })
   } catch (err: any) {
     console.error('Error booking appointment:', err)
+    const isQuota = isFirestoreQuotaError(err)
     return NextResponse.json(
-      { error: err?.message || 'حدث خطأ أثناء حجز الموعد' },
-      { status: 500 }
+      { error: isQuota ? 'الخدمة مزدحمة مؤقتاً، يرجى المحاولة بعد قليل' : (err?.message || 'حدث خطأ أثناء حجز الموعد') },
+      { status: isQuota ? 503 : 500 }
     )
   }
 }

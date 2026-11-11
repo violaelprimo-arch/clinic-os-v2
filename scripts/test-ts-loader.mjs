@@ -6,6 +6,11 @@ const root = fileURLToPath(new URL('../', import.meta.url))
 export async function resolve(specifier, context, next) {
   if (specifier === 'server-only')
     return { url: 'data:text/javascript,export{}', shortCircuit: true }
+  if (specifier === 'cloudflare:workers')
+    return {
+      url: 'data:text/javascript,export class DurableObject{constructor(ctx,env){this.ctx=ctx;this.env=env}}',
+      shortCircuit: true,
+    }
   if (specifier === 'next/server') return next('next/server.js', context)
   if (specifier.startsWith('@/'))
     specifier = pathToFileURL(path.join(root, 'src', specifier.slice(2))).href

@@ -345,13 +345,20 @@ export default function PatientDashboardPage() {
     if (!confirm('هل أنت متأكد من رغبتك في إلغاء هذا الحجز؟')) return
     setCancellingId(apptId)
     try {
-      await updateDoc(doc(db, 'appointments', apptId), {
-        status: 'cancelled',
-        cancelledAt: new Date().toISOString()
+      const res = await fetch('/api/patient/appointments/cancel', {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appointmentId: apptId, slug }),
       })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'CANCELLATION_FAILED')
+      }
       toast.success('تم إلغاء الموعد بنجاح')
       setAppointments((prev) =>
-        prev.map((a) => (a.id === apptId ? { ...a, status: 'cancelled' } : a))
+        prev.map((a) => (a.id === apptId ? { ...a, ...(data.appointment || {}), status: 'cancelled' } : a))
       )
     } catch (e) {
       console.error('Error cancelling appointment:', e)

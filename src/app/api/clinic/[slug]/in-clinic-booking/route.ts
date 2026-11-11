@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { collection, query, where, getDocs, doc, getDoc, addDoc } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
-import { verifySessionToken } from '@/lib/auth-crypto'
-import { createAtomicAppointmentServer } from '@/lib/server/firebase-rest'
+import { getCurrentClinicStaff } from '@/lib/server/clinic-staff-access'
+import { sameOriginMutation } from '@/lib/server/push-access'
+import {
+  createAtomicAppointmentServer,
+  isFirestoreQuotaError,
+  queryDocumentsByFields,
+  readDocument,
+  writeDocument,
+} from '@/lib/server/firebase-rest'
+import {
+  getOrHydrateDayFromRoom,
+  upsertAppointmentInRoom,
+} from '@/lib/server/queue-room-client'
+import { createServerNotification } from '@/lib/server/clinic-notifications'
 import { calculatePatientLivePosition } from '@/lib/queueCalculations'
 import {
   resolveEffectiveDailyLimit,
@@ -12,8 +22,6 @@ import {
   validateBookingAvailability,
   CAPACITY_FULL_MESSAGE
 } from '@/lib/bookingCapacity'
-import { createClinicNotification } from '@/lib/notificationService'
-import { cleanPhoneForWhatsApp } from '@/lib/countryPhoneHelper'
 import { isClinicSuspended } from '@/lib/clinicAccessPolicy'
 
 export async function POST(
@@ -21,51 +29,36 @@ export async function POST(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
+    if (!sameOriginMutation(req)) {
+      return NextResponse.json({ error: 'INVALID_ORIGIN' }, { status: 403 })
+    }
+
     const resolvedParams = await params
     const slug = resolvedParams.slug
 
-    // 1. Authenticate user session
-    const sessionToken =
-      req.cookies.get('clinic_session')?.value ||
-      req.headers.get('Authorization')?.replace('Bearer ', '')
-
-    if (!sessionToken) {
+    // 1. Authenticate doctor/assistant against active clinic credentials & branch
+    const staff = await getCurrentClinicStaff(req, slug)
+    if (!staff) {
       return NextResponse.json({ error: 'غير مصرح بالوصول — يرجى تسجيل الدخول' }, { status: 401 })
     }
 
-    const session = await verifySessionToken(sessionToken)
-    if (!session.valid || !session.payload) {
-      return NextResponse.json({ error: 'جلسة الدخول غير صالحة أو منتهية' }, { status: 401 })
-    }
-
-    const userRole = session.payload.role
+    const userRole = String(staff.user.role || '')
     if (userRole !== 'doctor' && userRole !== 'assistant') {
       return NextResponse.json({ error: 'صلاحيات غير كافية لإجراء الحجز الداخلي' }, { status: 403 })
     }
 
-    // 2. Fetch and resolve clinic
-    const cQ = query(collection(db, 'clinics'), where('slug', '==', slug))
-    const cSnap = await getDocs(cQ)
-    if (cSnap.empty) {
-      return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404 })
-    }
-
-    const clinicDoc = cSnap.docs[0]
-    const clinic = clinicDoc.data()
-    const clinicId = clinicDoc.id
+    const clinic = staff.clinic
+    const clinicId = staff.clinicId
 
     if (isClinicSuspended(clinic)) {
       return NextResponse.json({ error: 'الاشتراك منتهي ولا يمكن إنشاء حجوزات جديدة' }, { status: 403 })
     }
 
-    // Verify session belongs to this clinic
-    if (session.payload.clinicId && session.payload.clinicId !== clinicId && session.payload.clinicId !== slug) {
-      return NextResponse.json({ error: 'غير مصرح لك بإجراء حجوزات لهذه العيادة' }, { status: 403 })
-    }
-
     // Assistant assistantPermissions check
     if (userRole === 'assistant') {
-      const permissions = clinic.assistantPermissions || ['appointments']
+      const permissions = Array.isArray(clinic.assistantPermissions)
+        ? clinic.assistantPermissions
+        : ['appointments']
       if (!permissions.includes('appointments') && !permissions.includes('in-clinic-booking')) {
         return NextResponse.json({ error: 'ليس لديك صلاحية لتسجيل الحجوزات' }, { status: 403 })
       }
@@ -100,7 +93,7 @@ export async function POST(
     const cleanPhone = String(phone).trim().replace(/\s+/g, '')
 
     // 4. Branch Restriction Check
-    const lockedBranchId = session.payload.branchId
+    const lockedBranchId = staff.user.branchId
     let effectiveBranchId = branchId || lockedBranchId || null
 
     if (userRole === 'assistant' && lockedBranchId) {
@@ -113,26 +106,23 @@ export async function POST(
       effectiveBranchId = lockedBranchId
     }
 
-    // Resolve branch details from database
+    // Resolve branch details from server REST
     let branchName = 'الفرع الرئيسي'
-    let branchMaxLimit = 0
     let bData: any = null
     if (effectiveBranchId) {
       try {
-        const bDoc = await getDoc(doc(db, 'branches', effectiveBranchId))
-        if (bDoc.exists()) {
-          bData = bDoc.data()
+        const bDoc = await readDocument(`branches/${effectiveBranchId}`)
+        if (bDoc) {
+          bData = bDoc
           if (bData.isArchived) {
             return NextResponse.json({ error: 'هذا الفرع مؤرشف حاليًا وغير متاح للحجز' }, { status: 400 })
           }
           branchName = bData.name || branchName
-          branchMaxLimit = Number(bData.maxDailyBookings) || 0
         } else if (clinic.branches && Array.isArray(clinic.branches)) {
           const found = clinic.branches.find((b: any) => b.id === effectiveBranchId)
           if (found) {
             bData = found
             branchName = found.name || branchName
-            branchMaxLimit = Number(found.maxDailyBookings) || 0
           }
         }
       } catch (err) {
@@ -167,16 +157,14 @@ export async function POST(
     const bookingDate = date || todayCairo
 
     const effectiveLimit = resolveEffectiveDailyLimit(clinic, bData, Boolean(clinic.branchesEnabled))
-    const qAppts = query(
-      collection(db, 'appointments'),
-      where('clinic_id', '==', clinicId),
-      where('date', '==', bookingDate)
-    )
-    const apptSnap = await getDocs(qAppts)
-    const activeAppts = apptSnap.docs.filter((d) => isAppointmentActive(d.data().status))
+    const warmDay = await getOrHydrateDayFromRoom(clinicId, bookingDate).catch(() => null)
+    const dayAppts: Array<Record<string, any>> = warmDay
+      ? warmDay.appointments
+      : await queryDocumentsByFields('appointments', { clinic_id: clinicId, date: bookingDate }, 250)
+    const activeAppts = dayAppts.filter((d) => isAppointmentActive(d.status))
 
     const activeScoped = effectiveBranchId && effectiveLimit > 0
-      ? activeAppts.filter((d) => (d.data().branch_id || d.data().branchId || null) === effectiveBranchId)
+      ? activeAppts.filter((d) => (d.branch_id || d.branchId || null) === effectiveBranchId)
       : activeAppts
 
     // Check clinic/branch daily limit and full availability
@@ -205,8 +193,7 @@ export async function POST(
 
     // 7. Duplicate Booking Guard (prevents double clicking / accidental multi-submits)
     const cleanPhoneDigits = cleanPhone.replace(/[^0-9]/g, '')
-    const existingDuplicate = activeAppts.find((d) => {
-      const data = d.data()
+    const existingDuplicate = activeAppts.find((data) => {
       const dPhone = String(data.phone || '').replace(/[^0-9]/g, '')
       const dName = String(data.patientName || '').trim().toLowerCase()
       const dBranch = data.branch_id || data.branchId || null
@@ -221,10 +208,9 @@ export async function POST(
     })
 
     if (existingDuplicate) {
-      const dupData = existingDuplicate.data()
       return NextResponse.json(
         {
-          error: `يوجد حجز مسجل بالفعل لهذا المريض في نفس التاريخ والفرع (تذكرة رقم #${dupData.queue_number || '--'})`
+          error: `يوجد حجز مسجل بالفعل لهذا المريض في نفس التاريخ والفرع (تذكرة رقم #${existingDuplicate.queue_number || '--'})`
         },
         { status: 409 }
       )
@@ -264,8 +250,8 @@ export async function POST(
       patientResidenceSnapshot: residence || null,
       bookedBy: {
         role: userRole,
-        name: session.payload.name || 'الاستقبال',
-        email: session.payload.email
+        name: staff.user.name || 'الاستقبال',
+        email: staff.user.email
       },
       createdAt: new Date().toISOString()
     }
@@ -274,7 +260,12 @@ export async function POST(
     let newApptId: string
     let queueNumber: number
     try {
-      const observedMaxQueue = Math.max(0, ...apptSnap.docs.filter((d) => !effectiveBranchId || (d.data().branch_id || d.data().branchId) === effectiveBranchId).map((d) => Number(d.data().queue_number) || 0))
+      const observedMaxQueue = Math.max(
+        0,
+        ...dayAppts
+          .filter((d) => !effectiveBranchId || (d.branch_id || d.branchId) === effectiveBranchId)
+          .map((d) => Number(d.queue_number) || 0),
+      )
       const atomicRes = await createAtomicAppointmentServer(newAppointmentData, effectiveLimit, activeScoped.length, observedMaxQueue)
       newApptId = atomicRes.id
       queueNumber = atomicRes.queueNumber
@@ -300,31 +291,27 @@ export async function POST(
       throw atomicErr
     }
 
-    // 10. Auto-create or update patient account
+    // 10. Auto-create patient account if missing via server REST
     try {
-      const accQ = query(
-        collection(db, 'patient_accounts'),
-        where('clinic_id', '==', clinicId),
-        where('phone', '==', cleanPhone)
-      )
-      const accSnap = await getDocs(accQ)
-      if (accSnap.empty) {
-        await addDoc(collection(db, 'patient_accounts'), {
+      const accId = 'patient-' + cleanPhone.replace(/\+/g, '')
+      const existingAcc = await readDocument('patient_accounts/' + accId).catch(() => null)
+      if (!existingAcc) {
+        await writeDocument('patient_accounts/' + accId, {
           clinic_id: clinicId,
           name: cleanName,
           phone: cleanPhone,
           age: calculatedAge || '',
           gender: gender || '',
           createdAt: new Date().toISOString()
-        })
+        }, true)
       }
     } catch (e) {
       console.warn('Patient account auto update warning:', e)
     }
 
-    // 11. Trigger Staff Notifications
+    // 11. Trigger Staff Notifications then immediately broadcast new booking via Durable Object
     try {
-      createClinicNotification({
+      await createServerNotification({
         clinicId,
         branchId: effectiveBranchId || undefined,
         recipientType: 'staff',
@@ -332,11 +319,27 @@ export async function POST(
         title: 'حجز جديد داخل العيادة',
         body: `تم تسجيل حجز للمريض ${cleanName} (${verifiedServiceName} - دور #${queueNumber})`,
         type: 'new_booking',
+        eventId: `in_clinic_booking_${clinicId}_${newApptId}`,
         appointmentId: newApptId
       })
     } catch (e) {
       console.warn('Notification warning:', e)
     }
+
+    const committedAppointment = {
+      ...newAppointmentData,
+      id: newApptId,
+      queue_number: queueNumber,
+      updatedAt: newAppointmentData.createdAt,
+    }
+    await upsertAppointmentInRoom({
+      clinicId,
+      date: bookingDate,
+      appointment: committedAppointment,
+      clinic,
+      commitIso: newAppointmentData.createdAt,
+      notifyChanged: true,
+    }).catch(() => null)
 
     const livePos = calculatePatientLivePosition({
       targetAppointment: {
@@ -349,7 +352,7 @@ export async function POST(
         status: 'waiting'
       },
       allTodayAppointments: [
-        ...activeScoped.map(d => ({ id: d.id, ...d.data() })),
+        ...activeScoped,
         {
           id: newApptId,
           queue_number: queueNumber,
@@ -368,8 +371,10 @@ export async function POST(
     return NextResponse.json({
       success: true,
       appointment: {
+        ...committedAppointment,
         id: newApptId,
         queueNumber,
+        queue_number: queueNumber,
         aheadCount: livePos.aheadCount,
         effectivePosition: livePos.effectivePosition,
         estimatedWaitMinutes: livePos.estimatedWaitMins,
@@ -393,9 +398,10 @@ export async function POST(
     })
   } catch (error: any) {
     console.error('In-clinic booking API error:', error)
+    const isQuota = isFirestoreQuotaError(error)
     return NextResponse.json(
-      { error: error?.message || 'حدث خطأ في الخادم أثناء تأكيد الحجز' },
-      { status: 500 }
+      { error: isQuota ? 'الخدمة مزدحمة مؤقتاً، يرجى المحاولة بعد قليل' : (error?.message || 'حدث خطأ في الخادم أثناء تأكيد الحجز') },
+      { status: isQuota ? 503 : 500 }
     )
   }
 }

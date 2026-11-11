@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
+  isFirestoreQuotaError,
   readDocument,
   queryDocuments,
   queryDocumentsByField,
   queryDocumentsByFields,
 } from '@/lib/server/firebase-rest'
+import {
+  getClinicMetaFromRoom,
+  getOrHydrateDayFromRoom,
+  resolveClinicSlugFromRoom,
+  setClinicSlugInRoom,
+  updateClinicMetaInRoom,
+} from '@/lib/server/queue-room-client'
 import { calculatePatientLivePosition, sortQueue } from '@/lib/queueCalculations'
 import { getPhoneSearchVariants, normalizePhoneDigits } from '@/lib/countryPhoneHelper'
 import { computeQueueWatermark } from '@/lib/queueSync'
@@ -20,18 +28,32 @@ const noStore = {
 const clinicIdBySlugCache = new Map<string, string>()
 
 async function resolveClinicDoc(slug: string): Promise<{ clinicId: string; clinicData: any | null }> {
-  const cachedId = clinicIdBySlugCache.get(slug)
+  const cachedId = clinicIdBySlugCache.get(slug) || (await resolveClinicSlugFromRoom(slug))
   if (cachedId) {
+    const doDoc = await getClinicMetaFromRoom(cachedId)
+    if (doDoc && (doDoc.slug === slug || doDoc.id === slug)) {
+      clinicIdBySlugCache.set(slug, String(doDoc.id || cachedId))
+      return { clinicId: String(doDoc.id || cachedId), clinicData: doDoc }
+    }
     const cachedDoc = await readDocument(`clinics/${cachedId}`)
     if (cachedDoc && (cachedDoc.slug === slug || cachedDoc.id === slug)) {
+      await updateClinicMetaInRoom({ clinicId: String(cachedDoc.id || cachedId), clinic: cachedDoc }).catch(() => null)
       return { clinicId: cachedDoc.id || cachedId, clinicData: cachedDoc }
     }
     clinicIdBySlugCache.delete(slug)
   }
 
   const [directDoc, bySlug] = await Promise.all([
-    /^[a-zA-Z0-9_-]{1,128}$/.test(slug) ? readDocument(`clinics/${slug}`).catch(() => null) : Promise.resolve(null),
-    queryDocumentsByFields('clinics', { slug }, 1).catch(() => []),
+    /^[a-zA-Z0-9_-]{1,128}$/.test(slug)
+      ? readDocument(`clinics/${slug}`).catch((err) => {
+          if (isFirestoreQuotaError(err)) throw err
+          return null
+        })
+      : Promise.resolve(null),
+    queryDocumentsByField('clinics', 'slug', slug, 1).catch((err) => {
+      if (isFirestoreQuotaError(err)) throw err
+      return []
+    }),
   ])
 
   let clinicDoc: any =
@@ -50,6 +72,10 @@ async function resolveClinicDoc(slug: string): Promise<{ clinicId: string; clini
       if (oldestKey) clinicIdBySlugCache.delete(oldestKey)
     }
     clinicIdBySlugCache.set(slug, clinicId)
+    await Promise.all([
+      setClinicSlugInRoom(slug, clinicId).catch(() => null),
+      updateClinicMetaInRoom({ clinicId, clinic: clinicDoc }).catch(() => null),
+    ])
   }
 
   return { clinicId, clinicData: clinicDoc || null }
@@ -76,37 +102,59 @@ export async function GET(
     const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(nowCairo)
     const snapshotStartedAt = new Date().toISOString()
 
-    // Warm path: start clinic, direct appointment, and today's queue queries in one parallel round-trip.
-    const cachedId = !datesParam ? clinicIdBySlugCache.get(slug) : undefined
+    // Warm path: read from Durable Object SQLite first (zero Firestore reads when warm).
+    const cachedId = !datesParam ? (clinicIdBySlugCache.get(slug) || (await resolveClinicSlugFromRoom(slug)) || undefined) : undefined
     let clinicId = slug
     let clinicData: any = null
     let directlyRequested: any = null
     let allAppts: any[] = []
 
     if (cachedId) {
-      const [cachedClinicDoc, directAppt, prefetchedAppts, historyAppts] = await Promise.all([
-        readDocument(`clinics/${cachedId}`),
-        appointmentId ? readDocument(`appointments/${appointmentId}`) : Promise.resolve(null),
-        queryDocumentsByFields('appointments', { clinic_id: cachedId, date: todayStr }, 250),
-        phone && !appointmentId
-          ? queryDocumentsByField('appointments', 'clinic_id', cachedId, 500)
-          : Promise.resolve([]),
-      ])
-
-      if (cachedClinicDoc && (cachedClinicDoc.slug === slug || cachedClinicDoc.id === slug)) {
-        clinicId = String(cachedClinicDoc.id || cachedId)
-        clinicData = cachedClinicDoc
-        directlyRequested = directAppt
-        if (phone && !appointmentId && historyAppts.length > 0) {
-          const byId = new Map<string, any>()
-          for (const a of prefetchedAppts) byId.set(String(a.id), a)
-          for (const a of historyAppts) byId.set(String(a.id), a)
-          allAppts = Array.from(byId.values())
-        } else {
-          allAppts = prefetchedAppts
+      const warmDay = await getOrHydrateDayFromRoom(cachedId, todayStr)
+      if (warmDay && warmDay.clinic && (!warmDay.clinic.slug || warmDay.clinic.slug === slug || warmDay.clinicId === slug)) {
+        clinicId = warmDay.clinicId
+        clinicData = warmDay.clinic
+        allAppts = warmDay.appointments
+        if (appointmentId) {
+          directlyRequested =
+            allAppts.find((a) => String(a.id) === appointmentId) ||
+            (await readDocument(`appointments/${appointmentId}`))
+        }
+        if (phone && !appointmentId) {
+          const historyAppts = await queryDocumentsByField('appointments', 'clinic_id', clinicId, 500)
+          if (historyAppts.length > 0) {
+            const byId = new Map<string, any>()
+            for (const a of allAppts) byId.set(String(a.id), a)
+            for (const a of historyAppts) byId.set(String(a.id), a)
+            allAppts = Array.from(byId.values())
+          }
         }
       } else {
-        clinicIdBySlugCache.delete(slug)
+        const [cachedClinicDoc, directAppt, prefetchedAppts, historyAppts] = await Promise.all([
+          readDocument(`clinics/${cachedId}`),
+          appointmentId ? readDocument(`appointments/${appointmentId}`) : Promise.resolve(null),
+          queryDocumentsByFields('appointments', { clinic_id: cachedId, date: todayStr }, 250),
+          phone && !appointmentId
+            ? queryDocumentsByField('appointments', 'clinic_id', cachedId, 500)
+            : Promise.resolve([]),
+        ])
+
+        if (cachedClinicDoc && (cachedClinicDoc.slug === slug || cachedClinicDoc.id === slug)) {
+          clinicId = String(cachedClinicDoc.id || cachedId)
+          clinicData = cachedClinicDoc
+          directlyRequested = directAppt
+          await updateClinicMetaInRoom({ clinicId, clinic: cachedClinicDoc }).catch(() => null)
+          if (phone && !appointmentId && historyAppts.length > 0) {
+            const byId = new Map<string, any>()
+            for (const a of prefetchedAppts) byId.set(String(a.id), a)
+            for (const a of historyAppts) byId.set(String(a.id), a)
+            allAppts = Array.from(byId.values())
+          } else {
+            allAppts = prefetchedAppts
+          }
+        } else {
+          clinicIdBySlugCache.delete(slug)
+        }
       }
     }
 
@@ -124,8 +172,10 @@ export async function GET(
           return NextResponse.json({ error: 'INVALID_DATE_RANGE' }, { status: 400, headers: noStore })
         }
         const results = await Promise.all(requestedDates.map(async day => {
-          const items = await queryDocumentsByFields('appointments',
-            { clinic_id: clinicId, date: day }, 250)
+          const roomDay = await getOrHydrateDayFromRoom(clinicId, day).catch(() => null)
+          const items = roomDay
+            ? roomDay.appointments
+            : await queryDocumentsByFields('appointments', { clinic_id: clinicId, date: day }, 250)
           const active = items.filter((a: any) =>
             a.status !== 'cancelled' && a.status !== 'no_show' &&
             (!branchId || (a.branch_id || a.branchId) === branchId))
@@ -138,9 +188,16 @@ export async function GET(
         }, { headers: noStore })
       }
 
-      const [directAppt, todayAppts, historyAppts] = await Promise.all([
-        appointmentId ? readDocument(`appointments/${appointmentId}`) : Promise.resolve(null),
-        queryDocumentsByFields('appointments', { clinic_id: clinicId, date: todayStr }, 250),
+      const warmDay = await getOrHydrateDayFromRoom(clinicId, todayStr)
+      const todayAppts = warmDay
+        ? warmDay.appointments
+        : await queryDocumentsByFields('appointments', { clinic_id: clinicId, date: todayStr }, 250)
+      const [directAppt, historyAppts] = await Promise.all([
+        appointmentId
+          ? Promise.resolve(todayAppts.find((a) => String(a.id) === appointmentId) || null).then((found) =>
+              found ? found : readDocument(`appointments/${appointmentId}`),
+            )
+          : Promise.resolve(null),
         phone && !appointmentId && !tvOnly
           ? queryDocumentsByField('appointments', 'clinic_id', clinicId, 500)
           : Promise.resolve([]),
@@ -368,9 +425,10 @@ export async function GET(
     }, { headers: noStore })
   } catch (error: any) {
     console.error('Queue API error:', error)
+    const isQuota = isFirestoreQuotaError(error)
     return NextResponse.json(
-      { error: 'حدث خطأ في الخادم أثناء جلب بيانات الانتظار' },
-      { status: 500, headers: noStore }
+      { error: isQuota ? 'الخدمة مزدحمة مؤقتاً (تجاوز حد القراءة)، يرجى المحاولة بعد قليل' : 'حدث خطأ في الخادم أثناء جلب بيانات الانتظار' },
+      { status: isQuota ? 503 : 500, headers: noStore }
     )
   }
 }

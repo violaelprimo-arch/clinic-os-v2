@@ -1,7 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifySessionToken } from '@/lib/auth-crypto'
-import { readDocument } from '@/lib/server/firebase-rest'
+import { isFirestoreQuotaError, readDocument } from '@/lib/server/firebase-rest'
+import { getClinicMetaFromRoom } from '@/lib/server/queue-room-client'
 import { isClinicSuspended, isSuspendedReadOnlyPath } from '@/lib/clinicAccessPolicy'
+
+const MIDDLEWARE_CLINIC_TTL_MS = 60_000
+
+async function readMiddlewareClinic(clinicId: string): Promise<Record<string, any> | null> {
+  const cached = await getClinicMetaFromRoom(clinicId, false, MIDDLEWARE_CLINIC_TTL_MS).catch((err) => {
+    if (isFirestoreQuotaError(err)) throw err
+    return null
+  })
+  if (cached) return cached
+  return readDocument(`clinics/${clinicId}`)
+}
 
 export const BASE_PLATFORM_DOMAINS = ['yalla-clinic.com', 'yalaa-clinic.com']
 
@@ -20,7 +32,7 @@ async function handleAdminAuth(req: NextRequest, targetClinicSlug: string, subdo
         const clinicId = verifyResult.payload.clinicId
         if (typeof clinicId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(clinicId)) {
           try {
-            const record = await readDocument(`clinics/${clinicId}`)
+            const record = await readMiddlewareClinic(clinicId)
             if (record && record.slug === targetClinicSlug) {
               isAuthorized = true
               clinicRecord = record
@@ -115,7 +127,7 @@ export async function middleware(req: NextRequest) {
           return NextResponse.json({ error: 'CLINIC_SESSION_INVALID' }, { status: 401 })
         }
         try {
-          const clinic = await readDocument(`clinics/${clinicId}`)
+          const clinic = await readMiddlewareClinic(clinicId)
           if (!clinic || isClinicSuspended(clinic)) {
             return NextResponse.json({
               error: 'SUBSCRIPTION_ENDED_READ_ONLY',

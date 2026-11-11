@@ -3,6 +3,7 @@ import { verifyPassword, createSessionToken } from '@/lib/auth-crypto'
 import { normalizeDoctorEmail } from '@/lib/clinic-credential-policy'
 import { getClinicDoctorAccount } from '@/lib/server/clinic-credential-access'
 import { createDocument, writeDocument } from '@/lib/server/firebase-rest'
+import { updateClinicMetaInRoom } from '@/lib/server/queue-room-client'
 
 export async function POST(
   req: NextRequest,
@@ -46,13 +47,19 @@ export async function POST(
     }
 
     const changedAt = new Date().toISOString()
-    await writeDocument(`clinics/${clinicId}`, {
+    const patch = {
       doctorEmail: email,
       emailLastChangedAt: changedAt,
       credentialsVersion: Date.parse(changedAt),
       doctorFirebaseUid: null,
       updatedAt: changedAt,
-    }, true)
+    }
+    await writeDocument(`clinics/${clinicId}`, patch, true)
+
+    await updateClinicMetaInRoom({
+      clinicId,
+      clinic: { ...clinic, ...patch, id: clinicId },
+    }).catch(() => null)
 
     const updatedToken = await createSessionToken({
       role: 'doctor',

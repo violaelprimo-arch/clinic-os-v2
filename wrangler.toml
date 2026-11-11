@@ -37,7 +37,13 @@ enabled = true
 [triggers]
 crons = ["0 3 * * *", "0 4 * * *", "*/15 * * * *"]
 
+[[durable_objects.bindings]]
+name = "QUEUE_ROOM"
+class_name = "QueueRoomDO"
 
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["QueueRoomDO"]
 
 [alias]
 "server-only" = "./src/lib/server/worker-marker.ts"
