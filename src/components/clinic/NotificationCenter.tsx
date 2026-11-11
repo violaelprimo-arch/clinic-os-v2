@@ -152,43 +152,27 @@ export function NotificationCenter({
         busy = false
       }
     }
-    let scheduledTimer: number | null = null
-    const clearScheduled = () => {
-      if (scheduledTimer !== null) {
-        window.clearTimeout(scheduledTimer)
-        scheduledTimer = null
-      }
-    }
-    const scheduleNext = () => {
-      clearScheduled()
-      if (cancelled) return
-      const delayMs = document.visibilityState === 'visible' ? 2500 : 8000
-      scheduledTimer = window.setTimeout(() => void runAndSchedule(), delayMs)
-    }
-    const runAndSchedule = async (immediate = false) => {
-      if (cancelled) return
-      if (immediate) clearScheduled()
-      await refresh()
-      scheduleNext()
-    }
+    // Load notifications once on mount, then refresh on instant signals
+    // (WebSocket push `yalla_notifications_changed` or same-device BroadcastChannel)
+    // instead of polling Firestore every 2.5s.
     const effectiveSignalSlug = slug || clinic?.slug || ''
-    const onSignal = () => { void runAndSchedule(true) }
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') void runAndSchedule(true)
+    const onSignal = () => { void refresh() }
+    const onWsNotify = (event: Event) => {
+      const detailSlug = (event as CustomEvent)?.detail?.slug
+      if (!effectiveSignalSlug || !detailSlug || detailSlug === effectiveSignalSlug) {
+        void refresh()
+      }
     }
     const unsubscribeSignal = effectiveSignalSlug
       ? subscribeClinicQueueSignal(effectiveSignalSlug, onSignal)
       : () => {}
-    window.addEventListener('focus', onSignal)
-    document.addEventListener('visibilitychange', onVisibilityChange)
+    window.addEventListener('yalla_notifications_changed', onWsNotify)
 
-    void runAndSchedule(true)
+    void refresh()
     return () => {
       cancelled = true
-      clearScheduled()
       unsubscribeSignal()
-      window.removeEventListener('focus', onSignal)
-      document.removeEventListener('visibilitychange', onVisibilityChange)
+      window.removeEventListener('yalla_notifications_changed', onWsNotify)
     }
   }, [recipientTarget, clinicId, slug, clinic?.id, clinic?.slug, clinic?.ownerMessage,
       clinic?.expirationDate, recipientType, branchId, appointmentId])

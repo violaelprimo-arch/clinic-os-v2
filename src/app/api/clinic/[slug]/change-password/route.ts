@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { hashPassword, verifyPassword, createSessionToken } from '@/lib/auth-crypto'
 import { getClinicDoctorAccount } from '@/lib/server/clinic-credential-access'
 import { createDocument, writeDocument } from '@/lib/server/firebase-rest'
+import { updateClinicMetaInRoom } from '@/lib/server/queue-room-client'
 
 export async function POST(
   req: NextRequest,
@@ -40,14 +41,20 @@ export async function POST(
 
     const changedAt = new Date().toISOString()
     const updatedHash = await hashPassword(newPassword)
-    await writeDocument(`clinics/${clinicId}`, {
+    const patch = {
       doctorPasswordHash: updatedHash,
       doctorPassword: null,
       mustChangePassword: false,
       passwordLastChangedAt: changedAt,
       credentialsVersion: Date.parse(changedAt),
       updatedAt: changedAt,
-    }, true)
+    }
+    await writeDocument(`clinics/${clinicId}`, patch, true)
+
+    await updateClinicMetaInRoom({
+      clinicId,
+      clinic: { ...clinic, ...patch, id: clinicId },
+    }).catch(() => null)
 
     const updatedToken = await createSessionToken({
       role: 'doctor',

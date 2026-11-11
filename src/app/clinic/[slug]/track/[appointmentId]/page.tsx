@@ -9,6 +9,7 @@ import {
 } from '@/lib/queueCalculations'
 import { playNotificationSound } from '@/lib/notificationService'
 import {
+  connectClinicQueueWebSocket,
   mergeQueueWatermark,
   shouldAcceptQueueSnapshot,
   subscribeClinicQueueSignal,
@@ -49,10 +50,13 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
     let inFlight = false
     let pendingRefresh = false
     let scheduledTimer: number | null = null
+    let bootFallbackTimer: number | null = null
     let currentController: AbortController | null = null
     let trackWatermark: QueueWatermark | null = null
     let pollSeq = 0
     let lastAcceptedSeq = 0
+    let hasReceivedSnapshot = false
+    let wsConnected = false
 
     const clearScheduled = () => {
       if (scheduledTimer !== null) {
@@ -65,15 +69,50 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
 
     const scheduleNext = () => {
       clearScheduled()
-      if (cancelled) return
+      if (cancelled || wsConnected) return
       if (document.visibilityState !== 'visible') return
       const delayMs = retryingQueue ? 30000 : 5000
       scheduledTimer = window.setTimeout(() => void refreshQueue(false), delayMs)
     }
 
+    const applyTrackPayload = (data: Record<string, any>, reqSeq: number) => {
+      if (cancelled) return
+      hasReceivedSnapshot = true
+      if (bootFallbackTimer !== null) {
+        window.clearTimeout(bootFallbackTimer)
+        bootFallbackTimer = null
+      }
+      const incomingWatermark: QueueWatermark | null = data.queueWatermark || null
+      if (
+        !shouldAcceptQueueSnapshot(trackWatermark, incomingWatermark, {
+          reqSeq,
+          lastAcceptedSeq,
+        })
+      ) {
+        return
+      }
+      lastAcceptedSeq = Math.max(lastAcceptedSeq, reqSeq)
+      trackWatermark = mergeQueueWatermark(trackWatermark, incomingWatermark)
+
+      if (data.clinic) setClinic((prev: any) => ({ ...prev, ...data.clinic }))
+      const match =
+        data.patientAppointment ||
+        (Array.isArray(data.matchingAppointments)
+          ? data.matchingAppointments.find((a: any) => a.id === appointmentId)
+          : null)
+      if (match) {
+        setAppointment((prev: any) => ({ ...prev, ...match }))
+        setServerQueueInfo(data.patientQueueInfo || match.queueInfo || null)
+      } else {
+        setAppointment(null)
+        setServerQueueInfo(null)
+      }
+      setLoading(false)
+    }
+
     // Firestore rules intentionally deny public appointment reads. Rely on
-    // the trusted, appointment-scoped queue response for consistent live state
-    // with instant push / tab-signal wakeup and monotonic staleness checks.
+    // Durable Object WebSocket push for consistent live state with HTTP fallback
+    // only when WebSockets cannot connect.
     const refreshQueue = async (immediate = false) => {
       if (cancelled) return
       if (document.visibilityState !== 'visible') return
@@ -96,30 +135,7 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
         if (!response.ok || !data.success) throw new Error('QUEUE_API_UNAVAILABLE')
 
         retryingQueue = false
-        const incomingWatermark: QueueWatermark | null = data.queueWatermark || null
-        if (
-          !shouldAcceptQueueSnapshot(trackWatermark, incomingWatermark, {
-            reqSeq,
-            lastAcceptedSeq,
-          })
-        ) {
-          return
-        }
-        lastAcceptedSeq = Math.max(lastAcceptedSeq, reqSeq)
-        trackWatermark = mergeQueueWatermark(trackWatermark, incomingWatermark)
-
-        if (data.clinic) setClinic((prev: any) => ({ ...prev, ...data.clinic }))
-        const match = Array.isArray(data.matchingAppointments)
-          ? data.matchingAppointments.find((a: any) => a.id === appointmentId)
-          : null
-        if (match) {
-          setAppointment((prev: any) => ({ ...prev, ...match }))
-          setServerQueueInfo(data.patientQueueInfo || null)
-        } else {
-          setAppointment(null)
-          setServerQueueInfo(null)
-        }
-        setLoading(false)
+        applyTrackPayload(data, reqSeq)
       } catch (error) {
         retryingQueue = true
         // Keep last-known valid patient turn on intermittent network errors.
@@ -139,20 +155,56 @@ export default function TrackPatientPage({ params }: { params: Promise<{ slug: s
       }
     }
 
-    const onSignal = () => { void refreshQueue(true) }
+    const wsHandle = connectClinicQueueWebSocket({
+      slug,
+      role: 'patient',
+      appointmentId,
+      onSnapshot: (payload) => {
+        if (cancelled) return
+        const reqSeq = ++pollSeq
+        applyTrackPayload(payload, reqSeq)
+      },
+      onConnectionChange: (connected) => {
+        if (cancelled) return
+        wsConnected = connected
+        if (connected) {
+          clearScheduled()
+        } else if (document.visibilityState === 'visible') {
+          scheduleNext()
+        }
+      },
+    })
+
+    bootFallbackTimer = window.setTimeout(() => {
+      bootFallbackTimer = null
+      if (!cancelled && !hasReceivedSnapshot && !wsHandle.isConnected()) {
+        void refreshQueue(true)
+      }
+    }, 1200)
+
+    const onSignal = () => {
+      if (!wsHandle.isConnected()) void refreshQueue(true)
+    }
     const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') void refreshQueue(true)
-      else clearScheduled()
+      if (document.visibilityState === 'visible') {
+        if (!wsHandle.isConnected()) void refreshQueue(true)
+      } else {
+        clearScheduled()
+      }
     }
     const unsubscribeSignal = subscribeClinicQueueSignal(slug, onSignal)
     window.addEventListener('focus', onSignal)
     document.addEventListener('visibilitychange', onVisibilityChange)
 
-    void refreshQueue(true)
     const stopClinic = watchPublicClinicProfile(slug, data => setClinic(data))
     return () => {
       cancelled = true
+      if (bootFallbackTimer !== null) {
+        window.clearTimeout(bootFallbackTimer)
+        bootFallbackTimer = null
+      }
       clearScheduled()
+      wsHandle.close()
       currentController?.abort()
       unsubscribeSignal()
       window.removeEventListener('focus', onSignal)

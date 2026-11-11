@@ -14,8 +14,6 @@ import {
   ExternalLink, Copy, Search, Tv, Ticket, UserPlus
 } from 'lucide-react'
 import Link from 'next/link'
-import { db } from '@/lib/firebase'
-import { updateDoc, doc } from 'firebase/firestore'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { sortQueue } from '@/lib/queueCalculations'
 import { ThermalReceiptModal } from '@/components/clinic/ThermalReceiptModal'
@@ -29,6 +27,7 @@ import { useLanguage } from '@/context/LanguageContext'
 import { resolveEffectiveDailyLimit, isAppointmentActive } from '@/lib/bookingCapacity'
 import {
   computeQueueWatermark,
+  connectClinicQueueWebSocket,
   mergeQueueWatermark,
   publishClinicQueueSignal,
   shouldAcceptQueueSnapshot,
@@ -186,18 +185,19 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     })
   }
 
-  // A single authenticated clinic/day feed now powers the doctor dashboard.
-  // The TV and patient tracking already read from the server's Firestore REST
-  // source. Reading the same records avoids diverging counts when Firebase
-  // client credentials are expired, missing claims, or blocked by Firestore
-  // rules. Never silently turn a failed query into "zero appointments".
+  // Durable Object WebSocket room delivers instant multi-device snapshots and updates.
+  // HTTP polling stays dormant while the WebSocket is open and only activates as a
+  // fallback if WebSockets cannot connect.
   useEffect(() => {
     if (!clinic?.id || !clinic?.slug) return
     let active = true
     let inFlight = false
     let pendingRefresh = false
     let scheduledTimer: number | null = null
+    let bootFallbackTimer: number | null = null
     let currentController: AbortController | null = null
+    let hasReceivedSnapshot = false
+    let wsConnected = false
     syncWatermarkRef.current = null
     lastAcceptedSeqRef.current = 0
     pollSeqRef.current += 1
@@ -215,10 +215,30 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
 
     const scheduleNext = () => {
       clearScheduled()
-      if (!active) return
+      if (!active || wsConnected) return
       if (document.visibilityState !== 'visible') return
       const delayMs = retryingQueue ? 30000 : 5000
       scheduledTimer = window.setTimeout(() => void refresh(false), delayMs)
+    }
+
+    const applyIncomingSnapshot = (
+      appointments: any[],
+      incomingWatermark?: QueueWatermark | null,
+      reqSeq?: number,
+    ) => {
+      hasReceivedSnapshot = true
+      if (bootFallbackTimer !== null) {
+        window.clearTimeout(bootFallbackTimer)
+        bootFallbackTimer = null
+      }
+      applyAppointmentsWithWatermark(
+        appointments,
+        incomingWatermark || null,
+        false,
+        reqSeq,
+      )
+      setQueueLoadError(null)
+      setIsLoading(false)
     }
 
     const refresh = async (immediate = false) => {
@@ -245,14 +265,11 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
         }
         retryingQueue = false
         if (!active) return
-        applyAppointmentsWithWatermark(
+        applyIncomingSnapshot(
           data.appointments,
           data.queueWatermark || null,
-          false,
           reqSeq,
         )
-        setQueueLoadError(null)
-        setIsLoading(false)
       } catch (err) {
         retryingQueue = true
         if (!active || (err instanceof Error && err.name === 'AbortError')) return
@@ -272,24 +289,78 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
       }
     }
 
-    const onImmediateSignal = () => { void refresh(true) }
+    const wsHandle = connectClinicQueueWebSocket({
+      slug: clinic.slug,
+      role: 'staff',
+      date: selectedDashboardDate,
+      onSnapshot: (payload) => {
+        if (!active || !Array.isArray(payload.appointments)) return
+        const reqSeq = ++pollSeqRef.current
+        applyIncomingSnapshot(
+          payload.appointments,
+          (payload.queueWatermark as QueueWatermark | null) || null,
+          reqSeq,
+        )
+      },
+      onConnectionChange: (connected) => {
+        if (!active) return
+        wsConnected = connected
+        if (connected) {
+          clearScheduled()
+        } else if (document.visibilityState === 'visible') {
+          scheduleNext()
+        }
+      },
+      onAuthRevoked: () => {
+        if (!active) return
+        wsConnected = false
+        setQueueLoadError('انتهت صلاحية جلسة العمل أو تم تغيير بيانات الدخول. يرجى تسجيل الدخول مجدداً.')
+      },
+    })
+
+    // Only run HTTP fallback on boot if WebSocket did not deliver the initial snapshot promptly.
+    bootFallbackTimer = window.setTimeout(() => {
+      bootFallbackTimer = null
+      if (active && !hasReceivedSnapshot && !wsHandle.isConnected()) {
+        void refresh(true)
+      }
+    }, 1200)
+
+    const onImmediateSignal = () => {
+      if (!wsHandle.isConnected()) {
+        void refresh(true)
+      }
+    }
     const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') void refresh(true)
-      else clearScheduled()
+      if (document.visibilityState === 'visible') {
+        if (!wsHandle.isConnected()) void refresh(true)
+      } else {
+        clearScheduled()
+      }
     }
     const unsubscribeSignal = subscribeClinicQueueSignal(clinic.slug, onImmediateSignal)
     window.addEventListener('focus', onImmediateSignal)
     window.addEventListener('clinic_payment_confirmed', onImmediateSignal)
     document.addEventListener('visibilitychange', onVisibilityChange)
 
-    refreshDayQueueRef.current = () => refresh(true)
-    void refresh(true)
+    refreshDayQueueRef.current = () => {
+      if (wsHandle.isConnected()) {
+        wsHandle.requestResync()
+        return Promise.resolve()
+      }
+      return refresh(true)
+    }
     return () => {
       active = false
       if (refreshDayQueueRef.current) {
         refreshDayQueueRef.current = null
       }
+      if (bootFallbackTimer !== null) {
+        window.clearTimeout(bootFallbackTimer)
+        bootFallbackTimer = null
+      }
       clearScheduled()
+      wsHandle.close()
       currentController?.abort()
       unsubscribeSignal()
       window.removeEventListener('focus', onImmediateSignal)
@@ -483,17 +554,32 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
   const handleSaveEditTurn = async () => {
     if (!editingPatient || isUpdatingQueue) return
     setIsUpdatingQueue(true)
+    const effectiveSlug = clinic?.slug || 'demo'
     try {
       const isUrgent = editServiceName.includes('مستعجل') || editServiceName.includes('طوارئ')
-      const nowIso = new Date().toISOString()
-      const patch = {
-        queue_number: Number(editQueueNumber) || editingPatient.queue_number,
-        serviceName: editServiceName || editingPatient.serviceName,
-        isUrgent: isUrgent,
-        updatedAt: nowIso,
-      }
-      await updateDoc(doc(db, 'appointments', editingPatient.id), patch)
-      patchLocalAppointment(editingPatient.id, patch, nowIso)
+      const queueNum = Number(editQueueNumber) || editingPatient.queue_number
+      const nextServiceName = editServiceName || editingPatient.serviceName
+      const res = await fetch(`/api/clinic/${encodeURIComponent(effectiveSlug)}/appointments/manage`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'edit_turn',
+          appointmentId: editingPatient.id,
+          queueNumber: queueNum,
+          serviceName: nextServiceName,
+          isUrgent,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.success) throw new Error(data.error || 'EDIT_TURN_FAILED')
+      const nowIso = data.serverTime || new Date().toISOString()
+      patchLocalAppointment(
+        editingPatient.id,
+        data.appointment || { queue_number: queueNum, serviceName: nextServiceName, isUrgent },
+        nowIso,
+      )
       toast.success(`تم تعديل دور المريض ${editingPatient.patientName} بنجاح`)
       setEditingPatient(null)
     } catch (err) {
@@ -553,16 +639,26 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
 
     transitionLockRef.current = true
     setIsProcessing(true)
+    const effectiveSlug = clinic?.slug || 'demo'
     try {
-      const nowIso = new Date().toISOString()
-      const patch = {
-        paymentStatus: 'unpaid',
-        paymentRejectedAt: nowIso,
-        paymentRejectedBy: 'staff',
-        updatedAt: nowIso,
-      }
-      await updateDoc(doc(db, 'appointments', patient.id), patch)
-      patchLocalAppointment(patient.id, patch, nowIso)
+      const res = await fetch(`/api/clinic/${encodeURIComponent(effectiveSlug)}/appointments/manage`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'reject_payment',
+          appointmentId: patient.id,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.success) throw new Error(data.error || 'REJECT_PAYMENT_FAILED')
+      const nowIso = data.serverTime || new Date().toISOString()
+      patchLocalAppointment(
+        patient.id,
+        data.appointment || { paymentStatus: 'unpaid', paymentRejectedAt: nowIso },
+        nowIso,
+      )
       toast.warning(`تم تسجيل رفض الدفع للمريض ${patient.patientName}`)
     } catch (err) {
       toast.error('حدث خطأ أثناء رفض الدفع.')
@@ -587,39 +683,29 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
   const handleSaveDiscount = async () => {
     if (!discountModalAppt || isSavingDiscount) return
     setIsSavingDiscount(true)
+    const effectiveSlug = clinic?.slug || 'demo'
     try {
-      const origPrice = Number(discountModalAppt.originalPrice || discountModalAppt.servicePrice) || 0
       const val = Number(discountValue) || 0
-      let discountAmount = 0
-      let newPrice = origPrice
-
-      if (val > 0) {
-        if (discountType === 'percentage') {
-          discountAmount = (origPrice * val) / 100
-          newPrice = Math.max(0, origPrice - discountAmount)
-        } else {
-          discountAmount = val
-          newPrice = Math.max(0, origPrice - val)
-        }
+      const res = await fetch(`/api/clinic/${encodeURIComponent(effectiveSlug)}/appointments/manage`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'discount',
+          appointmentId: discountModalAppt.id,
+          discountType,
+          discountValue: val,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.success || !data.appointment) {
+        throw new Error(data.error || 'DISCOUNT_FAILED')
       }
+      const nowIso = data.serverTime || new Date().toISOString()
+      patchLocalAppointment(discountModalAppt.id, data.appointment, nowIso)
 
-      const nowIso = new Date().toISOString()
-      const patch = {
-        originalPrice: origPrice,
-        servicePrice: newPrice,
-        discount: val > 0 ? {
-          type: discountType,
-          value: val,
-          amount: discountAmount,
-          appliedAt: nowIso
-        } : null,
-        updatedAt: nowIso,
-      }
-
-      await updateDoc(doc(db, 'appointments', discountModalAppt.id), patch)
-      patchLocalAppointment(discountModalAppt.id, patch, nowIso)
-
-      toast.success(`تم تطبيق الخصم بنجاح! السعر الجديد: ${newPrice} ج.م`)
+      toast.success(`تم تطبيق الخصم بنجاح! السعر الجديد: ${data.appointment.servicePrice} ج.م`)
       setDiscountModalAppt(null)
     } catch (err) {
       toast.error('حدث خطأ أثناء حفظ الخصم.')

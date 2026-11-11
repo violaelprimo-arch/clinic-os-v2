@@ -19,6 +19,7 @@ import Link from 'next/link'
 import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 import { sortQueue } from '@/lib/queueCalculations'
 import {
+  connectClinicQueueWebSocket,
   mergeQueueWatermark,
   shouldAcceptQueueSnapshot,
   subscribeClinicQueueSignal,
@@ -638,18 +639,21 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
     return () => { cancelled = true }
   }, [slug])
 
-  // 3. One authoritative queue feed (server API only) with strict monotonic
-  // watermark protection and instant cross-tab / push wakeup signals.
+  // 3. One authoritative queue feed via Durable Object WebSocket push with
+  // strict monotonic watermark protection and fallback polling only when WS is closed.
   useEffect(() => {
     if (!slug) return
     let cancelled = false
     let requestInFlight = false
     let pendingPoll = false
     let scheduledTimer: number | null = null
+    let bootFallbackTimer: number | null = null
     let currentController: AbortController | null = null
     let tvWatermark: QueueWatermark | null = null
     let pollSeq = 0
     let lastAcceptedSeq = 0
+    let hasReceivedSnapshot = false
+    let wsConnected = false
     isFirstDataLoadRef.current = true
     lastAnnouncedCallKeyRef.current = null
 
@@ -664,10 +668,63 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
 
     const scheduleNext = () => {
       clearScheduled()
-      if (cancelled) return
+      if (cancelled || wsConnected) return
       if (document.visibilityState !== 'visible') return
       const delayMs = retryingQueue ? 30000 : 4000
       scheduledTimer = window.setTimeout(() => void pollTvApi(false), delayMs)
+    }
+
+    const applyTvPayload = (data: Record<string, any>, reqSeq: number) => {
+      if (cancelled || !data.tvQueue) return
+      hasReceivedSnapshot = true
+      if (bootFallbackTimer !== null) {
+        window.clearTimeout(bootFallbackTimer)
+        bootFallbackTimer = null
+      }
+      const incomingWatermark: QueueWatermark | null = data.queueWatermark || null
+      if (
+        !shouldAcceptQueueSnapshot(tvWatermark, incomingWatermark, {
+          reqSeq,
+          lastAcceptedSeq,
+        })
+      ) {
+        return
+      }
+      lastAcceptedSeq = Math.max(lastAcceptedSeq, reqSeq)
+      tvWatermark = mergeQueueWatermark(tvWatermark, incomingWatermark)
+
+      const list: any[] = []
+      const current = data.tvQueue.currentPatient
+      if (current && current.id) {
+        list.push({
+          ...current,
+          queue_number: current.queueNumber,
+          branch_id: current.branchId || current.branch_id,
+        })
+      }
+      if (Array.isArray(data.tvQueue.nextWaitingPatients)) {
+        for (const patient of data.tvQueue.nextWaitingPatients) {
+          if (!patient?.id || list.some(existing => existing.id === patient.id)) continue
+          list.push({
+            ...patient,
+            queue_number: patient.queueNumber,
+            branch_id: patient.branchId || patient.branch_id,
+          })
+        }
+      }
+      // The initial snapshot is not a new call. It must not unexpectedly
+      // play the announcement when a TV is opened midway through a visit.
+      if (isFirstDataLoadRef.current) {
+        isFirstDataLoadRef.current = false
+        const initial = list.find(a => a.status === 'in_progress' || a.status === 'examining')
+        if (initial) {
+          const num = getPatientQueueDisplay(initial)
+          lastAnnouncedCallKeyRef.current =
+            `${initial.id}_${initial.calledAt || initial.startedAt || num}`
+        }
+      }
+      setTotalWaitingCount(typeof data.totalWaiting === 'number' ? data.totalWaiting : null)
+      setAppointments(list)
     }
 
     const pollTvApi = async (immediate = false) => {
@@ -694,50 +751,7 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
         if (cancelled || !data.success || !data.tvQueue) return
 
         retryingQueue = false
-        const incomingWatermark: QueueWatermark | null = data.queueWatermark || null
-        if (
-          !shouldAcceptQueueSnapshot(tvWatermark, incomingWatermark, {
-            reqSeq,
-            lastAcceptedSeq,
-          })
-        ) {
-          return
-        }
-        lastAcceptedSeq = Math.max(lastAcceptedSeq, reqSeq)
-        tvWatermark = mergeQueueWatermark(tvWatermark, incomingWatermark)
-
-        const list: any[] = []
-        const current = data.tvQueue.currentPatient
-        if (current && current.id) {
-          list.push({
-            ...current,
-            queue_number: current.queueNumber,
-            branch_id: current.branchId || current.branch_id,
-          })
-        }
-        if (Array.isArray(data.tvQueue.nextWaitingPatients)) {
-          for (const patient of data.tvQueue.nextWaitingPatients) {
-            if (!patient?.id || list.some(existing => existing.id === patient.id)) continue
-            list.push({
-              ...patient,
-              queue_number: patient.queueNumber,
-              branch_id: patient.branchId || patient.branch_id,
-            })
-          }
-        }
-        // The initial snapshot is not a new call. It must not unexpectedly
-        // play the announcement when a TV is opened midway through a visit.
-        if (isFirstDataLoadRef.current) {
-          isFirstDataLoadRef.current = false
-          const initial = list.find(a => a.status === 'in_progress' || a.status === 'examining')
-          if (initial) {
-            const num = getPatientQueueDisplay(initial)
-            lastAnnouncedCallKeyRef.current =
-              `${initial.id}_${initial.calledAt || initial.startedAt || num}`
-          }
-        }
-        setTotalWaitingCount(typeof data.totalWaiting === 'number' ? data.totalWaiting : null)
-        setAppointments(list)
+        applyTvPayload(data, reqSeq)
       } catch (error) {
         retryingQueue = true
         if (!cancelled && !(error instanceof Error && error.name === 'AbortError')) {
@@ -757,19 +771,55 @@ export default function WaitingRoomTvClient({ slug }: { slug: string }) {
       }
     }
 
-    const onSignal = () => { void pollTvApi(true) }
+    const wsHandle = connectClinicQueueWebSocket({
+      slug,
+      role: 'tv',
+      branchId: selectedBranchId,
+      onSnapshot: (payload) => {
+        if (cancelled || !payload.tvQueue) return
+        const reqSeq = ++pollSeq
+        applyTvPayload(payload, reqSeq)
+      },
+      onConnectionChange: (connected) => {
+        if (cancelled) return
+        wsConnected = connected
+        if (connected) {
+          clearScheduled()
+        } else if (document.visibilityState === 'visible') {
+          scheduleNext()
+        }
+      },
+    })
+
+    bootFallbackTimer = window.setTimeout(() => {
+      bootFallbackTimer = null
+      if (!cancelled && !hasReceivedSnapshot && !wsHandle.isConnected()) {
+        void pollTvApi(true)
+      }
+    }, 1200)
+
+    const onSignal = () => {
+      if (!wsHandle.isConnected()) void pollTvApi(true)
+    }
     const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') void pollTvApi(true)
-      else clearScheduled()
+      if (document.visibilityState === 'visible') {
+        if (!wsHandle.isConnected()) void pollTvApi(true)
+      } else {
+        clearScheduled()
+      }
     }
     const unsubscribeSignal = subscribeClinicQueueSignal(slug, onSignal)
     window.addEventListener('focus', onSignal)
     document.addEventListener('visibilitychange', onVisibilityChange)
 
-    void pollTvApi(true)
     return () => {
       cancelled = true
+      if (bootFallbackTimer !== null) {
+        window.clearTimeout(bootFallbackTimer)
+        bootFallbackTimer = null
+      }
       clearScheduled()
+      wsHandle.close()
       currentController?.abort()
       unsubscribeSignal()
       window.removeEventListener('focus', onSignal)

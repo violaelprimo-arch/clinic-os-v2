@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server'
 import { verifySessionToken } from '@/lib/auth-crypto'
 import { isCurrentClinicDoctor } from '@/lib/clinic-credential-policy'
 import { readDocument } from './firebase-rest'
+import { getClinicMetaFromRoom, updateClinicMetaInRoom } from './queue-room-client'
 
 /** Validate both the signature and the current account before privileged reads. */
 export async function getCurrentClinicStaff(req: NextRequest, expectedSlug?: string) {
@@ -13,7 +14,13 @@ export async function getCurrentClinicStaff(req: NextRequest, expectedSlug?: str
   if (!session.valid || !user || !['doctor', 'assistant'].includes(user.role) ||
       typeof user.clinicId !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(user.clinicId) ||
       typeof user.slug !== 'string' || (expectedSlug && user.slug !== expectedSlug)) return null
-  const clinic = await readDocument(`clinics/${user.clinicId}`)
+  let clinic = await getClinicMetaFromRoom(user.clinicId)
+  if (!clinic) {
+    clinic = await readDocument(`clinics/${user.clinicId}`)
+    if (clinic) {
+      await updateClinicMetaInRoom({ clinicId: user.clinicId, clinic }).catch(() => null)
+    }
+  }
   if (!clinic || clinic.slug !== user.slug ||
       Number(user.credentialsVersion || 0) !== Number(clinic.credentialsVersion || 0)) return null
   if (user.role === 'doctor') {

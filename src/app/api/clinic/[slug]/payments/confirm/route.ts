@@ -5,6 +5,7 @@ import { readDocument, writeDocument } from '@/lib/server/firebase-rest'
 import { createServerNotification } from '@/lib/server/clinic-notifications'
 import { dispatchPatientPushNotification } from '@/lib/pushDispatcher'
 import { scheduleBackgroundTask } from '@/lib/server/background-task'
+import { upsertAppointmentInRoom } from '@/lib/server/queue-room-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -70,8 +71,16 @@ export async function POST(
 
     await writeDocument(`appointments/${appointmentId}`, updatePayload, true)
 
-    const updatedAppointment = { ...apptData, ...updatePayload, id: appointmentId }
+    const updatedAppointment: Record<string, any> = { ...apptData, ...updatePayload, id: appointmentId }
     const patientPhone = String(apptData.phone || apptData.patientPhone || '').trim()
+
+    await upsertAppointmentInRoom({
+      clinicId: staff.clinicId,
+      date: String(updatedAppointment.date || ''),
+      appointment: updatedAppointment,
+      commitIso: now,
+      notifyChanged: Boolean(patientPhone),
+    }).catch(() => null)
     const clinicName = String(staff.clinic?.clinicName || staff.clinic?.name || 'العيادة')
 
     if (patientPhone) {

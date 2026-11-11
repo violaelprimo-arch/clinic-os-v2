@@ -15,6 +15,10 @@ import { getCairoDateString } from '@/lib/bookingCapacity'
 import { sortQueue } from '@/lib/queueCalculations'
 import { computeQueueWatermark, QueueWatermark } from '@/lib/queueSync'
 import { scheduleBackgroundTask, WaitUntilFn } from '@/lib/server/background-task'
+import {
+  getOrHydrateDayFromRoom,
+  publishDaySnapshotToRoom,
+} from '@/lib/server/queue-room-client'
 
 export type QueueTransitionAction =
   | 'start'
@@ -215,16 +219,41 @@ export async function executeQueueTransition(
   const now = new Date(nowMs).toISOString()
   const today = deps.getToday ? deps.getToday() : getCairoDateString()
 
-  // Load appointment, today's clinic queue, and clinic doc in one parallel batch.
-  const [appt, records, clinicDoc] = await Promise.all([
-    deps.readDocument(`appointments/${id}`),
-    deps.queryDocumentsByFields(
-      'appointments',
-      { clinic_id: staff.clinicId, date: today },
-      500,
-    ),
-    deps.readDocument(`clinics/${staff.clinicId}`).catch(() => null),
-  ])
+  const usesDefaultDataDeps =
+    !customDeps.readDocument && !customDeps.queryDocumentsByFields
+
+  // Prefer warm Durable Object SQLite snapshot so back-to-back transitions require
+  // zero Firestore reads before committing the atomic write batch.
+  let appt: Record<string, any> | null = null
+  let records: Record<string, any>[] = []
+  let clinicDoc: Record<string, any> | null = null
+
+  const warmRoom = usesDefaultDataDeps
+    ? await getOrHydrateDayFromRoom(staff.clinicId, today).catch(() => null)
+    : null
+
+  if (warmRoom) {
+    records = warmRoom.appointments as Record<string, any>[]
+    appt = records.find((a) => String(a.id) === id) || null
+    if (!appt) {
+      appt = await deps.readDocument(`appointments/${id}`)
+    }
+    clinicDoc = warmRoom.clinic
+  } else {
+    // Fallback / custom test deps path
+    const loaded = await Promise.all([
+      deps.readDocument(`appointments/${id}`),
+      deps.queryDocumentsByFields(
+        'appointments',
+        { clinic_id: staff.clinicId, date: today },
+        500,
+      ),
+      deps.readDocument(`clinics/${staff.clinicId}`).catch(() => null),
+    ])
+    appt = loaded[0]
+    records = loaded[1] as Record<string, any>[]
+    clinicDoc = loaded[2]
+  }
 
   if (!appt || !inClinic(appt, staff.clinicId)) {
     return { ok: false, status: 404, error: 'APPOINTMENT_NOT_IN_CLINIC' }
@@ -396,6 +425,16 @@ export async function executeQueueTransition(
   )
 
   const queueWatermark = computeQueueWatermark(permitted, now, now)
+
+  if (!customDeps.commitDocumentPatches) {
+    await publishDaySnapshotToRoom({
+      clinicId: staff.clinicId,
+      date: today,
+      appointments: mergedRecords,
+      commitIso: now,
+      notifyChanged: Boolean(called),
+    }).catch(() => null)
+  }
 
   if (called) {
     const pending = sameBranch.filter(

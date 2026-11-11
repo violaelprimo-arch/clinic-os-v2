@@ -18,7 +18,101 @@ type FirestoreDocument = {
 let cachedToken: { value: string; expires: number } | undefined
 let pendingToken: Promise<string> | undefined
 
+const TELEMETRY_SYMBOL = Symbol.for('clinic.os.firestore.telemetry')
+
+export interface FirestoreTelemetrySnapshot {
+  totalReads: number
+  byOperation: Record<string, number>
+  byCollection: Record<string, number>
+  startedAt: string
+}
+
+function getTelemetryState(): FirestoreTelemetrySnapshot {
+  const store = globalThis as Record<symbol, FirestoreTelemetrySnapshot | undefined>
+  if (!store[TELEMETRY_SYMBOL]) {
+    store[TELEMETRY_SYMBOL] = {
+      totalReads: 0,
+      byOperation: {},
+      byCollection: {},
+      startedAt: new Date().toISOString(),
+    }
+  }
+  return store[TELEMETRY_SYMBOL]!
+}
+
+export function recordFirestoreRead(operation: string, billableReads = 1, collection?: string): void {
+  const units = Math.max(1, Math.floor(Number(billableReads) || 1))
+  const state = getTelemetryState()
+  state.totalReads += units
+  state.byOperation[operation] = (state.byOperation[operation] || 0) + units
+  if (collection) {
+    state.byCollection[collection] = (state.byCollection[collection] || 0) + units
+  }
+}
+
+export function getFirestoreTelemetry(): FirestoreTelemetrySnapshot {
+  const s = getTelemetryState()
+  return {
+    totalReads: s.totalReads,
+    byOperation: { ...s.byOperation },
+    byCollection: { ...s.byCollection },
+    startedAt: s.startedAt,
+  }
+}
+
+export function resetFirestoreTelemetry(): FirestoreTelemetrySnapshot {
+  const fresh: FirestoreTelemetrySnapshot = {
+    totalReads: 0,
+    byOperation: {},
+    byCollection: {},
+    startedAt: new Date().toISOString(),
+  }
+  ;(globalThis as Record<symbol, FirestoreTelemetrySnapshot>)[TELEMETRY_SYMBOL] = fresh
+  return getFirestoreTelemetry()
+}
+
+export class FirestoreQuotaError extends Error {
+  status = 429
+  code = 'FIRESTORE_QUOTA_EXHAUSTED'
+  constructor(message = 'FIRESTORE_QUOTA_EXHAUSTED') {
+    super(message)
+    this.name = 'FirestoreQuotaError'
+  }
+}
+
+export function isFirestoreQuotaError(error: unknown): boolean {
+  if (!error) return false
+  if (error instanceof FirestoreQuotaError) return true
+  const rec = error as { status?: number; code?: string; message?: string }
+  return (
+    rec.status === 429 ||
+    rec.code === 'FIRESTORE_QUOTA_EXHAUSTED' ||
+    String(rec.message || '').includes('FIRESTORE_QUOTA_EXHAUSTED')
+  )
+}
+
+/** Loopback-only Firestore emulator support for automated local & DO integration verification. */
+export function getFirestoreEmulatorOrigin(): string | null {
+  const raw = String(process.env.FIRESTORE_EMULATOR_HOST || '').trim()
+  if (!raw) return null
+  const normalized = raw.startsWith('http://') ? raw : `http://${raw}`
+  try {
+    const parsed = new URL(normalized)
+    if (
+      parsed.protocol === 'http:' &&
+      (parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost') &&
+      /^\d{2,5}$/.test(parsed.port)
+    ) {
+      return `${parsed.protocol}//${parsed.host}`
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
 export function getFirebaseServerCredentials() {
+  const emulatorOrigin = getFirestoreEmulatorOrigin()
   let account: Record<string, unknown> = {}
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON
   if (raw) {
@@ -38,7 +132,15 @@ export function getFirebaseServerCredentials() {
   const project =
     process.env.FIREBASE_PROJECT_ID ||
     process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
-    account.project_id
+    account.project_id ||
+    (emulatorOrigin ? 'demo-clinic-os' : undefined)
+  if (emulatorOrigin && typeof project === 'string' && project) {
+    return {
+      email: typeof email === 'string' && email ? email : 'emulator@local.test',
+      key,
+      project,
+    }
+  }
   if (
     typeof email !== 'string' ||
     !email ||
@@ -102,6 +204,7 @@ export async function signServiceJwt(payload: Record<string, unknown>) {
   return body + '.' + base64url(new Uint8Array(signature))
 }
 export async function googleAccessToken(): Promise<string> {
+  if (getFirestoreEmulatorOrigin()) return 'owner'
   if (cachedToken && cachedToken.expires > Date.now() + 60000)
     return cachedToken.value
   if (pendingToken) return pendingToken
@@ -188,7 +291,16 @@ function unpack(doc: FirestoreDocument) {
 }
 function documentUrl(path: string) {
   const { project } = getFirebaseServerCredentials()
-  return `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(project)}/databases/(default)/documents/${path.split('/').map(encodeURIComponent).join('/')}`
+  const baseOrigin = getFirestoreEmulatorOrigin() || 'https://firestore.googleapis.com'
+  const cleanSegments = path
+    ? path
+        .split('/')
+        .filter(Boolean)
+        .map(encodeURIComponent)
+        .join('/')
+    : ''
+  const suffix = cleanSegments ? `/${cleanSegments}` : ''
+  return `${baseOrigin}/v1/projects/${encodeURIComponent(project)}/databases/(default)/documents${suffix}`
 }
 async function request(url: string, init: RequestInit = {}) {
   const token = await googleAccessToken()
@@ -209,9 +321,15 @@ async function request(url: string, init: RequestInit = {}) {
   return res
 }
 export async function readDocument(path: string) {
+  const collection = path.split('/').filter(Boolean)[0]
   const response = await request(documentUrl(path))
-  if (response.status === 404) return null
+  if (response.status === 429) throw new FirestoreQuotaError()
+  if (response.status === 404) {
+    recordFirestoreRead('readDocument', 1, collection)
+    return null
+  }
   if (!response.ok) throw new Error('FIRESTORE_READ_FAILED')
+  recordFirestoreRead('readDocument', 1, collection)
   return unpack((await response.json()) as FirestoreDocument)
 }
 export async function writeDocument(path: string, data: Fields, merge = false) {
@@ -307,8 +425,10 @@ export async function createAtomicAppointmentServer(
       transaction = started.transaction
 
       const counterRes = await request(counterUrl + '?transaction=' + encodeURIComponent(transaction))
+      if (counterRes.status === 429) throw new FirestoreQuotaError()
       if (!counterRes.ok && counterRes.status !== 404)
         throw new Error('FIRESTORE_COUNTER_READ_FAILED')
+      recordFirestoreRead('transactionRead', 1, 'clinic_daily_counters')
       const counterDoc = counterRes.ok ? unpack(await counterRes.json() as FirestoreDocument) : null
       const currentActive = Math.max(count, Number(counterDoc?.activeBookings) || 0)
       if (maxLimit > 0 && currentActive >= maxLimit)
@@ -384,8 +504,13 @@ export async function acquireFirestoreLease(
   if (created.ok) return { acquired: true, currentRunId: runId }
   if (![409, 412].includes(created.status)) throw new Error('FIRESTORE_LEASE_CREATE_FAILED')
   const response = await request(url)
-  if (response.status === 404) return { acquired: false }
+  if (response.status === 429) throw new FirestoreQuotaError()
+  if (response.status === 404) {
+    recordFirestoreRead('leaseRead', 1, path.split('/').filter(Boolean)[0])
+    return { acquired: false }
+  }
   if (!response.ok) throw new Error('FIRESTORE_LEASE_READ_FAILED')
+  recordFirestoreRead('leaseRead', 1, path.split('/').filter(Boolean)[0])
   const raw = await response.json() as FirestoreDocument & { updateTime?: string }
   const current = unpack(raw)
   const lockedAt = Date.parse(String(current.lockedAt || ''))
@@ -407,8 +532,13 @@ export async function acquireFirestoreLease(
 export async function releaseFirestoreLease(path: string, runId: string): Promise<boolean> {
   const url = documentUrl(path)
   const response = await request(url)
-  if (response.status === 404) return false
+  if (response.status === 429) throw new FirestoreQuotaError()
+  if (response.status === 404) {
+    recordFirestoreRead('leaseRead', 1, path.split('/').filter(Boolean)[0])
+    return false
+  }
   if (!response.ok) throw new Error('FIRESTORE_LEASE_READ_FAILED')
+  recordFirestoreRead('leaseRead', 1, path.split('/').filter(Boolean)[0])
   const raw = await response.json() as FirestoreDocument & { updateTime?: string }
   const current = unpack(raw)
   if (current.runId !== runId) return false
@@ -453,9 +583,12 @@ export async function queryDocumentsByField(
       },
     }),
   })
+  if (response.status === 429) throw new FirestoreQuotaError()
   if (!response.ok) throw new Error('FIRESTORE_LOOKUP_FAILED')
   const rows = (await response.json()) as Array<{ document?: FirestoreDocument }>
-  return rows.flatMap(row => row.document ? [unpack(row.document)] : [])
+  const docs = rows.flatMap(row => row.document ? [unpack(row.document)] : [])
+  recordFirestoreRead('runQuery', Math.max(1, docs.length), collection)
+  return docs
 }
 
 /**
@@ -496,16 +629,20 @@ export async function queryDocumentsByFields(
       },
     }),
   })
+  if (response.status === 429) throw new FirestoreQuotaError()
   if (!response.ok) throw new Error('FIRESTORE_SCOPED_LOOKUP_FAILED')
   const rows = (await response.json()) as Array<{ document?: FirestoreDocument }>
-  return rows.flatMap(row => row.document ? [unpack(row.document)] : [])
+  const docs = rows.flatMap(row => row.document ? [unpack(row.document)] : [])
+  recordFirestoreRead('runQuery', Math.max(1, docs.length), collection)
+  return docs
 }
 
 export async function queryDocuments(collection: string, approvedOnly = false) {
+  let quotaExceeded = false
   // 1. Attempt structured runQuery (without remote composite orderBy to avoid missing-index errors)
   try {
-    const url = documentUrl('') + ':runQuery'
-    const response = await request(url.replace('/documents/:', '/documents:'), {
+    const url = documentUrl('').replace(/\/$/, '') + ':runQuery'
+    const response = await request(url, {
       method: 'POST',
       body: JSON.stringify({
         structuredQuery: {
@@ -525,11 +662,14 @@ export async function queryDocuments(collection: string, approvedOnly = false) {
         },
       }),
     })
-    if (response.ok) {
+    if (response.status === 429) {
+      quotaExceeded = true
+    } else if (response.ok) {
       const rows = (await response.json()) as {
         document?: FirestoreDocument
       }[]
       const docs = rows.flatMap((row) => (row.document ? [unpack(row.document)] : []))
+      recordFirestoreRead('runQuery', Math.max(1, docs.length), collection)
       docs.sort((a, b) => {
         const timeA = new Date(String(a.createdAt || 0)).getTime()
         const timeB = new Date(String(b.createdAt || 0)).getTime()
@@ -541,13 +681,20 @@ export async function queryDocuments(collection: string, approvedOnly = false) {
     console.warn(`[firebase-rest] runQuery failed for collection ${collection}, trying list fallback:`, err)
   }
 
+  if (quotaExceeded) {
+    throw new FirestoreQuotaError()
+  }
+
   // 2. Direct Collection List Fallback (Standard Firestore REST endpoint, requires 0 indexes)
   try {
     const listUrl = documentUrl(collection) + '?pageSize=200'
     const listResponse = await request(listUrl)
-    if (listResponse.ok) {
+    if (listResponse.status === 429) {
+      quotaExceeded = true
+    } else if (listResponse.ok) {
       const data = (await listResponse.json()) as { documents?: FirestoreDocument[] }
       let docs = (data.documents || []).map(unpack)
+      recordFirestoreRead('listDocuments', Math.max(1, docs.length), collection)
       if (approvedOnly) {
         docs = docs.filter((d) => d.approved === true)
       }
@@ -560,6 +707,10 @@ export async function queryDocuments(collection: string, approvedOnly = false) {
     }
   } catch (err) {
     console.error(`[firebase-rest] listDocuments fallback failed for collection ${collection}:`, err)
+  }
+
+  if (quotaExceeded) {
+    throw new FirestoreQuotaError()
   }
 
   throw new Error('FIRESTORE_QUERY_FAILED')
@@ -586,8 +737,10 @@ export async function readDocumentBatch(paths: string[]) {
   const res = await request(documentUrl('').replace(/\/$/, '') + ':batchGet', {
     method: 'POST', body: JSON.stringify({ documents: paths.map(p => documentUrl(p).split('/v1/')[1]) }),
   })
+  if (res.status === 429) throw new FirestoreQuotaError()
   if (!res.ok) throw new Error('FIRESTORE_BATCH_READ_FAILED')
   const rows = await res.json() as Array<{ found?: FirestoreDocument }>
+  recordFirestoreRead('readDocumentBatch', Math.max(1, rows.length), paths[0]?.split('/').filter(Boolean)[0])
   const docs = new Map<string, Fields>()
   for (const row of rows) if (row.found) docs.set(String(row.found.name.split('/').pop()), unpack(row.found))
   return docs
