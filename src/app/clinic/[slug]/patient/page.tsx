@@ -4,15 +4,13 @@ import React, { useState, useEffect, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { db } from '@/lib/firebase'
-import { collection, query, where, getDocs, onSnapshot, doc, updateDoc, addDoc } from 'firebase/firestore'
+import { collection, query, where, getDocs, onSnapshot } from 'firebase/firestore'
 import { PatientLiveTurn } from '@/components/clinic/PatientLiveTurn'
 import { BookingModal } from '@/components/clinic/BookingModal'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
 import { InvoiceView, InvoiceData } from '@/components/clinic/InvoiceView'
-import { PatientAvatarModal } from '@/components/clinic/PatientAvatarModal'
 import { VisitDetailsModal } from '@/components/clinic/VisitDetailsModal'
 import { downloadElementAsPdf } from '@/lib/pdfGenerator'
-import { uploadPatientAvatarToStorage, deleteAvatarFromStorage, validateImageFile } from '@/lib/avatarUpload'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ClinicLocationMap } from '@/components/clinic/ClinicLocationMap'
@@ -45,7 +43,6 @@ import {
   Navigation,
   Compass,
   ChevronLeft,
-  Camera,
   Trash2,
   Clock,
   Activity,
@@ -73,18 +70,12 @@ export default function PatientDashboardPage() {
     name: string
     clinic_id: string
     age?: string
-    avatarUrl?: string
   } | null>(null)
 
   const [clinic, setClinic] = useState<any>(null)
   const [appointments, setAppointments] = useState<any[]>([])
   const [prescriptions, setPrescriptions] = useState<any[]>([])
   const [loading, setLoading] = useState<boolean>(true)
-
-  // Avatar Management
-  const [avatarUrl, setAvatarUrl] = useState<string>('')
-  const [patientAccountDocId, setPatientAccountDocId] = useState<string | null>(null)
-  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState<boolean>(false)
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<TabType>('overview')
@@ -122,10 +113,6 @@ export default function PatientDashboardPage() {
     }
 
     setPatient(authData)
-    if (authData.avatarUrl) {
-      setAvatarUrl(authData.avatarUrl)
-    }
-
     // Only read the public clinic profile: private Firestore documents carry
     // account hashes and are intentionally inaccessible from patient browsers.
     let cancelled = false
@@ -180,29 +167,6 @@ export default function PatientDashboardPage() {
           .sort((a, b) => new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime())
         setPrescriptions(rxs)
 
-        // Patient Account query
-        const accQ = query(
-          collection(db, 'patient_accounts'),
-          where('clinic_id', '==', clinicId),
-          where('phone', 'in', searchPhones)
-        )
-        const accSnap = await getDocs(accQ)
-        if (!accSnap.empty) {
-          const accDoc = accSnap.docs[0]
-          setPatientAccountDocId(accDoc.id)
-          const accData = accDoc.data()
-          if (accData.avatarUrl) {
-            setAvatarUrl(accData.avatarUrl)
-            try {
-              const raw = localStorage.getItem('patient_auth')
-              if (raw) {
-                const parsed = JSON.parse(raw)
-                parsed.avatarUrl = accData.avatarUrl
-                localStorage.setItem('patient_auth', JSON.stringify(parsed))
-              }
-            } catch (e) {}
-          }
-        }
       } catch (err) {
         console.error('Error loading patient records:', err)
       } finally {
@@ -234,110 +198,6 @@ export default function PatientDashboardPage() {
     localStorage.removeItem('patient_auth')
     toast.success('تم تسجيل الخروج بنجاح')
     router.push(`/clinic/${slug}/patient/login`)
-  }
-
-  // Save Avatar Handler (Uploads Blob to Storage & Updates Firestore)
-  const handleSaveAvatar = async (blob: Blob) => {
-    const previousAvatar = avatarUrl
-    const clinicId = patient?.clinic_id || clinic?.id || slug
-    const cleanPhone = patient?.phone?.trim() || ''
-
-    try {
-      // 1. Upload to Firebase Storage
-      const downloadUrl = await uploadPatientAvatarToStorage(clinicId, cleanPhone, blob)
-
-      // 2. Optimistic UI update
-      setAvatarUrl(downloadUrl)
-
-      // 3. Update localStorage
-      const rawAuth = localStorage.getItem('patient_auth')
-      if (rawAuth) {
-        const parsed = JSON.parse(rawAuth)
-        parsed.avatarUrl = downloadUrl
-        localStorage.setItem('patient_auth', JSON.stringify(parsed))
-      }
-
-      // 4. Update Firestore via API route (and client SDK best-effort)
-      try {
-        await fetch('/api/patient/avatar', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            clinic_id: clinicId,
-            phone: cleanPhone,
-            avatarUrl: downloadUrl,
-            name: patient?.name || 'المريض',
-            age: patient?.age || ''
-          })
-        })
-      } catch (apiErr) {
-        console.warn('API avatar save notice, trying direct client Firestore:', apiErr)
-        if (patientAccountDocId) {
-          await updateDoc(doc(db, 'patient_accounts', patientAccountDocId), {
-            avatarUrl: downloadUrl,
-            updatedAt: new Date().toISOString()
-          })
-        }
-      }
-
-      toast.success('تم حفظ صورتك الشخصية بنجاح! 📸')
-    } catch (err: any) {
-      console.error('Error saving avatar:', err)
-      // Rollback to previous avatar
-      setAvatarUrl(previousAvatar)
-      toast.error('تعذر رفع الصورة، تم التراجع عن التعديل')
-      throw err
-    }
-  }
-
-  // Delete Avatar Handler
-  const handleDeleteAvatar = async () => {
-    const previousAvatar = avatarUrl
-    const clinicId = patient?.clinic_id || clinic?.id || slug
-    const cleanPhone = patient?.phone?.trim() || ''
-
-    try {
-      setAvatarUrl('')
-
-      // 1. Update localStorage
-      const rawAuth = localStorage.getItem('patient_auth')
-      if (rawAuth) {
-        const parsed = JSON.parse(rawAuth)
-        delete parsed.avatarUrl
-        localStorage.setItem('patient_auth', JSON.stringify(parsed))
-      }
-
-      // 2. Call API & Firestore
-      await fetch('/api/patient/avatar', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clinic_id: clinicId,
-          phone: cleanPhone
-        })
-      })
-
-      if (patientAccountDocId) {
-        try {
-          await updateDoc(doc(db, 'patient_accounts', patientAccountDocId), {
-            avatarUrl: '',
-            updatedAt: new Date().toISOString()
-          })
-        } catch {}
-      }
-
-      // 3. Delete from Firebase Storage if URL belongs to storage
-      if (previousAvatar) {
-        await deleteAvatarFromStorage(previousAvatar)
-      }
-
-      toast.success('تمت إزالة صورتك الشخصية والرجوع للحرف الأول')
-    } catch (err) {
-      console.error('Error removing avatar:', err)
-      setAvatarUrl(previousAvatar)
-      toast.error('تعذر إزالة الصورة')
-      throw err
-    }
   }
 
   // Cancel Appointment Handler
@@ -555,38 +415,11 @@ export default function PatientDashboardPage() {
           {/* SIDEBAR COLUMN (lg:col-span-4 xl:col-span-3) */}
           {/* ============================================================ */}
           <aside className="lg:col-span-4 xl:col-span-3 space-y-5 mb-6 lg:mb-0">
-            {/* Patient Profile Card with interactive Avatar */}
+            {/* Patient Profile Card */}
             <div className="bg-white dark:bg-[#081526] rounded-3xl p-5 shadow-sm border border-sky-100 dark:border-slate-800 space-y-4">
               <div className="flex items-center gap-4">
-                {/* Avatar with Camera badge */}
-                <div className="relative group shrink-0">
-                  <div
-                    onClick={() => setIsAvatarModalOpen(true)}
-                    className="w-16 h-16 sm:w-18 sm:h-18 rounded-full bg-sky-100 dark:bg-sky-950/70 border-2 border-sky-500 overflow-hidden flex items-center justify-center font-black text-sky-600 text-xl shadow-sm cursor-pointer hover:opacity-90 transition-all select-none"
-                    title="اضغط لتغيير صورتك الشخصية"
-                  >
-                    {avatarUrl ? (
-                      <img
-                        src={avatarUrl}
-                        alt={patientName}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-2xl font-black text-sky-600 dark:text-sky-400">
-                        {patientName.charAt(0) || 'م'}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Camera icon button */}
-                  <button
-                    type="button"
-                    onClick={() => setIsAvatarModalOpen(true)}
-                    title="رفع وتعديل الصورة الشخصية"
-                    className="absolute -bottom-1 -left-1 w-7 h-7 rounded-lg bg-sky-600 hover:bg-sky-500 text-white flex items-center justify-center shadow-md border-2 border-white dark:border-slate-800 transition-all hover:scale-110 active:scale-95 cursor-pointer"
-                  >
-                    <Camera className="w-3.5 h-3.5" />
-                  </button>
+                <div className="w-16 h-16 shrink-0 rounded-full bg-sky-100 dark:bg-sky-950/70 border-2 border-sky-500 flex items-center justify-center text-2xl font-black text-sky-600 dark:text-sky-400">
+                  {patientName.charAt(0) || 'م'}
                 </div>
 
                 {/* Patient Name and Info */}
@@ -613,15 +446,7 @@ export default function PatientDashboardPage() {
               </div>
 
               {/* Action buttons inside Profile Card */}
-              <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs">
-                <button
-                  type="button"
-                  onClick={() => setIsAvatarModalOpen(true)}
-                  className="text-sky-600 dark:text-sky-400 font-bold hover:underline flex items-center gap-1 cursor-pointer"
-                >
-                  <Camera className="w-3.5 h-3.5" />
-                  <span>تعديل الصورة</span>
-                </button>
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-end text-xs">
                 <button
                   type="button"
                   onClick={handleLogout}
@@ -1628,15 +1453,8 @@ export default function PatientDashboardPage() {
                   <div className="bg-white dark:bg-[#081526] rounded-3xl p-6 border border-sky-100 dark:border-slate-800 shadow-sm space-y-5">
                     {/* Patient identity overview */}
                     <div className="flex items-center gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
-                      <div
-                        onClick={() => setIsAvatarModalOpen(true)}
-                        className="w-16 h-16 rounded-full bg-sky-100 dark:bg-sky-950/70 border-2 border-sky-500 overflow-hidden flex items-center justify-center font-black text-sky-600 text-xl cursor-pointer"
-                      >
-                        {avatarUrl ? (
-                          <img src={avatarUrl} alt={patientName} className="w-full h-full object-cover" />
-                        ) : (
-                          <span>{patientName.charAt(0) || 'م'}</span>
-                        )}
+                      <div className="w-16 h-16 shrink-0 rounded-full bg-sky-100 dark:bg-sky-950/70 border-2 border-sky-500 flex items-center justify-center font-black text-sky-600 text-xl">
+                        {patientName.charAt(0) || 'م'}
                       </div>
                       <div>
                         <h4 className="font-black text-slate-900 dark:text-white text-base">
@@ -1645,13 +1463,6 @@ export default function PatientDashboardPage() {
                         <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5" dir="ltr">
                           {patientPhone}
                         </p>
-                        <button
-                          type="button"
-                          onClick={() => setIsAvatarModalOpen(true)}
-                          className="text-[11px] font-bold text-sky-600 dark:text-sky-400 hover:underline mt-1 block cursor-pointer"
-                        >
-                          تغيير الصورة الشخصية (بحد أقصى 2 ميجابايت)
-                        </button>
                       </div>
                     </div>
 
@@ -1759,16 +1570,6 @@ export default function PatientDashboardPage() {
       {/* ============================================================ */}
       {/* MODALS */}
       {/* ============================================================ */}
-
-      {/* 1. Patient Avatar Upload / Crop Modal */}
-      <PatientAvatarModal
-        isOpen={isAvatarModalOpen}
-        onClose={() => setIsAvatarModalOpen(false)}
-        currentAvatarUrl={avatarUrl}
-        patientName={patientName}
-        onSaveAvatar={handleSaveAvatar}
-        onDeleteAvatar={handleDeleteAvatar}
-      />
 
       {/* 2. Visit Details Modal (Diagnosis, Recommendations, Vitals, Linked Rx/Invoice - NO private notes!) */}
       {selectedVisitForDetails && (
