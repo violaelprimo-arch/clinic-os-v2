@@ -15,8 +15,12 @@ type FirestoreDocument = {
   name: string
   fields?: Record<string, FirestoreValue>
 }
-let cachedToken: { value: string; expires: number } | undefined
-let pendingToken: Promise<string> | undefined
+const googleScopes = {
+  firestore: 'https://www.googleapis.com/auth/datastore',
+  storage: 'https://www.googleapis.com/auth/devstorage.read_write',
+} as const
+const cachedTokens = new Map<keyof typeof googleScopes, { value: string; expires: number }>()
+const pendingTokens = new Map<keyof typeof googleScopes, Promise<string>>()
 
 const TELEMETRY_SYMBOL = Symbol.for('clinic.os.firestore.telemetry')
 
@@ -203,17 +207,19 @@ export async function signServiceJwt(payload: Record<string, unknown>) {
   )
   return body + '.' + base64url(new Uint8Array(signature))
 }
-export async function googleAccessToken(): Promise<string> {
-  if (getFirestoreEmulatorOrigin()) return 'owner'
+export async function googleAccessToken(service: keyof typeof googleScopes = 'firestore'): Promise<string> {
+  if (service === 'firestore' && getFirestoreEmulatorOrigin()) return 'owner'
+  const cachedToken = cachedTokens.get(service)
+  const pendingToken = pendingTokens.get(service)
   if (cachedToken && cachedToken.expires > Date.now() + 60000)
     return cachedToken.value
   if (pendingToken) return pendingToken
-  pendingToken = (async () => {
+  const requestToken = (async () => {
     const { email } = getFirebaseServerCredentials(),
       now = Math.floor(Date.now() / 1000)
     const assertion = await signServiceJwt({
       iss: email,
-      scope: 'https://www.googleapis.com/auth/datastore',
+      scope: googleScopes[service],
       aud: 'https://oauth2.googleapis.com/token',
       iat: now,
       exp: now + 3600,
@@ -234,15 +240,16 @@ export async function googleAccessToken(): Promise<string> {
     }
     if (!response.ok || !data.access_token)
       throw new Error('FIREBASE_SERVICE_AUTH_FAILED')
-    cachedToken = {
+    cachedTokens.set(service, {
       value: data.access_token,
       expires: Date.now() + Number(data.expires_in || 3600) * 1000,
-    }
+    })
     return data.access_token
   })().finally(() => {
-    pendingToken = undefined
+    pendingTokens.delete(service)
   })
-  return pendingToken
+  pendingTokens.set(service, requestToken)
+  return requestToken
 }
 function encode(value: unknown): FirestoreValue {
   if (value == null) return { nullValue: null }
