@@ -1,1 +1,388 @@
-aW1wb3J0IHsgTmV4dFJlcXVlc3QsIE5leHRSZXNwb25zZSB9IGZyb20gJ25leHQvc2VydmVyJwppbXBvcnQgeyBnZXRDdXJyZW50Q2xpbmljU3RhZmYgfSBmcm9tICdAL2xpYi9zZXJ2ZXIvY2xpbmljLXN0YWZmLWFjY2VzcycKaW1wb3J0IHsgYXV0aGVudGljYXRlT3duZXJSZXF1ZXN0LCBhc3NlcnRTYW1lT3JpZ2luIH0gZnJvbSAnQC9saWIvc2VydmVyL293bmVyLWFjY2VzcycKaW1wb3J0IHsgT1dORVJfQ09PS0lFLCB2ZXJpZnlPd25lclNlc3Npb24gfSBmcm9tICdAL2xpYi9vd25lci1zZXNzaW9uJwppbXBvcnQgeyBCcmFuY2gsIEJyYW5jaFNjaGVkdWxlRGF5IH0gZnJvbSAnQC90eXBlcy9jbGluaWMnCmltcG9ydCB7IERFRkFVTFRfV0VFS0xZX1NDSEVEVUxFLCBmb3JtYXRXZWVrbHlTY2hlZHVsZVN1bW1hcnkgfSBmcm9tICdAL2xpYi9icmFuY2hTZXJ2aWNlJwppbXBvcnQgeyBzYW5pdGl6ZUFkZHJlc3MgfSBmcm9tICdAL2xpYi9tYXBzSGVscGVyJwppbXBvcnQgeyBjYW5vbmljYWxpemVCcmFuY2hlcywgbWFpbkJyYW5jaER1cGxpY2F0ZUtleSB9IGZyb20gJ0AvbGliL2JyYW5jaENhbm9uaWNhbCcKaW1wb3J0IHsgcXVlcnlEb2N1bWVudHNCeUZpZWxkLCByZWFkRG9jdW1lbnQsIHdyaXRlRG9jdW1lbnQsIGNyZWF0ZURvY3VtZW50LCBjb21taXREb2N1bWVudFBhdGNoZXMgfSBmcm9tICdAL2xpYi9zZXJ2ZXIvZmlyZWJhc2UtcmVzdCcKaW1wb3J0IHsgaXNDbGluaWNTdXNwZW5kZWQgfSBmcm9tICdAL2xpYi9jbGluaWNBY2Nlc3NQb2xpY3knCgovKioKICogSGVscGVyIHRvIGZldGNoIGFsbCBicmFuY2hlcyBmb3IgYSBjbGluaWMgZG9jIElELgogKiBMb29rcyBmb3IgYm90aCBjbGluaWNJZCBhbmQgY2xpbmljX2lkIGZpZWxkcyBmb3IgY29tcGxldGUgY29tcGF0aWJpbGl0eS4KICovCmFzeW5jIGZ1bmN0aW9uIGZldGNoQnJhbmNoZXNGb3JDbGluaWMoY2xpbmljSWQ6IHN0cmluZywgc2x1Zz86IHN0cmluZywgaW5jbHVkZUFyY2hpdmVkID0gZmFsc2UpOiBQcm9taXNlPEJyYW5jaFtdPiB7CiAgLy8gU2VydmVyIGNyZWRlbnRpYWxzIGFyZSByZXF1aXJlZCBhZnRlciBjbGllbnQgRmlyZXN0b3JlIGFjY2VzcyB3YXMgcmVzdHJpY3RlZC4KICAvLyBOZXZlciBzaWxlbnRseSByZXR1cm4gYW4gZW1wdHkgbGlzdCBpZiB0aGUgZGF0YWJhc2UgaXMgdW5hdmFpbGFibGUuCiAgY29uc3QgZ3JvdXBzID0gYXdhaXQgUHJvbWlzZS5hbGwoWwogICAgcXVlcnlEb2N1bWVudHNCeUZpZWxkKCdicmFuY2hlcycsICdjbGluaWNJZCcsIGNsaW5pY0lkKSwKICAgIHF1ZXJ5RG9jdW1lbnRzQnlGaWVsZCgnYnJhbmNoZXMnLCAnY2xpbmljX2lkJywgY2xpbmljSWQpLAogICAgLi4uKHNsdWcgJiYgc2x1ZyAhPT0gY2xpbmljSWQgPyBbcXVlcnlEb2N1bWVudHNCeUZpZWxkKCdicmFuY2hlcycsICdjbGluaWNJZCcsIHNsdWcpLAogICAgICBxdWVyeURvY3VtZW50c0J5RmllbGQoJ2JyYW5jaGVzJywgJ2NsaW5pY19pZCcsIHNsdWcpXSA6IFtdKSwKICBdKQogIGNvbnN0IG1hdGNoZXMgPSBbLi4ubmV3IE1hcChncm91cHMuZmxhdCgpLm1hcChiID0+IFtiLmlkLCBiXSkpLnZhbHVlcygpXQoKICByZXR1cm4gbWF0Y2hlcy5maWx0ZXIoKGI6IGFueSkgPT4gaW5jbHVkZUFyY2hpdmVkIHx8IGIuaXNBcmNoaXZlZCAhPT0gdHJ1ZSkgYXMgdW5rbm93biBhcyBCcmFuY2hbXQp9Cgphc3luYyBmdW5jdGlvbiBmaW5kQ2xpbmljQnlTbHVnKHNsdWc6IHN0cmluZyk6IFByb21pc2U8YW55IHwgbnVsbD4gewogIHJldHVybiAoYXdhaXQgcXVlcnlEb2N1bWVudHNCeUZpZWxkKCdjbGluaWNzJywgJ3NsdWcnLCBzbHVnKSlbMF0gfHwgbnVsbAp9CgovKioKICogVmVyaWZ5IGNhbGxlciBpZGVudGl0eTogUGxhdGZvcm0gT3duZXIgT1IgRG9jdG9yL0Fzc2lzdGFudCBmb3IgdGhpcyBjbGluaWMuCiAqLwphc3luYyBmdW5jdGlvbiBhdXRoZW50aWNhdGVDYWxsZXIocmVxOiBOZXh0UmVxdWVzdCwgY2xpbmljU2x1Zzogc3RyaW5nLCBjbGluaWNJZDogc3RyaW5nKSB7CiAgaWYgKHJlcS5tZXRob2QgIT09ICdHRVQnKSBhc3NlcnRTYW1lT3JpZ2luKHJlcSkKICBjb25zdCBvd25lciA9IGF3YWl0IGF1dGhlbnRpY2F0ZU93bmVyUmVxdWVzdChyZXEpLmNhdGNoKCgpID0+IG51bGwpCiAgaWYgKG93bmVyKSByZXR1cm4geyBpc093bmVyOiB0cnVlLCBpc0NsaW5pY1N0YWZmOiBmYWxzZSwgaXNBdXRob3JpemVkOiB0cnVlIH0KICBjb25zdCBzdGFmZiA9IGF3YWl0IGdldEN1cnJlbnRDbGluaWNTdGFmZihyZXEsIGNsaW5pY1NsdWcpCiAgY29uc3QgaXNDbGluaWNTdGFmZiA9IEJvb2xlYW4oc3RhZmYgJiYgc3RhZmYuY2xpbmljSWQgPT09IGNsaW5pY0lkICYmIHN0YWZmLnVzZXIucm9sZSA9PT0gJ2RvY3RvcicpCiAgcmV0dXJuIHsgaXNPd25lcjogZmFsc2UsIGlzQ2xpbmljU3RhZmYsIGlzQXV0aG9yaXplZDogaXNDbGluaWNTdGFmZiB9Cn0KCi8qKgogKiBHRVQ6IFJldHJpZXZlIGFsbCBhY3RpdmUgYnJhbmNoZXMgZm9yIGEgY2xpbmljLgogKiBSZXR1cm5zIGFjdHVhbCByZWdpc3RlcmVkIGJyYW5jaGVzIHdpdGhvdXQgcGhhbnRvbSBhdXRvLWNyZWF0aW9uLgogKi8KZXhwb3J0IGFzeW5jIGZ1bmN0aW9uIEdFVCgKICByZXE6IE5leHRSZXF1ZXN0LAogIHsgcGFyYW1zIH06IHsgcGFyYW1zOiBQcm9taXNlPHsgc2x1Zzogc3RyaW5nIH0+IH0KKSB7CiAgdHJ5IHsKICAgIGNvbnN0IHsgc2x1ZyB9ID0gYXdhaXQgcGFyYW1zCiAgICBpZiAoIXNsdWcpIHsKICAgICAgcmV0dXJuIE5leHRSZXNwb25zZS5qc29uKHsgZXJyb3I6ICfZhdi52LHZgSDYp9mE2LnZitin2K/YqSDZhdi32YTZiNioJyB9LCB7IHN0YXR1czogNDAwIH0pCiAgICB9CgogICAgY29uc3QgY2xpbmljID0gYXdhaXQgZmluZENsaW5pY0J5U2x1ZyhzbHVnKQogICAgaWYgKCFjbGluaWMpIHJldHVybiBOZXh0UmVzcG9uc2UuanNvbih7IGVycm9yOiAn2KfZhNi52YrYp9iv2Kkg2LrZitixINmF2YjYrNmI2K/YqScgfSwgeyBzdGF0dXM6IDQwNCB9KQogICAgY29uc3QgY2xpbmljSWQgPSBTdHJpbmcoY2xpbmljLmlkKQoKICAgIGNvbnN0IG1hbmFnZW1lbnQgPSByZXEubmV4dFVybC5zZWFyY2hQYXJhbXMuZ2V0KCd2aWV3JykgPT09ICdtYW5hZ2VtZW50JwogICAgaWYgKG1hbmFnZW1lbnQpIHsKICAgICAgY29uc3QgYXV0aCA9IGF3YWl0IGF1dGhlbnRpY2F0ZUNhbGxlcihyZXEsIHNsdWcsIGNsaW5pY0lkKQogICAgICBpZiAoIWF1dGguaXNPd25lcikgewogICAgICAgIHJldHVybiBOZXh0UmVzcG9uc2UuanNvbih7IGVycm9yOiAn2KXYr9in2LHYqSDYp9mE2YHYsdmI2Lkg2KfZhNmF2KTYsdi02YHYqSDZhdiq2KfYrdipINmE2YXYp9mE2YMg2KfZhNmF2YbYtdipINmB2YLYtycgfSwgeyBzdGF0dXM6IDQwMyB9KQogICAgICB9CiAgICB9CiAgICBjb25zdCByZWdpc3RlcmVkID0gYXdhaXQgZmV0Y2hCcmFuY2hlc0ZvckNsaW5pYyhjbGluaWNJZCwgc2x1ZywgbWFuYWdlbWVudCkKICAgIGNvbnN0IGJyYW5jaGVzID0gbWFuYWdlbWVudCA/IHJlZ2lzdGVyZWQgOiBjYW5vbmljYWxpemVCcmFuY2hlcyhyZWdpc3RlcmVkKQoKICAgIHJldHVybiBOZXh0UmVzcG9uc2UuanNvbih7CiAgICAgIHN1Y2Nlc3M6IHRydWUsCiAgICAgIGJyYW5jaGVzCiAgICB9LCB7CiAgICAgIGhlYWRlcnM6IHsgJ0NhY2hlLUNvbnRyb2wnOiAnbm8tc3RvcmUsIG5vLWNhY2hlLCBtdXN0LXJldmFsaWRhdGUsIG1heC1hZ2U9MCcgfQogICAgfSkKICB9IGNhdGNoIChlcnI6IGFueSkgewogICAgY29uc29sZS5lcnJvcignRXJyb3IgaW4gYnJhbmNoZXMgR0VUOicsIGVycikKICAgIHJldHVybiBOZXh0UmVzcG9uc2UuanNvbigKICAgICAgeyBlcnJvcjogJ9iq2LnYsNixINin2LPYqtix2KzYp9i5INmB2LHZiNi5INin2YTYudmK2KfYr9ipLiDYrdin2YjZhCDZhdix2Kkg2KPYrtix2YkuJyB9LAogICAgICB7IHN0YXR1czogNTAwIH0KICAgICkKICB9Cn0KCi8qKgogKiBQT1NUOiBDcmVhdGUgb3IgdXBkYXRlIGEgYnJhbmNoLgogKiBFbmZvcmNlcyBwZXJtaXNzaW9uczogT3duZXIgY2FuIG1hbmFnZSBhbnkgYnJhbmNoLCBEb2N0b3IgcmVzcGVjdHMgYWxsb3dEb2N0b3JDcmVhdGVCcmFuY2hlcyBhbmQgcXVvdGEuCiAqLwpleHBvcnQgYXN5bmMgZnVuY3Rpb24gUE9TVCgKICByZXE6IE5leHRSZXF1ZXN0LAogIHsgcGFyYW1zIH06IHsgcGFyYW1zOiBQcm9taXNlPHsgc2x1Zzogc3RyaW5nIH0+IH0KKSB7CiAgdHJ5IHsKICAgIGNvbnN0IHsgc2x1ZyB9ID0gYXdhaXQgcGFyYW1zCiAgICBpZiAoIXNsdWcpIHsKICAgICAgcmV0dXJuIE5leHRSZXNwb25zZS5qc29uKHsgZXJyb3I6ICfZhdi52LHZgSDYp9mE2LnZitin2K/YqSDZhdi32YTZiNioJyB9LCB7IHN0YXR1czogNDAwIH0pCiAgICB9CgogICAgY29uc3QgY2xpbmljID0gYXdhaXQgZmluZENsaW5pY0J5U2x1ZyhzbHVnKQogICAgaWYgKCFjbGluaWMpIHJldHVybiBOZXh0UmVzcG9uc2UuanNvbih7IGVycm9yOiAn2KfZhNi52YrYp9iv2Kkg2LrZitixINmF2YjYrNmI2K/YqScgfSwgeyBzdGF0dXM6IDQwNCB9KQogICAgY29uc3QgY2xpbmljSWQgPSBTdHJpbmcoY2xpbmljLmlkKQoKICAgIGNvbnN0IGF1dGggPSBhd2FpdCBhdXRoZW50aWNhdGVDYWxsZXIocmVxLCBzbHVnLCBjbGluaWNJZCkKICAgIGlmICghYXV0aC5pc0F1dGhvcml6ZWQpIHsKICAgICAgcmV0dXJuIE5leHRSZXNwb25zZS5qc29uKHsgZXJyb3I6ICfYutmK2LEg2YXYtdix2K0g2KjYp9mE2YjYtdmI2YQg4oCUINmK2LHYrNmJINiq2LPYrNmK2YQg2KfZhNiv2K7ZiNmEJyB9LCB7IHN0YXR1czogNDAxIH0pCiAgICB9CiAgICBpZiAoIWF1dGguaXNPd25lciAmJiBpc0NsaW5pY1N1c3BlbmRlZChjbGluaWMpKSB7CiAgICAgIHJldHVybiBOZXh0UmVzcG9uc2UuanNvbih7IGVycm9yOiAn2KfZhNin2LTYqtix2KfZgyDZhdmG2KrZh9mKLiDZitmF2YPZhtmDINi52LHYtiDYp9mE2K3Ys9in2KjYp9iqINmI2KfZhNiq2YLYp9ix2YrYsSDZiNiz2KzZhCDYp9mE2YXYsdi22Ykg2YHZgti3LicgfSwgeyBzdGF0dXM6IDQwMyB9KQogICAgfQoKICAgIGNvbnN0IGJvZHkgPSBhd2FpdCByZXEuanNvbigpLmNhdGNoKCgpID0+ICh7fSkpCiAgICBjb25zdCB7CiAgICAgIGlkOiBicmFuY2hJZCwKICAgICAgbmFtZSwKICAgICAgZ292ZXJub3JhdGUsCiAgICAgIGNpdHksCiAgICAgIGFyZWEsCiAgICAgIGFkZHJlc3MsCiAgICAgIG1hcHNMaW5rLAogICAgICBsYXRpdHVkZSwKICAgICAgbG9uZ2l0dWRlLAogICAgICBwaG9uZSwKICAgICAgd2hhdHNhcHAsCiAgICAgIGltYWdlLAogICAgICBzbG90RHVyYXRpb24sCiAgICAgIG1heERhaWx5Qm9va2luZ3MsCiAgICAgIGlzT3BlbiwKICAgICAgd2Vla2x5U2NoZWR1bGUsCiAgICAgIGlzTWFpbiwKICAgICAgbG9jYXRpb25WZXJpZmllZCwKICAgICAgdmVyaWZpZWRNYXBzTGluawogICAgfSA9IGJvZHkKCiAgICBpZiAoYnJhbmNoSWQgJiYgKHR5cGVvZiBicmFuY2hJZCAhPT0gJ3N0cmluZycgfHwgIS9eW0EtWmEtejAtOV8tXXsxLDEyOH0kLy50ZXN0KGJyYW5jaElkKSkpIHsKICAgICAgcmV0dXJuIE5leHRSZXNwb25zZS5qc29uKHsgZXJyb3I6ICfZhdi52LHZgSDYp9mE2YHYsdi5INi62YrYsSDYtdin2YTYrScgfSwgeyBzdGF0dXM6IDQwMCB9KQogICAgfQogICAgaWYgKE9iamVjdC5oYXNPd24oYm9keSwgJ2lzT3BlbicpICYmIHR5cGVvZiBpc09wZW4gIT09ICdib29sZWFuJykgewogICAgICByZXR1cm4gTmV4dFJlc3BvbnNlLmpzb24oeyBlcnJvcjogJ9it2KfZhNipINin2YTYrdis2LIg2YrYrNioINij2YYg2KrZg9mI2YYg2YXZgdiq2YjYrdmL2Kcg2KPZiCDZhdi62YTZgtmL2KcnIH0sIHsgc3RhdHVzOiA0MDAgfSkKICAgIH0KICAgIGlmIChPYmplY3QuaGFzT3duKGJvZHksICdzbG90RHVyYXRpb24nKSAmJiAoIU51bWJlci5pc0Zpbml0ZShOdW1iZXIoc2xvdER1cmF0aW9uKSkgfHwgTnVtYmVyKHNsb3REdXJhdGlvbikgPCAxIHx8IE51bWJlcihzbG90RHVyYXRpb24pID4gMjQwKSkgewogICAgICByZXR1cm4gTmV4dFJlc3BvbnNlLmpzb24oeyBlcnJvcjogJ9mF2K/YqSDYp9mE2YPYtNmBINmK2KzYqCDYo9mGINiq2YPZiNmGINio2YrZhiAxINmIMjQwINiv2YLZitmC2KknIH0sIHsgc3RhdHVzOiA0MDAgfSkKICAgIH0KICAgIGlmIChPYmplY3QuaGFzT3duKGJvZHksICdtYXhEYWlseUJvb2tpbmdzJykgJiYgKCFOdW1iZXIuaXNJbnRlZ2VyKE51bWJlcihtYXhEYWlseUJvb2tpbmdzKSkgfHwgTnVtYmVyKG1heERhaWx5Qm9va2luZ3MpIDwgMCB8fCBOdW1iZXIobWF4RGFpbHlCb29raW5ncykgPiAxMDAwMCkpIHsKICAgICAgcmV0dXJuIE5leHRSZXNwb25zZS5qc29uKHsgZXJyb3I6ICfYp9mE2K3YryDYp9mE2YrZiNmF2Yog2LrZitixINi12KfZhNitJyB9LCB7IHN0YXR1czogNDAwIH0pCiAgICB9CiAgICBjb25zdCBpc0NyZWF0aW5nID0gIWJyYW5jaElkIHx8IGJyYW5jaElkID09PSAnbmV3JwoKICAgIC8vIFRoZSBwbGF0Zm9ybSBvd25lciByZWdpc3RlcnMgcGh5c2ljYWwgYnJhbmNoIGxvY2F0aW9ucy4gRG9jdG9ycyBvcGVyYXRlCiAgICAvLyBhbHJlYWR5LXJlZ2lzdGVyZWQgYnJhbmNoZXMgYnV0IG1heSBub3QgY3JlYXRlIG5ldyBvbmVzLgogICAgaWYgKGlzQ3JlYXRpbmcgJiYgIWF1dGguaXNPd25lcikgewogICAgICByZXR1cm4gTmV4dFJlc3BvbnNlLmpzb24oeyBlcnJvcjogJ9il2LbYp9mB2Kkg2YHYsdmI2Lkg2KzYr9mK2K/YqSDZhdiq2KfYrdipINmB2YLYtyDZhNmF2KfZhNmDINin2YTZhdmG2LXYqS4nIH0sIHsgc3RhdHVzOiA0MDMgfSkKICAgIH0KCiAgICAvLyBEb2N0b3JzIG1heSB1cGRhdGUgT05MWSBvcGVyYXRpb24tc3BlY2lmaWMgZmllbGRzLiBOZXZlciBhbGxvdyBhIGRvY3RvcgogICAgLy8gdG8gcmVwbGFjZSB0aGUgb3duZXIncyBicmFuY2ggaWRlbnRpdHksIGFkZHJlc3MsIGNvb3JkaW5hdGVzIG9yIG1hcCBVUkwuCiAgICBpZiAoIWF1dGguaXNPd25lciAmJiAhaXNDcmVhdGluZykgewogICAgICBjb25zdCBkb2N0b3JBbGxvd2VkID0gbmV3IFNldChbCiAgICAgICAgJ2lkJywgJ2lzT3BlbicsICd3ZWVrbHlTY2hlZHVsZScsICdzbG90RHVyYXRpb24nLCAnbWF4RGFpbHlCb29raW5ncycsICdpc01haW4nCiAgICAgIF0pCiAgICAgIGZvciAoY29uc3Qga2V5IG9mIE9iamVjdC5rZXlzKGJvZHkpKSB7CiAgICAgICAgaWYgKCFkb2N0b3JBbGxvd2VkLmhhcyhrZXkpKSB7CiAgICAgICAgICByZXR1cm4gTmV4dFJlc3BvbnNlLmpzb24oewogICAgICAgICAgICBlcnJvcjogJ9mK2YXZg9mGINmE2YTYt9io2YrYqCDYqti52K/ZitmEINmF2YjYp9i52YrYryDYp9mE2YHYsdi5INmI2YXYr9ipINin2YTZg9i02YEg2YjYp9mE2K3YryDYp9mE2YrZiNmF2Yog2YjYrdin2YTYqSDYp9mE2K3YrNiyINmB2YLYtycKICAgICAgICAgIH0sIHsgc3RhdHVzOiA0MDMgfSkKICAgICAgICB9CiAgICAgIH0KICAgIH0KCiAgICBpZiAoKGlzQ3JlYXRpbmcgfHwgT2JqZWN0LnByb3RvdHlwZS5oYXNPd25Qcm9wZXJ0eS5jYWxsKGJvZHksICduYW1lJykpICYmICghbmFtZSB8fCAhU3RyaW5nKG5hbWUpLnRyaW0oKSkpIHsKICAgICAgcmV0dXJuIE5leHRSZXNwb25zZS5qc29uKHsgZXJyb3I6ICfYp9iz2YUg2KfZhNmB2LHYuSDZhdi32YTZiNioJyB9LCB7IHN0YXR1czogNDAwIH0pCiAgICB9CgogICAgaWYgKGF1dGguaXNPd25lciAmJiBsb2NhdGlvblZlcmlmaWVkID09PSB0cnVlKSB7CiAgICAgIGNvbnN0IGxhdCA9IE51bWJlcihsYXRpdHVkZSkKICAgICAgY29uc3QgbG5nID0gTnVtYmVyKGxvbmdpdHVkZSkKICAgICAgaWYgKGxhdGl0dWRlID09IG51bGwgfHwgbG9uZ2l0dWRlID09IG51bGwgfHwgIU51bWJlci5pc0Zpbml0ZShsYXQpIHx8ICFOdW1iZXIuaXNGaW5pdGUobG5nKSB8fCBNYXRoLmFicyhsYXQpID4gOTAgfHwgTWF0aC5hYnMobG5nKSA+IDE4MCkgewogICAgICAgIHJldHVybiBOZXh0UmVzcG9uc2UuanNvbih7IGVycm9yOiAn2KXYrdiv2KfYq9mK2KfYqiDYp9mE2YHYsdi5INin2YTZhdik2YPYr9ipINi62YrYsSDYtdin2YTYrdipJyB9LCB7IHN0YXR1czogNDAwIH0pCiAgICAgIH0KICAgIH0KCiAgICBjb25zdCBzY2hlZHVsZSA9CiAgICAgIEFycmF5LmlzQXJyYXkod2Vla2x5U2NoZWR1bGUpICYmIHdlZWtseVNjaGVkdWxlLmxlbmd0aCA+IDAKICAgICAgICA/IHdlZWtseVNjaGVkdWxlCiAgICAgICAgOiBERUZBVUxUX1dFRUtMWV9TQ0hFRFVMRQoKICAgIGNvbnN0IGJyYW5jaFBheWxvYWQ6IGFueSA9IHsKICAgICAgY2xpbmljSWQsCiAgICAgIGNsaW5pY19pZDogY2xpbmljSWQsCiAgICAgIG5hbWU6IHR5cGVvZiBuYW1lID09PSAnc3RyaW5nJyA/IG5hbWUudHJpbSgpIDogJycsCiAgICAgIGdvdmVybm9yYXRlOiBnb3Zlcm5vcmF0ZSB8fCAn2KfZhNmC2KfZh9ix2KknLAogICAgICBjaXR5OiBjaXR5IHx8ICfYp9mE2YLYp9mH2LHYqScsCiAgICAgIGFyZWE6IGFyZWEgfHwgJycsCiAgICAgIGFkZHJlc3M6IHNhbml0aXplQWRkcmVzcyhhZGRyZXNzKSB8fCAn2LnZhtmI2KfZhiDYp9mE2YHYsdi5JywKICAgICAgbWFwc0xpbms6IG1hcHNMaW5rIHx8ICcnLAogICAgICBsYXRpdHVkZTogbGF0aXR1ZGUgIT09IHVuZGVmaW5lZCAmJiBsYXRpdHVkZSAhPT0gJycgPyBOdW1iZXIobGF0aXR1ZGUpIDogbnVsbCwKICAgICAgbG9uZ2l0dWRlOiBsb25naXR1ZGUgIT09IHVuZGVmaW5lZCAmJiBsb25naXR1ZGUgIT09ICcnID8gTnVtYmVyKGxvbmdpdHVkZSkgOiBudWxsLAogICAgICBsb2NhdGlvblZlcmlmaWVkOiBsb2NhdGlvblZlcmlmaWVkID09PSB0cnVlLAogICAgICB2ZXJpZmllZE1hcHNMaW5rOiBsb2NhdGlvblZlcmlmaWVkID09PSB0cnVlID8gU3RyaW5nKHZlcmlmaWVkTWFwc0xpbmsgfHwgbWFwc0xpbmsgfHwgJycpLnRyaW0oKSA6ICcnLAogICAgICBwaG9uZTogcGhvbmUgfHwgJycsCiAgICAgIHdoYXRzYXBwOiB3aGF0c2FwcCB8fCAnJywKICAgICAgaW1hZ2U6IGltYWdlIHx8ICcnLAogICAgICBzbG90RHVyYXRpb246IE51bWJlcihzbG90RHVyYXRpb24pIHx8IDE1LAogICAgICBtYXhEYWlseUJvb2tpbmdzOiBOdW1iZXIobWF4RGFpbHlCb29raW5ncykgfHwgMCwKICAgICAgLy8gQnJhbmNoZXMgcmVnaXN0ZXJlZCBieSB0aGUgb3duZXIgc3RhcnQgY2xvc2VkIHVudGlsIGRvY3RvciBjb25maWd1cmVzIHRoZW0uCiAgICAgIGlzT3BlbjogaXNDcmVhdGluZyAmJiBhdXRoLmlzT3duZXIgPyBmYWxzZSA6IGlzT3BlbiAhPT0gZmFsc2UsCiAgICAgIHdlZWtseVNjaGVkdWxlOiBpc0NyZWF0aW5nICYmIGF1dGguaXNPd25lcgogICAgICAgID8gREVGQVVMVF9XRUVLTFlfU0NIRURVTEUubWFwKGRheSA9PiAoeyAuLi5kYXksIGlzT3BlbjogZmFsc2UgfSkpCiAgICAgICAgOiBzY2hlZHVsZSwKICAgICAgd29ya2luZ0hvdXJzOiBpc0NyZWF0aW5nICYmIGF1dGguaXNPd25lcgogICAgICAgID8gJ9mE2YUg2YrYrdiv2K8g2KfZhNi32KjZitioINmF2YjYp9i52YrYryDZh9iw2Kcg2KfZhNmB2LHYuSDYqNi52K8nCiAgICAgICAgOiBmb3JtYXRXZWVrbHlTY2hlZHVsZVN1bW1hcnkoc2NoZWR1bGUsIHRydWUpLAogICAgICBpc01haW46IEJvb2xlYW4oaXNNYWluKSwKICAgICAgdXBkYXRlZEF0OiBuZXcgRGF0ZSgpLnRvSVNPU3RyaW5nKCkKICAgIH0KCiAgICBpZiAoIWlzQ3JlYXRpbmcpIHsKICAgICAgLy8gU29tZSBsZWdhY3kgY2xpbmljcyBkaXNwbGF5ZWQgYSB2aXJ0dWFsIGJyYW5jaCB3aXRoIGlkPSJtYWluIiBldmVuIHRob3VnaAogICAgICAvLyBGaXJlc3RvcmUgaGFzIG5vIGRvY3VtZW50IGF0IGJyYW5jaGVzL21haW4uIFJlc29sdmUgaXRzIHJlYWwgZG9jdW1lbnQgSUQuCiAgICAgIGNvbnN0IGxlZ2FjeU1haW4gPSBicmFuY2hJZCA9PT0gJ21haW4nIHx8IFN0cmluZyhicmFuY2hJZCkuc3RhcnRzV2l0aCgnbWFpbi1icmFuY2gtJykKICAgICAgbGV0IHJlc29sdmVkSWQ6IHN0cmluZyA9IGJyYW5jaElkCiAgICAgIGxldCBleGlzdGluZyA9IGF3YWl0IHJlYWREb2N1bWVudChgYnJhbmNoZXMvJHtyZXNvbHZlZElkfWApCgogICAgICBpZiAoIWV4aXN0aW5nICYmIGxlZ2FjeU1haW4pIHsKICAgICAgICBjb25zdCByZWdpc3RlcmVkID0gYXdhaXQgZmV0Y2hCcmFuY2hlc0ZvckNsaW5pYyhjbGluaWNJZCwgc2x1ZykKICAgICAgICBmb3IgKGNvbnN0IGNhbmRpZGF0ZSBvZiByZWdpc3RlcmVkLmZpbHRlcigoYikgPT4gYi5pc01haW4gfHwgYi5uYW1lID09PSAn2KfZhNmB2LHYuSDYp9mE2LHYptmK2LPZiicpKSB7CiAgICAgICAgICBjb25zdCBjYW5kaWRhdGVEb2MgPSBhd2FpdCByZWFkRG9jdW1lbnQoYGJyYW5jaGVzLyR7Y2FuZGlkYXRlLmlkfWApCiAgICAgICAgICBpZiAoY2FuZGlkYXRlRG9jKSB7CiAgICAgICAgICAgIHJlc29sdmVkSWQgPSBjYW5kaWRhdGUuaWQKICAgICAgICAgICAgZXhpc3RpbmcgPSBjYW5kaWRhdGVEb2MKICAgICAgICAgICAgYnJlYWsKICAgICAgICAgIH0KICAgICAgICB9CiAgICAgICAgLy8gTmV2ZXIgbWFudWZhY3R1cmUgYSBzZWNvbmQgYnJhbmNoIGFzIGEgc2lkZSBlZmZlY3Qgb2YgZWRpdGluZyBvciB0b2dnbGluZy4KICAgICAgICAvLyBUaGUgUGxhdGZvcm0gT3duZXIgbXVzdCBleHBsaWNpdGx5IHJlZ2lzdGVyIHRoZSBtaXNzaW5nIG1haW4gYnJhbmNoLgogICAgICB9CgogICAgICBpZiAoIWV4aXN0aW5nKSB7CiAgICAgICAgcmV0dXJuIE5leHRSZXNwb25zZS5qc29uKHsgZXJyb3I6ICfZh9iw2Kcg2KfZhNmB2LHYuSDYutmK2LEg2YXZiNis2YjYry4g2K3Yr9mR2Ksg2YLYp9im2YXYqSDYp9mE2YHYsdmI2Lkg2KvZhSDYrdin2YjZhCDZhdis2K/Yr9mL2KcuJyB9LCB7IHN0YXR1czogNDA0IH0pCiAgICAgIH0KICAgICAgY29uc3Qgb2xkQnJhbmNoID0gZXhpc3RpbmcKICAgICAgLy8gT3duZXJzaGlwIG11c3QgYmUgY2hlY2tlZCBldmVuIGZvciB0aGUgcGxhdGZvcm0gb3duZXIgdG8gcHJldmVudAogICAgICAvLyBtb2RpZnlpbmcgYSBkaWZmZXJlbnQgY2xpbmljIHZpYSBhIGZvcmdlZCBicmFuY2ggSUQuCiAgICAgIGlmICghW29sZEJyYW5jaC5jbGluaWNJZCwgb2xkQnJhbmNoLmNsaW5pY19pZF0uaW5jbHVkZXMoY2xpbmljSWQpKSB7CiAgICAgICAgcmV0dXJuIE5leHRSZXNwb25zZS5qc29uKHsgZXJyb3I6ICfYp9mE2YHYsdi5INmE2Kcg2YrYqtio2Lkg2KfZhNi52YrYp9iv2Kkg2KfZhNmF2K3Yr9iv2KknIH0sIHsgc3RhdHVzOiA0MDMgfSkKICAgICAgfQogICAgICBjb25zdCByZXN0b3JlQXJjaGl2ZWQgPSBhdXRoLmlzT3duZXIgJiYgYm9keS5pc0FyY2hpdmVkID09PSBmYWxzZQogICAgICBpZiAob2xkQnJhbmNoLmlzQXJjaGl2ZWQgPT09IHRydWUgJiYgIXJlc3RvcmVBcmNoaXZlZCkgewogICAgICAgIHJldHVybiBOZXh0UmVzcG9uc2UuanNvbih7IGVycm9yOiAn2KfZhNmB2LHYuSDZhdik2LHYtNmBINmI2YTYpyDZitmC2KjZhCDYp9mE2KrYudiv2YrZhCcgfSwgeyBzdGF0dXM6IDQwOSB9KQogICAgICB9CgogICAgICAvLyBQQVRDSCBzZW1hbnRpY3M6IGEgc3RhdHVzLW9ubHkgdXBkYXRlIG11c3Qgbm90IHdpcGUgdGhlIHNjaGVkdWxlLAogICAgICAvLyBtYXAgY29vcmRpbmF0ZXMsIGNvbnRhY3RzLCBwaG90bywgb3IgbWFpbi1icmFuY2ggZmxhZy4KICAgICAgY29uc3QgZWRpdGFibGVGaWVsZHMgPSBhdXRoLmlzT3duZXIKICAgICAgICA/IFsnbmFtZScsICdnb3Zlcm5vcmF0ZScsICdjaXR5JywgJ2FyZWEnLCAnYWRkcmVzcycsICdtYXBzTGluaycsCiAgICAgICAgICAnbGF0aXR1ZGUnLCAnbG9uZ2l0dWRlJywgJ2xvY2F0aW9uVmVyaWZpZWQnLCAndmVyaWZpZWRNYXBzTGluaycsICdwaG9uZScsICd3aGF0c2FwcCcsICdpbWFnZScsCiAgICAgICAgICAnc2xvdER1cmF0aW9uJywgJ21heERhaWx5Qm9va2luZ3MnLCAnaXNPcGVuJywgJ3dlZWtseVNjaGVkdWxlJ10KICAgICAgICA6IFsnc2xvdER1cmF0aW9uJywgJ21heERhaWx5Qm9va2luZ3MnLCAnaXNPcGVuJywgJ3dlZWtseVNjaGVkdWxlJ10KICAgICAgY29uc3QgcGF0Y2g6IFJlY29yZDxzdHJpbmcsIGFueT4gPSB7IHVwZGF0ZWRBdDogbmV3IERhdGUoKS50b0lTT1N0cmluZygpIH0KICAgICAgZm9yIChjb25zdCBrZXkgb2YgZWRpdGFibGVGaWVsZHMpIHsKICAgICAgICBpZiAoT2JqZWN0LnByb3RvdHlwZS5oYXNPd25Qcm9wZXJ0eS5jYWxsKGJvZHksIGtleSkpIHBhdGNoW2tleV0gPSBicmFuY2hQYXlsb2FkW2tleV0KICAgICAgfQogICAgICBpZiAoT2JqZWN0LnByb3RvdHlwZS5oYXNPd25Qcm9wZXJ0eS5jYWxsKGJvZHksICd3ZWVrbHlTY2hlZHVsZScpKSB7CiAgICAgICAgcGF0Y2gud29ya2luZ0hvdXJzID0gZm9ybWF0V2Vla2x5U2NoZWR1bGVTdW1tYXJ5KHBhdGNoLndlZWtseVNjaGVkdWxlLCB0cnVlKQogICAgICB9CiAgICAgIGlmIChyZXN0b3JlQXJjaGl2ZWQpIHBhdGNoLmlzQXJjaGl2ZWQgPSBmYWxzZQoKICAgICAgLy8gQSBzaW5nbGUgYXRvbWljIGJhdGNoIHByZXZlbnRzIHRoZSBvbGQgYW5kIG5ldyBwcmltYXJ5IGJyYW5jaGVzIGZyb20KICAgICAgLy8gYm90aCByZW1haW5pbmcgcHJpbWFyeS4gQSBwbGFpbiBpc01haW46ZmFsc2UgcmVxdWVzdCBpcyByZWplY3RlZC4KICAgICAgaWYgKE9iamVjdC5wcm90b3R5cGUuaGFzT3duUHJvcGVydHkuY2FsbChib2R5LCAnaXNNYWluJykgJiYgYm9keS5pc01haW4gPT09IGZhbHNlKSB7CiAgICAgICAgcmV0dXJuIE5leHRSZXNwb25zZS5qc29uKHsKICAgICAgICAgIGVycm9yOiAn2KfYrtiq2LEg2KfZhNmB2LHYuSDYp9mE2LHYptmK2LPZiiDYp9mE2KjYr9mK2YQg2KjYr9mE2KfZiyDZhdmGINil2YTYutin2KEg2KfZhNix2KbZitiz2Yog2KjYr9mI2YYg2KjYr9mK2YQuJwogICAgICAgIH0sIHsgc3RhdHVzOiA0MDAgfSkKICAgICAgfQogICAgICBpZiAoYm9keS5pc01haW4gPT09IHRydWUpIHsKICAgICAgICBpZiAob2xkQnJhbmNoLmlzQXJjaGl2ZWQgPT09IHRydWUpIHsKICAgICAgICAgIHJldHVybiBOZXh0UmVzcG9uc2UuanNvbih7IGVycm9yOiAn2YTYpyDZitmF2YPZhiDYqti52YrZitmGINmB2LHYuSDZhdik2LHYtNmBINmD2LHYptmK2LPZiicgfSwgeyBzdGF0dXM6IDQwOSB9KQogICAgICAgIH0KICAgICAgICBjb25zdCByZWdpc3RlcmVkID0gYXdhaXQgZmV0Y2hCcmFuY2hlc0ZvckNsaW5pYyhjbGluaWNJZCwgc2x1ZykKICAgICAgICBpZiAoIXJlZ2lzdGVyZWQuc29tZSgoaXRlbSkgPT4gaXRlbS5pZCA9PT0gcmVzb2x2ZWRJZCkpIHsKICAgICAgICAgIHJldHVybiBOZXh0UmVzcG9uc2UuanNvbih7IGVycm9yOiAn2KfZhNmB2LHYuSDYp9mE2YXYrdiv2K8g2LrZitixINmF2YjYrNmI2K8g2KjYp9mE2YLYp9im2YXYqSDYp9mE2YXYs9is2YTYqScgfSwgeyBzdGF0dXM6IDQwNCB9KQogICAgICAgIH0KICAgICAgICBjb25zdCB0aW1lc3RhbXAgPSBuZXcgRGF0ZSgpLnRvSVNPU3RyaW5nKCkKICAgICAgICBhd2FpdCBjb21taXREb2N1bWVudFBhdGNoZXMocmVnaXN0ZXJlZC5tYXAoKGl0ZW0pID0+ICh7CiAgICAgICAgICBwYXRoOiBgYnJhbmNoZXMvJHtpdGVtLmlkfWAsCiAgICAgICAgICBkYXRhOiB7IGlzTWFpbjogaXRlbS5pZCA9PT0gcmVzb2x2ZWRJZCwgdXBkYXRlZEF0OiB0aW1lc3RhbXAgfQogICAgICAgIH0pKSkKICAgICAgfQoKICAgICAgYXdhaXQgd3JpdGVEb2N1bWVudChgYnJhbmNoZXMvJHtyZXNvbHZlZElkfWAsIHBhdGNoLCB0cnVlKQogICAgICByZXR1cm4gTmV4dFJlc3BvbnNlLmpzb24oewogICAgICAgIHN1Y2Nlc3M6IHRydWUsCiAgICAgICAgYnJhbmNoOiB7IC4uLm9sZEJyYW5jaCwgLi4ucGF0Y2gsIGlkOiByZXNvbHZlZElkLCAuLi4oYm9keS5pc01haW4gPT09IHRydWUgPyB7IGlzTWFpbjogdHJ1ZSB9IDoge30pIH0KICAgICAgfSkKICAgIH0gZWxzZSB7CiAgICAgIC8vIENyZWF0ZSBuZXcgYnJhbmNoCiAgICAgIGJyYW5jaFBheWxvYWQuaXNBcmNoaXZlZCA9IGZhbHNlCiAgICAgIGJyYW5jaFBheWxvYWQuY3JlYXRlZEF0ID0gbmV3IERhdGUoKS50b0lTT1N0cmluZygpCiAgICAgIC8vIEVuZm9yY2Ugb3duZXItc3BlY2lmaWVkIGNsaW5pYyBxdW90YSBmb3IgYnJhbmNoIGNyZWF0aW9uLgogICAgICBjb25zdCBtYXhBbGxvd2VkID0gTWF0aC5tYXgoMSwgTnVtYmVyKGNsaW5pYy5tYXhCcmFuY2hlcyA/PyBjbGluaWMuYnJhbmNoUXVvdGEgPz8gMSkpCiAgICAgIGNvbnN0IGV4aXN0aW5nQnJhbmNoZXMgPSBjYW5vbmljYWxpemVCcmFuY2hlcyhhd2FpdCBmZXRjaEJyYW5jaGVzRm9yQ2xpbmljKGNsaW5pY0lkLCBzbHVnKSkKICAgICAgaWYgKGV4aXN0aW5nQnJhbmNoZXMubGVuZ3RoID49IG1heEFsbG93ZWQpIHsKICAgICAgICByZXR1cm4gTmV4dFJlc3BvbnNlLmpzb24oeyBlcnJvcjogYNin2YPYqtmF2YQg2KfZhNit2K8g2KfZhNmF2LPZhdmI2K0g2KjZhyDZhdmGINin2YTZgdix2YjYuSAoJHttYXhBbGxvd2VkfSlgIH0sIHsgc3RhdHVzOiA0MDMgfSkKICAgICAgfQogICAgICAvLyBOZXcgYnJhbmNoZXMgY2Fubm90IHNpbGVudGx5IHN0ZWFsIHRoZSBwcmltYXJ5IGRlc2lnbmF0aW9uLiBGaXJzdAogICAgICAvLyBjcmVhdGVkIGJyYW5jaCBiZWNvbWVzIHByaW1hcnk7IG90aGVycyBhcmUgcHJvbW90ZWQgdmlhIGF0b21pYyB1cGRhdGUuCiAgICAgIGJyYW5jaFBheWxvYWQuaXNNYWluID0gZXhpc3RpbmdCcmFuY2hlcy5sZW5ndGggPT09IDAKICAgICAgY29uc3QgbmV3QnJhbmNoSWQgPSBhd2FpdCBjcmVhdGVEb2N1bWVudCgnYnJhbmNoZXMnLCBicmFuY2hQYXlsb2FkKQogICAgICByZXR1cm4gTmV4dFJlc3BvbnNlLmpzb24oewogICAgICAgIHN1Y2Nlc3M6IHRydWUsCiAgICAgICAgYnJhbmNoOiB7IGlkOiBuZXdCcmFuY2hJZCwgLi4uYnJhbmNoUGF5bG9hZCB9CiAgICAgIH0pCiAgICB9CiAgfSBjYXRjaCAoZXJyOiBhbnkpIHsKICAgIGNvbnNvbGUuZXJyb3IoJ0Vycm9yIGluIGJyYW5jaGVzIFBPU1Q6JywgZXJyKQogICAgcmV0dXJuIE5leHRSZXNwb25zZS5qc29uKAogICAgICB7IGVycm9yOiAn2YHYtNmEINmB2Yog2K3Zgdi4INio2YrYp9mG2KfYqiDYp9mE2YHYsdi5OiAnICsgKGVyci5tZXNzYWdlIHx8ICcnKSB9LAogICAgICB7IHN0YXR1czogNTAwIH0KICAgICkKICB9Cn0KCi8qKgogKiBERUxFVEU6IFNvZnQtYXJjaGl2ZSBhIGJyYW5jaCBzYWZlbHkgd2l0aG91dCBkZWxldGluZyBoaXN0b3JpY2FsIGFwcG9pbnRtZW50IG9yIGZpbmFuY2lhbCBkYXRhLgogKi8KZXhwb3J0IGFzeW5jIGZ1bmN0aW9uIERFTEVURSgKICByZXE6IE5leHRSZXF1ZXN0LAogIHsgcGFyYW1zIH06IHsgcGFyYW1zOiBQcm9taXNlPHsgc2x1Zzogc3RyaW5nIH0+IH0KKSB7CiAgdHJ5IHsKICAgIGNvbnN0IHsgc2x1ZyB9ID0gYXdhaXQgcGFyYW1zCiAgICBpZiAoIXNsdWcpIHsKICAgICAgcmV0dXJuIE5leHRSZXNwb25zZS5qc29uKHsgZXJyb3I6ICfZhdi52LHZgSDYp9mE2LnZitin2K/YqSDZhdi32YTZiNioJyB9LCB7IHN0YXR1czogNDAwIH0pCiAgICB9CgogICAgY29uc3QgY2xpbmljID0gYXdhaXQgZmluZENsaW5pY0J5U2x1ZyhzbHVnKQogICAgaWYgKCFjbGluaWMpIHJldHVybiBOZXh0UmVzcG9uc2UuanNvbih7IGVycm9yOiAn2KfZhNi52YrYp9iv2Kkg2LrZitixINmF2YjYrNmI2K/YqScgfSwgeyBzdGF0dXM6IDQwNCB9KQogICAgY29uc3QgY2xpbmljSWQgPSBTdHJpbmcoY2xpbmljLmlkKQoKICAgIGNvbnN0IGF1dGggPSBhd2FpdCBhdXRoZW50aWNhdGVDYWxsZXIocmVxLCBzbHVnLCBjbGluaWNJZCkKICAgIGlmICghYXV0aC5pc093bmVyKSB7CiAgICAgIHJldHVybiBOZXh0UmVzcG9uc2UuanNvbih7IGVycm9yOiAn2KPYsdi02YHYqSDYp9mE2YHYsdmI2Lkg2YXYqtin2K3YqSDZhNmF2KfZhNmDINin2YTZhdmG2LXYqSDZgdmC2LcnIH0sIHsgc3RhdHVzOiA0MDMgfSkKICAgIH0KCiAgICBjb25zdCB7IHNlYXJjaFBhcmFtcyB9ID0gbmV3IFVSTChyZXEudXJsKQogICAgY29uc3QgYnJhbmNoSWQgPSBzZWFyY2hQYXJhbXMuZ2V0KCdicmFuY2hJZCcpCiAgICBpZiAoIWJyYW5jaElkKSB7CiAgICAgIHJldHVybiBOZXh0UmVzcG9uc2UuanNvbih7IGVycm9yOiAn2YXYudix2YEg2KfZhNmB2LHYuSDZhdi32YTZiNioJyB9LCB7IHN0YXR1czogNDAwIH0pCiAgICB9CgogICAgLy8gTmV2ZXIgYWxsb3cgYXJjaGl2aW5nIGEgYnJhbmNoIG9mIGEgZGlmZmVyZW50IGNsaW5pYywgZXZlbiBhcyBwbGF0Zm9ybSBvd25lci4KICAgIGNvbnN0IHRhcmdldEJyYW5jaCA9IGF3YWl0IHJlYWREb2N1bWVudChgYnJhbmNoZXMvJHticmFuY2hJZH1gKQogICAgaWYgKCF0YXJnZXRCcmFuY2gpIHJldHVybiBOZXh0UmVzcG9uc2UuanNvbih7IGVycm9yOiAn2KfZhNmB2LHYuSDYutmK2LEg2YXZiNis2YjYrycgfSwgeyBzdGF0dXM6IDQwNCB9KQogICAgY29uc3QgdGFyZ2V0RGF0YSA9IHRhcmdldEJyYW5jaAogICAgaWYgKCFbdGFyZ2V0RGF0YS5jbGluaWNJZCwgdGFyZ2V0RGF0YS5jbGluaWNfaWRdLmluY2x1ZGVzKGNsaW5pY0lkKSkgewogICAgICByZXR1cm4gTmV4dFJlc3BvbnNlLmpzb24oeyBlcnJvcjogJ9in2YTZgdix2Lkg2YTYpyDZitiq2KjYuSDYp9mE2LnZitin2K/YqSDYp9mE2YXYrdiv2K/YqScgfSwgeyBzdGF0dXM6IDQwMyB9KQogICAgfQogICAgaWYgKHRhcmdldERhdGEuaXNNYWluICYmIHRhcmdldERhdGEuaXNBcmNoaXZlZCAhPT0gdHJ1ZSkgewogICAgICBjb25zdCByZW1haW5pbmdCcmFuY2hlcyA9IChhd2FpdCBmZXRjaEJyYW5jaGVzRm9yQ2xpbmljKGNsaW5pY0lkLCBzbHVnKSkKICAgICAgICAuZmlsdGVyKChicmFuY2gpID0+IGJyYW5jaC5pZCAhPT0gYnJhbmNoSWQpCiAgICAgIGNvbnN0IG1haW5LZXkgPSBtYWluQnJhbmNoRHVwbGljYXRlS2V5KHsgLi4udGFyZ2V0RGF0YSwgaWQ6IGJyYW5jaElkIH0pCiAgICAgIGNvbnN0IGhhc0Fub3RoZXJNYWluID0gISFtYWluS2V5ICYmIHJlbWFpbmluZ0JyYW5jaGVzLnNvbWUoCiAgICAgICAgKGJyYW5jaCkgPT4gbWFpbkJyYW5jaER1cGxpY2F0ZUtleShicmFuY2gpID09PSBtYWluS2V5CiAgICAgICkKICAgICAgaWYgKHJlbWFpbmluZ0JyYW5jaGVzLmxlbmd0aCA+IDAgJiYgIWhhc0Fub3RoZXJNYWluKSB7CiAgICAgICAgcmV0dXJuIE5leHRSZXNwb25zZS5qc29uKHsKICAgICAgICAgIGVycm9yOiAn2YTYpyDZitmF2YPZhiDYo9ix2LTZgdipINin2YTZgdix2Lkg2KfZhNix2KbZitiz2Yog2KfZhNmI2K3ZitivLiDZitmF2YPZhtmDINij2LHYtNmB2Kkg2KfZhNmG2LPYrtipINin2YTZhdmD2LHYsdipINmB2YLYty4nCiAgICAgICAgfSwgeyBzdGF0dXM6IDQwOSB9KQogICAgICB9CiAgICB9CgogICAgYXdhaXQgd3JpdGVEb2N1bWVudChgYnJhbmNoZXMvJHticmFuY2hJZH1gLCB7CiAgICAgIGlzQXJjaGl2ZWQ6IHRydWUsCiAgICAgIHVwZGF0ZWRBdDogbmV3IERhdGUoKS50b0lTT1N0cmluZygpCiAgICB9LCB0cnVlKQoKICAgIHJldHVybiBOZXh0UmVzcG9uc2UuanNvbih7IHN1Y2Nlc3M6IHRydWUsIG1lc3NhZ2U6ICfYqtmFINij2LHYtNmB2Kkg2KfZhNmB2LHYuSDYqNmG2KzYp9itJyB9KQogIH0gY2F0Y2ggKGVycjogYW55KSB7CiAgICBjb25zb2xlLmVycm9yKCdFcnJvciBpbiBicmFuY2hlcyBERUxFVEU6JywgZXJyKQogICAgcmV0dXJuIE5leHRSZXNwb25zZS5qc29uKAogICAgICB7IGVycm9yOiAn2YHYtNmEINmB2Yog2KPYsdi02YHYqSDYp9mE2YHYsdi5OiAnICsgKGVyci5tZXNzYWdlIHx8ICcnKSB9LAogICAgICB7IHN0YXR1czogNTAwIH0KICAgICkKICB9Cn0K
+import { NextRequest, NextResponse } from 'next/server'
+import { getCurrentClinicStaff } from '@/lib/server/clinic-staff-access'
+import { authenticateOwnerRequest, assertSameOrigin } from '@/lib/server/owner-access'
+import { OWNER_COOKIE, verifyOwnerSession } from '@/lib/owner-session'
+import { Branch, BranchScheduleDay } from '@/types/clinic'
+import { DEFAULT_WEEKLY_SCHEDULE, formatWeeklyScheduleSummary } from '@/lib/branchService'
+import { sanitizeAddress } from '@/lib/mapsHelper'
+import { canonicalizeBranches, mainBranchDuplicateKey } from '@/lib/branchCanonical'
+import { queryDocumentsByField, readDocument, writeDocument, createDocument, commitDocumentPatches } from '@/lib/server/firebase-rest'
+import { isClinicSuspended } from '@/lib/clinicAccessPolicy'
+
+/**
+ * Helper to fetch all branches for a clinic doc ID.
+ * Looks for both clinicId and clinic_id fields for complete compatibility.
+ */
+async function fetchBranchesForClinic(clinicId: string, slug?: string, includeArchived = false): Promise<Branch[]> {
+  // Server credentials are required after client Firestore access was restricted.
+  // Never silently return an empty list if the database is unavailable.
+  const groups = await Promise.all([
+    queryDocumentsByField('branches', 'clinicId', clinicId),
+    queryDocumentsByField('branches', 'clinic_id', clinicId),
+    ...(slug && slug !== clinicId ? [queryDocumentsByField('branches', 'clinicId', slug),
+      queryDocumentsByField('branches', 'clinic_id', slug)] : []),
+  ])
+  const matches = [...new Map(groups.flat().map(b => [b.id, b])).values()]
+
+  return matches.filter((b: any) => includeArchived || b.isArchived !== true) as unknown as Branch[]
+}
+
+async function findClinicBySlug(slug: string): Promise<any | null> {
+  return (await queryDocumentsByField('clinics', 'slug', slug))[0] || null
+}
+
+/**
+ * Verify caller identity: Platform Owner OR Doctor/Assistant for this clinic.
+ */
+async function authenticateCaller(req: NextRequest, clinicSlug: string, clinicId: string) {
+  if (req.method !== 'GET') assertSameOrigin(req)
+  const owner = await authenticateOwnerRequest(req).catch(() => null)
+  if (owner) return { isOwner: true, isClinicStaff: false, isAuthorized: true }
+  const staff = await getCurrentClinicStaff(req, clinicSlug)
+  const isClinicStaff = Boolean(staff && staff.clinicId === clinicId && staff.user.role === 'doctor')
+  return { isOwner: false, isClinicStaff, isAuthorized: isClinicStaff }
+}
+
+/**
+ * GET: Retrieve all active branches for a clinic.
+ * Returns actual registered branches without phantom auto-creation.
+ */
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ slug: string }> }
+) {
+  try {
+    const { slug } = await params
+    if (!slug) {
+      return NextResponse.json({ error: 'معرف العيادة مطلوب' }, { status: 400 })
+    }
+
+    const clinic = await findClinicBySlug(slug)
+    if (!clinic) return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404 })
+    const clinicId = String(clinic.id)
+
+    const management = req.nextUrl.searchParams.get('view') === 'management'
+    if (management) {
+      const auth = await authenticateCaller(req, slug, clinicId)
+      if (!auth.isOwner) {
+        return NextResponse.json({ error: 'إدارة الفروع المؤرشفة متاحة لمالك المنصة فقط' }, { status: 403 })
+      }
+    }
+    const registered = await fetchBranchesForClinic(clinicId, slug, management)
+    const branches = management ? registered : canonicalizeBranches(registered)
+
+    return NextResponse.json({
+      success: true,
+      branches
+    }, {
+      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0' }
+    })
+  } catch (err: any) {
+    console.error('Error in branches GET:', err)
+    return NextResponse.json(
+      { error: 'تعذر استرجاع فروع العيادة. حاول مرة أخرى.' },
+      { status: 500 }
+    )
+  }
+}
+
+/**
+ * POST: Create or update a branch.
+ * Enforces permissions: Owner can manage any branch, Doctor respects allowDoctorCreateBranches and quota.
+ */
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ slug: string }> }
+) {
+  try {
+    const { slug } = await params
+    if (!slug) {
+      return NextResponse.json({ error: 'معرف العيادة مطلوب' }, { status: 400 })
+    }
+
+    const clinic = await findClinicBySlug(slug)
+    if (!clinic) return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404 })
+    const clinicId = String(clinic.id)
+
+    const auth = await authenticateCaller(req, slug, clinicId)
+    if (!auth.isAuthorized) {
+      return NextResponse.json({ error: 'غير مصرح بالوصول — يرجى تسجيل الدخول' }, { status: 401 })
+    }
+    if (!auth.isOwner && isClinicSuspended(clinic)) {
+      return NextResponse.json({ error: 'الاشتراك منتهي. يمكنك عرض الحسابات والتقارير وسجل المرضى فقط.' }, { status: 403 })
+    }
+
+    const body = await req.json().catch(() => ({}))
+    const {
+      id: branchId,
+      name,
+      governorate,
+      city,
+      area,
+      address,
+      mapsLink,
+      latitude,
+      longitude,
+      phone,
+      whatsapp,
+      image,
+      slotDuration,
+      maxDailyBookings,
+      isOpen,
+      weeklySchedule,
+      isMain,
+      locationVerified,
+      verifiedMapsLink
+    } = body
+
+    if (branchId && (typeof branchId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(branchId))) {
+      return NextResponse.json({ error: 'معرف الفرع غير صالح' }, { status: 400 })
+    }
+    if (Object.hasOwn(body, 'isOpen') && typeof isOpen !== 'boolean') {
+      return NextResponse.json({ error: 'حالة الحجز يجب أن تكون مفتوحًا أو مغلقًا' }, { status: 400 })
+    }
+    if (Object.hasOwn(body, 'slotDuration') && (!Number.isFinite(Number(slotDuration)) || Number(slotDuration) < 1 || Number(slotDuration) > 240)) {
+      return NextResponse.json({ error: 'مدة الكشف يجب أن تكون بين 1 و240 دقيقة' }, { status: 400 })
+    }
+    if (Object.hasOwn(body, 'maxDailyBookings') && (!Number.isInteger(Number(maxDailyBookings)) || Number(maxDailyBookings) < 0 || Number(maxDailyBookings) > 10000)) {
+      return NextResponse.json({ error: 'الحد اليومي غير صالح' }, { status: 400 })
+    }
+    const isCreating = !branchId || branchId === 'new'
+
+    // The platform owner registers physical branch locations. Doctors operate
+    // already-registered branches but may not create new ones.
+    if (isCreating && !auth.isOwner) {
+      return NextResponse.json({ error: 'إضافة فروع جديدة متاحة فقط لمالك المنصة.' }, { status: 403 })
+    }
+
+    // Doctors may update ONLY operation-specific fields. Never allow a doctor
+    // to replace the owner's branch identity, address, coordinates or map URL.
+    if (!auth.isOwner && !isCreating) {
+      const doctorAllowed = new Set([
+        'id', 'isOpen', 'weeklySchedule', 'slotDuration', 'maxDailyBookings', 'isMain'
+      ])
+      for (const key of Object.keys(body)) {
+        if (!doctorAllowed.has(key)) {
+          return NextResponse.json({
+            error: 'يمكن للطبيب تعديل مواعيد الفرع ومدة الكشف والحد اليومي وحالة الحجز فقط'
+          }, { status: 403 })
+        }
+      }
+    }
+
+    if ((isCreating || Object.prototype.hasOwnProperty.call(body, 'name')) && (!name || !String(name).trim())) {
+      return NextResponse.json({ error: 'اسم الفرع مطلوب' }, { status: 400 })
+    }
+
+    if (auth.isOwner && locationVerified === true) {
+      const lat = Number(latitude)
+      const lng = Number(longitude)
+      if (latitude == null || longitude == null || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+        return NextResponse.json({ error: 'إحداثيات الفرع المؤكدة غير صالحة' }, { status: 400 })
+      }
+    }
+
+    const schedule =
+      Array.isArray(weeklySchedule) && weeklySchedule.length > 0
+        ? weeklySchedule
+        : DEFAULT_WEEKLY_SCHEDULE
+
+    const branchPayload: any = {
+      clinicId,
+      clinic_id: clinicId,
+      name: typeof name === 'string' ? name.trim() : '',
+      governorate: governorate || 'القاهرة',
+      city: city || 'القاهرة',
+      area: area || '',
+      address: sanitizeAddress(address) || 'عنوان الفرع',
+      mapsLink: mapsLink || '',
+      latitude: latitude !== undefined && latitude !== '' ? Number(latitude) : null,
+      longitude: longitude !== undefined && longitude !== '' ? Number(longitude) : null,
+      locationVerified: locationVerified === true,
+      verifiedMapsLink: locationVerified === true ? String(verifiedMapsLink || mapsLink || '').trim() : '',
+      phone: phone || '',
+      whatsapp: whatsapp || '',
+      image: image || '',
+      slotDuration: Number(slotDuration) || 15,
+      maxDailyBookings: Number(maxDailyBookings) || 0,
+      // Branches registered by the owner start closed until doctor configures them.
+      isOpen: isCreating && auth.isOwner ? false : isOpen !== false,
+      weeklySchedule: isCreating && auth.isOwner
+        ? DEFAULT_WEEKLY_SCHEDULE.map(day => ({ ...day, isOpen: false }))
+        : schedule,
+      workingHours: isCreating && auth.isOwner
+        ? 'لم يحدد الطبيب مواعيد هذا الفرع بعد'
+        : formatWeeklyScheduleSummary(schedule, true),
+      isMain: Boolean(isMain),
+      updatedAt: new Date().toISOString()
+    }
+
+    if (!isCreating) {
+      // Some legacy clinics displayed a virtual branch with id="main" even though
+      // Firestore has no document at branches/main. Resolve its real document ID.
+      const legacyMain = branchId === 'main' || String(branchId).startsWith('main-branch-')
+      let resolvedId: string = branchId
+      let existing = await readDocument(`branches/${resolvedId}`)
+
+      if (!existing && legacyMain) {
+        const registered = await fetchBranchesForClinic(clinicId, slug)
+        for (const candidate of registered.filter((b) => b.isMain || b.name === 'الفرع الرئيسي')) {
+          const candidateDoc = await readDocument(`branches/${candidate.id}`)
+          if (candidateDoc) {
+            resolvedId = candidate.id
+            existing = candidateDoc
+            break
+          }
+        }
+        // Never manufacture a second branch as a side effect of editing or toggling.
+        // The Platform Owner must explicitly register the missing main branch.
+      }
+
+      if (!existing) {
+        return NextResponse.json({ error: 'هذا الفرع غير موجود. حدّث قائمة الفروع ثم حاول مجددًا.' }, { status: 404 })
+      }
+      const oldBranch = existing
+      // Ownership must be checked even for the platform owner to prevent
+      // modifying a different clinic via a forged branch ID.
+      if (![oldBranch.clinicId, oldBranch.clinic_id].includes(clinicId)) {
+        return NextResponse.json({ error: 'الفرع لا يتبع العيادة المحددة' }, { status: 403 })
+      }
+      const restoreArchived = auth.isOwner && body.isArchived === false
+      if (oldBranch.isArchived === true && !restoreArchived) {
+        return NextResponse.json({ error: 'الفرع مؤرشف ولا يقبل التعديل' }, { status: 409 })
+      }
+
+      // PATCH semantics: a status-only update must not wipe the schedule,
+      // map coordinates, contacts, photo, or main-branch flag.
+      const editableFields = auth.isOwner
+        ? ['name', 'governorate', 'city', 'area', 'address', 'mapsLink',
+          'latitude', 'longitude', 'locationVerified', 'verifiedMapsLink', 'phone', 'whatsapp', 'image',
+          'slotDuration', 'maxDailyBookings', 'isOpen', 'weeklySchedule']
+        : ['slotDuration', 'maxDailyBookings', 'isOpen', 'weeklySchedule']
+      const patch: Record<string, any> = { updatedAt: new Date().toISOString() }
+      for (const key of editableFields) {
+        if (Object.prototype.hasOwnProperty.call(body, key)) patch[key] = branchPayload[key]
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'weeklySchedule')) {
+        patch.workingHours = formatWeeklyScheduleSummary(patch.weeklySchedule, true)
+      }
+      if (restoreArchived) patch.isArchived = false
+
+      // A single atomic batch prevents the old and new primary branches from
+      // both remaining primary. A plain isMain:false request is rejected.
+      if (Object.prototype.hasOwnProperty.call(body, 'isMain') && body.isMain === false) {
+        return NextResponse.json({
+          error: 'اختر الفرع الرئيسي البديل بدلاً من إلغاء الرئيسي بدون بديل.'
+        }, { status: 400 })
+      }
+      if (body.isMain === true) {
+        if (oldBranch.isArchived === true) {
+          return NextResponse.json({ error: 'لا يمكن تعيين فرع مؤرشف كرئيسي' }, { status: 409 })
+        }
+        const registered = await fetchBranchesForClinic(clinicId, slug)
+        if (!registered.some((item) => item.id === resolvedId)) {
+          return NextResponse.json({ error: 'الفرع المحدد غير موجود بالقائمة المسجلة' }, { status: 404 })
+        }
+        const timestamp = new Date().toISOString()
+        await commitDocumentPatches(registered.map((item) => ({
+          path: `branches/${item.id}`,
+          data: { isMain: item.id === resolvedId, updatedAt: timestamp }
+        })))
+      }
+
+      await writeDocument(`branches/${resolvedId}`, patch, true)
+      return NextResponse.json({
+        success: true,
+        branch: { ...oldBranch, ...patch, id: resolvedId, ...(body.isMain === true ? { isMain: true } : {}) }
+      })
+    } else {
+      // Create new branch
+      branchPayload.isArchived = false
+      branchPayload.createdAt = new Date().toISOString()
+      // Enforce owner-specified clinic quota for branch creation.
+      const maxAllowed = Math.max(1, Number(clinic.maxBranches ?? clinic.branchQuota ?? 1))
+      const existingBranches = canonicalizeBranches(await fetchBranchesForClinic(clinicId, slug))
+      if (existingBranches.length >= maxAllowed) {
+        return NextResponse.json({ error: `اكتمل الحد المسموح به من الفروع (${maxAllowed})` }, { status: 403 })
+      }
+      // New branches cannot silently steal the primary designation. First
+      // created branch becomes primary; others are promoted via atomic update.
+      branchPayload.isMain = existingBranches.length === 0
+      const newBranchId = await createDocument('branches', branchPayload)
+      return NextResponse.json({
+        success: true,
+        branch: { id: newBranchId, ...branchPayload }
+      })
+    }
+  } catch (err: any) {
+    console.error('Error in branches POST:', err)
+    return NextResponse.json(
+      { error: 'فشل في حفظ بيانات الفرع: ' + (err.message || '') },
+      { status: 500 }
+    )
+  }
+}
+
+/**
+ * DELETE: Soft-archive a branch safely without deleting historical appointment or financial data.
+ */
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ slug: string }> }
+) {
+  try {
+    const { slug } = await params
+    if (!slug) {
+      return NextResponse.json({ error: 'معرف العيادة مطلوب' }, { status: 400 })
+    }
+
+    const clinic = await findClinicBySlug(slug)
+    if (!clinic) return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404 })
+    const clinicId = String(clinic.id)
+
+    const auth = await authenticateCaller(req, slug, clinicId)
+    if (!auth.isOwner) {
+      return NextResponse.json({ error: 'أرشفة الفروع متاحة لمالك المنصة فقط' }, { status: 403 })
+    }
+
+    const { searchParams } = new URL(req.url)
+    const branchId = searchParams.get('branchId')
+    if (!branchId) {
+      return NextResponse.json({ error: 'معرف الفرع مطلوب' }, { status: 400 })
+    }
+
+    // Never allow archiving a branch of a different clinic, even as platform owner.
+    const targetBranch = await readDocument(`branches/${branchId}`)
+    if (!targetBranch) return NextResponse.json({ error: 'الفرع غير موجود' }, { status: 404 })
+    const targetData = targetBranch
+    if (![targetData.clinicId, targetData.clinic_id].includes(clinicId)) {
+      return NextResponse.json({ error: 'الفرع لا يتبع العيادة المحددة' }, { status: 403 })
+    }
+    if (targetData.isMain && targetData.isArchived !== true) {
+      const remainingBranches = (await fetchBranchesForClinic(clinicId, slug))
+        .filter((branch) => branch.id !== branchId)
+      const mainKey = mainBranchDuplicateKey({ ...targetData, id: branchId })
+      const hasAnotherMain = !!mainKey && remainingBranches.some(
+        (branch) => mainBranchDuplicateKey(branch) === mainKey
+      )
+      if (remainingBranches.length > 0 && !hasAnotherMain) {
+        return NextResponse.json({
+          error: 'لا يمكن أرشفة الفرع الرئيسي الوحيد. يمكنك أرشفة النسخة المكررة فقط.'
+        }, { status: 409 })
+      }
+    }
+
+    await writeDocument(`branches/${branchId}`, {
+      isArchived: true,
+      updatedAt: new Date().toISOString()
+    }, true)
+
+    return NextResponse.json({ success: true, message: 'تم أرشفة الفرع بنجاح' })
+  } catch (err: any) {
+    console.error('Error in branches DELETE:', err)
+    return NextResponse.json(
+      { error: 'فشل في أرشفة الفرع: ' + (err.message || '') },
+      { status: 500 }
+    )
+  }
+}
