@@ -8,9 +8,12 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData()
     const file = formData.get('file') as File | null
-    const folder = (formData.get('folder') as string) || 'general'
+    const folder = formData.get('folder') || 'general'
+    if (typeof folder !== 'string' || !/^[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/.test(folder) || folder.length > 160) {
+      throw new ApiError(400, 'INVALID_FOLDER', 'مسار رفع الصورة غير صالح')
+    }
 
-    if (!file) {
+    if (!(file instanceof File) || file.size === 0) {
       throw new ApiError(400, 'NO_FILE', 'لم يتم إرسال أي ملف صورة')
     }
 
@@ -24,26 +27,37 @@ export async function POST(request: NextRequest) {
     }
 
     const { project } = getFirebaseServerCredentials()
-    const bucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || `${project}.appspot.com`
-    const token = await googleAccessToken()
+    const bucket = process.env.FIREBASE_STORAGE_BUCKET ||
+      process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || `${project}.firebasestorage.app`
+    const token = await googleAccessToken('storage')
 
     const cleanName = file.name
       .toLowerCase()
       .replace(/[^a-z0-9.]/g, '_')
       .replace(/_+/g, '_')
-    const timestamp = Date.now()
-    const objectName = `landing_assets/${folder}/${timestamp}_${cleanName}`
-
-    const arrayBuffer = await file.arrayBuffer()
-
-    const uploadUrl = `https://storage.googleapis.com/upload/storage/v1/b/${encodeURIComponent(bucket)}/o?uploadType=media&name=${encodeURIComponent(objectName)}`
+    const objectName = `landing_assets/${folder}/${crypto.randomUUID()}_${cleanName}`
+    const downloadToken = crypto.randomUUID()
+    const boundary = crypto.randomUUID()
+    const metadata = JSON.stringify({
+      name: objectName,
+      contentType: file.type,
+      metadata: { firebaseStorageDownloadTokens: downloadToken },
+    })
+    const body = new Blob([
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n`,
+      `--${boundary}\r\nContent-Type: ${file.type}\r\n\r\n`,
+      file,
+      `\r\n--${boundary}--\r\n`,
+    ])
+    const uploadUrl = `https://storage.googleapis.com/upload/storage/v1/b/${encodeURIComponent(bucket)}/o?uploadType=multipart&ifGenerationMatch=0`
     const res = await fetch(uploadUrl, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
-        'Content-Type': file.type || 'image/jpeg',
+        'Content-Type': `multipart/related; boundary=${boundary}`,
       },
-      body: arrayBuffer,
+      body,
+      signal: AbortSignal.timeout(15000),
     })
 
     if (!res.ok) {
@@ -53,7 +67,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Public Firebase Storage URL
-    const publicUrl = `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(bucket)}/o/${encodeURIComponent(objectName)}?alt=media`
+    const publicUrl = `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(bucket)}/o/${encodeURIComponent(objectName)}?alt=media&token=${downloadToken}`
 
     return NextResponse.json({
       success: true,
