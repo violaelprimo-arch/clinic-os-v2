@@ -358,16 +358,14 @@ export async function DELETE(
     if (![targetData.clinicId, targetData.clinic_id].includes(clinicId)) {
       return NextResponse.json({ error: 'الفرع لا يتبع العيادة المحددة' }, { status: 403 })
     }
-    const activeBranches = await fetchBranchesForClinic(clinicId, slug)
-    if (activeBranches.length <= 1) {
-      return NextResponse.json({ error: 'لا يمكن أرشفة آخر فرع مسجل بالعيادة' }, { status: 409 })
-    }
-    if (targetData.isMain) {
+    if (targetData.isMain && targetData.isArchived !== true) {
+      const remainingBranches = (await fetchBranchesForClinic(clinicId, slug))
+        .filter((branch) => branch.id !== branchId)
       const mainKey = mainBranchDuplicateKey({ ...targetData, id: branchId })
-      const hasAnotherMain = !!mainKey && activeBranches.some(
-        (b) => b.id !== branchId && mainBranchDuplicateKey(b) === mainKey
+      const hasAnotherMain = !!mainKey && remainingBranches.some(
+        (branch) => mainBranchDuplicateKey(branch) === mainKey
       )
-      if (!hasAnotherMain) {
+      if (remainingBranches.length > 0 && !hasAnotherMain) {
         return NextResponse.json({
           error: 'لا يمكن أرشفة الفرع الرئيسي الوحيد. يمكنك أرشفة النسخة المكررة فقط.'
         }, { status: 409 })
