@@ -156,10 +156,10 @@ export function openManualWhatsAppChat({
 }
 
 /**
- * Formats a rich, professional e-prescription WhatsApp message.
- * Directly puts the entire prescription content (diagnosis, all medications with dosages,
- * duration, instructions) right into the WhatsApp chat.
- * Strictly adheres to ZERO WEB LINKS as requested.
+ * Formats a clean, secure e-prescription WhatsApp message.
+ * Adheres strictly to medical privacy rules:
+ * - NO diagnosis or medication names in chat text
+ * - Clean permanent URL (no 7-day tokens or expires params)
  */
 export function formatPrescriptionWhatsAppMessage({
   clinicName,
@@ -178,7 +178,7 @@ export function formatPrescriptionWhatsAppMessage({
   clinicName?: string
   doctorName?: string
   specialty?: string
-  patientName: string
+  patientName?: string
   patientAge?: string | number
   date?: string
   rxNumber?: string | number
@@ -186,54 +186,32 @@ export function formatPrescriptionWhatsAppMessage({
   instructions?: string
   notes?: string
   drugs?: Array<{ name: string; dose?: string; duration?: string; notes?: string }>
-  directRxUrl?: string // Kept for backwards type compatibility, but NEVER included in message text!
+  directRxUrl?: string
 }): string {
-  const parts: string[] = []
+  const cName = clinicName || 'العيادة الطبية'
+  let cleanUrl = (directRxUrl || '').trim()
+  try {
+    if (cleanUrl.startsWith('http')) {
+      const u = new URL(cleanUrl)
+      u.searchParams.delete('token')
+      u.searchParams.delete('expires')
+      u.searchParams.delete('expiry')
+      u.searchParams.delete('expiresAt')
+      cleanUrl = u.toString()
+    }
+  } catch {}
 
-  parts.push(`🌿 *الروشتة الطبية الرسمية*`)
-  if (clinicName) parts.push(`🏥 *العيادة:* ${clinicName}`)
-  if (doctorName) parts.push(`👨‍⚕️ *الطبيب:* د. ${doctorName}${specialty ? ` (${specialty})` : ''}`)
-  
-  const ageStr = patientAge ? ` (${patientAge} سنة)` : ''
-  parts.push(`👤 *المريض:* ${patientName || 'المريض'}${ageStr}`)
-  if (date) parts.push(`📅 *التاريخ:* ${date}`)
-  if (rxNumber) parts.push(`🔢 *رقم الروشتة:* #${rxNumber}`)
+  const lines = [
+    `مرحبًا، هذه روشتتك الطبية من عيادة ${cName}.`,
+    '',
+    'يمكنك فتح الروشتة وتحميلها أو طباعتها من الرابط التالي:',
+    cleanUrl,
+    '',
+    'نتمنى لك دوام الصحة والعافية.',
+    'Yalla Clinic'
+  ]
 
-  if (diagnosis && diagnosis.trim()) {
-    parts.push(`\n🩺 *التشخيص الطبي:*\n${diagnosis.trim()}`)
-  }
-
-  const validDrugs = (drugs || []).filter(d => d && d.name && d.name.trim() !== '')
-  if (validDrugs.length > 0) {
-    const drugLines = validDrugs.map((d, i) => {
-      const details: string[] = []
-      if (d.dose && d.dose.trim()) details.push(`الجرعة: ${d.dose.trim()}`)
-      if (d.duration && d.duration.trim()) details.push(`المدة: ${d.duration.trim()}`)
-      if (d.notes && d.notes.trim()) details.push(d.notes.trim())
-      
-      const sub = details.length > 0 ? `\n   ↳ ${details.join(' | ')}` : ''
-      return `${i + 1}. *${d.name.trim()}*${sub}`
-    })
-    parts.push(`\n💊 *العلاج والأدوية المطلوبة (Rx):*\n${drugLines.join('\n')}`)
-  }
-
-  if (instructions && instructions.trim()) {
-    parts.push(`\n📝 *تعليمات وإرشادات الطبيب:*\n${instructions.trim()}`)
-  }
-
-  if (notes && notes.trim()) {
-    parts.push(`\n📋 *ملاحظات الطبيب:*\n${notes.trim()}`)
-  }
-
-  if (directRxUrl && directRxUrl.trim()) {
-    parts.push(`\n📄 *ملف الروشتة الرسمية (PDF) متاح للتحميل والطباعة فوراً عبر الرابط التالي:*`)
-    parts.push(`🔗 ${directRxUrl.trim()}`)
-  } else {
-    parts.push(`\n📄 *مرفق ملف الروشتة الطبية الرسمية (PDF)*`)
-  }
-  parts.push(`\nنتمنى لكم دوام الصحة والعافية والشفاء العاجل! 🌿`)
-
-  return parts.join('\n')
+  return lines.join('\n')
 }
 
 /**

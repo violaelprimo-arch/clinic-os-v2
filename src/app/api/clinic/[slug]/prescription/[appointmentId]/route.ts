@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readDocument, queryDocuments } from '@/lib/server/firebase-rest'
-import { authorizeRecordAccess, generateRecordShareToken } from '@/lib/server/record-access'
+import { authorizeRecordAccess, generateRecordShareToken, maskPhoneNumber } from '@/lib/server/record-access'
 
 export async function GET(
   req: NextRequest,
@@ -14,7 +14,13 @@ export async function GET(
     const allClinics = await queryDocuments('clinics')
     const clinic = allClinics.find((c: any) => c.slug === slug)
     if (!clinic) {
-      return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404 })
+      return NextResponse.json({ error: 'العيادة غير موجودة' }, {
+        status: 404,
+        headers: {
+          'Cache-Control': 'private, no-store',
+          'X-Robots-Tag': 'noindex, nofollow'
+        }
+      })
     }
 
     // 2. Fetch appointment and prescription
@@ -35,12 +41,19 @@ export async function GET(
         gender: prescription.gender,
         date: prescription.date,
         diagnosis: prescription.diagnosis,
-        drugs: prescription.drugs
+        drugs: prescription.drugs,
+        patientId: prescription.patientId
       }
     }
 
     if (!appt || (appt.clinic_id !== clinic.id && appt.clinicId !== clinic.id)) {
-      return NextResponse.json({ error: 'الروشتة غير موجودة' }, { status: 404 })
+      return NextResponse.json({ error: 'الروشتة غير موجودة' }, {
+        status: 404,
+        headers: {
+          'Cache-Control': 'private, no-store',
+          'X-Robots-Tag': 'noindex, nofollow'
+        }
+      })
     }
 
     // 3. Strict Server-Side Authorization (Prevents IDOR & Public Access)
@@ -56,13 +69,45 @@ export async function GET(
     })
 
     if (!authResult.authorized) {
+      if (authResult.error === 'VERIFICATION_REQUIRED') {
+        return NextResponse.json({
+          error: 'VERIFICATION_REQUIRED',
+          requiresVerification: true,
+          recordType: 'prescription',
+          recordId: decodedId,
+          maskedPhone: maskPhoneNumber(phoneVal),
+          clinic: {
+            id: clinic.id,
+            slug: clinic.slug,
+            clinicName: clinic.clinicName || clinic.name,
+            doctorName: clinic.doctorName,
+            doctorTitle: clinic.doctorTitle,
+            specialty: clinic.specialty,
+            logoUrl: clinic.logoUrl,
+            primaryColor: clinic.primaryColor
+          }
+        }, {
+          status: 401,
+          headers: {
+            'Cache-Control': 'private, no-store, must-revalidate',
+            'X-Robots-Tag': 'noindex, nofollow, noarchive'
+          }
+        })
+      }
+
       return NextResponse.json(
         { error: authResult.error || 'غير مصرح لك بعرض هذه الروشتة الطبية' },
-        { status: authResult.status || 401 }
+        {
+          status: authResult.status || 401,
+          headers: {
+            'Cache-Control': 'private, no-store, must-revalidate',
+            'X-Robots-Tag': 'noindex, nofollow, noarchive'
+          }
+        }
       )
     }
 
-    // 4. Generate a share token if clinic staff or owner is fetching
+    // 4. Generate permanent share token if clinic staff or owner is fetching
     let shareToken: string | undefined = undefined
     if (authResult.accessorRole === 'doctor' || authResult.accessorRole === 'assistant' || authResult.accessorRole === 'owner') {
       shareToken = await generateRecordShareToken(clinic.id, decodedId, 'prescription')
@@ -111,10 +156,29 @@ export async function GET(
         doctorName: prescription.doctorName || clinic.doctorName,
         doctorTitle: prescription.doctorTitle || clinic.doctorTitle,
         instructions: prescription.instructions || prescription.notes,
-        nextVisitDate: prescription.nextVisitDate
+        nextVisitDate: prescription.nextVisitDate,
+        templateMode: prescription.templateMode || appt.prescription_templateMode || (clinic.prescriptionTemplateUrl ? 'custom' : 'standard'),
+        primaryColor: prescription.primaryColor || clinic.primaryColor,
+        secondaryColor: prescription.secondaryColor || clinic.secondaryColor,
+        topOffset: prescription.topOffset || 25,
+        pageSize: prescription.pageSize || 'a4',
+        showHeaderFooter: prescription.showHeaderFooter !== false,
+        printBackground: prescription.printBackground !== false,
+        branchName: prescription.branchName || appt.branchName
       } : null
+    }, {
+      headers: {
+        'Cache-Control': 'private, no-store, must-revalidate',
+        'X-Robots-Tag': 'noindex, nofollow, noarchive'
+      }
     })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Error fetching prescription' }, { status: 500 })
+    return NextResponse.json({ error: error.message || 'Error fetching prescription' }, {
+      status: 500,
+      headers: {
+        'Cache-Control': 'private, no-store',
+        'X-Robots-Tag': 'noindex, nofollow'
+      }
+    })
   }
 }

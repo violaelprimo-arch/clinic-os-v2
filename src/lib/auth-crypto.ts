@@ -144,11 +144,11 @@ export async function verifyPassword(providedPassword: string, storedHash: strin
  * Create a cryptographically signed HMAC-SHA256 session token.
  */
 export async function createSessionToken(payload: {
-  role: 'owner' | 'doctor' | 'assistant' | 'patient'
+  role: 'owner' | 'doctor' | 'assistant' | 'patient' | 'otp_challenge'
   email?: string
   username?: string
   phone?: string
-  name: string
+  name?: string
   clinicId: string
   slug?: string
   patientId?: string
@@ -156,11 +156,15 @@ export async function createSessionToken(payload: {
   branchName?: string
   mustChangePassword?: boolean
   credentialsVersion?: number
+  recordId?: string
+  recordType?: string
+  hashedOtp?: string
+  expiresAt?: number
 }): Promise<string> {
   const data = {
     ...payload,
     issuedAt: Date.now(),
-    expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 days
+    expiresAt: payload.expiresAt || (Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
   }
 
   const json = JSON.stringify(data)
@@ -231,7 +235,7 @@ export async function createShareToken(options: {
   type: 'invoice' | 'prescription'
   expiresInHours?: number
 }): Promise<string> {
-  const { clinicId, recordId, type, expiresInHours = 168 } = options // default 7 days
+  const { clinicId, recordId, type, expiresInHours = 87600 } = options // Permanent (default 10 years)
   const expiresAt = Date.now() + expiresInHours * 60 * 60 * 1000
 
   const payload = `${clinicId}:${recordId}:${type}:${expiresAt}`
@@ -245,7 +249,9 @@ export async function createShareToken(options: {
 }
 
 /**
- * Verify a temporary signed share token.
+ * Verify a signed share token.
+ * Permanent verification: verifies the HMAC cryptographic signature.
+ * Never expires legitimate medical records.
  */
 export async function verifyShareToken(
   token: string,
@@ -262,9 +268,7 @@ export async function verifyShareToken(
     if (parts.length !== 5) return false
 
     const [tClinicId, tRecordId, tType, tExpiresAtStr, tSigHex] = parts
-    const expiresAt = parseInt(tExpiresAtStr, 10)
 
-    if (Date.now() > expiresAt) return false
     if (tClinicId !== expected.clinicId) return false
     if (tRecordId !== expected.recordId) return false
     if (tType !== expected.type) return false

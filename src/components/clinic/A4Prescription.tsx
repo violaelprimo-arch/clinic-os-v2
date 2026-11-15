@@ -79,7 +79,7 @@ export function A4Prescription({
   const sColor = secondaryColor || clinic?.secondaryColor || '#087CF4'
   const isA5 = pageSize === 'a5'
 
-  const doctorName = clinic?.doctorName || (isRtl ? 'أحمد عبد العزيز' : 'Ahmed Abdel Aziz')
+  const doctorName = clinic?.doctorName || (isRtl ? 'طبيب العيادة' : 'Clinic Physician')
   const doctorTitle = clinic?.doctorTitle || (isRtl ? 'د.' : 'Dr.')
   const specialty = tDynamic(clinic?.specialty) || (isRtl ? 'استشاري العيادة الطبية' : 'Consultant Physician')
   const degree = clinic?.certificationTitle || (isRtl ? 'عضو الجمعية الطبية المصرية' : 'Member of Egyptian Medical Association')
@@ -452,7 +452,8 @@ export function A4Prescription({
               validDrugs.map((drug: any, index: number) => (
                 <div
                   key={index}
-                  className="flex items-start gap-3 p-2.5 sm:p-3 rounded-xl bg-slate-50/70 border border-slate-200/70 hover:border-slate-300 transition-all"
+                  data-avoid-break="true"
+                  className="drug-card break-inside-avoid flex items-start gap-3 p-2.5 sm:p-3 rounded-xl bg-slate-50/70 border border-slate-200/70 hover:border-slate-300 transition-all"
                   dir="ltr"
                 >
                   {/* Number Badge */}
