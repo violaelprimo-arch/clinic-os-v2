@@ -23,7 +23,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
-import { collection, addDoc, setDoc, query, where, getDocs, getDoc, doc, updateDoc, onSnapshot } from 'firebase/firestore'
+import { collection, addDoc, query, where, getDocs, getDoc, doc, updateDoc, onSnapshot } from 'firebase/firestore'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useEgyptianDrugs, type EgyptianDrug } from '@/hooks/useEgyptianDrugs'
@@ -35,8 +35,7 @@ import { printHtmlViaIframe, generateA4PrescriptionHtml } from '@/lib/printServi
 import {
   generateCleanRxFileName,
   formatEgyptianPhoneForWhatsApp,
-  openManualWhatsAppChat,
-  formatPrescriptionWhatsAppMessage
+  preparePrescriptionWhatsAppAttachment
 } from '@/lib/whatsappShare'
 import { getClinicUrl } from '@/lib/clinic-url'
 import { useLanguage } from '@/context/LanguageContext'
@@ -91,7 +90,6 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const [weight, setWeight] = useState('')
   const [selectedBranchId, setSelectedBranchId] = useState('')
   const [selectedBranchName, setSelectedBranchName] = useState('')
-  const [whatsappTarget, setWhatsappTarget] = useState<'auto' | 'app' | 'web'>('auto')
   const [showWhatsappMenu, setShowWhatsappMenu] = useState(false)
 
   // Previous Instructions Autocomplete State
@@ -254,20 +252,6 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     }
 
     return null
-  }
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('yalla_rx_whatsapp_mode') as 'auto' | 'app' | 'web'
-      if (saved) setWhatsappTarget(saved)
-    }
-  }, [])
-
-  const setAndSaveWhatsappTarget = (mode: 'auto' | 'app' | 'web') => {
-    setWhatsappTarget(mode)
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('yalla_rx_whatsapp_mode', mode)
-    }
   }
 
   const { drugs: apiDrugs, loading: apiDrugsLoading, searchDrugs, syncDrugLive } = useEgyptianDrugs()
@@ -924,90 +908,20 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     }
   }
 
-  // Real PDF WhatsApp sharing: Opens chat directly with patient's phone number, auto-populates prescription in chat input, press Enter to send
-  const handleShareWhatsAppRx = (modeOverride?: 'auto' | 'app' | 'web') => {
-    if (!patientPhone) return toast.error('يرجى إدخال رقم هاتف المريض أولاً')
-
-    // 1. Ensure a prescription record ID exists synchronously (0ms) so patient has an active permanent link
-    let rxTargetId = appointmentId || ''
-    if (clinicId && !rxTargetId) {
-      try {
-        const newDocRef = doc(collection(db, 'prescriptions'))
-        rxTargetId = newDocRef.id
-        setDoc(newDocRef, {
-          clinic_id: clinicId,
-          branch_id: selectedBranchId || clinic?.branchId || '',
-          branchName: selectedBranchName || clinic?.branchName || '',
-          patientName,
-          patientPhone,
-          age,
-          diagnosis,
-          instructions,
-          date: dateStr,
-          status: 'approved',
-          doctorName: clinic?.doctorName || 'طبيب العيادة',
-          templateMode,
-          topOffset,
-          pageSize,
-          showHeaderFooter,
-          printBackground,
-          primaryColor,
-          secondaryColor,
-          drugs: drugs.filter(d => d.name && d.name.trim() !== ''),
-          createdAt: new Date().toISOString()
-        }).catch((err) => console.warn('Auto-save prescription warning:', err))
-      } catch (err) {
-        console.warn('Auto-save prescription warning:', err)
-      }
-    }
-
-    const host = typeof window !== 'undefined' && window.location.origin
-      ? window.location.origin
-      : 'https://www.yalla-clinic.com'
-    const directRxUrl = rxTargetId ? `${host}/clinic/${slug}/prescription/${rxTargetId}` : ''
-
-    const message = formatPrescriptionWhatsAppMessage({
-      clinicName: clinic?.clinicName || 'العيادة الطبية',
-      doctorName: clinic?.doctorName,
-      specialty: clinic?.specialty,
-      patientName: patientName || 'المريض',
-      patientAge: age,
-      date: dateStr,
-      rxNumber: 1042,
-      diagnosis,
-      instructions,
-      notes: notes.trim(),
-      drugs: drugs.filter(d => d.name && d.name.trim() !== ''),
-      directRxUrl
-    })
-
-    const targetMode = modeOverride || whatsappTarget || 'auto'
-
-    // 2. OPEN WHATSAPP CHAT SYNCHRONOUSLY IN 0ms (Guarantees zero popup blocker, opens exact phone, puts Rx in chat!)
-    openManualWhatsAppChat({
-      phone: patientPhone,
-      message,
-      target: targetMode
-    })
-
-    toast.success(`تم فتح محادثة المريض (${patientPhone}) وإدراج الروشتة في الشات! اضغط Enter للإرسال 🚀`, {
-      duration: 5000
-    })
-
-    // 3. Optional clipboard image copy in background for Ctrl+V (strictly WITHOUT auto-downloading to computer)
-    if (sheetRef.current && typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
-      setIsSharingPdf(true)
-      import('@/lib/pdfGenerator').then(async ({ renderElementToImageBlob }) => {
-        if (!sheetRef.current) return
-        const { blob: imgBlob } = await renderElementToImageBlob(sheetRef.current, { scale: 2.2 })
-        try {
-          await navigator.clipboard.write([
-            new ClipboardItem({ 'image/png': imgBlob })
-          ])
-        } catch {}
-      }).catch(() => {}).finally(() => {
-        setIsSharingPdf(false)
+  const handleShareWhatsAppRx = async (target?: 'auto' | 'app' | 'web') => {
+    if (!sheetRef.current || isSharingPdf) return
+    setIsSharingPdf(true)
+    try {
+      await preparePrescriptionWhatsAppAttachment({
+        sheet: sheetRef.current,
+        phone: patientPhone,
+        fileName: generateCleanRxFileName(patientName, dateStr, 'pdf'),
+        target,
       })
+    } catch {
+      toast.error('تعذر تجهيز ملف الروشتة PDF')
+    } finally {
+      setIsSharingPdf(false)
     }
   }
 

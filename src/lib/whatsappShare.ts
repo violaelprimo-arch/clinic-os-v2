@@ -319,6 +319,65 @@ export function formatInvoiceWhatsAppMessage({
   return parts.join('\n')
 }
 
+export async function preparePrescriptionWhatsAppAttachment({
+  sheet, phone, fileName, target,
+}: {
+  sheet: HTMLElement
+  phone: string
+  fileName: string
+  target?: 'auto' | 'web' | 'app'
+}): Promise<void> {
+  if (!formatEgyptianPhoneForWhatsApp(phone)) {
+    toast.error('رقم هاتف المريض غير متوفر')
+    return
+  }
+
+  const { renderElementToPdfBlob } = await import('./pdfGenerator')
+  const { blob, url } = await renderElementToPdfBlob(sheet)
+  URL.revokeObjectURL(url)
+  const file = new File([blob], fileName, { type: 'application/pdf' })
+  const shareData = { files: [file] }
+  const canShareFile = (!target || target === 'auto' || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) &&
+    typeof navigator.share === 'function' && navigator.canShare?.(shareData) === true
+
+  const downloadAndOpen = () => {
+    openManualWhatsAppChat({ phone, message: '', target })
+    const downloadUrl = URL.createObjectURL(file)
+    const link = document.createElement('a')
+    link.href = downloadUrl
+    link.download = file.name
+    document.body.append(link)
+    link.click()
+    link.remove()
+    setTimeout(() => URL.revokeObjectURL(downloadUrl), 30000)
+    toast.info('ارفق ملف PDF من التنزيلات باستخدام زر المشبك في واتساب.', { duration: 10000 })
+  }
+
+  // Preparing the PDF is asynchronous. A new click gives the share sheet
+  // or WhatsApp tab the browser's required user activation.
+  toast('ملف الروشتة PDF جاهز', {
+    description: canShareFile
+      ? 'اختار واتساب ثم راجع اسم المستلم قبل الإرسال.'
+      : 'هنفتح محادثة المريض وننزّل الملف عشان ترفقه.',
+    duration: 20000,
+    action: {
+      label: canShareFile ? 'مشاركة الملف' : 'فتح واتساب وتنزيل',
+      onClick: () => {
+        if (!canShareFile) {
+          downloadAndOpen()
+          return
+        }
+        void navigator.share(shareData).catch((error: unknown) => {
+          if (error instanceof Error && error.name === 'AbortError') return
+          toast.error('تعذرت مشاركة الملف', {
+            action: { label: 'فتح واتساب وتنزيل', onClick: downloadAndOpen },
+          })
+        })
+      },
+    },
+  })
+}
+
 /**
  * Handles professional sharing of documents and images (Prescriptions, Invoices, Reports).
  * - Opens WhatsApp chat directly targeting the recipient's phone number.

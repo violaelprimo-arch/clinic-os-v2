@@ -167,6 +167,7 @@ export function A4Prescription({
 
       <div
         id="patient-a4-print-sheet"
+        data-prescription-paper={isA5 ? 'a5' : 'a4'}
         className={`w-full bg-white relative mx-auto flex flex-col justify-between overflow-hidden shadow-2xl border border-slate-200 aspect-[1/1.414] ${
           isA5 ? 'max-w-[560px] text-[11px] p-6' : 'max-w-[800px] text-xs p-8 sm:p-10'
         } ${language === 'en' ? 'text-left' : 'text-right'} font-sans transition-all`}

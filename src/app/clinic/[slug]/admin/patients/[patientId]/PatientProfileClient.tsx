@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Receipt, ExternalLink, Clock, Phone, ArrowRight, User, Calendar, Pill, Printer, Activity, ChevronDown, ChevronUp, Stethoscope, CheckCircle, FileText, Download, MapPin } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { generateCleanRxFileName, formatPrescriptionWhatsAppMessage, openManualWhatsAppChat, getSavedWhatsAppTarget } from '@/lib/whatsappShare'
+import { generateCleanRxFileName, preparePrescriptionWhatsAppAttachment } from '@/lib/whatsappShare'
 import { WhatsAppShareButton } from '@/components/common/WhatsAppShareButton'
 import { InvoiceView, type InvoiceData } from '@/components/clinic/InvoiceView'
 import { useLanguage } from '@/context/LanguageContext'
@@ -109,62 +109,19 @@ export default function PatientProfileClient({ slug, patientId }: { slug: string
     }
   }
 
-  const sendWhatsAppRx = async (appt: any, targetOverride?: 'web' | 'app') => {
-    if (!phone) return toast.error('يرجى إدخال رقم هاتف المريض')
+  const sendWhatsAppRx = async (appt: any, target?: 'web' | 'app') => {
+    const sheet = document.getElementById(`rx-sheet-${appt.id}`)
+    if (!sheet || sharingApptId) return
     setSharingApptId(appt.id)
-
     try {
-      const pName = patientData?.name || appt?.patientName || 'المريض'
-      const pAge = patientData?.age || appt?.age || patientData?.dob || appt?.dob || ''
-
-      const host = typeof window !== 'undefined' && window.location.origin
-        ? window.location.origin
-        : 'https://www.yalla-clinic.com'
-      const directRxUrl = `${host}/clinic/${slug}/prescription/${appt.id}`
-
-      const message = formatPrescriptionWhatsAppMessage({
-        clinicName: clinic?.clinicName || 'العيادة الطبية',
-        doctorName: clinic?.doctorName,
-        specialty: clinic?.specialty,
-        patientName: pName,
-        patientAge: pAge,
-        date: appt.date,
-        diagnosis: appt.diagnosis,
-        drugs: appt.drugs || [],
-        directRxUrl
-      })
-
-      const targetMode = targetOverride || getSavedWhatsAppTarget()
-      const rxElement = document.getElementById(`rx-sheet-${appt.id}`)
-
-      // Open WhatsApp chat synchronously in 0ms (Zero popup blocker, opens exact phone, puts Rx in chat!)
-      openManualWhatsAppChat({
+      await preparePrescriptionWhatsAppAttachment({
+        sheet,
         phone,
-        message,
-        target: targetMode
+        fileName: generateCleanRxFileName(patientData?.name || appt.patientName || 'المريض', appt.date, 'pdf'),
+        target,
       })
-
-      toast.success(`تم فتح محادثة المريض (${phone}) وإدراج الروشتة في الشات! اضغط Enter للإرسال 🚀`, { duration: 5000 })
-
-      // 3. Desktop Clipboard image copy for Ctrl+V paste (strictly WITHOUT auto-downloading to computer)
-      if (rxElement) {
-        if (typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
-          try {
-            const { renderElementToImageBlob } = await import('@/lib/pdfGenerator')
-            const { blob: imgBlob } = await renderElementToImageBlob(rxElement, { scale: 2.5 })
-            await navigator.clipboard.write([
-              new ClipboardItem({ 'image/png': imgBlob })
-            ])
-          } catch {}
-        }
-
-        toast.success(`✅ تم إرفاق رابط الـ PDF الرسمي بالرسالة! يمكنك أيضاً الضغط على (Ctrl + V) لإرسال صورة الروشتة فوراً 🚀`, {
-          duration: 6000
-        })
-      }
-    } catch (err) {
-      console.error(err)
-      toast.error('تعذر مشاركة الروشتة عبر واتساب')
+    } catch {
+      toast.error('تعذر تجهيز ملف الروشتة PDF')
     } finally {
       setSharingApptId(null)
     }

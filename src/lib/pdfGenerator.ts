@@ -239,6 +239,45 @@ function sanitizeColorsToRgb(clonedDoc: Document, clonedEl: HTMLElement) {
   }
 }
 
+async function capturePrescriptionSheet(sheet: HTMLElement, scale: number): Promise<HTMLCanvasElement> {
+  const { default: html2canvas } = await import('html2canvas')
+  const isA5 = sheet.dataset.prescriptionPaper === 'a5'
+  const width = isA5 ? 560 : 794
+  const height = isA5 ? 794 : 1123
+  const clone = sheet.cloneNode(true) as HTMLElement
+  const container = document.createElement('div')
+  // Keep the capture at paper size, outside the scaled and clipped preview.
+  Object.assign(container.style, {
+    position: 'fixed', left: '-10000px', top: '0', width: `${width}px`,
+    pointerEvents: 'none',
+  })
+  container.setAttribute('aria-hidden', 'true')
+  Object.assign(clone.style, {
+    width: `${width}px`, maxWidth: 'none', minHeight: `${height}px`,
+    aspectRatio: 'auto', margin: '0', transform: 'none',
+    overflow: 'visible', transition: 'none', boxShadow: 'none',
+  })
+  container.append(clone)
+  document.body.append(container)
+  try {
+    await document.fonts.ready
+    await inlineImagesAsBase64(clone)
+    return await html2canvas(clone, {
+      scale: Math.min(scale, 2.5),
+      backgroundColor: '#fff',
+      useCORS: true,
+      logging: false,
+      windowWidth: 1200,
+      onclone: async (clonedDoc, clonedSheet) => {
+        await clonedDoc.fonts.ready
+        sanitizeColorsToRgb(clonedDoc, clonedSheet)
+      },
+    })
+  } finally {
+    container.remove()
+  }
+}
+
 /**
  * Captures an element using html2canvas safely with inlined Base64 images and isolated dimensions.
  * GUARANTEES allowTaint = false so canvas.toDataURL() and canvas.toBlob() NEVER throw SecurityError.
@@ -248,6 +287,8 @@ async function captureElementCanvas(element: HTMLElement, scale: number = 2.5): 
 
   // Target inner sheet if element is a wrapper
   const targetSheet = (element.querySelector('#patient-a4-print-sheet') as HTMLElement) || element
+
+  if (targetSheet.dataset.prescriptionPaper) return capturePrescriptionSheet(targetSheet, scale)
 
   // 1. Ensure fonts in current document are fully loaded before capturing
   if (typeof document !== 'undefined' && document.fonts) {
@@ -423,7 +464,9 @@ export async function renderElementToPdfBlob(
   }
 
   // A4 or A5 Document
-  const isA5 = format === 'a5'
+  const paper = (element.matches('[data-prescription-paper]') ? element :
+    element.querySelector<HTMLElement>('[data-prescription-paper]'))?.dataset.prescriptionPaper
+  const isA5 = (paper || format) === 'a5'
   const isLandscape = orientation === 'landscape'
 
   const pageWidth = isA5
@@ -440,21 +483,24 @@ export async function renderElementToPdfBlob(
     format: isA5 ? 'a5' : 'a4'
   })
 
-  const imgWidth = pageWidth
-  const imgHeight = (canvas.height * pageWidth) / canvas.width
+  const naturalHeight = (canvas.height * pageWidth) / canvas.width
+  const fit = paper && naturalHeight <= pageHeight + 2 ? Math.min(1, pageHeight / naturalHeight) : 1
+  const imgWidth = pageWidth * fit
+  const imgHeight = naturalHeight * fit
+  const left = (pageWidth - imgWidth) / 2
 
   let heightLeft = imgHeight
   let position = 0
 
   // First page
-  pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST')
+  pdf.addImage(imgData, 'PNG', left, position, imgWidth, imgHeight, undefined, 'FAST')
   heightLeft -= pageHeight
 
   // Multi-page handling only if document genuinely exceeds page height by more than 15mm
-  while (heightLeft > 15) {
+  while (heightLeft > (paper ? 0.1 : 15)) {
     position = position - pageHeight
     pdf.addPage()
-    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST')
+    pdf.addImage(imgData, 'PNG', left, position, imgWidth, imgHeight, undefined, 'FAST')
     heightLeft -= pageHeight
   }
 
@@ -471,8 +517,7 @@ export async function downloadElementAsPdf(
   fileName: string = 'document.pdf',
   options: PdfRenderOptions = {}
 ): Promise<void> {
-  const { blob } = await renderElementToPdfBlob(element, options)
-  const downloadUrl = URL.createObjectURL(blob)
+  const { url: downloadUrl } = await renderElementToPdfBlob(element, options)
   const link = document.createElement('a')
   link.href = downloadUrl
   link.download = fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`
@@ -511,8 +556,7 @@ export async function downloadElementAsImage(
   fileName: string = 'document.png',
   options: { scale?: number } = {}
 ): Promise<void> {
-  const { blob } = await renderElementToImageBlob(element, options)
-  const downloadUrl = URL.createObjectURL(blob)
+  const { url: downloadUrl } = await renderElementToImageBlob(element, options)
   const link = document.createElement('a')
   link.href = downloadUrl
   link.download = fileName.endsWith('.png') ? fileName : `${fileName}.png`
