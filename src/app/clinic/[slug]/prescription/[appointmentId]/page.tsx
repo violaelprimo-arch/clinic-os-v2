@@ -120,6 +120,9 @@ export default function PublicPrescriptionPage({
     const html = generateA4PrescriptionHtml({
       clinicName: clinic?.clinicName || (isRtl ? 'العيادة الطبية' : 'Medical Clinic'),
       doctorName: clinic?.doctorName || (isRtl ? 'طبيب العيادة' : 'Clinic Physician'),
+      doctorTitle: clinic?.doctorTitle,
+      certificationEntity: clinic?.certificationEntity,
+      branchName: clinic?.branchName,
       specialty: clinic?.specialty,
       certificationTitle: clinic?.certificationTitle,
       clinicPhone: clinic?.clinicPhone,

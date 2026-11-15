@@ -5,6 +5,8 @@
  * eliminating all website UI artifacts (modals, overlays, sidebars, buttons, backgrounds).
  */
 
+import { formatPrescriptionDoctorName } from '@/lib/prescription-clinic'
+
 export interface ThermalReceiptData {
   clinicName: string
   branchName?: string
@@ -75,6 +77,8 @@ export interface MedicalReportData {
 export interface PrescriptionPrintData {
   clinicName: string
   doctorName: string
+  doctorTitle?: string
+  certificationEntity?: string
   specialty?: string
   degreeTitle?: string
   certificationTitle?: string
@@ -1216,11 +1220,10 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
   const safeOffset = typeof data.topOffset === 'number' && data.topOffset <= 60 && data.topOffset >= 0 ? data.topOffset : 25
   const shouldPrintBg = isCustom && data.printBackground !== false
 
-  const doctorName = data.doctorName || 'أحمد عبد العزيز'
-  const doctorTitle = 'د.'
-  const specialty = data.specialty || 'استشاري العيادة الطبية'
-  const degree = data.degreeTitle || data.certificationTitle || 'عضو الجمعية الطبية المصرية'
-  const syndicate = 'نقابة الأطباء'
+  const escape = (value?: string) => (value || '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+  const doctorName = escape(formatPrescriptionDoctorName(data.doctorName, data.doctorTitle || 'د.'))
+  const specialty = escape(data.specialty)
+  const credentials = escape([data.degreeTitle || data.certificationTitle, data.certificationEntity].filter(Boolean).join(' • '))
   const validDrugs = (data.drugs || []).filter((d) => d.name && d.name.trim())
   const hasVitals = !!(
     data.vitalSigns &&
@@ -1720,15 +1723,15 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
       <div class="rx-header">
         <div class="header-row">
           <div class="doctor-block">
-            <h1>${doctorTitle} ${doctorName}</h1>
+            <h1>${doctorName}</h1>
             <div class="doctor-spec">${specialty}</div>
-            <div class="doctor-deg">${degree} • ${syndicate}</div>
+            ${credentials ? `<div class="doctor-deg">${credentials}</div>` : ''}
           </div>
 
           <div class="clinic-brand">
             <img src="${data.logoUrl || '/brand/yalla-clinic/logo-light-bg.png'}" class="clinic-logo" alt="Logo" />
-            <div class="clinic-name">${data.clinicName || 'Yalla Clinic'}</div>
-            ${data.branchName ? `<div class="branch-pill">فرع: ${data.branchName}</div>` : ''}
+            <div class="clinic-name">${escape(data.clinicName) || 'Yalla Clinic'}</div>
+            ${data.branchName ? `<div class="branch-pill">فرع: ${escape(data.branchName)}</div>` : ''}
           </div>
         </div>
 
@@ -1850,7 +1853,7 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
         <!-- Doctor Signature -->
         <div class="stamp-signature-area">
           <div class="signature-box">
-            <div class="signature-line">${doctorTitle} ${doctorName}</div>
+            <div class="signature-line">${doctorName}</div>
             <div class="signature-label">توقيع الطبيب</div>
           </div>
         </div>
@@ -1863,8 +1866,8 @@ export function generateA4PrescriptionHtml(data: PrescriptionPrintData): string 
 
         <!-- Clinic Contacts -->
         <div class="clinic-meta-box">
-          <div>${data.clinicAddress || 'العنوان: مسجل بالعيادة'}</div>
-          <div dir="ltr">تليفون: ${data.clinicPhone || 'مسجل بالعيادة'}</div>
+          ${data.clinicAddress ? `<div>${escape(data.clinicAddress)}</div>` : ''}
+          ${data.clinicPhone ? `<div dir="ltr">${escape(data.clinicPhone)}</div>` : ''}
           <div class="meta-brand-copy">نظام تشغيل العيادات الذكي • Yalla Clinic 2026</div>
         </div>
 

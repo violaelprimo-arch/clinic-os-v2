@@ -1,5 +1,7 @@
 'use client'
 
+import { usePrescriptionBranches } from '@/hooks/usePrescriptionBranches'
+import { prescriptionClinicDetails } from '@/lib/prescription-clinic'
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
@@ -63,6 +65,7 @@ export default function PatientDashboardPage() {
   const router = useRouter()
   const params = useParams()
   const slug = (params?.slug as string) || 'zizo'
+  const prescriptionBranches = usePrescriptionBranches(slug)
 
   // Patient session state
   const [patient, setPatient] = useState<{
@@ -1628,7 +1631,7 @@ export default function PatientDashboardPage() {
             {/* Printable Rx Sheet */}
             <div ref={rxSheetRef} className="overflow-x-auto bg-white p-2 rounded-2xl">
               <A4Prescription
-                clinic={clinic}
+                clinic={{ ...clinic, ...prescriptionClinicDetails(clinic, prescriptionBranches ?? clinic?.branches, selectedRx.branch_id || selectedRx.branchId, selectedRx.branchName) }}
                 patientName={selectedRx.patientName || patientName}
                 age={selectedRx.patientAge || patientAge}
                 date={selectedRx.date || new Date().toISOString().split('T')[0]}
