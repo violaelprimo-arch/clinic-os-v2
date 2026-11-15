@@ -131,7 +131,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
   const [mapsLink, setMapsLink] = useState('')
   const [latitude, setLatitude] = useState<string>('')
   const [longitude, setLongitude] = useState<string>('')
-  const [phones, setPhones] = useState<string[]>(['01012345678'])
+  const [phones, setPhones] = useState<string[]>([''])
 
   // Services
   const [services, setServices] = useState<any[]>([
@@ -533,7 +533,7 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
       logoUrl: safeImageUrl(logoUrl),
       primaryColor: primaryColor || '#087CF4',
       secondaryColor: secondaryColor || '#02CFF3',
-      clinicPhone: phones[0] || '01012345678',
+      clinicPhone: phones[0] || '',
       clinicPhones: phones.filter((p) => typeof p === 'string' && p.trim() !== ''),
       clinicAddress: address || '',
       mapsLink: mapsLink || '',

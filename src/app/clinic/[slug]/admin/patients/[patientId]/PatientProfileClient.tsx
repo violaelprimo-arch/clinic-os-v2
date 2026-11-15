@@ -1,4 +1,6 @@
 'use client'
+import { usePrescriptionBranches } from '@/hooks/usePrescriptionBranches'
+import { prescriptionClinicDetails } from '@/lib/prescription-clinic'
 import { loadClinicProfile } from '@/lib/clinic-profile-client'
 
 import { ResidentialAreaSelector, ResidentialAreaValue } from '@/components/common/ResidentialAreaSelector'
@@ -62,17 +64,21 @@ export default function PatientProfileClient({ slug, patientId }: { slug: string
   const [sharingApptId, setSharingApptId] = useState<string | null>(null)
   const [downloadingApptId, setDownloadingApptId] = useState<string | null>(null)
 
+  const branches = usePrescriptionBranches(slug)
+
   const handlePrintRx = async (appt: any) => {
     const { printHtmlViaIframe, generateA4PrescriptionHtml } = await import('@/lib/printService')
     const pName = patientData?.name || appt?.patientName || 'المريض'
     const pAge = patientData?.age || appt?.age || patientData?.dob || appt?.dob || ''
+    const details = prescriptionClinicDetails(clinic, branches ?? clinic?.branches, appt.branch_id || appt.branchId, appt.branchName)
     const html = generateA4PrescriptionHtml({
-      clinicName: clinic?.clinicName || 'العيادة الطبية',
+      ...details,
+      clinicName: details.clinicName || 'العيادة الطبية',
       doctorName: clinic?.doctorName,
       specialty: clinic?.specialty,
       certificationTitle: clinic?.certificationTitle,
-      clinicPhone: clinic?.clinicPhone,
-      clinicAddress: clinic?.clinicAddress,
+      doctorTitle: clinic?.doctorTitle,
+      certificationEntity: clinic?.certificationEntity,
       primaryColor: clinic?.primaryColor || '#087CF4',
       logoUrl: clinic?.logoUrl,
       patientName: pName,
@@ -729,7 +735,8 @@ export default function PatientProfileClient({ slug, patientId }: { slug: string
                               </div>
                               <div id={`rx-sheet-${appt.id}`} className="bg-white rounded-xl border border-border overflow-hidden print:overflow-visible print:border-0 print:m-0 print:p-0 print:w-[100vw] print:h-[100vh]">
                                 <A4Prescription 
-                                  clinic={clinic}
+                                  clinic={{ ...clinic, ...prescriptionClinicDetails(clinic, branches ?? clinic?.branches, appt.branch_id || appt.branchId, appt.branchName) }}
+                                  branchName={appt.branchName}
                                   patientName={patientData?.name || appt?.patientName || 'المريض'}
                                   age={patientData?.age || appt?.age || patientData?.dob || appt?.dob || ''}
                                   date={appt.date}

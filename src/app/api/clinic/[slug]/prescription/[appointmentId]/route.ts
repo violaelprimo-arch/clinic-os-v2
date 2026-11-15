@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readDocument, queryDocuments } from '@/lib/server/firebase-rest'
+import { readDocument, queryDocumentsByField } from '@/lib/server/firebase-rest'
+import { fetchBranchesForClinic } from '@/lib/server/clinic-branches'
+import { prescriptionClinicDetails } from '@/lib/prescription-clinic'
 import { authorizeRecordAccess, generateRecordShareToken } from '@/lib/server/record-access'
 
 export async function GET(
@@ -11,8 +13,7 @@ export async function GET(
     const decodedId = decodeURIComponent(appointmentId)
 
     // 1. Resolve clinic by slug
-    const allClinics = await queryDocuments('clinics')
-    const clinic = allClinics.find((c: any) => c.slug === slug)
+    const [clinic] = await queryDocumentsByField('clinics', 'slug', slug)
     if (!clinic) {
       return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404 })
     }
@@ -25,10 +26,14 @@ export async function GET(
       prescription = await readDocument(`prescriptions/${decodedId}`)
     }
 
+    if (prescription && (prescription.clinic_id || prescription.clinicId) !== clinic.id) {
+      prescription = null
+    }
+
     if (!appt && prescription) {
       appt = {
         id: (prescription.appointment_id || decodedId) as string,
-        clinic_id: prescription.clinic_id,
+        clinic_id: prescription.clinic_id || prescription.clinicId,
         patientName: prescription.patientName,
         phone: prescription.patientPhone || prescription.phone,
         age: prescription.age,
@@ -69,6 +74,23 @@ export async function GET(
       shareToken = await generateRecordShareToken(clinic.id, decodedId, 'prescription')
     }
 
+    const branchId = prescription?.branch_id || prescription?.branchId || appt.branch_id || appt.branchId
+    const branchName = prescription?.branchName || appt.branchName
+    const branches = branchId && branchId !== 'main'
+      ? await readDocument(`branches/${branchId}`).then(branch =>
+        branch && [clinic.id, slug].includes(String(branch.clinicId || branch.clinic_id)) ? [branch] : [],
+      )
+      : await fetchBranchesForClinic(String(clinic.id), slug, Boolean(branchName))
+    const details = prescriptionClinicDetails({
+      clinicName: clinic.clinicName as string,
+      name: clinic.name as string,
+      clinicAddress: clinic.clinicAddress as string,
+      address: clinic.address as string,
+      clinicPhone: clinic.clinicPhone as string,
+      clinicPhones: clinic.clinicPhones as string[],
+      phones: clinic.phones as string[],
+    }, branches as Parameters<typeof prescriptionClinicDetails>[1], branchId, branchName)
+
     return NextResponse.json({
       success: true,
       accessorRole: authResult.accessorRole,
@@ -76,18 +98,18 @@ export async function GET(
       clinic: {
         id: clinic.id,
         slug: clinic.slug,
-        clinicName: clinic.clinicName || clinic.name,
-        doctorName: clinic.doctorName,
-        doctorTitle: clinic.doctorTitle,
+        ...details,
+        doctorName: prescription?.doctorName || clinic.doctorName,
+        doctorTitle: prescription?.doctorTitle || clinic.doctorTitle,
+        certificationTitle: clinic.certificationTitle,
+        certificationEntity: clinic.certificationEntity,
         specialty: clinic.specialty,
         logoUrl: clinic.logoUrl,
         thermalMonoLogoUrl: clinic.thermalMonoLogoUrl,
         primaryColor: clinic.primaryColor,
         secondaryColor: clinic.secondaryColor,
         reportHeaderNote: clinic.reportHeaderNote,
-        clinicPhone: clinic.clinicPhone,
-        doctorPhone: clinic.doctorPhone,
-        address: clinic.address || clinic.clinicAddress,
+        address: details.clinicAddress,
       },
       appointment: {
         id: appt.id || decodedId,
@@ -99,7 +121,7 @@ export async function GET(
         time: appt.time,
         serviceName: appt.serviceName,
         queue_number: appt.queue_number,
-        branchName: appt.branchName,
+        branchName: details.branchName,
         diagnosis: appt.diagnosis || prescription?.diagnosis,
         drugs: appt.drugs || prescription?.drugs || [],
         notes: authResult.accessorRole === 'guest_token' ? undefined : appt.notes || prescription?.notes

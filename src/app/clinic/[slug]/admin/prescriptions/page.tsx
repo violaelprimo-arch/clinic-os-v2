@@ -1,4 +1,6 @@
 'use client'
+import { usePrescriptionBranches } from '@/hooks/usePrescriptionBranches'
+import { prescriptionClinicDetails } from '@/lib/prescription-clinic'
 import { watchClinicProfile } from '@/lib/clinic-profile-client'
 
 import { use, useState, useEffect, useMemo, useRef } from 'react'
@@ -308,6 +310,9 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const [favoriteDrugs, setFavoriteDrugs] = useState<string[]>([])
   const [clinicId, setClinicId] = useState<string | null>(null)
   const [clinic, setClinic] = useState<any>(null)
+  const branches = usePrescriptionBranches(slug)
+  const rxClinic = { ...clinic, ...prescriptionClinicDetails(clinic, branches ?? clinic?.branches, selectedBranchId || clinic?.branchId, selectedBranchName || clinic?.branchName) }
+
   const [templateMode, setTemplateMode] = useState<'standard' | 'custom'>('standard')
   const [pageSize, setPageSize] = useState<'a4' | 'a5'>('a4')
   const [showHeaderFooter, setShowHeaderFooter] = useState<boolean>(true)
@@ -701,8 +706,8 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           if (data.diagnosis && !diagnosis) setDiagnosis(data.diagnosis)
           if (data.instructions && !instructions) setInstructions(data.instructions)
           if (data.notes && !notes) setNotes(data.notes)
-          if (data.branch_id && !selectedBranchId) setSelectedBranchId(data.branch_id)
-          if (data.branchName && !selectedBranchName) setSelectedBranchName(data.branchName)
+          setSelectedBranchId(data.branch_id || data.branchId || '')
+          setSelectedBranchName(data.branchName || '')
           if (data.vitalSigns) {
             setIncludeVitals(true)
             if (data.vitalSigns.bloodPressureSystolic) setBpSys(String(data.vitalSigns.bloodPressureSystolic))
@@ -778,7 +783,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
         const docRef = await addDoc(collection(db, 'prescriptions'), {
           clinic_id: clinicId,
           branch_id: selectedBranchId || clinic?.branchId || '',
-          branchName: selectedBranchName || clinic?.branchName || '',
+          branchName: rxClinic.branchName || '',
           appointment_id: appointmentId || '',
           patientName,
           patientPhone,
@@ -975,10 +980,12 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
       clinicName: clinic?.clinicName || 'Yalla Clinic',
       doctorName: clinic?.doctorName || 'طبيب العيادة',
       specialty: clinic?.specialty,
+      doctorTitle: clinic?.doctorTitle,
+      certificationEntity: clinic?.certificationEntity,
       degreeTitle: clinic?.certificationTitle,
-      branchName: selectedBranchName || clinic?.branchName,
-      clinicAddress: clinic?.clinicAddress,
-      clinicPhone: clinic?.clinicPhone,
+      branchName: rxClinic.branchName,
+      clinicAddress: rxClinic.clinicAddress,
+      clinicPhone: rxClinic.clinicPhone,
       logoUrl: clinic?.logoUrl,
       patientName: patientName || 'المريض',
       patientAge: age ? String(age) : undefined,
@@ -1177,8 +1184,8 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                       if (selected.chronicDiseases) {
                         setPatientChronicDiseases(Array.isArray(selected.chronicDiseases) ? selected.chronicDiseases.join('، ') : String(selected.chronicDiseases))
                       }
-                      if (selected.branch_id) setSelectedBranchId(selected.branch_id)
-                      if (selected.branchName) setSelectedBranchName(selected.branchName)
+                      setSelectedBranchId(selected.branch_id || selected.branchId || '')
+                      setSelectedBranchName(selected.branchName || '')
                       if (selected.vitalSigns) {
                         setVitalsBpSys(selected.vitalSigns.bloodPressureSystolic ? String(selected.vitalSigns.bloodPressureSystolic) : '')
                         setVitalsBpDia(selected.vitalSigns.bloodPressureDiastolic ? String(selected.vitalSigns.bloodPressureDiastolic) : '')
@@ -2057,7 +2064,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
               >
                 <div ref={sheetRef} className="bg-white">
                   <A4Prescription
-                    clinic={clinic}
+                    clinic={rxClinic}
                     patientName={patientName || t('patient_name', 'اسم المريض')}
                     age={age ? String(age) : ''}
                     date={dateStr}
@@ -2077,7 +2084,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                     topOffset={topOffset}
                     primaryColor={primaryColor}
                     secondaryColor={secondaryColor}
-                    branchName={selectedBranchName || clinic?.branchName}
+                    branchName={rxClinic.branchName}
                     pageSize={pageSize}
                     showHeaderFooter={showHeaderFooter}
                     printBackground={printBackground}

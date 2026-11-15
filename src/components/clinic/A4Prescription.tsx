@@ -1,5 +1,6 @@
 'use client'
 
+import { formatPrescriptionDoctorName, prescriptionClinicDetails } from '@/lib/prescription-clinic'
 import React from 'react'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import {
@@ -79,11 +80,10 @@ export function A4Prescription({
   const sColor = secondaryColor || clinic?.secondaryColor || '#087CF4'
   const isA5 = pageSize === 'a5'
 
-  const doctorName = clinic?.doctorName || (isRtl ? 'أحمد عبد العزيز' : 'Ahmed Abdel Aziz')
-  const doctorTitle = clinic?.doctorTitle || (isRtl ? 'د.' : 'Dr.')
-  const specialty = tDynamic(clinic?.specialty) || (isRtl ? 'استشاري العيادة الطبية' : 'Consultant Physician')
-  const degree = clinic?.certificationTitle || (isRtl ? 'عضو الجمعية الطبية المصرية' : 'Member of Egyptian Medical Association')
-  const syndicate = clinic?.certificationEntity || (isRtl ? 'نقابة الأطباء' : 'Physicians Syndicate')
+  const details = prescriptionClinicDetails(clinic)
+  const doctorName = formatPrescriptionDoctorName(clinic?.doctorName, clinic?.doctorTitle || (isRtl ? 'د.' : 'Dr.'))
+  const specialty = tDynamic(clinic?.specialty)
+  const credentials = [clinic?.certificationTitle, clinic?.certificationEntity].filter(Boolean).join(' • ')
 
   const validDrugs = (drugs || []).filter((d: any) => d.name && d.name.trim())
 
@@ -215,7 +215,7 @@ export function A4Prescription({
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <h1 className={`${isA5 ? 'text-lg sm:text-xl' : 'text-2xl sm:text-3xl'} font-black text-slate-900`}>
-                      {doctorTitle} {doctorName}
+                      {doctorName}
                     </h1>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -226,24 +226,22 @@ export function A4Prescription({
                       {specialty}
                     </span>
                   </div>
-                  <div className={`flex items-center gap-1.5 ${isA5 ? 'text-[9.5px]' : 'text-[11px]'} text-slate-500 font-semibold`}>
+                  {credentials && <div className={`flex items-center gap-1.5 ${isA5 ? 'text-[9.5px]' : 'text-[11px]'} text-slate-500 font-semibold`}>
                     <Award className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span>{degree}</span>
-                    <span>•</span>
-                    <span>{syndicate}</span>
-                  </div>
+                    <span>{credentials}</span>
+                  </div>}
                 </div>
 
                 {/* Clinic Logo & Brand Identity */}
                 <div className="text-left flex flex-col items-end shrink-0" dir="ltr">
                   <img
                     src={clinic?.logoUrl || '/brand/yalla-clinic/logo-light-bg.png'}
-                    alt={clinic?.clinicName || 'Yalla Clinic'}
+                    alt={details.clinicName || 'Yalla Clinic'}
                     crossOrigin="anonymous"
                     className={`${isA5 ? 'h-8 sm:h-9' : 'h-10 sm:h-11'} w-auto max-w-[170px] object-contain mb-1`}
                   />
                   <span className={`${isA5 ? 'text-[10px]' : 'text-xs'} font-black text-slate-800 mt-0.5`} dir="rtl">
-                    {clinic?.clinicName || 'Yalla Clinic'}
+                    {details.clinicName || 'Yalla Clinic'}
                   </span>
                   {branchName && (
                     <span className="inline-flex items-center gap-1 text-[9.5px] font-bold text-slate-500 mt-0.5 bg-slate-100/80 px-2 py-0.5 rounded-md border border-slate-200/60" dir="rtl">
@@ -547,7 +545,7 @@ export function A4Prescription({
                   <div
                     className={`${isA5 ? 'w-28' : 'w-36'} border-b-2 border-slate-400 pb-1 text-slate-800 ${isA5 ? 'text-xs' : 'text-sm'} font-bold leading-normal`}
                   >
-                    {doctorTitle} {doctorName}
+                    {doctorName}
                   </div>
                   <span className="text-[9px] text-slate-400 font-bold block mt-1">
                     {language === 'en' ? "Doctor's Signature" : 'توقيع الطبيب'}
@@ -568,14 +566,14 @@ export function A4Prescription({
 
               {/* Clinic Address & Contacts */}
               <div className={`${language === 'en' ? 'text-left' : 'text-right'} space-y-0.5 text-[9.5px] text-slate-600 max-w-[220px]`}>
-                <p className="flex items-center gap-1 font-semibold leading-normal">
+                {details.clinicAddress && <p className="flex items-center gap-1 font-semibold leading-normal">
                   <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                  <span>{clinic?.clinicAddress || (language === 'en' ? 'Registered at clinic' : 'العنوان: مسجل بالعيادة')}</span>
-                </p>
-                <p className="flex items-center gap-1 font-semibold" dir="ltr">
+                  <span>{details.clinicAddress}</span>
+                </p>}
+                {details.clinicPhone && <p className="flex items-center gap-1 font-semibold" dir="ltr">
                   <Phone className="w-3 h-3 text-slate-400 shrink-0" />
-                  <span>{clinic?.clinicPhone || clinic?.phones?.[0] || '16XXX'}</span>
-                </p>
+                  <span>{details.clinicPhone}</span>
+                </p>}
                 <p className="text-[8.5px] text-slate-400 pt-0.5 font-medium">
                   {language === 'en' ? 'Yalla Clinic • Intelligent Clinic System' : 'نظام تشغيل العيادات الذكي • Yalla Clinic'}
                 </p>
