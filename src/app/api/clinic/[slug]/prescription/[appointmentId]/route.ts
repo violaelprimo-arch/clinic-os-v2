@@ -44,7 +44,7 @@ export async function GET(
     }
 
     // 3. Strict Server-Side Authorization (Prevents IDOR & Public Access)
-    const phoneVal = appt.phone || prescription?.patientPhone
+    const phoneVal = appt.phone || appt.patientPhone || prescription?.patientPhone
     const patientIdVal = appt.patientId || appt.patient_id || prescription?.patientId
     const authResult = await authorizeRecordAccess(req, {
       clinicId: String(clinic.id),
@@ -64,7 +64,8 @@ export async function GET(
 
     // 4. Generate a share token if clinic staff or owner is fetching
     let shareToken: string | undefined = undefined
-    if (authResult.accessorRole === 'doctor' || authResult.accessorRole === 'assistant' || authResult.accessorRole === 'owner') {
+    if ((prescription || appt.drugs?.length) &&
+        (authResult.accessorRole === 'doctor' || authResult.accessorRole === 'assistant' || authResult.accessorRole === 'owner')) {
       shareToken = await generateRecordShareToken(clinic.id, decodedId, 'prescription')
     }
 
@@ -91,7 +92,7 @@ export async function GET(
       appointment: {
         id: appt.id || decodedId,
         patientName: appt.patientName,
-        phone: appt.phone,
+        phone: phoneVal,
         age: appt.age,
         gender: appt.gender,
         date: appt.date,
@@ -101,7 +102,7 @@ export async function GET(
         branchName: appt.branchName,
         diagnosis: appt.diagnosis || prescription?.diagnosis,
         drugs: appt.drugs || prescription?.drugs || [],
-        notes: appt.notes || prescription?.notes
+        notes: authResult.accessorRole === 'guest_token' ? undefined : appt.notes || prescription?.notes
       },
       prescription: prescription ? {
         id: prescription.id || `rx-${decodedId}`,
@@ -110,10 +111,11 @@ export async function GET(
         date: prescription.date || appt.date,
         doctorName: prescription.doctorName || clinic.doctorName,
         doctorTitle: prescription.doctorTitle || clinic.doctorTitle,
-        instructions: prescription.instructions || prescription.notes,
+        instructions: prescription.instructions || (authResult.accessorRole === 'guest_token' ? undefined : prescription.notes),
+        pageSize: prescription.pageSize,
         nextVisitDate: prescription.nextVisitDate
       } : null
-    })
+    }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Error fetching prescription' }, { status: 500 })
   }

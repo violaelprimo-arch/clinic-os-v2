@@ -319,6 +319,52 @@ export function formatInvoiceWhatsAppMessage({
   return parts.join('\n')
 }
 
+export async function openWhatsAppRecordShare({
+  slug, recordId, type, clinicName, phone, target,
+}: {
+  slug: string
+  recordId: string
+  type: 'prescription' | 'invoice'
+  clinicName?: string
+  phone?: string
+  target?: 'auto' | 'app' | 'web'
+}): Promise<void> {
+  if (!slug || !recordId) throw new Error('احفظ المستند أولًا قبل مشاركته')
+  const path = `/clinic/${encodeURIComponent(slug)}/${type}/${encodeURIComponent(recordId)}`
+  const mode = !target || target === 'auto' ? getSavedWhatsAppTarget() : target
+  const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+  const popup = mobile || mode === 'web' ? window.open('about:blank', '_blank') : null
+  if (popup) popup.opener = null
+
+  try {
+    const response = await fetch(`/api${path}`, { cache: 'no-store', credentials: 'same-origin' })
+    const data = await response.json()
+    if (!response.ok || typeof data.shareToken !== 'string' || !data.shareToken) {
+      throw new Error('تعذر إنشاء رابط المشاركة. افتح المستند بحساب العيادة وحاول مرة أخرى.')
+    }
+    const recipient = formatEgyptianPhoneForWhatsApp(data[type === 'invoice' ? 'invoice' : 'appointment']?.phone || '')
+    if (!recipient || (phone && recipient !== formatEgyptianPhoneForWhatsApp(phone))) {
+      throw new Error('راجع رقم هاتف المريض المسجل في المستند قبل المشاركة.')
+    }
+    const link = new URL(path, window.location.origin)
+    link.searchParams.set('token', data.shareToken)
+    const label = type === 'invoice' ? 'الفاتورة' : 'الروشتة'
+    const message = `أهلًا، مع حضرتك ${data.clinic?.clinicName || clinicName || 'العيادة'}.\nرابط ${label}:\n${link.href}\nالرابط صالح لمدة 7 أيام ويفتح بدون تسجيل دخول.`
+    if (popup && !popup.closed) {
+      const chat = new URL(mobile ? 'https://api.whatsapp.com/send' : 'https://web.whatsapp.com/send/')
+      chat.searchParams.set('phone', recipient)
+      chat.searchParams.set('text', message)
+      popup.location.replace(chat.href)
+    } else {
+      openManualWhatsAppChat({ phone: recipient, message, target: mode })
+    }
+    void navigator.clipboard?.writeText(message).catch(() => {})
+  } catch (error) {
+    popup?.close()
+    throw error
+  }
+}
+
 /**
  * Handles professional sharing of documents and images (Prescriptions, Invoices, Reports).
  * - Opens WhatsApp chat directly targeting the recipient's phone number.

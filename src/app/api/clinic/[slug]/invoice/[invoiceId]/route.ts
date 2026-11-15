@@ -92,7 +92,7 @@ export async function GET(
         branchName: appt.branchName || 'الفرع الرئيسي',
         createdAt: appt.createdAt || appt.date
       }
-    })
+    }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Error fetching invoice' }, { status: 500 })
   }

@@ -23,7 +23,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
 import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
-import { collection, addDoc, setDoc, query, where, getDocs, getDoc, doc, updateDoc, onSnapshot } from 'firebase/firestore'
+import { collection, addDoc, query, where, getDocs, getDoc, doc, updateDoc, onSnapshot } from 'firebase/firestore'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useEgyptianDrugs, type EgyptianDrug } from '@/hooks/useEgyptianDrugs'
@@ -35,8 +35,7 @@ import { printHtmlViaIframe, generateA4PrescriptionHtml } from '@/lib/printServi
 import {
   generateCleanRxFileName,
   formatEgyptianPhoneForWhatsApp,
-  openManualWhatsAppChat,
-  formatPrescriptionWhatsAppMessage
+  openWhatsAppRecordShare
 } from '@/lib/whatsappShare'
 import { getClinicUrl } from '@/lib/clinic-url'
 import { useLanguage } from '@/context/LanguageContext'
@@ -55,6 +54,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const searchParams = useSearchParams()
   const { t, tDynamic, dir, isRtl, language } = useLanguage()
 
+  const [savedRxId, setSavedRxId] = useState('')
   const [appointmentId, setAppointmentId] = useState(searchParams?.get('appointmentId') || '')
   const [patientName, setPatientName] = useState(searchParams?.get('patientName') || '')
   const [patientPhone, setPatientPhone] = useState(searchParams?.get('phone') || searchParams?.get('patientPhone') || '')
@@ -91,7 +91,6 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const [weight, setWeight] = useState('')
   const [selectedBranchId, setSelectedBranchId] = useState('')
   const [selectedBranchName, setSelectedBranchName] = useState('')
-  const [whatsappTarget, setWhatsappTarget] = useState<'auto' | 'app' | 'web'>('auto')
   const [showWhatsappMenu, setShowWhatsappMenu] = useState(false)
 
   // Previous Instructions Autocomplete State
@@ -254,20 +253,6 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     }
 
     return null
-  }
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('yalla_rx_whatsapp_mode') as 'auto' | 'app' | 'web'
-      if (saved) setWhatsappTarget(saved)
-    }
-  }, [])
-
-  const setAndSaveWhatsappTarget = (mode: 'auto' | 'app' | 'web') => {
-    setWhatsappTarget(mode)
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('yalla_rx_whatsapp_mode', mode)
-    }
   }
 
   const { drugs: apiDrugs, loading: apiDrugsLoading, searchDrugs, syncDrugLive } = useEgyptianDrugs()
@@ -553,6 +538,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     setInstructions('')
     setPatientAllergies('')
     setPatientChronicDiseases('')
+    setSavedRxId('')
     setAppointmentId('')
     setDrugs([{ id: Date.now(), name: '', dosage: '', duration: '', notes: '' }])
     setVitalsBpSys('')
@@ -816,6 +802,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           drugs: drugs.filter(d => d.name && d.name.trim() !== ''),
           createdAt: new Date().toISOString()
         })
+        setSavedRxId(docRef.id)
 
         // Record Audit Log
         try {
@@ -924,90 +911,18 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     }
   }
 
-  // Real PDF WhatsApp sharing: Opens chat directly with patient's phone number, auto-populates prescription in chat input, press Enter to send
-  const handleShareWhatsAppRx = (modeOverride?: 'auto' | 'app' | 'web') => {
-    if (!patientPhone) return toast.error('يرجى إدخال رقم هاتف المريض أولاً')
-
-    // 1. Ensure a prescription record ID exists synchronously (0ms) so patient has an active permanent link
-    let rxTargetId = appointmentId || ''
-    if (clinicId && !rxTargetId) {
-      try {
-        const newDocRef = doc(collection(db, 'prescriptions'))
-        rxTargetId = newDocRef.id
-        setDoc(newDocRef, {
-          clinic_id: clinicId,
-          branch_id: selectedBranchId || clinic?.branchId || '',
-          branchName: selectedBranchName || clinic?.branchName || '',
-          patientName,
-          patientPhone,
-          age,
-          diagnosis,
-          instructions,
-          date: dateStr,
-          status: 'approved',
-          doctorName: clinic?.doctorName || 'طبيب العيادة',
-          templateMode,
-          topOffset,
-          pageSize,
-          showHeaderFooter,
-          printBackground,
-          primaryColor,
-          secondaryColor,
-          drugs: drugs.filter(d => d.name && d.name.trim() !== ''),
-          createdAt: new Date().toISOString()
-        }).catch((err) => console.warn('Auto-save prescription warning:', err))
-      } catch (err) {
-        console.warn('Auto-save prescription warning:', err)
-      }
-    }
-
-    const host = typeof window !== 'undefined' && window.location.origin
-      ? window.location.origin
-      : 'https://www.yalla-clinic.com'
-    const directRxUrl = rxTargetId ? `${host}/clinic/${slug}/prescription/${rxTargetId}` : ''
-
-    const message = formatPrescriptionWhatsAppMessage({
-      clinicName: clinic?.clinicName || 'العيادة الطبية',
-      doctorName: clinic?.doctorName,
-      specialty: clinic?.specialty,
-      patientName: patientName || 'المريض',
-      patientAge: age,
-      date: dateStr,
-      rxNumber: 1042,
-      diagnosis,
-      instructions,
-      notes: notes.trim(),
-      drugs: drugs.filter(d => d.name && d.name.trim() !== ''),
-      directRxUrl
-    })
-
-    const targetMode = modeOverride || whatsappTarget || 'auto'
-
-    // 2. OPEN WHATSAPP CHAT SYNCHRONOUSLY IN 0ms (Guarantees zero popup blocker, opens exact phone, puts Rx in chat!)
-    openManualWhatsAppChat({
-      phone: patientPhone,
-      message,
-      target: targetMode
-    })
-
-    toast.success(`تم فتح محادثة المريض (${patientPhone}) وإدراج الروشتة في الشات! اضغط Enter للإرسال 🚀`, {
-      duration: 5000
-    })
-
-    // 3. Optional clipboard image copy in background for Ctrl+V (strictly WITHOUT auto-downloading to computer)
-    if (sheetRef.current && typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
-      setIsSharingPdf(true)
-      import('@/lib/pdfGenerator').then(async ({ renderElementToImageBlob }) => {
-        if (!sheetRef.current) return
-        const { blob: imgBlob } = await renderElementToImageBlob(sheetRef.current, { scale: 2.2 })
-        try {
-          await navigator.clipboard.write([
-            new ClipboardItem({ 'image/png': imgBlob })
-          ])
-        } catch {}
-      }).catch(() => {}).finally(() => {
-        setIsSharingPdf(false)
+  const handleShareWhatsAppRx = async (target?: 'auto' | 'app' | 'web') => {
+    if (isSharingPdf) return
+    setIsSharingPdf(true)
+    try {
+      await openWhatsAppRecordShare({
+        slug, recordId: savedRxId || appointmentId, type: 'prescription', phone: patientPhone,
+        target,
       })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'تعذر مشاركة الروشتة')
+    } finally {
+      setIsSharingPdf(false)
     }
   }
 
@@ -1156,7 +1071,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             onSend={(target) => handleShareWhatsAppRx(target)}
             phone={patientPhone}
             loading={isSharingPdf}
-            label={t('send_whatsapp_pdf', 'إرسال واتساب للمريض')}
+            label={t('send_whatsapp_btn', 'مشاركة عبر واتساب')}
             size="default"
           />
 
@@ -1252,6 +1167,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                     const selected = filteredTodayPatients.find(p => p.id === e.target.value)
                     if (selected) {
                       setPatientName(selected.patientName || '')
+                      setSavedRxId('')
                       setAppointmentId(selected.id)
                       setPatientPhone(selected.phone || '')
                       setAge(selected.age || selected.dob || '')

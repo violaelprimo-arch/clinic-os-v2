@@ -13,9 +13,9 @@ import {
 import Link from 'next/link'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
-import { downloadElementAsPdf, renderElementToPdfBlob, downloadElementAsImage, renderElementToImageBlob } from '@/lib/pdfGenerator'
+import { downloadElementAsPdf, downloadElementAsImage } from '@/lib/pdfGenerator'
 import { printHtmlViaIframe, generateA4PrescriptionHtml } from '@/lib/printService'
-import { shareDocumentOrImage, sharePdfDocument, generateCleanRxFileName, formatPrescriptionWhatsAppMessage, openManualWhatsAppChat, getSavedWhatsAppTarget } from '@/lib/whatsappShare'
+import { generateCleanRxFileName, openWhatsAppRecordShare } from '@/lib/whatsappShare'
 import { WhatsAppShareButton } from '@/components/common/WhatsAppShareButton'
 import { getClinicUrl } from '@/lib/clinic-url'
 import { LanguageToggle } from '@/components/common/LanguageToggle'
@@ -41,6 +41,7 @@ export default function PublicPrescriptionPage({
   const [authErrorMessage, setAuthErrorMessage] = useState('')
   const [isDownloading, setIsDownloading] = useState(false)
   const [isDownloadingImage, setIsDownloadingImage] = useState(false)
+  const [canShareRecord, setCanShareRecord] = useState(false)
   const [isSharing, setIsSharing] = useState(false)
 
   const printSheetRef = useRef<HTMLDivElement>(null)
@@ -73,6 +74,7 @@ export default function PublicPrescriptionPage({
         if (apiRes.ok) {
           const apiData = await apiRes.json()
           if (apiData.success && apiData.appointment) {
+            setCanShareRecord(Boolean(apiData.shareToken) && !token)
             setClinic(apiData.clinic)
             setAppointment(apiData.appointment)
             setPrescription(apiData.prescription || {
@@ -184,64 +186,18 @@ export default function PublicPrescriptionPage({
     }
   }
 
-  // WhatsApp Share with real PDF: Opens chat instantly in 0ms (no popup blocker), sends full Rx + PDF link, strictly WITHOUT computer auto-download
-  const handleShareWhatsApp = async (targetOverride?: 'web' | 'app') => {
-    const host = typeof window !== 'undefined' && window.location.origin
-      ? window.location.origin
-      : 'https://www.yalla-clinic.com'
-    const directRxUrl = `${host}/clinic/${slug}/prescription/${appointmentId}`
-
-    const message = formatPrescriptionWhatsAppMessage({
-      clinicName: clinic?.clinicName || (isRtl ? 'العيادة الطبية' : 'Medical Clinic'),
-      doctorName: clinic?.doctorName,
-      specialty: clinic?.specialty,
-      patientName,
-      patientAge,
-      date: rxDate,
-      diagnosis: rxDiagnosis,
-      instructions: prescription?.instructions,
-      drugs: rxDrugs,
-      directRxUrl
-    })
-
-    const targetMode = targetOverride || getSavedWhatsAppTarget()
-
-    // OPEN WHATSAPP CHAT SYNCHRONOUSLY IN 0ms (Never blocked by popup blocker, opens exact phone, puts Rx in chat!)
-    openManualWhatsAppChat({
-      phone: patientPhone,
-      message,
-      target: targetMode
-    })
-
-    toast.success(
-      isRtl
-        ? `تم فتح محادثة المريض (${patientPhone}) وإدراج الروشتة في الشات! اضغط Enter للإرسال 🚀`
-        : `Opened WhatsApp chat with prescription details! Press Enter to send 🚀`,
-      { duration: 5000 }
-    )
-
-    // 3. Desktop Clipboard image copy for Ctrl+V paste (strictly WITHOUT auto-downloading to computer)
-    if (printSheetRef.current) {
-      setIsSharing(true)
-      try {
-        if (typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
-          renderElementToImageBlob(printSheetRef.current, { scale: 2.5 }).then(async ({ blob: imgBlob }) => {
-            try {
-              await navigator.clipboard.write([
-                new ClipboardItem({ 'image/png': imgBlob })
-              ])
-            } catch {}
-          }).catch(() => {})
-        }
-
-        toast.success(isRtl ? '✅ تم إرفاق رابط الـ PDF بالرسالة! يمكنك أيضاً الضغط على (Ctrl + V) لإرسال صورة الروشتة فوراً 🚀' : 'Ready! Link attached and image copied for Ctrl+V!', {
-          duration: 6000
-        })
-      } catch (e) {
-        console.warn('Background image generation error:', e)
-      } finally {
-        setIsSharing(false)
-      }
+  const handleShareWhatsApp = async (target?: 'web' | 'app') => {
+    if (!printSheetRef.current || isSharing) return
+    setIsSharing(true)
+    try {
+      await openWhatsAppRecordShare({
+        slug, recordId: appointmentId, type: 'prescription', phone: patientPhone,
+        target,
+      })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'تعذر مشاركة الروشتة')
+    } finally {
+      setIsSharing(false)
     }
   }
 
@@ -383,14 +339,14 @@ export default function PublicPrescriptionPage({
             </Button>
 
             {/* WhatsApp Share Button with Web / App Selector (Zero computer auto-download) */}
-            <WhatsAppShareButton
+            {canShareRecord && <WhatsAppShareButton
               onSend={handleShareWhatsApp}
               phone={patientPhone}
               loading={isSharing}
               label={isSharing ? (isRtl ? 'جاري المشاركة...' : 'Sharing...') : t('send_whatsapp_btn', isRtl ? 'مشاركة عبر واتساب' : 'Share via WhatsApp')}
               size="default"
               showPhoneBadge={false}
-            />
+            />}
           </div>
         </div>
 
