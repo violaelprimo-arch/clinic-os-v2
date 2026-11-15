@@ -165,6 +165,63 @@ export function toSafeRgb(colorStr: string): string {
   return 'rgba(15, 23, 42, 1)' // slate-900
 }
 
+function createStyleProxyHandler(): ProxyHandler<CSSStyleDeclaration> {
+  return {
+    get(target, prop) {
+      if (prop === 'getPropertyValue') {
+        return function (propName: string) {
+          const val = target.getPropertyValue(propName)
+          if (
+            val &&
+            (val.includes('oklch') ||
+              val.includes('lab') ||
+              val.includes('oklab') ||
+              val.includes('lch') ||
+              val.includes('color(') ||
+              val.includes('color-mix'))
+          ) {
+            return toSafeRgb(val)
+          }
+          return val
+        }
+      }
+      const val = (target as any)[prop]
+      if (
+        typeof val === 'string' &&
+        (val.includes('oklch') ||
+          val.includes('lab') ||
+          val.includes('oklab') ||
+          val.includes('lch') ||
+          val.includes('color(') ||
+          val.includes('color-mix'))
+      ) {
+        return toSafeRgb(val)
+      }
+      if (typeof val === 'function') {
+        return val.bind(target)
+      }
+      return val
+    }
+  }
+}
+
+function setupWindowStyleProxy(): (() => void) {
+  const origGetComputedStyle = typeof window !== 'undefined' ? window.getComputedStyle : null
+  if (!origGetComputedStyle || typeof window === 'undefined') {
+    return () => {}
+  }
+
+  const handler = createStyleProxyHandler()
+  window.getComputedStyle = function (elem: Element, pseudo?: string | null) {
+    const cs = origGetComputedStyle.call(window, elem, pseudo)
+    return new Proxy(cs, handler)
+  }
+
+  return () => {
+    window.getComputedStyle = origGetComputedStyle
+  }
+}
+
 /**
  * Complete sanitization of the cloned document and target element.
  * Sanitizes documentElement, body, and all descendant nodes to prevent html2canvas color errors.
@@ -178,6 +235,17 @@ export function sanitizeAllColors(clonedDoc: Document, clonedEl: HTMLElement) {
   if (clonedDoc.body) {
     clonedDoc.body.style.backgroundColor = '#ffffff'
     clonedDoc.body.style.color = '#0f172a'
+  }
+
+  // 2. Wrap getComputedStyle on cloned document defaultView
+  const view = clonedDoc.defaultView
+  if (view && view.getComputedStyle) {
+    const origViewGetComputedStyle = view.getComputedStyle.bind(view)
+    const handler = createStyleProxyHandler()
+    view.getComputedStyle = function (elem: Element, pseudo?: string | null) {
+      const cs = origViewGetComputedStyle(elem, pseudo)
+      return new Proxy(cs, handler)
+    }
   }
 
   const colorProperties = [
@@ -278,6 +346,9 @@ async function capturePrescriptionSheet(sheet: HTMLElement, scale: number): Prom
   })
   container.append(clone)
   document.body.append(container)
+
+  const restoreProxy = setupWindowStyleProxy()
+
   try {
     if (typeof document !== 'undefined' && document.fonts) {
       try { await document.fonts.ready } catch {}
@@ -299,6 +370,7 @@ async function capturePrescriptionSheet(sheet: HTMLElement, scale: number): Prom
       },
     })
   } finally {
+    restoreProxy()
     container.remove()
   }
 }
@@ -334,51 +406,7 @@ async function captureElementCanvas(element: HTMLElement, scale: number = 2.5): 
   }
 
   // 3. Setup global getComputedStyle proxy protection during html2canvas run
-  const origGetComputedStyle = typeof window !== 'undefined' ? window.getComputedStyle : null
-  const proxyHandler: ProxyHandler<CSSStyleDeclaration> = {
-    get(target, prop) {
-      if (prop === 'getPropertyValue') {
-        return function (propName: string) {
-          const val = target.getPropertyValue(propName)
-          if (
-            val &&
-            (val.includes('oklch') ||
-              val.includes('lab') ||
-              val.includes('oklab') ||
-              val.includes('lch') ||
-              val.includes('color(') ||
-              val.includes('color-mix'))
-          ) {
-            return toSafeRgb(val)
-          }
-          return val
-        }
-      }
-      const val = (target as any)[prop]
-      if (
-        typeof val === 'string' &&
-        (val.includes('oklch') ||
-          val.includes('lab') ||
-          val.includes('oklab') ||
-          val.includes('lch') ||
-          val.includes('color(') ||
-          val.includes('color-mix'))
-      ) {
-        return toSafeRgb(val)
-      }
-      if (typeof val === 'function') {
-        return val.bind(target)
-      }
-      return val
-    }
-  }
-
-  if (origGetComputedStyle && typeof window !== 'undefined') {
-    window.getComputedStyle = function (elem: Element, pseudo?: string | null) {
-      const cs = origGetComputedStyle.call(window, elem, pseudo)
-      return new Proxy(cs, proxyHandler)
-    }
-  }
+  const restoreProxy = setupWindowStyleProxy()
 
   try {
     return await html2canvas(targetSheet, {
@@ -508,10 +536,7 @@ async function captureElementCanvas(element: HTMLElement, scale: number = 2.5): 
       }
     }
   } finally {
-    // Restore global getComputedStyle
-    if (origGetComputedStyle && typeof window !== 'undefined') {
-      window.getComputedStyle = origGetComputedStyle
-    }
+    restoreProxy()
   }
 }
 
