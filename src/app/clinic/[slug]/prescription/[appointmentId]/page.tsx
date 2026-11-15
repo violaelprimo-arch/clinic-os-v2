@@ -22,6 +22,7 @@ import { LanguageToggle } from '@/components/common/LanguageToggle'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { useLanguage } from '@/context/LanguageContext'
 import { toast } from 'sonner'
+import { PatientRecordVerificationModal } from '@/components/clinic/PatientRecordVerificationModal'
 
 export default function PublicPrescriptionPage({
   params
@@ -39,6 +40,8 @@ export default function PublicPrescriptionPage({
   const [isNotFound, setIsNotFound] = useState(false)
   const [isUnauthorized, setIsUnauthorized] = useState(false)
   const [authErrorMessage, setAuthErrorMessage] = useState('')
+  const [requiresVerification, setRequiresVerification] = useState(false)
+  const [maskedPhone, setMaskedPhone] = useState('')
   const [isDownloading, setIsDownloading] = useState(false)
   const [isDownloadingImage, setIsDownloadingImage] = useState(false)
   const [canShareRecord, setCanShareRecord] = useState(false)
@@ -46,58 +49,77 @@ export default function PublicPrescriptionPage({
 
   const printSheetRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const decodedId = decodeURIComponent(appointmentId)
-        const searchParams = new URLSearchParams(window.location.search)
-        const token = searchParams.get('token') || ''
-        const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : ''
+  const fetchData = async () => {
+    try {
+      const decodedId = decodeURIComponent(appointmentId)
+      const searchParams = new URLSearchParams(window.location.search)
+      const token = searchParams.get('token') || ''
+      const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : ''
 
-        // 1. Fetch via authorized server API
-        const apiRes = await fetch(`/api/clinic/${slug}/prescription/${encodeURIComponent(decodedId)}${tokenQuery}`)
-        
-        if (apiRes.status === 401 || apiRes.status === 403) {
-          const errData = await apiRes.json().catch(() => ({}))
-          setIsUnauthorized(true)
-          setAuthErrorMessage(errData.error || (isRtl ? 'هذه الروشتة الطبية محمية. يرجى تسجيل الدخول أو استخدام رابط المشاركة المعتمد.' : 'This prescription is protected. Please log in or use an authorized share link.'))
-          setLoading(false)
-          return
-        }
-
-        if (apiRes.status === 404) {
-          setIsNotFound(true)
-          setLoading(false)
-          return
-        }
-
-        if (apiRes.ok) {
-          const apiData = await apiRes.json()
-          if (apiData.success && apiData.appointment) {
-            setCanShareRecord(Boolean(apiData.shareToken) && !token)
-            setClinic(apiData.clinic)
-            setAppointment(apiData.appointment)
-            setPrescription(apiData.prescription || {
-              patientName: apiData.appointment.patientName,
-              age: apiData.appointment.age,
-              date: apiData.appointment.date,
-              diagnosis: apiData.appointment.diagnosis,
-              drugs: apiData.appointment.drugs || []
-            })
-            setLoading(false)
-            return
+      // 1. Fetch via authorized server API
+      const apiRes = await fetch(`/api/clinic/${slug}/prescription/${encodeURIComponent(decodedId)}${tokenQuery}`)
+      
+      if (apiRes.status === 401 || apiRes.status === 403) {
+        const errData = await apiRes.json().catch(() => ({}))
+        if (errData.requiresVerification) {
+          setRequiresVerification(true)
+          setMaskedPhone(errData.maskedPhone || '')
+          if (errData.clinic) {
+            setClinic(errData.clinic)
           }
+          setLoading(false)
+          return
         }
-
-        setIsNotFound(true)
-      } catch (err: any) {
-        console.error('Error fetching prescription:', err)
-        setIsNotFound(true)
-      } finally {
+        setIsUnauthorized(true)
+        setAuthErrorMessage(errData.error || (isRtl ? 'هذه الروشتة الطبية محمية. يرجى تسجيل الدخول أو استخدام رابط المشاركة المعتمد.' : 'This prescription is protected. Please log in or use an authorized share link.'))
         setLoading(false)
+        return
       }
-    }
 
+      if (apiRes.status === 404) {
+        setIsNotFound(true)
+        setLoading(false)
+        return
+      }
+
+      if (apiRes.ok) {
+        const apiData = await apiRes.json()
+        if (apiData.success && apiData.appointment) {
+          setCanShareRecord(Boolean(apiData.shareToken) && !token)
+          setClinic(apiData.clinic)
+          setAppointment(apiData.appointment)
+          setPrescription(apiData.prescription || {
+            patientName: apiData.appointment.patientName,
+            age: apiData.appointment.age,
+            date: apiData.appointment.date,
+            diagnosis: apiData.appointment.diagnosis,
+            drugs: apiData.appointment.drugs || []
+          })
+          setRequiresVerification(false)
+          setIsUnauthorized(false)
+
+          // Clean up any token or expires from URL bar to keep it permanent and clean
+          if (typeof window !== 'undefined' && (searchParams.has('token') || searchParams.has('expires'))) {
+            try {
+              window.history.replaceState({}, '', window.location.pathname)
+            } catch {}
+          }
+
+          setLoading(false)
+          return
+        }
+      }
+
+      setIsNotFound(true)
+    } catch (err: any) {
+      console.error('Error fetching prescription:', err)
+      setIsNotFound(true)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
     fetchData()
   }, [slug, appointmentId, isRtl])
 
@@ -212,6 +234,48 @@ export default function PublicPrescriptionPage({
           <p className="text-xs font-bold text-muted-foreground">
             {t('loading_rx_data', isRtl ? 'جاري تحميل بيانات الروشتة الطبية...' : 'Loading medical prescription...')}
           </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (requiresVerification) {
+    return (
+      <div className="min-h-screen bg-background text-foreground font-sans py-6 px-3 sm:px-6 transition-colors flex flex-col justify-between" dir={dir}>
+        {/* Top Header */}
+        <div className="max-w-4xl w-full mx-auto flex items-center justify-between">
+          <Link
+            href={`/clinic/${slug}`}
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowRight className="w-4 h-4 rtl:rotate-0 ltr:rotate-180" />
+            <span>{t('back_to_clinic', isRtl ? 'العودة للعيادة' : 'Back to Clinic')}</span>
+          </Link>
+
+          <div className="flex items-center gap-2">
+            <LanguageToggle />
+            <ThemeToggle />
+          </div>
+        </div>
+
+        {/* Verification Card */}
+        <div className="my-auto py-8">
+          <PatientRecordVerificationModal
+            slug={slug}
+            recordId={decodeURIComponent(appointmentId)}
+            recordType="prescription"
+            maskedPhone={maskedPhone}
+            clinicName={clinic?.clinicName || clinic?.name || (isRtl ? 'العيادة الطبية' : 'Medical Clinic')}
+            onVerified={() => {
+              setLoading(true)
+              fetchData()
+            }}
+          />
+        </div>
+
+        {/* Footer */}
+        <div className="max-w-4xl w-full mx-auto pt-4 text-center text-xs text-muted-foreground">
+          {t('copyright_text', 'جميع الحقوق محفوظة YallaCodeX 2026')}
         </div>
       </div>
     )

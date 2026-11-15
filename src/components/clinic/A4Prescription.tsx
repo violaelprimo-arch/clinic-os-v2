@@ -451,7 +451,8 @@ export function A4Prescription({
               validDrugs.map((drug: any, index: number) => (
                 <div
                   key={index}
-                  className="flex items-start gap-3 p-2.5 sm:p-3 rounded-xl bg-slate-50/70 border border-slate-200/70 hover:border-slate-300 transition-all"
+                  data-avoid-break="true"
+                  className="drug-card break-inside-avoid flex items-start gap-3 p-2.5 sm:p-3 rounded-xl bg-slate-50/70 border border-slate-200/70 hover:border-slate-300 transition-all"
                   dir="ltr"
                 >
                   {/* Number Badge */}

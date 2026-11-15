@@ -10,11 +10,30 @@ export interface RecordAccessResult {
   status?: number
   error?: string
   accessorRole?: 'owner' | 'doctor' | 'assistant' | 'patient' | 'guest_token'
+  maskedPhone?: string
 }
 
-function normalizePhone(raw?: string): string {
+export function normalizePhone(raw?: string): string {
   if (!raw) return ''
-  return raw.replace(/[^0-9]/g, '').replace(/^0+/, '').slice(-9)
+  let clean = String(raw).replace(/\D/g, '')
+  if (clean.startsWith('0020') && clean.length > 12) {
+    clean = clean.slice(4)
+  } else if (clean.startsWith('20') && clean.length > 10) {
+    clean = clean.slice(2)
+  }
+  if (!clean.startsWith('0') && clean.length === 10) {
+    clean = '0' + clean
+  }
+  return clean
+}
+
+export function maskPhoneNumber(phone?: string): string {
+  if (!phone) return ''
+  const clean = normalizePhone(phone)
+  if (clean.length < 7) return clean
+  const prefix = clean.slice(0, 3)
+  const suffix = clean.slice(-4)
+  return `${prefix}****${suffix}`
 }
 
 /**
@@ -25,6 +44,7 @@ function normalizePhone(raw?: string): string {
  * 2. Clinic Doctor or Assistant for that specific clinic
  * 3. Patient who owns the record (matched by phone or patientId)
  * 4. Guest with a valid HMAC-SHA256 signed share token (?token=...)
+ * 5. If unauthenticated, returns status 401 with error 'VERIFICATION_REQUIRED'
  */
 export async function authorizeRecordAccess(
   req: NextRequest,
@@ -61,12 +81,6 @@ export async function authorizeRecordAccess(
     })
     if (isValidShare) {
       return { authorized: true, accessorRole: 'guest_token' }
-    }
-    // If a share token was provided but is invalid or expired, reject explicitly
-    return {
-      authorized: false,
-      status: 401,
-      error: 'رابط المشاركة غير صالح أو انتهت صلاحيته'
     }
   }
 
@@ -123,22 +137,24 @@ export async function authorizeRecordAccess(
     }
   }
 
-  // 5. No valid credentials provided
+  // 5. No valid credentials provided: Trigger friendly Patient Verification
   return {
     authorized: false,
     status: 401,
-    error: 'يرجى تسجيل الدخول أو استخدام رابط مشاركة صالح للوصول إلى هذا السجل'
+    error: 'VERIFICATION_REQUIRED',
+    maskedPhone: maskPhoneNumber(recordPhone)
   }
 }
 
 /**
  * Generate a signed share token for WhatsApp/SMS links.
+ * Permanent link default (10 years).
  */
 export async function generateRecordShareToken(
   clinicId: string,
   recordId: string,
   type: 'invoice' | 'prescription',
-  expiresInHours = 168 // 7 days
+  expiresInHours = 87600 // 10 years (Permanent)
 ): Promise<string> {
   return createShareToken({
     clinicId,

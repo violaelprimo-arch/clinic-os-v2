@@ -13,6 +13,7 @@ import { LanguageToggle } from '@/components/common/LanguageToggle'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { useLanguage } from '@/context/LanguageContext'
 import { formatCairo12Hour } from '@/lib/queue-calculator'
+import { PatientRecordVerificationModal } from '@/components/clinic/PatientRecordVerificationModal'
 
 export default function PublicInvoicePage({
   params
@@ -29,76 +30,97 @@ export default function PublicInvoicePage({
   const [isNotFound, setIsNotFound] = useState(false)
   const [isUnauthorized, setIsUnauthorized] = useState(false)
   const [authErrorMessage, setAuthErrorMessage] = useState('')
+  const [requiresVerification, setRequiresVerification] = useState(false)
+  const [maskedPhone, setMaskedPhone] = useState('')
+
+  const fetchData = async () => {
+    try {
+      const decodedInvoiceId = decodeURIComponent(invoiceId)
+      const searchParams = new URLSearchParams(window.location.search)
+      const token = searchParams.get('token') || ''
+      const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : ''
+
+      // 1. Fetch via authorized server API
+      const apiRes = await fetch(`/api/clinic/${slug}/invoice/${encodeURIComponent(decodedInvoiceId)}${tokenQuery}`)
+      
+      if (apiRes.status === 401 || apiRes.status === 403) {
+        const errData = await apiRes.json().catch(() => ({}))
+        if (errData.requiresVerification) {
+          setRequiresVerification(true)
+          setMaskedPhone(errData.maskedPhone || '')
+          if (errData.clinic) {
+            setClinic(errData.clinic)
+          }
+          setLoading(false)
+          return
+        }
+        setIsUnauthorized(true)
+        setAuthErrorMessage(errData.error || (isRtl ? 'هذا السجل الطبي محمي. يرجى تسجيل الدخول أو استخدام رابط المشاركة المعتمد.' : 'This medical record is protected. Please log in or use an authorized share link.'))
+        setLoading(false)
+        return
+      }
+
+      if (apiRes.status === 404) {
+        setIsNotFound(true)
+        setLoading(false)
+        return
+      }
+
+      if (apiRes.ok) {
+        const apiData = await apiRes.json()
+        if (apiData.success && apiData.invoice) {
+          setClinic(apiData.clinic)
+          const raw = apiData.invoice
+          const isPaid = raw.paymentStatus === 'paid'
+          const origPrice = Number(raw.servicePrice || 0) + (Number(raw.discount) || 0)
+          const disc = Number(raw.discount) || 0
+          const net = Number(raw.paidAmount !== undefined ? raw.paidAmount : raw.servicePrice) || 0
+
+          setInvoice({
+            invoiceNumber: raw.id || decodedInvoiceId,
+            clinicName: apiData.clinic?.clinicName || 'العيادة الطبية',
+            doctorName: apiData.clinic?.doctorName,
+            branchName: raw.branchName,
+            clinicAddress: apiData.clinic?.address,
+            clinicPhone: apiData.clinic?.clinicPhone,
+            patientName: raw.patientName || 'المريض',
+            patientPhone: raw.phone || '',
+            date: raw.date || new Date().toISOString().split('T')[0],
+            cairoTime: raw.time || formatCairo12Hour(new Date(raw.createdAt || Date.now())),
+            serviceName: raw.serviceName || 'كشف واستشارة طبية',
+            servicePrice: origPrice > 0 ? origPrice : net,
+            discount: disc,
+            netTotal: net,
+            paymentMethod: raw.paymentMethod || 'cash',
+            paymentStatus: isPaid ? 'paid' : 'pending',
+            appointmentId: raw.id,
+            queueNumber: raw.queueNumber
+          })
+          setRequiresVerification(false)
+          setIsUnauthorized(false)
+
+          // Clean up any token or expires from URL bar to keep it permanent and clean
+          if (typeof window !== 'undefined' && (searchParams.has('token') || searchParams.has('expires'))) {
+            try {
+              window.history.replaceState({}, '', window.location.pathname)
+            } catch {}
+          }
+
+          setLoading(false)
+          return
+        }
+      }
+
+      setIsNotFound(true)
+    } catch (err: any) {
+      console.error('Error fetching invoice:', err)
+      setIsNotFound(true)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const decodedInvoiceId = decodeURIComponent(invoiceId)
-        const searchParams = new URLSearchParams(window.location.search)
-        const token = searchParams.get('token') || ''
-        const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : ''
-
-        // 1. Fetch via authorized server API
-        const apiRes = await fetch(`/api/clinic/${slug}/invoice/${encodeURIComponent(decodedInvoiceId)}${tokenQuery}`)
-        
-        if (apiRes.status === 401 || apiRes.status === 403) {
-          const errData = await apiRes.json().catch(() => ({}))
-          setIsUnauthorized(true)
-          setAuthErrorMessage(errData.error || (isRtl ? 'هذا السجل الطبي محمي. يرجى تسجيل الدخول أو استخدام رابط المشاركة المعتمد.' : 'This medical record is protected. Please log in or use an authorized share link.'))
-          setLoading(false)
-          return
-        }
-
-        if (apiRes.status === 404) {
-          setIsNotFound(true)
-          setLoading(false)
-          return
-        }
-
-        if (apiRes.ok) {
-          const apiData = await apiRes.json()
-          if (apiData.success && apiData.invoice) {
-            setClinic(apiData.clinic)
-            const raw = apiData.invoice
-            const isPaid = raw.paymentStatus === 'paid'
-            const origPrice = Number(raw.servicePrice || 0) + (Number(raw.discount) || 0)
-            const disc = Number(raw.discount) || 0
-            const net = Number(raw.paidAmount !== undefined ? raw.paidAmount : raw.servicePrice) || 0
-
-            setInvoice({
-              invoiceNumber: raw.id || decodedInvoiceId,
-              clinicName: apiData.clinic?.clinicName || 'العيادة الطبية',
-              doctorName: apiData.clinic?.doctorName,
-              branchName: raw.branchName,
-              clinicAddress: apiData.clinic?.address,
-              clinicPhone: apiData.clinic?.clinicPhone,
-              patientName: raw.patientName || 'المريض',
-              patientPhone: raw.phone || '',
-              date: raw.date || new Date().toISOString().split('T')[0],
-              cairoTime: raw.time || formatCairo12Hour(new Date(raw.createdAt || Date.now())),
-              serviceName: raw.serviceName || 'كشف واستشارة طبية',
-              servicePrice: origPrice > 0 ? origPrice : net,
-              discount: disc,
-              netTotal: net,
-              paymentMethod: raw.paymentMethod || 'cash',
-              paymentStatus: isPaid ? 'paid' : 'pending',
-              appointmentId: raw.id,
-              queueNumber: raw.queueNumber
-            })
-            setLoading(false)
-            return
-          }
-        }
-
-        setIsNotFound(true)
-      } catch (err: any) {
-        console.error('Error fetching invoice:', err)
-        setIsNotFound(true)
-      } finally {
-        setLoading(false)
-      }
-    }
-
     fetchData()
   }, [slug, invoiceId, isRtl])
 
@@ -114,6 +136,48 @@ export default function PublicInvoicePage({
           <p className="text-xs font-bold text-muted-foreground">
             {t('loading_invoice_data', isRtl ? 'جاري تحميل بيانات الفاتورة الإلكترونية...' : 'Loading electronic invoice...')}
           </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (requiresVerification) {
+    return (
+      <div className="min-h-screen bg-background text-foreground font-sans py-6 px-3 sm:px-6 transition-colors flex flex-col justify-between" dir={dir}>
+        {/* Top Header */}
+        <div className="max-w-4xl w-full mx-auto flex items-center justify-between">
+          <Link
+            href={`/clinic/${slug}`}
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowRight className="w-4 h-4 rtl:rotate-0 ltr:rotate-180" />
+            <span>{t('back_to_clinic', isRtl ? 'العودة لصفحة العيادة' : 'Back to Clinic')}</span>
+          </Link>
+
+          <div className="flex items-center gap-2">
+            <LanguageToggle />
+            <ThemeToggle />
+          </div>
+        </div>
+
+        {/* Verification Card */}
+        <div className="my-auto py-8">
+          <PatientRecordVerificationModal
+            slug={slug}
+            recordId={decodeURIComponent(invoiceId)}
+            recordType="invoice"
+            maskedPhone={maskedPhone}
+            clinicName={clinic?.clinicName || clinic?.name || (isRtl ? 'العيادة الطبية' : 'Medical Clinic')}
+            onVerified={() => {
+              setLoading(true)
+              fetchData()
+            }}
+          />
+        </div>
+
+        {/* Footer */}
+        <div className="max-w-4xl w-full mx-auto pt-4 text-center text-xs text-muted-foreground">
+          {t('all_rights_reserved', isRtl ? 'جميع الحقوق محفوظة' : 'All rights reserved')} © {new Date().getFullYear()} {clinic?.clinicName || 'يلا كلينك'}
         </div>
       </div>
     )

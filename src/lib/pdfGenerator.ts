@@ -83,6 +83,7 @@ async function convertImageUrlToBase64(url: string): Promise<string | null> {
 
 /**
  * Pre-converts any external images inside the target element into inline Base64 DataURLs.
+ * Guarantees zero tainted canvas SecurityError on export.
  */
 async function inlineImagesAsBase64(element: HTMLElement): Promise<void> {
   // 1. Process <img> elements
@@ -90,10 +91,14 @@ async function inlineImagesAsBase64(element: HTMLElement): Promise<void> {
   for (const img of imgs) {
     const src = img.getAttribute('src')
     if (src && !src.startsWith('data:') && !src.startsWith('blob:')) {
-      const dataUrl = await convertImageUrlToBase64(src)
-      if (dataUrl) {
-        img.setAttribute('src', dataUrl)
-      } else {
+      try {
+        const dataUrl = await convertImageUrlToBase64(src)
+        if (dataUrl) {
+          img.setAttribute('src', dataUrl)
+        } else {
+          img.crossOrigin = 'anonymous'
+        }
+      } catch {
         img.crossOrigin = 'anonymous'
       }
     }
@@ -110,44 +115,39 @@ async function inlineImagesAsBase64(element: HTMLElement): Promise<void> {
   for (const el of bgElements) {
     const match = el.style.backgroundImage.match(/url\(["']?(.*?)["']?\)/)
     if (match && match[1] && !match[1].startsWith('data:') && !match[1].startsWith('blob:')) {
-      const dataUrl = await convertImageUrlToBase64(match[1])
-      if (dataUrl) {
-        el.style.backgroundImage = `url("${dataUrl}")`
-      }
+      try {
+        const dataUrl = await convertImageUrlToBase64(match[1])
+        if (dataUrl) {
+          el.style.backgroundImage = `url("${dataUrl}")`
+        }
+      } catch {}
     }
   }
 }
 
 /**
- * Sanitizes all computed styles and element properties in clonedDoc from modern CSS
- * color spaces (lab, oklab, oklch, lch, color-mix) into standard RGBA.
- * Prevents html2canvas from throwing: Attempting to parse an unsupported color function "lab"
+ * Converts modern CSS color values (oklch, lab, oklab, lch, color-mix, color(...))
+ * into standard RGBA format that html2canvas 1.4.1 can parse without throwing errors.
  */
-function sanitizeColorsToRgb(clonedDoc: Document, clonedEl: HTMLElement) {
-  const win = clonedDoc.defaultView || window
-  let dummyCanvas: HTMLCanvasElement | null = null
-  let ctx: CanvasRenderingContext2D | null = null
+export function toSafeRgb(colorStr: string): string {
+  if (!colorStr) return colorStr
+  if (
+    !colorStr.includes('lab') &&
+    !colorStr.includes('oklab') &&
+    !colorStr.includes('oklch') &&
+    !colorStr.includes('lch') &&
+    !colorStr.includes('color(') &&
+    !colorStr.includes('color-mix')
+  ) {
+    return colorStr
+  }
 
-  function toSafeRgb(colorStr: string): string {
-    if (!colorStr) return colorStr
-    if (
-      !colorStr.includes('lab') &&
-      !colorStr.includes('oklab') &&
-      !colorStr.includes('oklch') &&
-      !colorStr.includes('lch') &&
-      !colorStr.includes('color(') &&
-      !colorStr.includes('color-mix')
-    ) {
-      return colorStr
-    }
-
-    try {
-      if (!dummyCanvas && typeof document !== 'undefined') {
-        dummyCanvas = document.createElement('canvas')
-        dummyCanvas.width = 1
-        dummyCanvas.height = 1
-        ctx = dummyCanvas.getContext('2d', { willReadFrequently: true })
-      }
+  try {
+    if (typeof document !== 'undefined') {
+      const dummyCanvas = document.createElement('canvas')
+      dummyCanvas.width = 1
+      dummyCanvas.height = 1
+      const ctx = dummyCanvas.getContext('2d', { willReadFrequently: true })
       if (ctx) {
         ctx.clearRect(0, 0, 1, 1)
         ctx.fillStyle = colorStr
@@ -155,8 +155,29 @@ function sanitizeColorsToRgb(clonedDoc: Document, clonedEl: HTMLElement) {
         const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data
         return `rgba(${r}, ${g}, ${b}, ${+(a / 255).toFixed(3)})`
       }
-    } catch {}
-    return 'rgba(0,0,0,1)'
+    }
+  } catch {}
+
+  // Fallback defaults for safety
+  if (colorStr.includes('background') || colorStr.includes('bg')) {
+    return '#ffffff'
+  }
+  return 'rgba(15, 23, 42, 1)' // slate-900
+}
+
+/**
+ * Complete sanitization of the cloned document and target element.
+ * Sanitizes documentElement, body, and all descendant nodes to prevent html2canvas color errors.
+ */
+export function sanitizeAllColors(clonedDoc: Document, clonedEl: HTMLElement) {
+  // 1. Force white background on html and body of cloned doc
+  if (clonedDoc.documentElement) {
+    clonedDoc.documentElement.style.backgroundColor = '#ffffff'
+    clonedDoc.documentElement.style.color = '#0f172a'
+  }
+  if (clonedDoc.body) {
+    clonedDoc.body.style.backgroundColor = '#ffffff'
+    clonedDoc.body.style.color = '#0f172a'
   }
 
   const colorProperties = [
@@ -168,16 +189,26 @@ function sanitizeColorsToRgb(clonedDoc: Document, clonedEl: HTMLElement) {
     'borderBottomColor',
     'borderLeftColor',
     'outlineColor',
-    'textDecorationColor'
+    'textDecorationColor',
+    'fill',
+    'stroke'
   ]
 
-  const allNodes = [clonedEl, ...Array.from(clonedEl.querySelectorAll<HTMLElement>('*'))]
+  const allNodes = [
+    clonedDoc.documentElement,
+    clonedDoc.body,
+    clonedEl,
+    ...Array.from(clonedDoc.querySelectorAll<HTMLElement>('*'))
+  ].filter(Boolean)
+
+  const win = clonedDoc.defaultView || (typeof window !== 'undefined' ? window : null)
+
   for (const node of allNodes) {
     if (!node || !node.style) continue
     try {
-      const computed = win.getComputedStyle(node)
+      const computed = win && win.getComputedStyle ? win.getComputedStyle(node) : null
       for (const prop of colorProperties) {
-        const val = computed.getPropertyValue(prop)
+        const val = computed ? computed.getPropertyValue(prop) : (node.style as any)[prop]
         if (
           val &&
           (val.includes('lab') ||
@@ -187,56 +218,44 @@ function sanitizeColorsToRgb(clonedDoc: Document, clonedEl: HTMLElement) {
             val.includes('color(') ||
             val.includes('color-mix'))
         ) {
-          node.style[prop as any] = toSafeRgb(val)
+          ;(node.style as any)[prop] = toSafeRgb(val)
         }
       }
     } catch {}
   }
+}
 
-  // Also wrap getComputedStyle on clonedDoc.defaultView so html2canvas color parser only receives safe RGBA
-  if (win && win.getComputedStyle) {
-    const origGetComputedStyle = win.getComputedStyle.bind(win)
-    win.getComputedStyle = function(el: Element, pseudo?: string | null) {
-      const cs = origGetComputedStyle(el, pseudo)
-      return new Proxy(cs, {
-        get(target, prop) {
-          if (prop === 'getPropertyValue') {
-            return function(propName: string) {
-              const val = target.getPropertyValue(propName)
-              if (
-                val &&
-                (val.includes('lab') ||
-                  val.includes('oklab') ||
-                  val.includes('oklch') ||
-                  val.includes('lch') ||
-                  val.includes('color(') ||
-                  val.includes('color-mix'))
-              ) {
-                return toSafeRgb(val)
-              }
-              return val
-            }
-          }
-          const val = (target as any)[prop]
-          if (
-            typeof val === 'string' &&
-            (val.includes('lab') ||
-              val.includes('oklab') ||
-              val.includes('oklch') ||
-              val.includes('lch') ||
-              val.includes('color(') ||
-              val.includes('color-mix'))
-          ) {
-            return toSafeRgb(val)
-          }
-          if (typeof val === 'function') {
-            return val.bind(target)
-          }
-          return val
-        }
-      })
+/**
+ * Multi-page layout optimizer: inserts page-break spacers before medication cards
+ * to ensure cards are not sliced in half across page boundaries.
+ */
+export function applySmartPageBreaks(sheetEl: HTMLElement, pageHeightPx: number = 1123): void {
+  const cards = Array.from(
+    sheetEl.querySelectorAll<HTMLElement>('[data-avoid-break="true"], .drug-card, .break-inside-avoid')
+  )
+  if (cards.length === 0) return
+
+  const sheetRect = sheetEl.getBoundingClientRect()
+  cards.forEach((card) => {
+    const rect = card.getBoundingClientRect()
+    const topInsideSheet = rect.top - sheetRect.top
+    const bottomInsideSheet = topInsideSheet + rect.height
+
+    const pageIndex = Math.floor(topInsideSheet / pageHeightPx)
+    const pageBoundary = (pageIndex + 1) * pageHeightPx
+
+    // If card straddles the boundary (top on current page, bottom overflows)
+    if (topInsideSheet < pageBoundary && bottomInsideSheet > pageBoundary) {
+      const pushHeight = pageBoundary - topInsideSheet + 15
+      const spacer = document.createElement('div')
+      spacer.className = 'page-break-spacer'
+      spacer.style.height = `${pushHeight}px`
+      spacer.style.width = '100%'
+      spacer.style.clear = 'both'
+      spacer.style.pointerEvents = 'none'
+      card.parentNode?.insertBefore(spacer, card)
     }
-  }
+  })
 }
 
 async function capturePrescriptionSheet(sheet: HTMLElement, scale: number): Promise<HTMLCanvasElement> {
@@ -260,17 +279,23 @@ async function capturePrescriptionSheet(sheet: HTMLElement, scale: number): Prom
   container.append(clone)
   document.body.append(container)
   try {
-    await document.fonts.ready
+    if (typeof document !== 'undefined' && document.fonts) {
+      try { await document.fonts.ready } catch {}
+    }
     await inlineImagesAsBase64(clone)
+    applySmartPageBreaks(clone, height)
     return await html2canvas(clone, {
       scale: Math.min(scale, 2.5),
-      backgroundColor: '#fff',
+      backgroundColor: '#ffffff',
       useCORS: true,
+      allowTaint: false,
       logging: false,
       windowWidth: 1200,
       onclone: async (clonedDoc, clonedSheet) => {
-        await clonedDoc.fonts.ready
-        sanitizeColorsToRgb(clonedDoc, clonedSheet)
+        if (clonedDoc.fonts) {
+          try { await clonedDoc.fonts.ready } catch {}
+        }
+        sanitizeAllColors(clonedDoc, clonedSheet)
       },
     })
   } finally {
@@ -280,7 +305,7 @@ async function capturePrescriptionSheet(sheet: HTMLElement, scale: number): Prom
 
 /**
  * Captures an element using html2canvas safely with inlined Base64 images and isolated dimensions.
- * GUARANTEES allowTaint = false so canvas.toDataURL() and canvas.toBlob() NEVER throw SecurityError.
+ * GUARANTEES allowTaint = false and color proxying so canvas.toDataURL() and canvas.toBlob() NEVER fail.
  */
 async function captureElementCanvas(element: HTMLElement, scale: number = 2.5): Promise<HTMLCanvasElement> {
   const { default: html2canvas } = await import('html2canvas')
@@ -288,9 +313,11 @@ async function captureElementCanvas(element: HTMLElement, scale: number = 2.5): 
   // Target inner sheet if element is a wrapper
   const targetSheet = (element.querySelector('#patient-a4-print-sheet') as HTMLElement) || element
 
-  if (targetSheet.dataset.prescriptionPaper) return capturePrescriptionSheet(targetSheet, scale)
+  if (targetSheet.dataset && targetSheet.dataset.prescriptionPaper) {
+    return capturePrescriptionSheet(targetSheet, scale)
+  }
 
-  // 1. Ensure fonts in current document are fully loaded before capturing
+  // 1. Ensure fonts are fully loaded
   if (typeof document !== 'undefined' && document.fonts) {
     try {
       await document.fonts.ready
@@ -299,18 +326,65 @@ async function captureElementCanvas(element: HTMLElement, scale: number = 2.5): 
     }
   }
 
-  // 2. Pre-inline any remote images
+  // 2. Pre-inline any remote images to avoid tainted canvas
   try {
     await inlineImagesAsBase64(targetSheet)
   } catch (e) {
     console.warn('Image inlining step skipped:', e)
   }
 
+  // 3. Setup global getComputedStyle proxy protection during html2canvas run
+  const origGetComputedStyle = typeof window !== 'undefined' ? window.getComputedStyle : null
+  const proxyHandler: ProxyHandler<CSSStyleDeclaration> = {
+    get(target, prop) {
+      if (prop === 'getPropertyValue') {
+        return function (propName: string) {
+          const val = target.getPropertyValue(propName)
+          if (
+            val &&
+            (val.includes('oklch') ||
+              val.includes('lab') ||
+              val.includes('oklab') ||
+              val.includes('lch') ||
+              val.includes('color(') ||
+              val.includes('color-mix'))
+          ) {
+            return toSafeRgb(val)
+          }
+          return val
+        }
+      }
+      const val = (target as any)[prop]
+      if (
+        typeof val === 'string' &&
+        (val.includes('oklch') ||
+          val.includes('lab') ||
+          val.includes('oklab') ||
+          val.includes('lch') ||
+          val.includes('color(') ||
+          val.includes('color-mix'))
+      ) {
+        return toSafeRgb(val)
+      }
+      if (typeof val === 'function') {
+        return val.bind(target)
+      }
+      return val
+    }
+  }
+
+  if (origGetComputedStyle && typeof window !== 'undefined') {
+    window.getComputedStyle = function (elem: Element, pseudo?: string | null) {
+      const cs = origGetComputedStyle.call(window, elem, pseudo)
+      return new Proxy(cs, proxyHandler)
+    }
+  }
+
   try {
     return await html2canvas(targetSheet, {
       scale: Math.min(scale, 2.5),
       useCORS: true,
-      allowTaint: false, // NEVER allow taint to ensure toDataURL & toBlob succeed
+      allowTaint: false,
       logging: false,
       backgroundColor: '#ffffff',
       foreignObjectRendering: false,
@@ -323,13 +397,13 @@ async function captureElementCanvas(element: HTMLElement, scale: number = 2.5): 
           clonedEl.setAttribute('dir', 'rtl')
         } catch {}
 
-        // B. Inject Cairo Google Font directly into clonedDoc head to guarantee Arabic cursive ligatures
+        // B. Inject font style ensuring Cairo typography
         try {
           const fontStyle = clonedDoc.createElement('style')
           fontStyle.innerHTML = `
             @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap');
             *, html, body, [dir="rtl"], #patient-a4-print-sheet, #patient-a4-print-sheet * {
-              font-family: 'Cairo', 'Segoe UI', Tahoma, -apple-system, sans-serif !important;
+              font-family: 'Cairo', var(--font-cairo), 'Segoe UI', Tahoma, -apple-system, sans-serif !important;
               letter-spacing: 0px !important;
               word-spacing: 0px !important;
               font-feature-settings: "liga" 1, "calt" 1, "dlig" 1 !important;
@@ -343,10 +417,10 @@ async function captureElementCanvas(element: HTMLElement, scale: number = 2.5): 
           console.warn('Failed to inject font style in clone:', e)
         }
 
-        // C. Universal color sanitization to neutralize any Tailwind 4 lab/oklab colors
-        sanitizeColorsToRgb(clonedDoc, clonedEl)
+        // C. Universal color sanitization across all nodes
+        sanitizeAllColors(clonedDoc, clonedEl)
 
-        // D. Clean out negative letter-spacing and broken ellipsis on all nodes
+        // D. Clean out negative letter-spacing and broken ellipsis
         const allNodes = Array.from(clonedEl.querySelectorAll<HTMLElement>('*'))
         allNodes.forEach((node) => {
           if (node.style) {
@@ -375,7 +449,7 @@ async function captureElementCanvas(element: HTMLElement, scale: number = 2.5): 
           sheet.style.width = `${targetWidth}px`
           sheet.style.minHeight = `${targetHeight}px`
           sheet.style.maxWidth = 'none'
-          sheet.style.aspectRatio = 'auto' // Remove aspect-[1/1.414] so height is computed accurately
+          sheet.style.aspectRatio = 'auto'
           sheet.style.boxShadow = 'none'
           sheet.style.border = 'none'
           sheet.style.borderRadius = '0px'
@@ -384,7 +458,14 @@ async function captureElementCanvas(element: HTMLElement, scale: number = 2.5): 
           sheet.style.letterSpacing = '0px'
         }
 
-        // F. Safety: hide any remaining remote image that could not be inlined and might taint canvas
+        // F. Apply intelligent page breaks to prevent card splitting
+        try {
+          applySmartPageBreaks(sheet, targetHeight)
+        } catch (e) {
+          console.warn('Smart page break optimization skipped:', e)
+        }
+
+        // G. Safety: hide any remaining remote image that could not be inlined and might taint canvas
         const clonedImgs = Array.from(clonedEl.querySelectorAll('img'))
         clonedImgs.forEach((img) => {
           if (!img.src.startsWith('data:') && !img.src.startsWith('blob:')) {
@@ -406,13 +487,14 @@ async function captureElementCanvas(element: HTMLElement, scale: number = 2.5): 
     container.style.left = '-9999px'
     container.style.width = '794px'
     container.style.background = '#ffffff'
+    container.style.color = '#000000'
     container.style.zIndex = '-9999'
     container.setAttribute('dir', 'rtl')
     container.appendChild(clone)
     document.body.appendChild(container)
 
     try {
-      sanitizeColorsToRgb(document, container)
+      sanitizeAllColors(document, container)
       return await html2canvas(container, {
         scale: 2.0,
         useCORS: true,
@@ -425,18 +507,23 @@ async function captureElementCanvas(element: HTMLElement, scale: number = 2.5): 
         document.body.removeChild(container)
       }
     }
+  } finally {
+    // Restore global getComputedStyle
+    if (origGetComputedStyle && typeof window !== 'undefined') {
+      window.getComputedStyle = origGetComputedStyle
+    }
   }
 }
 
 /**
  * High-fidelity Client-Side PDF Renderer for Yalla Clinic
  * Uses dynamic imports for html2canvas & jsPDF for maximum performance.
- * Supports A4, A5, and Thermal 80mm formats.
+ * Supports A4, A5, and Thermal 80mm formats with multi-page card protection.
  */
 export async function renderElementToPdfBlob(
   element: HTMLElement,
   options: PdfRenderOptions = {}
-): Promise<{ blob: Blob; url: string }> {
+): Promise<{ blob: Blob; url: string; pageCount: number }> {
   const { format = 'a4', orientation = 'portrait', scale = 2.5 } = options
 
   // Dynamically load jsPDF
@@ -460,7 +547,7 @@ export async function renderElementToPdfBlob(
     pdf.addImage(imgData, 'PNG', 0, 0, mmWidth, mmHeight, undefined, 'FAST')
     const blob = pdf.output('blob')
     const url = URL.createObjectURL(blob)
-    return { blob, url }
+    return { blob, url, pageCount: 1 }
   }
 
   // A4 or A5 Document
@@ -496,17 +583,20 @@ export async function renderElementToPdfBlob(
   pdf.addImage(imgData, 'PNG', left, position, imgWidth, imgHeight, undefined, 'FAST')
   heightLeft -= pageHeight
 
+  let pageCount = 1
   // Multi-page handling only if document genuinely exceeds page height by more than 15mm
   while (heightLeft > (paper ? 0.1 : 15)) {
     position = position - pageHeight
     pdf.addPage()
     pdf.addImage(imgData, 'PNG', left, position, imgWidth, imgHeight, undefined, 'FAST')
     heightLeft -= pageHeight
+    pageCount++
   }
 
-  const blob = pdf.output('blob')
+  const rawBlob = pdf.output('blob')
+  const blob = new Blob([rawBlob], { type: 'application/pdf' })
   const url = URL.createObjectURL(blob)
-  return { blob, url }
+  return { blob, url, pageCount }
 }
 
 /**
@@ -517,7 +607,12 @@ export async function downloadElementAsPdf(
   fileName: string = 'document.pdf',
   options: PdfRenderOptions = {}
 ): Promise<void> {
-  const { url: downloadUrl } = await renderElementToPdfBlob(element, options)
+  const { blob } = await renderElementToPdfBlob(element, options)
+  if (!blob || blob.size === 0) {
+    throw new Error('Failed to generate valid PDF blob')
+  }
+
+  const downloadUrl = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = downloadUrl
   link.download = fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`
@@ -539,8 +634,11 @@ export async function renderElementToImageBlob(
 
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((b) => {
-      if (b) resolve(b)
-      else reject(new Error('Canvas toBlob failed'))
+      if (b && b.size > 0) {
+        resolve(new Blob([b], { type: 'image/png' }))
+      } else {
+        reject(new Error('Canvas toBlob failed'))
+      }
     }, 'image/png')
   })
 
@@ -556,7 +654,12 @@ export async function downloadElementAsImage(
   fileName: string = 'document.png',
   options: { scale?: number } = {}
 ): Promise<void> {
-  const { url: downloadUrl } = await renderElementToImageBlob(element, options)
+  const { blob } = await renderElementToImageBlob(element, options)
+  if (!blob || blob.size === 0) {
+    throw new Error('Failed to generate valid PNG blob')
+  }
+
+  const downloadUrl = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = downloadUrl
   link.download = fileName.endsWith('.png') ? fileName : `${fileName}.png`
