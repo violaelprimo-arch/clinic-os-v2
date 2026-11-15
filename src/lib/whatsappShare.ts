@@ -319,63 +319,50 @@ export function formatInvoiceWhatsAppMessage({
   return parts.join('\n')
 }
 
-export async function preparePrescriptionWhatsAppAttachment({
-  sheet, phone, fileName, target,
+export async function openWhatsAppRecordShare({
+  slug, recordId, type, clinicName, phone, target,
 }: {
-  sheet: HTMLElement
-  phone: string
-  fileName: string
-  target?: 'auto' | 'web' | 'app'
+  slug: string
+  recordId: string
+  type: 'prescription' | 'invoice'
+  clinicName?: string
+  phone?: string
+  target?: 'auto' | 'app' | 'web'
 }): Promise<void> {
-  if (!formatEgyptianPhoneForWhatsApp(phone)) {
-    toast.error('رقم هاتف المريض غير متوفر')
-    return
+  if (!slug || !recordId) throw new Error('احفظ المستند أولًا قبل مشاركته')
+  const path = `/clinic/${encodeURIComponent(slug)}/${type}/${encodeURIComponent(recordId)}`
+  const mode = !target || target === 'auto' ? getSavedWhatsAppTarget() : target
+  const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+  const popup = mobile || mode === 'web' ? window.open('about:blank', '_blank') : null
+  if (popup) popup.opener = null
+
+  try {
+    const response = await fetch(`/api${path}`, { cache: 'no-store', credentials: 'same-origin' })
+    const data = await response.json()
+    if (!response.ok || typeof data.shareToken !== 'string' || !data.shareToken) {
+      throw new Error('تعذر إنشاء رابط المشاركة. افتح المستند بحساب العيادة وحاول مرة أخرى.')
+    }
+    const recipient = formatEgyptianPhoneForWhatsApp(data[type === 'invoice' ? 'invoice' : 'appointment']?.phone || '')
+    if (!recipient || (phone && recipient !== formatEgyptianPhoneForWhatsApp(phone))) {
+      throw new Error('راجع رقم هاتف المريض المسجل في المستند قبل المشاركة.')
+    }
+    const link = new URL(path, window.location.origin)
+    link.searchParams.set('token', data.shareToken)
+    const label = type === 'invoice' ? 'الفاتورة' : 'الروشتة'
+    const message = `أهلًا، مع حضرتك ${data.clinic?.clinicName || clinicName || 'العيادة'}.\nرابط ${label}:\n${link.href}\nالرابط صالح لمدة 7 أيام ويفتح بدون تسجيل دخول.`
+    if (popup && !popup.closed) {
+      const chat = new URL(mobile ? 'https://api.whatsapp.com/send' : 'https://web.whatsapp.com/send/')
+      chat.searchParams.set('phone', recipient)
+      chat.searchParams.set('text', message)
+      popup.location.replace(chat.href)
+    } else {
+      openManualWhatsAppChat({ phone: recipient, message, target: mode })
+    }
+    void navigator.clipboard?.writeText(message).catch(() => {})
+  } catch (error) {
+    popup?.close()
+    throw error
   }
-
-  const { renderElementToPdfBlob } = await import('./pdfGenerator')
-  const { blob, url } = await renderElementToPdfBlob(sheet)
-  URL.revokeObjectURL(url)
-  const file = new File([blob], fileName, { type: 'application/pdf' })
-  const shareData = { files: [file] }
-  const canShareFile = (!target || target === 'auto' || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) &&
-    typeof navigator.share === 'function' && navigator.canShare?.(shareData) === true
-
-  const downloadAndOpen = () => {
-    openManualWhatsAppChat({ phone, message: '', target })
-    const downloadUrl = URL.createObjectURL(file)
-    const link = document.createElement('a')
-    link.href = downloadUrl
-    link.download = file.name
-    document.body.append(link)
-    link.click()
-    link.remove()
-    setTimeout(() => URL.revokeObjectURL(downloadUrl), 30000)
-    toast.info('ارفق ملف PDF من التنزيلات باستخدام زر المشبك في واتساب.', { duration: 10000 })
-  }
-
-  // Preparing the PDF is asynchronous. A new click gives the share sheet
-  // or WhatsApp tab the browser's required user activation.
-  toast('ملف الروشتة PDF جاهز', {
-    description: canShareFile
-      ? 'اختار واتساب ثم راجع اسم المستلم قبل الإرسال.'
-      : 'هنفتح محادثة المريض وننزّل الملف عشان ترفقه.',
-    duration: 20000,
-    action: {
-      label: canShareFile ? 'مشاركة الملف' : 'فتح واتساب وتنزيل',
-      onClick: () => {
-        if (!canShareFile) {
-          downloadAndOpen()
-          return
-        }
-        void navigator.share(shareData).catch((error: unknown) => {
-          if (error instanceof Error && error.name === 'AbortError') return
-          toast.error('تعذرت مشاركة الملف', {
-            action: { label: 'فتح واتساب وتنزيل', onClick: downloadAndOpen },
-          })
-        })
-      },
-    },
-  })
 }
 
 /**

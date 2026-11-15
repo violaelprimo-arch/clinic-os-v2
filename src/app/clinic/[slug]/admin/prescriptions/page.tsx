@@ -35,7 +35,7 @@ import { printHtmlViaIframe, generateA4PrescriptionHtml } from '@/lib/printServi
 import {
   generateCleanRxFileName,
   formatEgyptianPhoneForWhatsApp,
-  preparePrescriptionWhatsAppAttachment
+  openWhatsAppRecordShare
 } from '@/lib/whatsappShare'
 import { getClinicUrl } from '@/lib/clinic-url'
 import { useLanguage } from '@/context/LanguageContext'
@@ -54,6 +54,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const searchParams = useSearchParams()
   const { t, tDynamic, dir, isRtl, language } = useLanguage()
 
+  const [savedRxId, setSavedRxId] = useState('')
   const [appointmentId, setAppointmentId] = useState(searchParams?.get('appointmentId') || '')
   const [patientName, setPatientName] = useState(searchParams?.get('patientName') || '')
   const [patientPhone, setPatientPhone] = useState(searchParams?.get('phone') || searchParams?.get('patientPhone') || '')
@@ -537,6 +538,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     setInstructions('')
     setPatientAllergies('')
     setPatientChronicDiseases('')
+    setSavedRxId('')
     setAppointmentId('')
     setDrugs([{ id: Date.now(), name: '', dosage: '', duration: '', notes: '' }])
     setVitalsBpSys('')
@@ -800,6 +802,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           drugs: drugs.filter(d => d.name && d.name.trim() !== ''),
           createdAt: new Date().toISOString()
         })
+        setSavedRxId(docRef.id)
 
         // Record Audit Log
         try {
@@ -909,17 +912,15 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   }
 
   const handleShareWhatsAppRx = async (target?: 'auto' | 'app' | 'web') => {
-    if (!sheetRef.current || isSharingPdf) return
+    if (isSharingPdf) return
     setIsSharingPdf(true)
     try {
-      await preparePrescriptionWhatsAppAttachment({
-        sheet: sheetRef.current,
-        phone: patientPhone,
-        fileName: generateCleanRxFileName(patientName, dateStr, 'pdf'),
+      await openWhatsAppRecordShare({
+        slug, recordId: savedRxId || appointmentId, type: 'prescription', phone: patientPhone,
         target,
       })
-    } catch {
-      toast.error('تعذر تجهيز ملف الروشتة PDF')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'تعذر مشاركة الروشتة')
     } finally {
       setIsSharingPdf(false)
     }
@@ -1070,7 +1071,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
             onSend={(target) => handleShareWhatsAppRx(target)}
             phone={patientPhone}
             loading={isSharingPdf}
-            label={t('send_whatsapp_pdf', 'إرسال واتساب للمريض')}
+            label={t('send_whatsapp_btn', 'مشاركة عبر واتساب')}
             size="default"
           />
 
@@ -1166,6 +1167,7 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
                     const selected = filteredTodayPatients.find(p => p.id === e.target.value)
                     if (selected) {
                       setPatientName(selected.patientName || '')
+                      setSavedRxId('')
                       setAppointmentId(selected.id)
                       setPatientPhone(selected.phone || '')
                       setAge(selected.age || selected.dob || '')

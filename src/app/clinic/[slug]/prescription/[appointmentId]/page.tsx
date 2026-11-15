@@ -15,7 +15,7 @@ import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
 import { downloadElementAsPdf, downloadElementAsImage } from '@/lib/pdfGenerator'
 import { printHtmlViaIframe, generateA4PrescriptionHtml } from '@/lib/printService'
-import { generateCleanRxFileName, preparePrescriptionWhatsAppAttachment } from '@/lib/whatsappShare'
+import { generateCleanRxFileName, openWhatsAppRecordShare } from '@/lib/whatsappShare'
 import { WhatsAppShareButton } from '@/components/common/WhatsAppShareButton'
 import { getClinicUrl } from '@/lib/clinic-url'
 import { LanguageToggle } from '@/components/common/LanguageToggle'
@@ -41,6 +41,7 @@ export default function PublicPrescriptionPage({
   const [authErrorMessage, setAuthErrorMessage] = useState('')
   const [isDownloading, setIsDownloading] = useState(false)
   const [isDownloadingImage, setIsDownloadingImage] = useState(false)
+  const [canShareRecord, setCanShareRecord] = useState(false)
   const [isSharing, setIsSharing] = useState(false)
 
   const printSheetRef = useRef<HTMLDivElement>(null)
@@ -73,6 +74,7 @@ export default function PublicPrescriptionPage({
         if (apiRes.ok) {
           const apiData = await apiRes.json()
           if (apiData.success && apiData.appointment) {
+            setCanShareRecord(Boolean(apiData.shareToken) && !token)
             setClinic(apiData.clinic)
             setAppointment(apiData.appointment)
             setPrescription(apiData.prescription || {
@@ -188,14 +190,12 @@ export default function PublicPrescriptionPage({
     if (!printSheetRef.current || isSharing) return
     setIsSharing(true)
     try {
-      await preparePrescriptionWhatsAppAttachment({
-        sheet: printSheetRef.current,
-        phone: patientPhone,
-        fileName: generateCleanRxFileName(patientName, rxDate, 'pdf'),
+      await openWhatsAppRecordShare({
+        slug, recordId: appointmentId, type: 'prescription', phone: patientPhone,
         target,
       })
-    } catch {
-      toast.error(isRtl ? 'تعذر تجهيز ملف الروشتة PDF' : 'Could not prepare the prescription PDF')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'تعذر مشاركة الروشتة')
     } finally {
       setIsSharing(false)
     }
@@ -339,14 +339,14 @@ export default function PublicPrescriptionPage({
             </Button>
 
             {/* WhatsApp Share Button with Web / App Selector (Zero computer auto-download) */}
-            <WhatsAppShareButton
+            {canShareRecord && <WhatsAppShareButton
               onSend={handleShareWhatsApp}
               phone={patientPhone}
               loading={isSharing}
               label={isSharing ? (isRtl ? 'جاري المشاركة...' : 'Sharing...') : t('send_whatsapp_btn', isRtl ? 'مشاركة عبر واتساب' : 'Share via WhatsApp')}
               size="default"
               showPhoneBadge={false}
-            />
+            />}
           </div>
         </div>
 

@@ -6,8 +6,8 @@ import { Badge } from '@/components/ui/badge'
 import { Printer, Download, Receipt, CheckCircle2, Clock, MapPin, Phone, Building, Share2, MessageCircle, Image as ImageIcon } from 'lucide-react'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { printHtmlViaIframe, generateThermalReceiptHtml } from '@/lib/printService'
-import { downloadElementAsPdf, downloadElementAsImage, renderElementToImageBlob, renderElementToPdfBlob } from '@/lib/pdfGenerator'
-import { shareDocumentOrImage, sharePdfDocument, openManualWhatsAppChat, formatInvoiceWhatsAppMessage, getSavedWhatsAppTarget } from '@/lib/whatsappShare'
+import { downloadElementAsPdf, downloadElementAsImage } from '@/lib/pdfGenerator'
+import { openWhatsAppRecordShare } from '@/lib/whatsappShare'
 import { WhatsAppShareButton } from '@/components/common/WhatsAppShareButton'
 import { useLanguage } from '@/context/LanguageContext'
 import { toast } from 'sonner'
@@ -119,70 +119,21 @@ export function InvoiceView({
     }
   }
 
-  // WhatsApp Share with real PDF: Opens chat instantly in 0ms (no popup blocker), sends full invoice breakdown + PDF link, NO local computer download
-  const handleShareWhatsApp = async (targetOverride?: 'web' | 'app') => {
-    if (!invoice.patientPhone) return toast.error(isRtl ? 'رقم هاتف المريض غير مسجل في الفاتورة' : 'Patient phone number not found in invoice')
-
-    const host = typeof window !== 'undefined' && window.location.origin
-      ? window.location.origin
-      : 'https://www.yalla-clinic.com'
-
-    const invoiceIdentifier = invoice.invoiceNumber || invoice.appointmentId || ''
-    const directInvoiceUrl = (resolvedSlug && invoiceIdentifier)
-      ? `${host}/clinic/${resolvedSlug}/invoice/${encodeURIComponent(invoiceIdentifier)}`
-      : ''
-
-    const targetMode = targetOverride || getSavedWhatsAppTarget()
-    const msg = formatInvoiceWhatsAppMessage({
-      clinicName: invoice.clinicName,
-      doctorName: invoice.doctorName,
-      branchName: invoice.branchName,
-      patientName: invoice.patientName,
-      patientPhone: invoice.patientPhone,
-      invoiceNumber: invoice.invoiceNumber,
-      date: invoice.date,
-      time: invoice.cairoTime,
-      serviceName: invoice.serviceName,
-      originalPrice: Number(invoice.servicePrice) || 0,
-      discount: Number(invoice.discount) || 0,
-      netTotal: Number(invoice.netTotal) || Number(invoice.servicePrice) || 0,
-      paymentMethod: invoice.paymentMethod,
-      paymentStatus: invoice.paymentStatus,
-      directInvoiceUrl
-    })
-
-    // Open WhatsApp chat synchronously in 0ms (Zero popup blocker, opens exact phone, puts Invoice in chat!)
-    openManualWhatsAppChat({
-      phone: invoice.patientPhone,
-      message: msg,
-      target: targetMode
-    })
-
-    toast.success(
-      isRtl
-        ? `تم فتح محادثة المريض (${invoice.patientPhone}) وإدراج الفاتورة في الشات! اضغط Enter للإرسال 🚀`
-        : `Opened WhatsApp chat with invoice details! Press Enter to send 🚀`,
-      { duration: 5000 }
-    )
-
-    // 3. Desktop Clipboard image copy for Ctrl+V paste (strictly WITHOUT auto-downloading to computer)
-    if (printableRef.current) {
-      setIsGeneratingPdf(true)
-      try {
-        if (typeof navigator !== 'undefined' && navigator.clipboard && window.ClipboardItem) {
-          renderElementToImageBlob(printableRef.current, { scale: 2.5 }).then(async ({ blob: imgBlob }) => {
-            try {
-              await navigator.clipboard.write([
-                new ClipboardItem({ 'image/png': imgBlob })
-              ])
-            } catch {}
-          }).catch(() => {})
-        }
-      } catch (e) {
-        console.warn('Background invoice image copy error:', e)
-      } finally {
-        setIsGeneratingPdf(false)
-      }
+  const handleShareWhatsApp = async (target?: 'web' | 'app') => {
+    if (isGeneratingPdf) return
+    setIsGeneratingPdf(true)
+    try {
+      await openWhatsAppRecordShare({
+        slug: resolvedSlug,
+        recordId: invoice.appointmentId || invoice.invoiceNumber || '',
+        type: 'invoice',
+        phone: invoice.patientPhone,
+        target,
+      })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'تعذر مشاركة الفاتورة')
+    } finally {
+      setIsGeneratingPdf(false)
     }
   }
 

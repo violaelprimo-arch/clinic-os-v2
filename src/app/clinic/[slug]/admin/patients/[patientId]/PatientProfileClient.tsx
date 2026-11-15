@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Receipt, ExternalLink, Clock, Phone, ArrowRight, User, Calendar, Pill, Printer, Activity, ChevronDown, ChevronUp, Stethoscope, CheckCircle, FileText, Download, MapPin } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { generateCleanRxFileName, preparePrescriptionWhatsAppAttachment } from '@/lib/whatsappShare'
+import { generateCleanRxFileName, openWhatsAppRecordShare } from '@/lib/whatsappShare'
 import { WhatsAppShareButton } from '@/components/common/WhatsAppShareButton'
 import { InvoiceView, type InvoiceData } from '@/components/clinic/InvoiceView'
 import { useLanguage } from '@/context/LanguageContext'
@@ -110,18 +110,15 @@ export default function PatientProfileClient({ slug, patientId }: { slug: string
   }
 
   const sendWhatsAppRx = async (appt: any, target?: 'web' | 'app') => {
-    const sheet = document.getElementById(`rx-sheet-${appt.id}`)
-    if (!sheet || sharingApptId) return
+    if (sharingApptId) return
     setSharingApptId(appt.id)
     try {
-      await preparePrescriptionWhatsAppAttachment({
-        sheet,
-        phone,
-        fileName: generateCleanRxFileName(patientData?.name || appt.patientName || 'المريض', appt.date, 'pdf'),
+      await openWhatsAppRecordShare({
+        slug, recordId: appt.id, type: 'prescription', phone,
         target,
       })
-    } catch {
-      toast.error('تعذر تجهيز ملف الروشتة PDF')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'تعذر مشاركة الروشتة')
     } finally {
       setSharingApptId(null)
     }
