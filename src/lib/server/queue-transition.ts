@@ -19,6 +19,7 @@ import {
   getOrHydrateDayFromRoom,
   publishDaySnapshotToRoom,
 } from '@/lib/server/queue-room-client'
+import { cancelPendingAppointmentJobs } from '@/lib/server/whatsapp-scheduler'
 
 export type QueueTransitionAction =
   | 'start'
@@ -448,6 +449,14 @@ export async function executeQueueTransition(
           alertWaitingPatients(staff.clinicId, slug, pending, String(calledSnapshot.id), clinicDoc, deps),
         ]),
       'queue-transition-notify',
+      deps.waitUntil,
+    )
+  }
+
+  if (action === 'complete' || action === 'no_show') {
+    deps.scheduleBackgroundTask(
+      () => cancelPendingAppointmentJobs(id, `TRANSITION_${action.toUpperCase()}`),
+      'whatsapp-cancel-completed',
       deps.waitUntil,
     )
   }

@@ -4,6 +4,8 @@ import { getCurrentClinicStaff } from '@/lib/server/clinic-staff-access'
 import { sameOriginMutation } from '@/lib/server/push-access'
 import { isFirestoreQuotaError, readDocument, writeDocument } from '@/lib/server/firebase-rest'
 import { upsertAppointmentInRoom } from '@/lib/server/queue-room-client'
+import { scheduleBackgroundTask } from '@/lib/server/background-task'
+import { handleAppointmentCancelled } from '@/lib/server/whatsapp-scheduler'
 
 export const dynamic = 'force-dynamic'
 
@@ -90,6 +92,11 @@ export async function POST(req: NextRequest) {
       appointment: updatedAppointment,
       commitIso: now,
     }).catch(() => null)
+
+    scheduleBackgroundTask(
+      () => handleAppointmentCancelled(appointmentId),
+      'whatsapp-patient-cancel',
+    )
 
     return NextResponse.json(
       {

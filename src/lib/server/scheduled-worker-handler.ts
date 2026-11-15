@@ -9,6 +9,7 @@ import {
 } from './medicine-sync-service'
 import { readDocument } from './firebase-rest'
 import { processPendingPushOutbox } from './push-outbox'
+import { drainPendingWhatsAppJobs } from './whatsapp-scheduler'
 
 export interface ScheduledEventResult {
   success?: boolean
@@ -47,9 +48,9 @@ export async function handleScheduledEvent(
     }
   }
 
-  // The 15-minute retry trigger also drains expired mobile push gateway
-  // retries, independent of the medicine sync window and patient web tabs.
-  if (cronExpr === '*/15 * * * *') {
+  // Recurring cron triggers drain pending push notifications and scheduled WhatsApp messages
+  const isRetryTrigger = cronExpr === '*/15 * * * *' || cronExpr === '*/5 * * * *'
+  if (isRetryTrigger) {
     try {
       const push = await processPendingPushOutbox(15)
       if (push.processed > 0) {
@@ -59,6 +60,16 @@ export async function handleScheduledEvent(
       console.warn('[Worker Scheduled] Push retry unavailable:',
         error instanceof Error ? error.message : 'UNKNOWN')
     }
+
+    try {
+      const wa = await drainPendingWhatsAppJobs(20)
+      if (wa.processed > 0) {
+        console.log('[Worker Scheduled] WhatsApp jobs drained:', wa)
+      }
+    } catch (error) {
+      console.warn('[Worker Scheduled] WhatsApp job draining unavailable:',
+        error instanceof Error ? error.message : 'UNKNOWN')
+    }
   }
 
   const cairoHour = getCairoHour(eventTime)
@@ -66,9 +77,8 @@ export async function handleScheduledEvent(
 
   // Daily triggers fire at 03:00/04:00 UTC; exactly one maps to
   // 06:00 Africa/Cairo after applying daylight-saving time.
-  // An independent 15-minute retry trigger heals transient source failures
+  // An independent retry trigger heals transient source failures
   // and missed original schedules without needing a browser tab.
-  const isRetryTrigger = cronExpr === '*/15 * * * *'
   if (!isRetryTrigger && cairoHour !== 6) {
     return { skipped: true, reason: 'NOT_0600_CAIRO', cairoHour, cairoDate }
   }

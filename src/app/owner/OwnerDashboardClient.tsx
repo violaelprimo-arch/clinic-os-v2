@@ -21,6 +21,7 @@ import {
   Inbox, Palette, Pill, Receipt, Bell, CreditCard, BarChart3, DollarSign, Settings, FileText
 } from 'lucide-react'
 import { ClinicRequestsManager, type ClinicRegistrationRequest } from '@/components/owner/ClinicRequestsManager'
+import { OwnerWhatsAppManager } from '@/components/owner/OwnerWhatsAppManager'
 import { MedicineSyncMonitorWidget } from '@/components/owner/MedicineSyncMonitorWidget'
 import { OwnerNotificationsDropdown } from '@/components/owner/OwnerNotificationsDropdown'
 import { db } from '@/lib/firebase'
@@ -1918,6 +1919,19 @@ function OwnerDashboard() {
         </button>
 
         <button
+          type="button"
+          onClick={() => setActiveTab('whatsapp')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'whatsapp'
+              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/30'
+              : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60'
+          }`}
+        >
+          <MessageSquare className="w-4 h-4 text-emerald-400" />
+          <span>{isRtl ? 'إدارة واتساب العيادات' : 'Clinic WhatsApp'}</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('doctors')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'doctors'
@@ -1988,6 +2002,8 @@ function OwnerDashboard() {
           onCreateClinicFromRequest={handleCreateClinicFromRequest}
         />
       )}
+
+      {activeTab === 'whatsapp' && <OwnerWhatsAppManager />}
 
       {activeTab === 'clinics' && (
         <motion.div

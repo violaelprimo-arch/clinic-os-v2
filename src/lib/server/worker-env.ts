@@ -18,6 +18,8 @@ const SYNCED_ENV_KEYS = [
   'VAPID_PRIVATE_KEY',
   'VAPID_SUBJECT',
   'QUEUE_ROOM_TEST_TELEMETRY',
+  'YCLOUD_API_KEY',
+  'YCLOUD_WEBHOOK_SECRET',
 ] as const
 
 const WORKER_ENV_SYMBOL = Symbol.for('clinic.os.worker.env.bindings')

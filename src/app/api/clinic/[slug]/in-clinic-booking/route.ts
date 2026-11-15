@@ -23,6 +23,8 @@ import {
   CAPACITY_FULL_MESSAGE
 } from '@/lib/bookingCapacity'
 import { isClinicSuspended } from '@/lib/clinicAccessPolicy'
+import { scheduleBackgroundTask } from '@/lib/server/background-task'
+import { scheduleAppointmentNotifications } from '@/lib/server/whatsapp-scheduler'
 
 export async function POST(
   req: NextRequest,
@@ -340,6 +342,23 @@ export async function POST(
       commitIso: newAppointmentData.createdAt,
       notifyChanged: true,
     }).catch(() => null)
+
+    scheduleBackgroundTask(
+      () =>
+        scheduleAppointmentNotifications({
+          id: newApptId,
+          clinicId,
+          clinicSlug: slug,
+          patientName: cleanName,
+          patientPhone: cleanPhone,
+          clinicName: clinic?.name || '',
+          doctorName: clinic?.doctorName || '',
+          date: bookingDate,
+          time: newAppointmentData.time || '10:00 AM',
+          whatsappConsent: body.whatsappConsent !== false
+        }),
+      'whatsapp-in-clinic-booking',
+    )
 
     const livePos = calculatePatientLivePosition({
       targetAppointment: {

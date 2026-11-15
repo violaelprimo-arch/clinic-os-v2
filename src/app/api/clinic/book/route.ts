@@ -22,6 +22,7 @@ import { createServerNotification } from '@/lib/server/clinic-notifications'
 import { issueBookingPushClaim } from '@/lib/server/push-access'
 import { dispatchPatientPushNotification } from '@/lib/pushDispatcher'
 import { createAtomicAppointmentServer } from '@/lib/server/firebase-rest'
+import { scheduleAppointmentNotifications } from '@/lib/server/whatsapp-scheduler'
 import { isClinicSuspended } from '@/lib/clinicAccessPolicy'
 import { calculatePatientLivePosition } from '@/lib/queueCalculations'
 import {
@@ -394,6 +395,23 @@ export async function POST(req: NextRequest) {
           }),
         ]),
       'booking-push-fanout',
+    )
+
+    scheduleBackgroundTask(
+      () =>
+        scheduleAppointmentNotifications({
+          id: docRef.id,
+          clinicId,
+          clinicSlug: slug,
+          patientName: cleanName,
+          patientPhone: cleanPhone,
+          clinicName: cData?.name || '',
+          doctorName: cData?.doctorName || '',
+          date: bookingDate,
+          time,
+          whatsappConsent: body.whatsappConsent !== false
+        }),
+      'whatsapp-booking-notifications',
     )
 
     // A signed, appointment-scoped capability allows the booking device to
