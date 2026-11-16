@@ -174,7 +174,13 @@ function OwnerDashboard() {
   const { dir, t, isRtl, language } = useLanguage()
   const reducedMotion = useReducedMotion()
   const [clinics, setClinics] = useState<any[]>([])
-  const { activeTab, setActiveTab } = useOwnerNavigation()
+  const {
+    activeTab,
+    setActiveTab,
+    setNewRequestsCount,
+    registerExportBackup,
+    registerEditClinic,
+  } = useOwnerNavigation()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedRequestIdForCreation, setSelectedRequestIdForCreation] = useState<string | null>(null)
   const [allTrialRequests, setAllTrialRequests] = useState<any[]>([])
@@ -226,6 +232,10 @@ function OwnerDashboard() {
   }, [])
 
   const newRequestsCount = allTrialRequests.filter((r) => r.status === 'new').length
+
+  useEffect(() => {
+    setNewRequestsCount(newRequestsCount)
+  }, [newRequestsCount, setNewRequestsCount])
 
   const handleCreateClinicFromRequest = (req: ClinicRegistrationRequest) => {
     if (req.status === 'clinic_created' || req.createdClinicId) {
@@ -1645,6 +1655,26 @@ function OwnerDashboard() {
     toast.info('تم إلغاء التعديل')
   }
 
+  // Register backup export and edit clinic actions for unified sidebar navigation
+  useEffect(() => {
+    registerExportBackup(handleExportBackup)
+    return () => registerExportBackup(null)
+  }, [handleExportBackup, registerExportBackup])
+
+  useEffect(() => {
+    const triggerEdit = () => {
+      if (editingId) {
+        setActiveTab('add')
+      } else if (clinics.length > 0) {
+        handleEdit(clinics[0])
+      } else {
+        setActiveTab('add')
+      }
+    }
+    registerEditClinic(triggerEdit)
+    return () => registerEditClinic(null)
+  }, [editingId, clinics, handleEdit, setActiveTab, registerEditClinic])
+
   const toggleStatus = async (id: string, currentStatus: boolean) => {
     try {
       await updateDoc(doc(db, 'clinics', id), { isActive: !currentStatus })
@@ -1905,7 +1935,18 @@ function OwnerDashboard() {
             </span>
           )}
         </button>
-        <button type="button" onClick={() => setActiveTab('landing')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs whitespace-nowrap ${activeTab === 'landing' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary'}`}><Sparkles className="size-4" />{isRtl ? 'الواجهة الرئيسية واستطلاع الرأي' : 'Landing & Reviews'}</button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('landing')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'landing'
+              ? 'bg-[#0066FF] text-white shadow-md shadow-blue-500/30'
+              : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60'
+          }`}
+        >
+          <Sparkles className="w-4 h-4" />
+          <span>{isRtl ? 'الواجهة الرئيسية واستطلاع الرأي' : 'Landing & Reviews'}</span>
+        </button>
         <button
           onClick={() => setActiveTab('clinics')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer whitespace-nowrap ${
