@@ -1,3 +1,4 @@
+import { sendClinicDocument } from '@/lib/server/send-clinic-document'
 import { NextRequest, NextResponse } from 'next/server'
 import { readDocument, queryDocumentsByField, queryDocuments } from '@/lib/server/firebase-rest'
 import { fetchBranchesForClinic } from '@/lib/server/clinic-branches'
@@ -204,4 +205,9 @@ export async function GET(
       }
     })
   }
+}
+
+export async function POST(req: NextRequest, context: { params: Promise<{ slug:string; appointmentId:string }> }) {
+  const params = await context.params
+  return sendClinicDocument(req, params.slug, params.appointmentId, 'prescription', () => GET(req, context))
 }

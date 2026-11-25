@@ -333,7 +333,7 @@ export function OwnerWhatsAppManager() {
   }, [clinics])
 
   return (
-    <div className="space-y-6 text-right" dir="rtl">
+    <div className="space-y-6 rounded-2xl bg-slate-950 p-4 text-slate-100 text-right [&_input]:text-slate-100! [&_input]:bg-slate-900! [&_input]:placeholder:text-slate-400 [&_button[data-variant=outline]]:bg-slate-800! [&_button[data-variant=outline]]:text-slate-100!" dir="rtl">
       {/* Header Banner */}
       <div className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-l from-emerald-950/20 via-slate-900/60 to-slate-950/80 p-6 backdrop-blur">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -346,7 +346,7 @@ export function OwnerWhatsAppManager() {
                 <h2 className="text-xl font-black text-slate-100 flex items-center gap-2">
                   إدارة واتساب العيادات
                   <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 bg-emerald-500/10 text-xs">
-                    YCloud Tech Partner
+                    WhatsApp
                   </Badge>
                 </h2>
                 <p className="text-xs text-slate-400">
@@ -379,7 +379,7 @@ export function OwnerWhatsAppManager() {
             </div>
             <div className="mt-2 flex items-baseline gap-2">
               <span className="text-2xl font-black text-slate-100">{stats.connectedCount}</span>
-              <span className="text-xs text-slate-500">/ 20 قناة متاحة</span>
+              <span className="text-xs text-slate-300">/ 20 قناة متاحة</span>
             </div>
           </div>
 
@@ -481,7 +481,7 @@ export function OwnerWhatsAppManager() {
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-800 p-12 text-center">
           <MessageSquare className="size-10 text-slate-600 mb-3" />
           <p className="text-base font-bold text-slate-300">لم يتم العثور على أي عيادات تطابق البحث</p>
-          <p className="text-xs text-slate-500 mt-1">جرب تغيير كلمات البحث أو تصفية الحالة</p>
+          <p className="text-xs text-slate-300 mt-1">جرب تغيير كلمات البحث أو تصفية الحالة</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4">
@@ -504,7 +504,7 @@ export function OwnerWhatsAppManager() {
                     <Badge variant="secondary" className="text-xs font-normal">
                       د. {clinic.doctorName}
                     </Badge>
-                    <span className="text-xs text-slate-500 font-mono">/{clinic.slug}</span>
+                    <span className="text-xs text-slate-300 font-mono">/{clinic.slug}</span>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
@@ -543,12 +543,12 @@ export function OwnerWhatsAppManager() {
                         {clinic.whatsapp.phoneNumber}
                       </span>
                     ) : (
-                      <span className="text-slate-500">لا يوجد رقم مرتبط</span>
+                      <span className="text-slate-300">لا يوجد رقم مرتبط</span>
                     )}
 
                     {/* WABA ID */}
                     {clinic.whatsapp.wabaId && (
-                      <span className="text-slate-500 font-mono text-[11px]">
+                      <span className="text-slate-300 font-mono text-[11px]">
                         WABA: {clinic.whatsapp.wabaId}
                       </span>
                     )}
@@ -683,7 +683,7 @@ export function OwnerWhatsAppManager() {
 
       {/* Reminder Settings Modal */}
       <Dialog open={Boolean(settingsClinic)} onOpenChange={(open) => !open && setSettingsClinic(null)}>
-        <DialogContent className="max-w-xl bg-slate-900 border-slate-800 text-slate-100 text-right" dir="rtl">
+        <DialogContent className="max-w-xl bg-slate-900 border-slate-800 text-slate-100 text-right [&_input]:text-slate-100! [&_input]:bg-slate-900! [&_input]:placeholder:text-slate-400 [&_button[data-variant=outline]]:bg-slate-800! [&_button[data-variant=outline]]:text-slate-100!" dir="rtl">
           <DialogHeader className="text-right">
             <DialogTitle className="text-lg font-black flex items-center gap-2">
               <Settings className="size-5 text-emerald-400" />
@@ -734,14 +734,14 @@ export function OwnerWhatsAppManager() {
                     {editSettings.reminders.map((rule, idx) => (
                       <div key={rule.id} className="flex items-center gap-2">
                         <span className="text-xs text-slate-400 w-16">التذكير #{idx + 1}:</span>
-                        <span className="text-xs text-slate-500">قبل الموعد بـ</span>
+                        <span className="text-xs text-slate-300">قبل الموعد بـ</span>
                         <Input
                           type="number"
                           min="1"
                           max="999"
                           value={rule.value}
                           onChange={(e) => handleUpdateReminderRule(rule.id, 'value', e.target.value)}
-                          className="w-20 h-8 text-center bg-slate-900 border-slate-700 text-xs"
+                          className="w-20 h-8 text-center bg-slate-900! text-slate-100! border-slate-600 text-xs"
                         />
                         <select
                           value={rule.unit}
@@ -758,7 +758,7 @@ export function OwnerWhatsAppManager() {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleRemoveReminderRule(rule.id)}
-                          className="h-8 w-8 p-0 text-slate-500 hover:text-rose-400"
+                          className="h-8 w-8 p-0 text-slate-300 hover:text-rose-400"
                         >
                           <Trash2 className="size-3.5" />
                         </Button>
@@ -816,16 +816,16 @@ export function OwnerWhatsAppManager() {
                 <div className="flex items-center gap-3">
                   <Input
                     type="number"
-                    min="10"
+                    min="1"
                     max="10000"
                     value={editSettings.monthlyLimit}
                     onChange={(e) =>
                       setEditSettings({
                         ...editSettings,
-                        monthlyLimit: Math.max(10, Number(e.target.value) || 500)
+                        monthlyLimit: Math.max(1, Number(e.target.value) || 1)
                       })
                     }
-                    className="w-32 h-9 bg-slate-900 border-slate-700 text-sm"
+                    className="w-32 h-9 bg-slate-900! text-slate-100! border-slate-600 text-sm"
                   />
                   <span className="text-xs text-slate-400">رسالة / شهر (لحماية التكلفة ومنع الاستهلاك الزائد)</span>
                 </div>
@@ -833,7 +833,7 @@ export function OwnerWhatsAppManager() {
             </div>
           )}
 
-          <DialogFooter className="gap-2 sm:justify-start">
+          <DialogFooter className="bg-slate-900! border-slate-700! gap-2 sm:justify-start">
             <Button
               onClick={handleSaveSettings}
               disabled={savingSettings}
@@ -844,7 +844,7 @@ export function OwnerWhatsAppManager() {
             <Button
               variant="outline"
               onClick={() => setSettingsClinic(null)}
-              className="border-slate-700 text-xs"
+              className="bg-slate-800! text-slate-100! border-slate-600 text-xs"
             >
               إلغاء
             </Button>
@@ -854,14 +854,14 @@ export function OwnerWhatsAppManager() {
 
       {/* Test Message Modal */}
       <Dialog open={Boolean(testClinic)} onOpenChange={(open) => !open && setTestClinic(null)}>
-        <DialogContent className="max-w-md bg-slate-900 border-slate-800 text-slate-100 text-right" dir="rtl">
+        <DialogContent className="max-w-md bg-slate-900 border-slate-800 text-slate-100 text-right [&_input]:text-slate-100! [&_input]:bg-slate-900! [&_input]:placeholder:text-slate-400 [&_button[data-variant=outline]]:bg-slate-800! [&_button[data-variant=outline]]:text-slate-100!" dir="rtl">
           <DialogHeader className="text-right">
             <DialogTitle className="text-base font-black flex items-center gap-2">
               <Send className="size-4 text-blue-400" />
               إرسال رسالة اختبار — {testClinic?.name}
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-400">
-              سيتم إرسال قالب تأكيد الحجز المعتمد من Meta تجريبياً للتحقق من جاهزية الرقم والقالب.
+              {testClinic?.whatsapp.wpSenderMode === 'mock' ? 'محاكاة فقط. تُحسب التجربة من رصيد المحاكاة لهذا الشهر.' : 'إرسال رسالة للتحقق من جاهزية الرقم.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -880,13 +880,13 @@ export function OwnerWhatsAppManager() {
                 className="bg-slate-950 border-slate-700 text-left font-mono text-sm"
                 dir="ltr"
               />
-              <p className="text-[11px] text-slate-500">
-                أدخل رقم موبايل حقيقي لاستلام الإشعار على تطبيق WhatsApp
+              <p className="text-[11px] text-slate-300">
+                {testClinic?.whatsapp.wpSenderMode === 'mock' ? 'استخدم رقمًا تجريبيًا.' : 'أدخل رقم الموبايل المخصص للاختبار.'}
               </p>
             </div>
           </div>
 
-          <DialogFooter className="gap-2 sm:justify-start">
+          <DialogFooter className="bg-slate-900! border-slate-700! gap-2 sm:justify-start">
             <Button
               onClick={handleSendTestMessage}
               disabled={sendingTest || !testPhone.trim()}
@@ -897,7 +897,7 @@ export function OwnerWhatsAppManager() {
             <Button
               variant="outline"
               onClick={() => setTestClinic(null)}
-              className="border-slate-700 text-xs"
+              className="bg-slate-800! text-slate-100! border-slate-600 text-xs"
             >
               إلغاء
             </Button>
@@ -907,7 +907,7 @@ export function OwnerWhatsAppManager() {
 
       {/* Unlink Confirmation Dialog */}
       <Dialog open={Boolean(unlinkClinic)} onOpenChange={(open) => !open && setUnlinkClinic(null)}>
-        <DialogContent className="max-w-md bg-slate-900 border-slate-800 text-slate-100 text-right" dir="rtl">
+        <DialogContent className="max-w-md bg-slate-900 border-slate-800 text-slate-100 text-right [&_input]:text-slate-100! [&_input]:bg-slate-900! [&_input]:placeholder:text-slate-400 [&_button[data-variant=outline]]:bg-slate-800! [&_button[data-variant=outline]]:text-slate-100!" dir="rtl">
           <DialogHeader className="text-right">
             <DialogTitle className="text-base font-black flex items-center gap-2 text-rose-400">
               <AlertTriangle className="size-5" />
@@ -924,7 +924,7 @@ export function OwnerWhatsAppManager() {
             </DialogDescription>
           </DialogHeader>
 
-          <DialogFooter className="gap-2 sm:justify-start pt-3">
+          <DialogFooter className="bg-slate-900! border-slate-700! gap-2 sm:justify-start pt-3">
             <Button
               onClick={handleConfirmUnlink}
               disabled={unlinking}
@@ -936,7 +936,7 @@ export function OwnerWhatsAppManager() {
             <Button
               variant="outline"
               onClick={() => setUnlinkClinic(null)}
-              className="border-slate-700 text-xs"
+              className="bg-slate-800! text-slate-100! border-slate-600 text-xs"
             >
               تراجع
             </Button>

@@ -1,3 +1,4 @@
+import { messageDefaults, renderClinicMessage } from '@/lib/clinic-message-templates'
 import 'server-only'
 import {
   readDocument,
@@ -32,6 +33,7 @@ export interface ClinicWhatsAppSettings {
 
 export interface ClinicWhatsAppConfig {
   clinicId: string
+  templates?: Partial<typeof messageDefaults>
   provider?: 'wpsender'
   clinicSlug?: string
   status: 'not_linked' | 'linking' | 'connected' | 'disconnected' | 'error'
@@ -50,6 +52,8 @@ export interface ClinicWhatsAppConfig {
     totalCostEstimate: number // in USD
   }
   monthlyUsage: number
+  wpMockMonth?: string
+  wpMockUsage?: number
   wpUsageMonth?: string
   wpMonthlyUsage?: number
   settings: ClinicWhatsAppSettings
@@ -219,6 +223,7 @@ export async function getClinicWhatsAppConfig(clinicId: string): Promise<ClinicW
       const stored = configData || {}
       return {
         clinicId,
+        templates: stored.templates || {},
         provider: wp ? 'wpsender' : undefined,
         clinicSlug: String(stored.clinicSlug || clinicDoc?.slug || ''),
         status: wp ? (wp.mode === 'off' ? 'not_linked' : 'connected') : (stored.status as any) || (clinicDoc?.whatsappPhoneNumber ? 'connected' : 'not_linked'),
@@ -688,10 +693,11 @@ export function buildTemplateParameters(job: WhatsAppJob): {
   }
 }
 
-export function buildWpSenderMessage(job: WhatsAppJob): string {
+export function buildWpSenderMessage(job: WhatsAppJob, templates?: Partial<typeof messageDefaults>): string {
   const date = formatArabicDate(job.appointmentDate)
   const time = formatArabicTime(job.appointmentTime)
   const when = job.hasFixedTime ? `${date}، الساعة ${time}` : date
+  if (templates) return renderClinicMessage(templates[job.jobType] || messageDefaults[job.jobType], job.patientName, job.clinicName, when)
   switch (job.jobType) {
     case 'booking_confirmation':
       return `تم تأكيد موعدك يوم ${when}.`
@@ -723,7 +729,15 @@ export async function executeWhatsAppJob(jobId: string): Promise<boolean> {
     const currentTime = String(appointment?.time || '10:00 AM')
 
     let skipReason = ''
-    if (!appointment || appointmentClinic !== job.clinicId || cancelled !== cancellation) {
+    const allowedBySettings = {
+      booking_confirmation: config?.settings.sendBookingConfirmation,
+      appointment_reminder: config?.settings.sendReminders,
+      appointment_cancelled: config?.settings.sendCancellationNotification,
+      appointment_rescheduled: config?.settings.sendRescheduledNotification
+    }
+    if (config && !allowedBySettings[job.jobType]) {
+      skipReason = 'NOTIFICATION_DISABLED'
+    } else if (!appointment || appointmentClinic !== job.clinicId || cancelled !== cancellation) {
       skipReason = 'APPOINTMENT_NO_LONGER_ELIGIBLE'
     } else if (job.transport !== expectedTransport || appointment.whatsappConsent === false
       || (wp && appointment.whatsappConsent !== true)) {
@@ -757,10 +771,10 @@ export async function executeWhatsAppJob(jobId: string): Promise<boolean> {
     if (!claimed) return false
 
     if (wp) {
-      if (wp.mode === 'live' && !await reserveWpSenderUsage(job.clinicId, config.settings.monthlyLimit, now)) {
+      if (!await reserveWpSenderUsage(job.clinicId, config.settings.monthlyLimit, now, wp.mode === 'mock')) {
         throw new Error('WPSENDER_MONTHLY_LIMIT')
       }
-      const result = await sendWpSenderMessage(wp, job.patientPhone, buildWpSenderMessage(job))
+      const result = await sendWpSenderMessage(wp, job.patientPhone, buildWpSenderMessage(job, config.templates))
       await writeDocument(path, {
         status: result.status,
         wpSenderMessageId: result.id,
@@ -808,23 +822,25 @@ export function cairoUsageMonth(date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit' }).format(date)
 }
 
-async function reserveWpSenderUsage(clinicId: string, limit: number, now: string): Promise<boolean> {
+export async function reserveWpSenderUsage(clinicId: string, limit: number, now: string, mock = false): Promise<boolean> {
+  const counter = mock ? "wpMockUsage" : "wpMonthlyUsage"
+  const period = mock ? "wpMockMonth" : "wpUsageMonth"
   const month = cairoUsageMonth(new Date(now))
   const path = `clinic_whatsapp_configs/${clinicId}`
   for (let attempt = 0; attempt < 4; attempt++) {
     const current = await readVersionedDocument(path)
     if (!current) {
       try {
-        await createDocument('clinic_whatsapp_configs', { wpMonthlyUsage: 1, wpUsageMonth: month, lastSyncAt: now }, clinicId)
+        await createDocument('clinic_whatsapp_configs', { [counter]: 1, [period]: month, lastSyncAt: now }, clinicId)
         return true
       } catch (error) {
         if (!(error instanceof Error) || error.message !== 'RATE_LIMITED') throw error
         continue
       }
     }
-    const usage = current.data.wpUsageMonth === month ? Number(current.data.wpMonthlyUsage || 0) : 0
+    const usage = current.data[period] === month ? Number(current.data[counter] || 0) : 0
     if (usage >= limit) return false
-    if (await patchDocumentAtVersion(path, current.updateTime, { wpMonthlyUsage: usage + 1, wpUsageMonth: month, lastSyncAt: now })) return true
+    if (await patchDocumentAtVersion(path, current.updateTime, { [counter]: usage + 1, [period]: month, lastSyncAt: now })) return true
   }
   throw new Error('WPSENDER_USAGE_RESERVATION_FAILED')
 }

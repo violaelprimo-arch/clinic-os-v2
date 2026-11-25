@@ -364,13 +364,17 @@ export async function readVersionedDocument(path: string) {
 
 export async function patchDocumentAtVersion(path: string, updateTime: string, data: Fields) {
   if (!updateTime) throw new Error('FIRESTORE_VERSION_REQUIRED')
-  const query = new URLSearchParams({ 'currentDocument.updateTime': updateTime })
-  for (const key of Object.keys(data)) query.append('updateMask.fieldPaths', key)
-  const response = await request(documentUrl(path) + '?' + query, {
-    method: 'PATCH',
-    body: JSON.stringify({ fields: encode(data).mapValue?.fields })
+  const url = documentUrl(path)
+  const response = await request(documentUrl('').replace(/\/$/, '') + ':commit', {
+    method: 'POST',
+    body: JSON.stringify({ writes: [{
+      update: { name: url.split('/v1/')[1], fields: encode(data).mapValue?.fields },
+      updateMask: { fieldPaths: Object.keys(data) },
+      currentDocument: { updateTime }
+    }] })
   })
-  if (response.status === 404 || response.status === 412 || response.status === 409) return false
+  if ([404, 409, 412].includes(response.status)) return false
+  if (response.status === 400 && (await response.clone().json()).error?.status === 'FAILED_PRECONDITION') return false
   if (!response.ok) throw new Error('FIRESTORE_WRITE_FAILED')
   return true
 }
