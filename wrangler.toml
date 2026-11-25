@@ -34,6 +34,9 @@ binding = "ASSETS"
 [observability]
 enabled = true
 
+[vars]
+WPSENDER_LIVE_ENABLED = "false"
+
 [triggers]
 crons = ["0 3 * * *", "0 4 * * *", "*/15 * * * *", "*/5 * * * *"]
 

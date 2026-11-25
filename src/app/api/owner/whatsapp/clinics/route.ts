@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateOwnerRequest, apiFailure } from '@/lib/server/owner-access'
 import { queryDocuments, readDocument } from '@/lib/server/firebase-rest'
-import { DEFAULT_WHATSAPP_SETTINGS, ClinicWhatsAppConfig } from '@/lib/server/whatsapp-scheduler'
+import { DEFAULT_WHATSAPP_SETTINGS, ClinicWhatsAppConfig, cairoUsageMonth } from '@/lib/server/whatsapp-scheduler'
+
+import { getWpSenderConfig } from '@/lib/server/wp-sender'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,9 +34,10 @@ export async function GET(req: NextRequest) {
           }
         } catch {}
 
+        const wp = getWpSenderConfig(clinicId)
         const isLinkedFromClinic = Boolean(c.whatsappPhoneNumber)
-        const status = waConfig?.status || (isLinkedFromClinic ? 'connected' : 'not_linked')
-        const phoneNumber = waConfig?.phoneNumber || c.whatsappPhoneNumber || null
+        const status = wp ? (wp.mode === 'off' ? 'not_linked' : 'connected') : waConfig?.status || (isLinkedFromClinic ? 'connected' : 'not_linked')
+        const phoneNumber = wp ? wp.senderNumber || null : waConfig?.phoneNumber || c.whatsappPhoneNumber || null
 
         return {
           id: clinicId,
@@ -44,9 +47,10 @@ export async function GET(req: NextRequest) {
           phone: c.phone || '',
           whatsapp: {
             status,
+            wpSenderMode: wp?.mode || null,
             phoneNumber,
-            phoneNumberId: waConfig?.phoneNumberId || c.whatsappPhoneNumberId || null,
-            wabaId: waConfig?.wabaId || c.whatsappWabaId || null,
+            phoneNumberId: wp ? null : waConfig?.phoneNumberId || c.whatsappPhoneNumberId || null,
+            wabaId: wp ? null : waConfig?.wabaId || c.whatsappWabaId || null,
             businessName: waConfig?.businessName || c.name || null,
             linkedAt: waConfig?.linkedAt || c.whatsappLinkedAt || null,
             lastSyncAt: waConfig?.lastSyncAt || null,
@@ -58,8 +62,10 @@ export async function GET(req: NextRequest) {
               failedCount: Number(waConfig?.stats?.failedCount || 0),
               totalCostEstimate: Number(waConfig?.stats?.totalCostEstimate || 0)
             },
-            monthlyUsage: Number(waConfig?.monthlyUsage || 0),
-            settings: waConfig?.settings || DEFAULT_WHATSAPP_SETTINGS
+            monthlyUsage: wp
+              ? (waConfig?.wpUsageMonth === cairoUsageMonth() ? Number(waConfig?.wpMonthlyUsage || 0) : 0)
+              : Number(waConfig?.monthlyUsage || 0),
+            settings: { ...DEFAULT_WHATSAPP_SETTINGS, ...waConfig?.settings }
           }
         }
       })

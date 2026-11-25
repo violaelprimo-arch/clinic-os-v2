@@ -244,6 +244,9 @@ export async function POST(
       isUrgent,
       date: bookingDate,
       time: time || 'حسب الدور',
+      whatsappConsent: body.whatsappConsent === true,
+      whatsappReminderTime: body.time || validation.shifts?.[0]?.start || null,
+      whatsappHasFixedTime: Boolean(body.time),
       status: 'waiting',
       paymentMethod: paymentMethod || 'cash',
       paymentStatus: paymentStatus === 'paid' ? 'paid' : 'unpaid',
@@ -355,7 +358,9 @@ export async function POST(
           doctorName: clinic?.doctorName || '',
           date: bookingDate,
           time: newAppointmentData.time || '10:00 AM',
-          whatsappConsent: body.whatsappConsent !== false
+          whatsappConsent: newAppointmentData.whatsappConsent,
+          whatsappReminderTime: newAppointmentData.whatsappReminderTime,
+          whatsappHasFixedTime: newAppointmentData.whatsappHasFixedTime
         }),
       'whatsapp-in-clinic-booking',
     )

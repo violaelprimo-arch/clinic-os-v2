@@ -206,3 +206,60 @@ test('TASK 7: Default Settings & Reminder Constraints', () => {
   assert.equal(DEFAULT_WHATSAPP_SETTINGS.reminders.length, 2)
   assert.equal(DEFAULT_WHATSAPP_SETTINGS.monthlyLimit, 500)
 })
+
+test('WP Sender modes isolate clinics and keep mock and disabled sends off the network', async (t) => {
+  const { getWpSenderConfig, sendWpSenderMessage } = await import('../src/lib/server/wp-sender.ts')
+  const savedClinics = process.env.WPSENDER_CLINICS_JSON
+  const savedEnabled = process.env.WPSENDER_LIVE_ENABLED
+  t.after(() => {
+    if (savedClinics === undefined) delete process.env.WPSENDER_CLINICS_JSON
+    else process.env.WPSENDER_CLINICS_JSON = savedClinics
+    if (savedEnabled === undefined) delete process.env.WPSENDER_LIVE_ENABLED
+    else process.env.WPSENDER_LIVE_ENABLED = savedEnabled
+  })
+  process.env.WPSENDER_CLINICS_JSON = JSON.stringify({
+    alpha: { mode: 'mock', senderNumber: '201011111111' },
+    beta: { mode: 'live', senderNumber: '201022222222', apiKey: 'test_key' }
+  })
+  process.env.WPSENDER_LIVE_ENABLED = 'false'
+  const fetchMock = t.mock.method(globalThis, 'fetch', async (url, options) => {
+    assert.equal(url, 'https://backendapi.wpsenderx.com/api/messages/send')
+    assert.equal(options.headers['X-API-Key'], 'test_key')
+    assert.equal(options.redirect, 'error')
+    assert.deepEqual(JSON.parse(options.body), {
+      phone: '201033333333',
+      sender_number: '201022222222',
+      message: 'رسالة اختبار'
+    })
+    return Response.json({ status: 'success', data: { message_id: 'provider-id' } })
+  })
+  assert.equal(getWpSenderConfig('unknown'), null)
+  assert.equal(getWpSenderConfig('beta').mode, 'off')
+  await assert.rejects(sendWpSenderMessage(getWpSenderConfig('beta'), '+201033333333', 'رسالة اختبار'), /WPSENDER_DISABLED/)
+  assert.equal((await sendWpSenderMessage(getWpSenderConfig('alpha'), '+201033333333', 'رسالة اختبار')).status, 'mock_sent')
+  assert.equal(fetchMock.mock.callCount(), 0)
+  process.env.WPSENDER_LIVE_ENABLED = 'true'
+  assert.deepEqual(await sendWpSenderMessage(getWpSenderConfig('beta'), '+201033333333', 'رسالة اختبار'), {
+    id: 'provider-id', status: 'accepted'
+  })
+  assert.equal(fetchMock.mock.callCount(), 1)
+})
+
+test('WP Sender queue messages avoid personal details and use 24-hour and 2-hour defaults', async () => {
+  const { buildWpSenderMessage, cairoUsageMonth } = await import('../src/lib/server/whatsapp-scheduler.ts')
+  assert.deepEqual(DEFAULT_WHATSAPP_SETTINGS.reminders.map(({ value, unit }) => [value, unit]), [
+    [24, 'hour'], [2, 'hour']
+  ])
+  const job = {
+    jobType: 'appointment_reminder',
+    patientName: 'PRIVATE_PATIENT',
+    clinicName: 'PRIVATE_CLINIC',
+    appointmentId: 'PRIVATE_BOOKING',
+    appointmentDate: '2026-12-02',
+    appointmentTime: '10:00 AM'
+  }
+  assert.match(buildWpSenderMessage(job), /تذكير بموعدك/)
+  assert.doesNotMatch(buildWpSenderMessage(job), /PRIVATE|الساعة/)
+  assert.match(buildWpSenderMessage({ ...job, hasFixedTime: true }), /الساعة 10:00/)
+  assert.equal(cairoUsageMonth(new Date('2026-11-30T22:30:00Z')), '2026-12')
+})

@@ -736,6 +736,7 @@ export function validateBookingAvailability(options: {
   error?: string
   status: DayStatus
   effectiveLimit: number
+  shifts?: ScheduleShift[]
   nextAvailableDate?: string | null
   nextAvailableFormatted?: string | null
 } {
@@ -766,6 +767,7 @@ export function validateBookingAvailability(options: {
     return {
       isValid: true,
       status: 'available',
+      shifts: evalResult.shifts,
       effectiveLimit
     }
   }

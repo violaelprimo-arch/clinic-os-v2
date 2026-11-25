@@ -3,14 +3,16 @@ import {
   readDocument,
   writeDocument,
   queryDocumentsByField,
-  deleteDocument
+  createDocument,
+  readVersionedDocument,
+  patchDocumentAtVersion,
+  queryDueWhatsAppJobs
 } from '@/lib/server/firebase-rest'
 import {
   formatToE164,
-  sendWhatsAppTemplateMessage,
-  listWabaPhoneNumbers,
-  createEmbeddedSignupLink
+  sendWhatsAppTemplateMessage
 } from './ycloud-service'
+import { getWpSenderConfig, sendWpSenderMessage } from './wp-sender'
 import { scheduleBackgroundTask } from '@/lib/server/background-task'
 
 export interface ClinicWhatsAppReminderRule {
@@ -30,6 +32,7 @@ export interface ClinicWhatsAppSettings {
 
 export interface ClinicWhatsAppConfig {
   clinicId: string
+  provider?: 'wpsender'
   clinicSlug?: string
   status: 'not_linked' | 'linking' | 'connected' | 'disconnected' | 'error'
   wabaId?: string | null
@@ -47,6 +50,8 @@ export interface ClinicWhatsAppConfig {
     totalCostEstimate: number // in USD
   }
   monthlyUsage: number
+  wpUsageMonth?: string
+  wpMonthlyUsage?: number
   settings: ClinicWhatsAppSettings
   templateStatus?: Record<string, 'APPROVED' | 'PENDING' | 'REJECTED' | 'NOT_CREATED'>
 }
@@ -67,6 +72,8 @@ export interface WhatsAppJob {
     | 'appointment_cancelled'
   scheduledAt: string // ISO UTC
   appointmentDate: string // YYYY-MM-DD
+  reminderAnchorTime?: string
+  hasFixedTime?: boolean
   appointmentTime: string // e.g. 10:00 AM
   status:
     | 'pending'
@@ -77,6 +84,9 @@ export interface WhatsAppJob {
     | 'read'
     | 'failed'
     | 'cancelled'
+    | 'mock_sent'
+  transport?: 'wpsender_live' | 'wpsender_mock'
+  wpSenderMessageId?: string
   idempotencyKey: string
   ycloudMessageId?: string | null
   ycloudWamid?: string | null
@@ -94,7 +104,7 @@ export const DEFAULT_WHATSAPP_SETTINGS: ClinicWhatsAppSettings = {
   sendReminders: true,
   reminders: [
     { id: 'rem-1', value: 24, unit: 'hour' },
-    { id: 'rem-2', value: 45, unit: 'minute' }
+    { id: 'rem-2', value: 2, unit: 'hour' }
   ],
   sendRescheduledNotification: true,
   sendCancellationNotification: true,
@@ -154,8 +164,8 @@ export function getCairoAppointmentUtcDate(dateStr: string, timeStr?: string): D
 
   // Construct target UTC timestamp subtracting Cairo offset
   const testDate = new Date(Date.UTC(year, month, day, hours, minutes, 0))
-  const cairoOffsetMinutes = getCairoUtcOffsetMinutes(testDate)
-  return new Date(testDate.getTime() - cairoOffsetMinutes * 60 * 1000)
+  const estimatedUtc = new Date(testDate.getTime() - getCairoUtcOffsetMinutes(testDate) * 60000)
+  return new Date(testDate.getTime() - getCairoUtcOffsetMinutes(estimatedUtc) * 60000)
 }
 
 /**
@@ -190,8 +200,8 @@ export function formatArabicTime(timeStr?: string): string {
 
   let h = parseInt(digitsMatch[1], 10)
   const m = digitsMatch[2]
-  if (h > 12) h -= 12
-  const period = isPm ? 'مساءً' : isAm ? 'صباحاً' : ''
+  const period = (isPm || (!isAm && h >= 12)) ? 'مساءً' : 'صباحاً'
+  h = h % 12 || 12
   return `${h}:${m} ${period}`.trim()
 }
 
@@ -203,31 +213,37 @@ export async function getClinicWhatsAppConfig(clinicId: string): Promise<ClinicW
 
   try {
     const configData: any = await readDocument(`clinic_whatsapp_configs/${clinicId}`)
-    if (configData) {
+    const wp = getWpSenderConfig(clinicId)
+    const clinicDoc = (!configData?.status || wp) ? await readDocument(`clinics/${clinicId}`) : null
+    if (configData || (wp && clinicDoc)) {
+      const stored = configData || {}
       return {
         clinicId,
-        clinicSlug: configData.clinicSlug ? String(configData.clinicSlug) : undefined,
-        status: (configData.status as any) || 'not_linked',
-        wabaId: configData.wabaId ? String(configData.wabaId) : null,
-        phoneNumberId: configData.phoneNumberId ? String(configData.phoneNumberId) : null,
-        phoneNumber: configData.phoneNumber ? String(configData.phoneNumber) : null,
-        businessName: configData.businessName ? String(configData.businessName) : null,
-        linkedAt: configData.linkedAt ? String(configData.linkedAt) : null,
-        lastSyncAt: configData.lastSyncAt ? String(configData.lastSyncAt) : null,
-        lastError: configData.lastError ? String(configData.lastError) : null,
+        provider: wp ? 'wpsender' : undefined,
+        clinicSlug: String(stored.clinicSlug || clinicDoc?.slug || ''),
+        status: wp ? (wp.mode === 'off' ? 'not_linked' : 'connected') : (stored.status as any) || (clinicDoc?.whatsappPhoneNumber ? 'connected' : 'not_linked'),
+        wabaId: stored.wabaId ? String(stored.wabaId) : null,
+        phoneNumberId: stored.phoneNumberId ? String(stored.phoneNumberId) : null,
+        phoneNumber: wp ? wp.senderNumber || null : String(stored.phoneNumber || clinicDoc?.whatsappPhoneNumber || '') || null,
+        businessName: String(stored.businessName || clinicDoc?.name || '') || null,
+        linkedAt: stored.linkedAt ? String(stored.linkedAt) : null,
+        lastSyncAt: stored.lastSyncAt ? String(stored.lastSyncAt) : null,
+        lastError: stored.lastError ? String(stored.lastError) : null,
         stats: {
-          sentCount: Number(configData.stats?.sentCount || 0),
-          deliveredCount: Number(configData.stats?.deliveredCount || 0),
-          readCount: Number(configData.stats?.readCount || 0),
-          failedCount: Number(configData.stats?.failedCount || 0),
-          totalCostEstimate: Number(configData.stats?.totalCostEstimate || 0)
+          sentCount: Number(stored.stats?.sentCount || 0),
+          deliveredCount: Number(stored.stats?.deliveredCount || 0),
+          readCount: Number(stored.stats?.readCount || 0),
+          failedCount: Number(stored.stats?.failedCount || 0),
+          totalCostEstimate: Number(stored.stats?.totalCostEstimate || 0)
         },
-        monthlyUsage: Number(configData.monthlyUsage || 0),
+        monthlyUsage: wp
+          ? (stored.wpUsageMonth === cairoUsageMonth() ? Number(stored.wpMonthlyUsage || 0) : 0)
+          : Number(stored.monthlyUsage || 0),
         settings: {
           ...DEFAULT_WHATSAPP_SETTINGS,
-          ...(configData.settings || {})
+          ...(stored.settings || {})
         },
-        templateStatus: configData.templateStatus || {
+        templateStatus: stored.templateStatus || {
           booking_confirmation: 'APPROVED',
           appointment_reminder: 'APPROVED',
           appointment_rescheduled: 'APPROVED',
@@ -237,7 +253,6 @@ export async function getClinicWhatsAppConfig(clinicId: string): Promise<ClinicW
     }
 
     // Fallback: check clinic root document for existing credentials
-    const clinicDoc: any = await readDocument(`clinics/${clinicId}`)
     if (clinicDoc) {
       const initialConfig: ClinicWhatsAppConfig = {
         clinicId,
@@ -291,6 +306,8 @@ export async function scheduleAppointmentNotifications(appointment: {
   date: string
   time?: string
   whatsappConsent?: boolean
+  whatsappReminderTime?: string | null
+  whatsappHasFixedTime?: boolean
 }): Promise<{ confirmationScheduled: boolean; remindersCount: number }> {
   const { id: appointmentId, clinicId, patientName, patientPhone, date, time } = appointment
 
@@ -299,7 +316,6 @@ export async function scheduleAppointmentNotifications(appointment: {
   }
 
   if (appointment.whatsappConsent === false) {
-    console.log(`[WhatsApp Scheduler] Patient ${patientPhone} has opted out of WhatsApp notifications.`)
     return { confirmationScheduled: false, remindersCount: 0 }
   }
 
@@ -308,7 +324,13 @@ export async function scheduleAppointmentNotifications(appointment: {
     return { confirmationScheduled: false, remindersCount: 0 }
   }
 
-  if (config.monthlyUsage >= (config.settings.monthlyLimit || 500)) {
+  const wp = config.provider === 'wpsender' ? getWpSenderConfig(clinicId) : null
+  if (wp && appointment.whatsappConsent !== true) {
+    return { confirmationScheduled: false, remindersCount: 0 }
+  }
+  const transport = wp ? (wp.mode === 'mock' ? 'wpsender_mock' : 'wpsender_live') : undefined
+
+  if (wp?.mode !== 'mock' && config.monthlyUsage >= config.settings.monthlyLimit) {
     console.warn(`[WhatsApp Scheduler] Monthly limit reached for clinic ${clinicId}. Skipping messages.`)
     return { confirmationScheduled: false, remindersCount: 0 }
   }
@@ -318,7 +340,8 @@ export async function scheduleAppointmentNotifications(appointment: {
   const doctorName = appointment.doctorName || ''
   const cleanPhone = formatToE164(patientPhone)
   const now = new Date().toISOString()
-  const apptUtc = getCairoAppointmentUtcDate(date, time)
+  const reminderTime = wp ? appointment.whatsappReminderTime : time
+  const apptUtc = getCairoAppointmentUtcDate(date, reminderTime || undefined)
 
   let confirmationScheduled = false
   let remindersCount = 0
@@ -336,6 +359,7 @@ export async function scheduleAppointmentNotifications(appointment: {
       patientName,
       patientPhone: cleanPhone,
       jobType: 'booking_confirmation',
+      ...(transport ? { transport, hasFixedTime: appointment.whatsappHasFixedTime } : {}),
       scheduledAt: now, // immediate
       appointmentDate: date,
       appointmentTime: time || '10:00 AM',
@@ -347,7 +371,7 @@ export async function scheduleAppointmentNotifications(appointment: {
     }
 
     try {
-      await writeDocument(`whatsapp_jobs/${confirmationJobId}`, confirmationJob as any, true)
+      await createDocument('whatsapp_jobs', confirmationJob as any, confirmationJobId)
       confirmationScheduled = true
 
       // Trigger immediate background dispatch
@@ -361,7 +385,7 @@ export async function scheduleAppointmentNotifications(appointment: {
   }
 
   // 2. Appointment Reminders
-  if (config.settings.sendReminders && Array.isArray(config.settings.reminders)) {
+  if (config.settings.sendReminders && Array.isArray(config.settings.reminders) && (!wp || reminderTime)) {
     for (const rule of config.settings.reminders) {
       if (!rule.value || rule.value <= 0) continue
 
@@ -386,6 +410,7 @@ export async function scheduleAppointmentNotifications(appointment: {
         patientName,
         patientPhone: cleanPhone,
         jobType: 'appointment_reminder',
+        ...(transport ? { transport, reminderAnchorTime: reminderTime || undefined, hasFixedTime: appointment.whatsappHasFixedTime } : {}),
         scheduledAt: reminderScheduledAt,
         appointmentDate: date,
         appointmentTime: time || '10:00 AM',
@@ -397,7 +422,7 @@ export async function scheduleAppointmentNotifications(appointment: {
       }
 
       try {
-        await writeDocument(`whatsapp_jobs/${reminderJobId}`, reminderJob as any, true)
+        await createDocument('whatsapp_jobs', reminderJob as any, reminderJobId)
         remindersCount++
       } catch (e) {
         console.error(`[WhatsApp Scheduler] Error saving reminder job:`, e)
@@ -423,11 +448,13 @@ export async function handleAppointmentRescheduled(
     if (!appt) return
 
     const clinicId = String(appt.clinic_id || appt.clinicId || '')
+    const version = String(appt.updatedAt || Date.now())
+    await cancelPendingAppointmentJobs(appointmentId, 'APPOINTMENT_RESCHEDULED', version)
     const config = await getClinicWhatsAppConfig(clinicId)
-    if (!config || config.status !== 'connected' || !config.phoneNumber) return
-
-    // 1. Cancel previous pending reminders for this appointment
-    await cancelPendingAppointmentJobs(appointmentId, 'APPOINTMENT_RESCHEDULED')
+    const wp = config?.provider === 'wpsender' ? getWpSenderConfig(clinicId) : null
+    const transport = wp ? (wp.mode === 'mock' ? 'wpsender_mock' : 'wpsender_live') : undefined
+    if (!config || config.status !== 'connected' || !config.phoneNumber
+      || appt.whatsappConsent === false || (wp && appt.whatsappConsent !== true)) return
 
     // 2. Send rescheduled notification if enabled
     const now = new Date().toISOString()
@@ -437,7 +464,7 @@ export async function handleAppointmentRescheduled(
     const patientPhone = formatToE164(String(appt.patientPhone || appt.phone || ''))
 
     if (config.settings.sendRescheduledNotification && patientPhone) {
-      const reschedJobId = `wa_${appointmentId}_resched_${Date.now()}`
+      const reschedJobId = `wa_${appointmentId}_resched_${version}`
       const reschedJob: WhatsAppJob = {
         id: reschedJobId,
         appointmentId,
@@ -448,6 +475,7 @@ export async function handleAppointmentRescheduled(
         patientName,
         patientPhone,
         jobType: 'appointment_rescheduled',
+        ...(transport ? { transport } : {}),
         scheduledAt: now,
         appointmentDate: newDate,
         appointmentTime: newTime || '10:00 AM',
@@ -458,7 +486,9 @@ export async function handleAppointmentRescheduled(
         updatedAt: now
       }
 
-      await writeDocument(`whatsapp_jobs/${reschedJobId}`, reschedJob as any, true)
+      await createDocument('whatsapp_jobs', reschedJob as any, reschedJobId).catch(error => {
+        if (error.message !== 'RATE_LIMITED') throw error
+      })
       scheduleBackgroundTask(
         () => executeWhatsAppJob(reschedJobId),
         `whatsapp-resched-${appointmentId}`
@@ -479,7 +509,7 @@ export async function handleAppointmentRescheduled(
         if (reminderTimeMs <= Date.now()) continue
 
         const reminderScheduledAt = new Date(reminderTimeMs).toISOString()
-        const reminderJobId = `wa_${appointmentId}_rem_${offsetMinutes}m`
+        const reminderJobId = `wa_${appointmentId}_rem_${offsetMinutes}m_${version}`
 
         const reminderJob: WhatsAppJob = {
           id: reminderJobId,
@@ -491,6 +521,7 @@ export async function handleAppointmentRescheduled(
           patientName,
           patientPhone,
           jobType: 'appointment_reminder',
+          ...(transport ? { transport } : {}),
           scheduledAt: reminderScheduledAt,
           appointmentDate: newDate,
           appointmentTime: newTime || '10:00 AM',
@@ -501,7 +532,9 @@ export async function handleAppointmentRescheduled(
           updatedAt: now
         }
 
-        await writeDocument(`whatsapp_jobs/${reminderJobId}`, reminderJob as any, true).catch(() => {})
+        await createDocument('whatsapp_jobs', reminderJob as any, reminderJobId).catch(error => {
+          if (error.message !== 'RATE_LIMITED') throw error
+        })
       }
     }
   } catch (err) {
@@ -521,11 +554,14 @@ export async function handleAppointmentCancelled(appointmentId: string): Promise
 
     const clinicId = String(appt.clinic_id || appt.clinicId || '')
     const config = await getClinicWhatsAppConfig(clinicId)
+    const wp = config?.provider === 'wpsender' ? getWpSenderConfig(clinicId) : null
+    const transport = wp ? (wp.mode === 'mock' ? 'wpsender_mock' : 'wpsender_live') : undefined
 
     // 1. Cancel all pending reminder jobs
     await cancelPendingAppointmentJobs(appointmentId, 'APPOINTMENT_CANCELLED')
 
-    if (!config || config.status !== 'connected' || !config.phoneNumber) return
+    if (!config || config.status !== 'connected' || !config.phoneNumber
+      || appt.whatsappConsent === false || (wp && appt.whatsappConsent !== true)) return
 
     // 2. Send cancellation notice if enabled
     if (config.settings.sendCancellationNotification) {
@@ -548,6 +584,7 @@ export async function handleAppointmentCancelled(appointmentId: string): Promise
         patientName,
         patientPhone,
         jobType: 'appointment_cancelled',
+        ...(transport ? { transport } : {}),
         scheduledAt: now,
         appointmentDate: String(appt.date || ''),
         appointmentTime: String(appt.time || ''),
@@ -558,7 +595,9 @@ export async function handleAppointmentCancelled(appointmentId: string): Promise
         updatedAt: now
       }
 
-      await writeDocument(`whatsapp_jobs/${cancelJobId}`, cancelJob as any, true)
+      await createDocument('whatsapp_jobs', cancelJob as any, cancelJobId).catch(error => {
+        if (error.message !== 'RATE_LIMITED') throw error
+      })
       scheduleBackgroundTask(
         () => executeWhatsAppJob(cancelJobId),
         `whatsapp-cancel-${appointmentId}`
@@ -574,24 +613,23 @@ export async function handleAppointmentCancelled(appointmentId: string): Promise
  */
 export async function cancelPendingAppointmentJobs(
   appointmentId: string,
-  reason = 'CANCELLED'
+  reason = 'CANCELLED',
+  keepVersion?: string
 ): Promise<number> {
   try {
-    const jobs = await queryDocumentsByField('whatsapp_jobs', 'appointmentId', appointmentId, 20)
+    const jobs = await queryDocumentsByField('whatsapp_jobs', 'appointmentId', appointmentId, 100)
     let cancelled = 0
     for (const job of jobs) {
-      if (job.status === 'pending') {
-        await writeDocument(
-          `whatsapp_jobs/${job.id}`,
-          {
-            status: 'cancelled',
-            lastError: reason,
-            updatedAt: new Date().toISOString()
-          },
-          true
-        )
-        cancelled++
-      }
+      if (job.status !== 'pending' || (keepVersion && String(job.id).endsWith(`_${keepVersion}`))) continue
+      const path = `whatsapp_jobs/${job.id}`
+      const current = await readVersionedDocument(path)
+      if (current?.data.status !== 'pending') continue
+      const changed = await patchDocumentAtVersion(path, current.updateTime, {
+        status: 'cancelled',
+        lastError: reason,
+        updatedAt: new Date().toISOString()
+      })
+      if (changed) cancelled++
     }
     return cancelled
   } catch (err) {
@@ -650,147 +688,156 @@ export function buildTemplateParameters(job: WhatsAppJob): {
   }
 }
 
-/**
- * Execute a single WhatsApp job atomically.
- */
-export async function executeWhatsAppJob(jobId: string): Promise<boolean> {
-  try {
-    const jobData = await readDocument(`whatsapp_jobs/${jobId}`)
-    if (!jobData || jobData.status !== 'pending') return false
+export function buildWpSenderMessage(job: WhatsAppJob): string {
+  const date = formatArabicDate(job.appointmentDate)
+  const time = formatArabicTime(job.appointmentTime)
+  const when = job.hasFixedTime ? `${date}، الساعة ${time}` : date
+  switch (job.jobType) {
+    case 'booking_confirmation':
+      return `تم تأكيد موعدك يوم ${when}.`
+    case 'appointment_reminder':
+      return `تذكير بموعدك يوم ${when}.`
+    case 'appointment_rescheduled':
+      return `تم تعديل موعدك إلى يوم ${when}.`
+    case 'appointment_cancelled':
+      return `تم إلغاء موعدك يوم ${date}.`
+  }
+}
 
-    const job = jobData as unknown as WhatsAppJob
+export async function executeWhatsAppJob(jobId: string): Promise<boolean> {
+  const path = `whatsapp_jobs/${jobId}`
+  let claimed = false
+  try {
+    const version = await readVersionedDocument(path)
+    if (!version || version.data.status !== 'pending') return false
+
+    const job = version.data as unknown as WhatsAppJob
+    if (Date.parse(job.scheduledAt) > Date.now()) return false
     const config = await getClinicWhatsAppConfig(job.clinicId)
-    if (!config || config.status !== 'connected' || !config.phoneNumber) {
-      await writeDocument(
-        `whatsapp_jobs/${jobId}`,
-        {
-          status: 'failed',
-          lastError: 'CLINIC_WHATSAPP_NOT_CONNECTED',
-          updatedAt: new Date().toISOString()
-        },
-        true
-      )
+    const wp = config?.provider === 'wpsender' ? getWpSenderConfig(job.clinicId) : null
+    const expectedTransport = wp?.mode === 'mock' ? 'wpsender_mock' : wp ? 'wpsender_live' : undefined
+    const appointment = await readDocument(`appointments/${job.appointmentId}`)
+    const appointmentClinic = appointment?.clinic_id || appointment?.clinicId
+    const cancellation = job.jobType === 'appointment_cancelled'
+    const cancelled = appointment?.status === 'cancelled'
+    const currentTime = String(appointment?.time || '10:00 AM')
+
+    let skipReason = ''
+    if (!appointment || appointmentClinic !== job.clinicId || cancelled !== cancellation) {
+      skipReason = 'APPOINTMENT_NO_LONGER_ELIGIBLE'
+    } else if (job.transport !== expectedTransport || appointment.whatsappConsent === false
+      || (wp && appointment.whatsappConsent !== true)) {
+      skipReason = 'TRANSPORT_OR_CONSENT_CHANGED'
+    } else if (formatToE164(String(appointment.patientPhone || appointment.phone || '')) !== job.patientPhone
+      || (!cancellation && (appointment.date !== job.appointmentDate || currentTime !== job.appointmentTime))) {
+      skipReason = 'APPOINTMENT_CHANGED'
+    } else if (job.jobType === 'appointment_reminder' &&
+      (getCairoAppointmentUtcDate(job.appointmentDate, job.reminderAnchorTime || job.appointmentTime).getTime() <= Date.now()
+        || ['completed', 'skipped', 'no_show', 'in_progress'].includes(String(appointment.status)))) {
+      skipReason = 'APPOINTMENT_ALREADY_PASSED'
+    }
+
+    const now = new Date().toISOString()
+    if (skipReason || !config || config.status !== 'connected' || !config.phoneNumber
+      || (wp?.mode !== 'mock' && config.monthlyUsage >= config.settings.monthlyLimit)) {
+      await patchDocumentAtVersion(path, version.updateTime, {
+        status: skipReason ? 'cancelled' : 'failed',
+        lastError: skipReason || 'CLINIC_WHATSAPP_UNAVAILABLE',
+        updatedAt: now
+      })
       return false
     }
 
-    // Check if appointment is expired for reminders
-    if (job.jobType === 'appointment_reminder') {
-      const apptUtc = getCairoAppointmentUtcDate(job.appointmentDate, job.appointmentTime)
-      if (apptUtc.getTime() <= Date.now()) {
-        await writeDocument(
-          `whatsapp_jobs/${jobId}`,
-          {
-            status: 'cancelled',
-            lastError: 'APPOINTMENT_ALREADY_PASSED',
-            updatedAt: new Date().toISOString()
-          },
-          true
-        )
-        return false
-      }
-    }
-
-    // Mark processing
-    await writeDocument(
-      `whatsapp_jobs/${jobId}`,
-      {
-        status: 'processing',
-        lastAttemptAt: new Date().toISOString(),
-        attempts: (job.attempts || 0) + 1,
-        updatedAt: new Date().toISOString()
-      },
-      true
-    )
-
-    const { templateName, variables } = buildTemplateParameters(job)
-
-    const result = await sendWhatsAppTemplateMessage({
-      from: config.phoneNumber,
-      to: job.patientPhone,
-      templateName,
-      bodyVariables: variables
+    claimed = await patchDocumentAtVersion(path, version.updateTime, {
+      status: 'processing',
+      lastAttemptAt: now,
+      attempts: (job.attempts || 0) + 1,
+      updatedAt: now
     })
+    if (!claimed) return false
 
-    const now = new Date().toISOString()
-    const isMock = result.status === 'mock_sent'
-    const finalJobStatus = isMock ? 'sent' : result.status || 'accepted'
-
-    await writeDocument(
-      `whatsapp_jobs/${jobId}`,
-      {
-        status: finalJobStatus,
+    if (wp) {
+      if (wp.mode === 'live' && !await reserveWpSenderUsage(job.clinicId, config.settings.monthlyLimit, now)) {
+        throw new Error('WPSENDER_MONTHLY_LIMIT')
+      }
+      const result = await sendWpSenderMessage(wp, job.patientPhone, buildWpSenderMessage(job))
+      await writeDocument(path, {
+        status: result.status,
+        wpSenderMessageId: result.id,
+        updatedAt: new Date().toISOString()
+      }, true)
+      return true
+    } else {
+      const { templateName, variables } = buildTemplateParameters(job)
+      const result = await sendWhatsAppTemplateMessage({
+        from: config.phoneNumber,
+        to: job.patientPhone,
+        templateName,
+        bodyVariables: variables
+      })
+      await writeDocument(path, {
+        status: result.status === 'mock_sent' ? 'sent' : result.status || 'accepted',
         ycloudMessageId: result.id,
         ycloudWamid: result.wamid || null,
         sentAt: now,
         updatedAt: now
-      },
-      true
-    )
+      }, true)
 
-    // Update clinic usage & cost statistics
-    const cost = Number(result.price || 0.038)
-    await writeDocument(
-      `clinic_whatsapp_configs/${job.clinicId}`,
-      {
+      await writeDocument(`clinic_whatsapp_configs/${job.clinicId}`, {
         'stats.sentCount': (config.stats?.sentCount || 0) + 1,
-        'stats.totalCostEstimate': (config.stats?.totalCostEstimate || 0) + cost,
+        'stats.totalCostEstimate': (config.stats?.totalCostEstimate || 0) + Number(result.price || 0.038),
         monthlyUsage: (config.monthlyUsage || 0) + 1,
         lastSyncAt: now
-      },
-      true
-    ).catch(() => {})
+      }, true).catch(() => {})
+      return result.status !== 'failed'
+    }
 
-    return true
-  } catch (err: any) {
-    console.error(`[WhatsApp Scheduler] Failed to execute job ${jobId}:`, err)
-    const errMessage = err?.message || 'SEND_FAILED'
-    await writeDocument(
-      `whatsapp_jobs/${jobId}`,
-      {
+  } catch (err) {
+    if (claimed) {
+      await writeDocument(path, {
         status: 'failed',
-        lastError: errMessage,
+        lastError: err instanceof Error && /^WPSENDER_[A-Z0-9_]+$/.test(err.message) ? err.message : 'SEND_FAILED',
         updatedAt: new Date().toISOString()
-      },
-      true
-    ).catch(() => {})
+      }, true).catch(() => {})
+    }
     return false
   }
 }
 
-/**
- * Drain and process pending WhatsApp jobs whose scheduled time has arrived.
- * Executed by Cloudflare Worker cron trigger.
- */
+export function cairoUsageMonth(date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit' }).format(date)
+}
+
+async function reserveWpSenderUsage(clinicId: string, limit: number, now: string): Promise<boolean> {
+  const month = cairoUsageMonth(new Date(now))
+  const path = `clinic_whatsapp_configs/${clinicId}`
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const current = await readVersionedDocument(path)
+    if (!current) {
+      try {
+        await createDocument('clinic_whatsapp_configs', { wpMonthlyUsage: 1, wpUsageMonth: month, lastSyncAt: now }, clinicId)
+        return true
+      } catch (error) {
+        if (!(error instanceof Error) || error.message !== 'RATE_LIMITED') throw error
+        continue
+      }
+    }
+    const usage = current.data.wpUsageMonth === month ? Number(current.data.wpMonthlyUsage || 0) : 0
+    if (usage >= limit) return false
+    if (await patchDocumentAtVersion(path, current.updateTime, { wpMonthlyUsage: usage + 1, wpUsageMonth: month, lastSyncAt: now })) return true
+  }
+  throw new Error('WPSENDER_USAGE_RESERVATION_FAILED')
+}
+
 export async function drainPendingWhatsAppJobs(limit = 15): Promise<{
   processed: number
   successCount: number
   failedCount: number
 }> {
-  let processed = 0
+  const jobs = await queryDueWhatsAppJobs(new Date().toISOString(), limit)
   let successCount = 0
-  let failedCount = 0
-
-  try {
-    const jobs = await queryDocumentsByField('whatsapp_jobs', 'status', 'pending', limit * 2)
-    const nowTime = Date.now()
-
-    for (const rawJob of jobs) {
-      if (processed >= limit) break
-
-      const scheduledMs = new Date(String(rawJob.scheduledAt || '')).getTime()
-      if (scheduledMs <= nowTime) {
-        processed++
-        const ok = await executeWhatsAppJob(String(rawJob.id || ''))
-        if (ok) {
-          successCount++
-        } else {
-          failedCount++
-        }
-      }
-    }
-  } catch (err) {
-    console.warn('[WhatsApp Scheduler] drainPendingWhatsAppJobs warning:', err)
+  for (const job of jobs) {
+    if (await executeWhatsAppJob(String(job.id))) successCount++
   }
-
-  return { processed, successCount, failedCount }
+  return { processed: jobs.length, successCount, failedCount: jobs.length - successCount }
 }
