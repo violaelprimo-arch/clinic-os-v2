@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
 
         return {
           id: clinicId,
-          name: c.name || 'عيادة بدون اسم',
+          name: c.clinicName || c.name || 'عيادة بدون اسم',
           doctorName: c.doctorName || c.ownerName || 'طبيب غير محدد',
           slug: c.slug || '',
           phone: c.phone || '',
@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
               failedCount: Number(waConfig?.stats?.failedCount || 0),
               totalCostEstimate: Number(waConfig?.stats?.totalCostEstimate || 0)
             },
-            monthlyUsage: wp
+            monthlyUsage: wp?.mode === 'mock' ? (waConfig?.wpMockMonth === cairoUsageMonth() ? Number(waConfig.wpMockUsage || 0) : 0) : wp
               ? (waConfig?.wpUsageMonth === cairoUsageMonth() ? Number(waConfig?.wpMonthlyUsage || 0) : 0)
               : Number(waConfig?.monthlyUsage || 0),
             settings: { ...DEFAULT_WHATSAPP_SETTINGS, ...waConfig?.settings }

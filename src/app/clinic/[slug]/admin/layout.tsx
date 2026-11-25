@@ -304,6 +304,7 @@ export default function AdminLayout({
       isAction: true,
       onClick: () => setShowUpgradeModal(true)
     }] : []),
+    ...(role === 'doctor' ? [{ id:'whatsapp', name:'ربط الواتساب', href:`/clinic/${slug}/admin/whatsapp`, icon:Settings }] : []),
     {
       id: 'settings',
       name: t('nav_settings', 'الإعدادات'),

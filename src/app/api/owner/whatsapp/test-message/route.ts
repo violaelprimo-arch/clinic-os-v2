@@ -6,6 +6,8 @@ import {
   formatToE164
 } from '@/lib/server/ycloud-service'
 import {
+  reserveWpSenderUsage,
+  DEFAULT_WHATSAPP_SETTINGS,
   formatArabicDate,
   formatArabicTime
 } from '@/lib/server/whatsapp-scheduler'
@@ -45,6 +47,10 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'إرسال WP Sender غير مفعّل لهذه العيادة' }, { status: 400, headers: noStore })
       }
       try {
+        const limit = Number((config?.settings as { monthlyLimit?:number } | undefined)?.monthlyLimit ?? DEFAULT_WHATSAPP_SETTINGS.monthlyLimit)
+        if (!await reserveWpSenderUsage(clinicId, limit, new Date().toISOString(), wp.mode === 'mock')) {
+          return NextResponse.json({error:'تم بلوغ الحد الشهري لرسائل هذه العيادة'}, {status:429, headers:noStore})
+        }
         const result = await sendWpSenderMessage(wp, formattedRecipient, 'رسالة اختبار من Yalla Clinic.')
         return NextResponse.json({
           success: true,

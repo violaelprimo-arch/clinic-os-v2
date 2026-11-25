@@ -1,3 +1,4 @@
+import { sendClinicDocument } from '@/lib/server/send-clinic-document'
 import { NextRequest, NextResponse } from 'next/server'
 import { readDocument, queryDocuments } from '@/lib/server/firebase-rest'
 import { authorizeRecordAccess, generateRecordShareToken, maskPhoneNumber } from '@/lib/server/record-access'
@@ -150,4 +151,9 @@ export async function GET(
       }
     })
   }
+}
+
+export async function POST(req: NextRequest, context: { params: Promise<{ slug:string; invoiceId:string }> }) {
+  const params = await context.params
+  return sendClinicDocument(req, params.slug, params.invoiceId, 'invoice', () => GET(req, context))
 }

@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
       reminders: reminders.length > 0 ? reminders : DEFAULT_WHATSAPP_SETTINGS.reminders,
       sendRescheduledNotification: Boolean(rawSettings.sendRescheduledNotification ?? true),
       sendCancellationNotification: Boolean(rawSettings.sendCancellationNotification ?? true),
-      monthlyLimit: Math.max(10, Math.min(10000, Number(rawSettings.monthlyLimit) || 500))
+      monthlyLimit: Math.max(1, Math.min(10000, Number(rawSettings.monthlyLimit) || 500))
     }
 
     const now = new Date().toISOString()

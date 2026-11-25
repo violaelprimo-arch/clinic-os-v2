@@ -315,6 +315,15 @@ export async function openWhatsAppRecordShare({
   if (popup) popup.opener = null
 
   try {
+    const delivery = await fetch(`/api${path}`, { method: 'POST', credentials: 'same-origin' })
+    const dispatch = await delivery.json()
+    if (!delivery.ok) throw new Error(dispatch.error || 'تعذر إرسال المستند')
+    if (!dispatch.manual) {
+      popup?.close()
+      const { toast } = await import('sonner')
+      toast.success(dispatch.status === 'mock_sent' ? 'نجحت محاكاة إرسال المستند' : 'قبل WP Sender طلب إرسال المستند')
+      return
+    }
     const response = await fetch(`/api${path}`, { cache: 'no-store', credentials: 'same-origin' })
     const data = await response.json()
     if (!response.ok || typeof data.shareToken !== 'string' || !data.shareToken) {

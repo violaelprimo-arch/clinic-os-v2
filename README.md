@@ -66,3 +66,12 @@ The WP Sender API's acceptance is recorded as `accepted`. Delivery is verified
 on the receiving phone or in WP Sender. Real jobs are never replayed after an
 uncertain send response. Existing mock jobs cannot become live sends. Clinics
 without a WP Sender entry continue to use the existing YCloud configuration.
+
+Doctors can open **ربط الواتساب** from clinic administration to edit message
+templates and choose WP Sender delivery for the prescription and invoice share
+buttons. To allow QR pairing, add the clinic's dedicated WP Sender session ID
+as `sessionId` and its API credential as `apiKey` in its existing
+`WPSENDER_CLINICS_JSON` entry. QR loading works independently of the live-send
+switch. The QR image is fetched by the server for the authenticated doctor.
+Mock sends and live sends have independent monthly counters, including the
+owner test action. A slot records a dispatch attempt.
