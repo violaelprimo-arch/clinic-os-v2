@@ -368,7 +368,7 @@ export async function patchDocumentAtVersion(path: string, updateTime: string, d
   const response = await request(documentUrl('').replace(/\/$/, '') + ':commit', {
     method: 'POST',
     body: JSON.stringify({ writes: [{
-      update: { name: url.split('/v1/')[1], fields: encode(data).mapValue?.fields },
+      update: { name: decodeURIComponent(url.split('/v1/')[1]), fields: encode(data).mapValue?.fields },
       updateMask: { fieldPaths: Object.keys(data) },
       currentDocument: { updateTime }
     }] })
