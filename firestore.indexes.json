@@ -1,6 +1,14 @@
 {
   "indexes": [
     {
+      "collectionGroup": "whatsapp_jobs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "scheduledAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "landing_feedback",
       "queryScope": "COLLECTION",
       "fields": [

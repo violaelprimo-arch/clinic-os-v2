@@ -352,6 +352,51 @@ export async function writeDocument(path: string, data: Fields, merge = false) {
   })
   if (!response.ok) throw new Error('FIRESTORE_WRITE_FAILED')
 }
+export async function readVersionedDocument(path: string) {
+  const response = await request(documentUrl(path))
+  if (response.status === 429) throw new FirestoreQuotaError()
+  if (response.status === 404) return null
+  if (!response.ok) throw new Error('FIRESTORE_READ_FAILED')
+  const raw = await response.json() as FirestoreDocument & { updateTime: string }
+  recordFirestoreRead('readDocument', 1, path.split('/')[0])
+  return { data: unpack(raw), updateTime: raw.updateTime }
+}
+
+export async function patchDocumentAtVersion(path: string, updateTime: string, data: Fields) {
+  if (!updateTime) throw new Error('FIRESTORE_VERSION_REQUIRED')
+  const query = new URLSearchParams({ 'currentDocument.updateTime': updateTime })
+  for (const key of Object.keys(data)) query.append('updateMask.fieldPaths', key)
+  const response = await request(documentUrl(path) + '?' + query, {
+    method: 'PATCH',
+    body: JSON.stringify({ fields: encode(data).mapValue?.fields })
+  })
+  if (response.status === 404 || response.status === 412 || response.status === 409) return false
+  if (!response.ok) throw new Error('FIRESTORE_WRITE_FAILED')
+  return true
+}
+
+export async function queryDueWhatsAppJobs(now: string, limit: number) {
+  const response = await request(documentUrl('').replace(/\/$/, '') + ':runQuery', {
+    method: 'POST',
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: 'whatsapp_jobs' }],
+        where: { compositeFilter: { op: 'AND', filters: [
+          { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL', value: encode('pending') } },
+          { fieldFilter: { field: { fieldPath: 'scheduledAt' }, op: 'LESS_THAN_OR_EQUAL', value: encode(now) } }
+        ] } },
+        orderBy: [{ field: { fieldPath: 'scheduledAt' }, direction: 'ASCENDING' }],
+        limit
+      }
+    })
+  })
+  if (!response.ok) throw new Error('FIRESTORE_WHATSAPP_QUERY_FAILED')
+  const rows = await response.json() as Array<{ document?: FirestoreDocument }>
+  const docs = rows.flatMap(row => row.document ? [unpack(row.document)] : [])
+  recordFirestoreRead('runQuery', Math.max(1, docs.length), 'whatsapp_jobs')
+  return docs
+}
+
 export async function createDocument(
   collection: string,
   data: Fields,

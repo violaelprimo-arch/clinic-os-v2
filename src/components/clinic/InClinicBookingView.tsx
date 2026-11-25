@@ -147,6 +147,7 @@ export function InClinicBookingView({
   }, [branches, selectedBranchId])
 
   // Submission State
+  const [whatsappConsent, setWhatsappConsent] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [bookingConfirmedResult, setBookingConfirmedResult] = useState<any | null>(null)
 
@@ -288,6 +289,7 @@ export function InClinicBookingView({
         body: JSON.stringify({
           patientName: patientName.trim(),
           phone: phone.trim(),
+          whatsappConsent,
           age: age.trim() || undefined,
           birthDate: dob || undefined,
           gender,
@@ -370,6 +372,7 @@ export function InClinicBookingView({
     setAge('')
     setDob('')
     setInternalNotes('')
+    setWhatsappConsent(false)
     setPaymentStatus('unpaid')
     setMatchedPatients([])
     setSelectedFamilyMemberIndex(null)
@@ -945,6 +948,10 @@ export function InClinicBookingView({
               </div>
             </div>
 
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={whatsappConsent} onChange={(event) => setWhatsappConsent(event.target.checked)} />
+            {isRtl ? 'المريض وافق على استلام تأكيد الحجز والتذكيرات عبر واتساب' : 'The patient agreed to receive booking updates on WhatsApp'}
+          </label>
             {/* Submit Button */}
             <div className="pt-4 border-t border-border flex items-center justify-end gap-3">
               <Button
@@ -970,4 +977,4 @@ export function InClinicBookingView({
       )}
     </div>
   )
-}
+}

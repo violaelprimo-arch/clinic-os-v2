@@ -342,6 +342,7 @@ export function BookingModal({
   const [transferAccount, setTransferAccount] = useState<string>('')
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
 
+  const [whatsappConsent, setWhatsappConsent] = useState(false)
   const [submitting, setSubmitting] = useState<boolean>(false)
   const [bookingSuccess, setBookingSuccess] = useState<{
     appointmentId: string
@@ -606,6 +607,7 @@ export function BookingModal({
             branchName,
             patientName: patientName.trim(),
             patientPhone: cleanPhone,
+            whatsappConsent,
             age: age.trim() || null,
             gender: gender || 'أنثى',
             serviceId: selectedService?.id || '1',
@@ -1487,6 +1489,12 @@ export function BookingModal({
             )}
 
             {/* Footer Navigation Buttons */}
+            {step === 6 && (
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={whatsappConsent} onChange={(event) => setWhatsappConsent(event.target.checked)} />
+                أوافق على استلام تأكيد الحجز والتذكيرات عبر واتساب
+              </label>
+            )}
             <div className="pt-4 flex items-center justify-between gap-3">
               <button
                 type="button"

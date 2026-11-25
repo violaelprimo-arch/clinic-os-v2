@@ -278,6 +278,9 @@ export async function POST(req: NextRequest) {
       isUrgent,
       date: bookingDate,
       time: String(time),
+      whatsappConsent: body.whatsappConsent === true,
+      whatsappReminderTime: body.time || validation.shifts?.[0]?.start || null,
+      whatsappHasFixedTime: Boolean(body.time),
       status: 'waiting',
       paymentMethod: paymentMethod || 'cash',
       paymentStatus: paymentStatus === 'paid' ? 'paid' : 'unpaid',
@@ -409,7 +412,9 @@ export async function POST(req: NextRequest) {
           doctorName: cData?.doctorName || '',
           date: bookingDate,
           time,
-          whatsappConsent: body.whatsappConsent !== false
+          whatsappConsent: newAppt.whatsappConsent,
+          whatsappReminderTime: newAppt.whatsappReminderTime,
+          whatsappHasFixedTime: newAppt.whatsappHasFixedTime
         }),
       'whatsapp-booking-notifications',
     )

@@ -47,6 +47,7 @@ export interface ClinicWhatsAppItem {
   slug: string
   phone: string
   whatsapp: {
+    wpSenderMode?: 'off' | 'mock' | 'live' | null
     status: 'not_linked' | 'linking' | 'connected' | 'disconnected' | 'error'
     phoneNumber: string | null
     phoneNumberId: string | null
@@ -272,7 +273,8 @@ export function OwnerWhatsAppManager() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'فشل إرسال رسالة الاختبار')
 
-      toast.success(`تم إرسال رسالة الاختبار بنجاح إلى ${data.recipient || testPhone}`)
+      toast.success(data.status === 'mock_sent' ? 'نجحت محاكاة الإرسال' : data.status === 'accepted'
+        ? 'تم قبول رسالة الاختبار للإرسال' : `تم إرسال رسالة الاختبار إلى ${data.recipient || testPhone}`)
       setTestClinic(null)
       setTestPhone('')
       fetchClinics()
@@ -484,6 +486,7 @@ export function OwnerWhatsAppManager() {
       ) : (
         <div className="grid grid-cols-1 gap-4">
           {filteredClinics.map((clinic) => {
+            const wpSenderMode = clinic.whatsapp.wpSenderMode
             const isConnected = clinic.whatsapp.status === 'connected'
             const isLinking = clinic.whatsapp.status === 'linking'
             const isError = clinic.whatsapp.status === 'error' || clinic.whatsapp.status === 'disconnected'
@@ -506,7 +509,10 @@ export function OwnerWhatsAppManager() {
 
                   <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
                     {/* Status Pill */}
-                    {isConnected && (
+                    {wpSenderMode && (
+                      <Badge variant="secondary">WP Sender · {wpSenderMode === 'mock' ? 'محاكاة' : wpSenderMode === 'live' ? 'الإرسال مفعّل' : 'الإرسال متوقف'}</Badge>
+                    )}
+                    {isConnected && !wpSenderMode && (
                       <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 gap-1.5 py-0.5">
                         <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
                         مرتبط بنجاح
@@ -524,7 +530,7 @@ export function OwnerWhatsAppManager() {
                         غير متصل / يحتاج إعادة ربط
                       </Badge>
                     )}
-                    {isNotLinked && (
+                    {isNotLinked && !wpSenderMode && (
                       <Badge className="bg-slate-800 text-slate-400 border border-slate-700 py-0.5">
                         غير مرتبط
                       </Badge>
@@ -561,7 +567,7 @@ export function OwnerWhatsAppManager() {
                 {/* Action Buttons */}
                 <div className="flex flex-wrap items-center gap-2 pt-2 md:pt-0">
                   {/* Link / Onboard button */}
-                  {isNotLinked && (
+                  {isNotLinked && !wpSenderMode && (
                     <Button
                       size="sm"
                       onClick={() => handleLinkNumber(clinic)}
@@ -597,7 +603,7 @@ export function OwnerWhatsAppManager() {
                     </>
                   )}
 
-                  {isConnected && (
+                  {(isConnected || wpSenderMode === 'off') && (
                     <>
                       <Button
                         size="sm"
@@ -609,7 +615,7 @@ export function OwnerWhatsAppManager() {
                         إعدادات التذكيرات
                       </Button>
 
-                      <Button
+                      {isConnected && <Button
                         size="sm"
                         variant="outline"
                         onClick={() => {
@@ -620,8 +626,9 @@ export function OwnerWhatsAppManager() {
                       >
                         <Send className="size-3.5" />
                         رسالة اختبار
-                      </Button>
+                      </Button>}
 
+                      {!wpSenderMode && <>
                       <Button
                         size="sm"
                         variant="outline"
@@ -642,6 +649,7 @@ export function OwnerWhatsAppManager() {
                       >
                         <Unlink className="size-3.5" />
                       </Button>
+                      </>}
                     </>
                   )}
 

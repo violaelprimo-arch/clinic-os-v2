@@ -10,6 +10,8 @@ import {
   formatArabicTime
 } from '@/lib/server/whatsapp-scheduler'
 
+import { getWpSenderConfig, sendWpSenderMessage } from '@/lib/server/wp-sender'
+
 export const dynamic = 'force-dynamic'
 
 const noStore = {
@@ -36,6 +38,25 @@ export async function POST(req: NextRequest) {
     const config = await readDocument(`clinic_whatsapp_configs/${clinicId}`)
     const clinic = await readDocument(`clinics/${clinicId}`)
 
+    const wp = getWpSenderConfig(clinicId)
+    const formattedRecipient = formatToE164(testPhone)
+    if (wp) {
+      if (!clinic || wp.mode === 'off') {
+        return NextResponse.json({ error: 'إرسال WP Sender غير مفعّل لهذه العيادة' }, { status: 400, headers: noStore })
+      }
+      try {
+        const result = await sendWpSenderMessage(wp, formattedRecipient, 'رسالة اختبار من Yalla Clinic.')
+        return NextResponse.json({
+          success: true,
+          messageId: result.id,
+          status: result.status,
+          recipient: formattedRecipient
+        }, { headers: noStore })
+      } catch {
+        return NextResponse.json({ error: 'تعذر اختبار WP Sender. راجع حالة الرقم والاشتراك ومفتاح الربط.' }, { status: 502, headers: noStore })
+      }
+    }
+
     const senderPhone = String(config?.phoneNumber || clinic?.whatsappPhoneNumber || '').trim()
     if (!senderPhone) {
       return NextResponse.json(
@@ -44,7 +65,6 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const formattedRecipient = formatToE164(testPhone)
     const clinicName = String(config?.businessName || clinic?.name || 'عيادة تجريبية')
     const todayStr = new Date().toISOString().split('T')[0]
     const arabicDate = formatArabicDate(todayStr)

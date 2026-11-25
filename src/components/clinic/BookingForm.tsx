@@ -327,6 +327,7 @@ export function BookingForm({
   const [transferNumber, setTransferNumber] = useState('')
   const [transferReference, setTransferReference] = useState('')
   const [transferProofUrl, setTransferProofUrl] = useState('')
+  const [whatsappConsent, setWhatsappConsent] = useState(false)
   const [isBooking, setIsBooking] = useState(false)
   const [successInfo, setSuccessInfo] = useState<{
     queueNumber: number
@@ -465,6 +466,7 @@ export function BookingForm({
           slug: clinic.slug,
           patientName: name,
           patientPhone: phone,
+          whatsappConsent,
           age: age || null,
           birthDate: dob || null,
           serviceId: selectedService.id,
@@ -1020,6 +1022,10 @@ export function BookingForm({
             })}
           </div>
 
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={whatsappConsent} onChange={(event) => setWhatsappConsent(event.target.checked)} />
+            {isRtl ? 'أوافق على استلام تأكيد الحجز والتذكيرات عبر واتساب' : 'Send me booking confirmations and reminders on WhatsApp'}
+          </label>
           <div className="flex gap-2.5 pt-2">
             <Button
               onClick={handleNextStep2}
