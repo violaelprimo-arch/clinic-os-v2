@@ -148,6 +148,11 @@ export function InClinicBookingView({
 
   // Submission State
   const [whatsappConsent, setWhatsappConsent] = useState(false)
+  const [whatsappConsentPreferences, setWhatsappConsentPreferences] = useState({
+    booking: true,
+    reminders: true,
+    documents: true,
+  })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [bookingConfirmedResult, setBookingConfirmedResult] = useState<any | null>(null)
 
@@ -290,6 +295,7 @@ export function InClinicBookingView({
           patientName: patientName.trim(),
           phone: phone.trim(),
           whatsappConsent,
+          whatsappConsentPreferences: whatsappConsent ? whatsappConsentPreferences : undefined,
           age: age.trim() || undefined,
           birthDate: dob || undefined,
           gender,
@@ -948,10 +954,40 @@ export function InClinicBookingView({
               </div>
             </div>
 
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={whatsappConsent} onChange={(event) => setWhatsappConsent(event.target.checked)} />
-            {isRtl ? 'المريض وافق على استلام تأكيد الحجز والتذكيرات عبر واتساب' : 'The patient agreed to receive booking updates on WhatsApp'}
-          </label>
+          <div className="space-y-2 rounded-xl border border-border bg-secondary/30 p-3">
+            <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+              <input type="checkbox" checked={whatsappConsent} onChange={(event) => setWhatsappConsent(event.target.checked)} />
+              {isRtl ? 'المريض وافق على استلام تأكيد الحجز والتذكيرات عبر واتساب' : 'The patient agreed to receive booking updates on WhatsApp'}
+            </label>
+            {whatsappConsent && (
+              <div className="flex flex-wrap gap-3 pr-5 text-xs text-muted-foreground">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={whatsappConsentPreferences.booking}
+                    onChange={(e) => setWhatsappConsentPreferences((p) => ({ ...p, booking: e.target.checked }))}
+                  />
+                  {isRtl ? 'تأكيد وتعديل الحجز' : 'Booking'}
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={whatsappConsentPreferences.reminders}
+                    onChange={(e) => setWhatsappConsentPreferences((p) => ({ ...p, reminders: e.target.checked }))}
+                  />
+                  {isRtl ? 'التذكيرات' : 'Reminders'}
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={whatsappConsentPreferences.documents}
+                    onChange={(e) => setWhatsappConsentPreferences((p) => ({ ...p, documents: e.target.checked }))}
+                  />
+                  {isRtl ? 'الروشتات والفواتير' : 'Documents'}
+                </label>
+              </div>
+            )}
+          </div>
             {/* Submit Button */}
             <div className="pt-4 border-t border-border flex items-center justify-end gap-3">
               <Button

@@ -25,12 +25,12 @@ export async function GET(req: NextRequest) {
     const clinicsWithWhatsApp = await Promise.all(
       clinics.map(async (c: any) => {
         const clinicId = String(c.id || '')
-        let waConfig: ClinicWhatsAppConfig | null = null
+        let waConfig: any = null
 
         try {
           const rawConfig = await readDocument(`clinic_whatsapp_configs/${clinicId}`)
           if (rawConfig) {
-            waConfig = rawConfig as unknown as ClinicWhatsAppConfig
+            waConfig = rawConfig as any
           }
         } catch {}
 

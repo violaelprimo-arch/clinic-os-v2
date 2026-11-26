@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { LandingPageManager } from '@/components/owner/LandingPageManager'
+import { MediaUploader } from '@/components/common/MediaUploader'
 import { OwnerAccessGate } from '@/components/owner/OwnerAccessGate'
 import { useOwnerNavigation } from '@/components/owner/OwnerNavigationContext'
 import { Input } from '@/components/ui/input'
@@ -1152,22 +1153,6 @@ function OwnerDashboard() {
       toast.success('تم حذف الباقة بنجاح')
     } catch (err: any) {
       toast.error('فشل حذف الباقة: ' + err.message)
-    }
-  }
-
-  const handlePrescriptionUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      if (file.size > 3 * 1024 * 1024) {
-        toast.error('حجم الصورة كبير، يرجى اختيار صورة أقل من 3 ميجابايت')
-        return
-      }
-      const reader = new FileReader()
-      reader.onload = () => {
-        setPrescriptionTemplateUrl(reader.result as string)
-        toast.success('تم تحميل صورة تصميم الروشتة بنجاح!')
-      }
-      reader.readAsDataURL(file)
     }
   }
 
@@ -4254,13 +4239,12 @@ function OwnerDashboard() {
                     </p>
                   </div>
                   <div className="space-y-1.5 sm:col-span-2">
-                    <Label className="text-xs font-bold text-slate-600">صورة الطبيب (Hero Image)</Label>
-                    <Input
+                    <MediaUploader
+                      label="صورة الطبيب (Hero Image) — الحد الأقصى 2 ميجابايت"
                       value={heroImage}
-                      onChange={e => setHeroImage(e.target.value)}
-                      placeholder="https://images.unsplash.com/..."
-                      dir="ltr"
-                      className="h-10 text-xs rounded-xl text-right font-mono"
+                      onChange={setHeroImage}
+                      folder="hero"
+                      maxSizeMB={2}
                     />
                   </div>
                 </div>
@@ -4337,52 +4321,16 @@ function OwnerDashboard() {
                       <h4 className="font-bold text-xs">صورة تصميم ورقة الروشتة المطبوعة (A4 Template)</h4>
                     </div>
                     <p className="text-[11px] text-slate-500">
-                      يمكن للمالك رفع صورة من الجهاز مباشرة أو وضع رابط لتصميم الروشتة الخاص بالعيادة، ليتم طباعة بيانات الكشف والأدوية عليها تلقائياً.
+                      ارفع صورة تصميم الروشتة الخاص بالعيادة مباشرة من الجهاز ليتم طباعة بيانات الكشف والأدوية عليها تلقائياً (الحد الأقصى 2 ميجابايت).
                     </p>
                     
-                    <div className="flex items-center gap-2">
-                      <label className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-[#E5EAF0] hover:bg-slate-50 cursor-pointer text-xs font-bold text-slate-700 transition-colors shadow-2xs">
-                        <Upload className="w-4 h-4 text-[#087CF4]" />
-                        <span>رفع صورة من جهازك</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handlePrescriptionUpload}
-                          className="hidden"
-                        />
-                      </label>
-                      <span className="text-[10px] text-slate-400">أو الصق رابط:</span>
-                    </div>
-
-                    <Input
+                    <MediaUploader
+                      label="تصميم الروشتة المعتمد"
                       value={prescriptionTemplateUrl}
-                      onChange={e => setPrescriptionTemplateUrl(e.target.value)}
-                      dir="ltr"
-                      placeholder="https://... رابط صورة الروشتة المخصصة"
-                      className="h-10 text-xs rounded-xl bg-white text-right"
+                      onChange={setPrescriptionTemplateUrl}
+                      folder="prescriptions"
+                      maxSizeMB={2}
                     />
-
-                    {prescriptionTemplateUrl && (
-                      <div className="p-3 border rounded-xl bg-white space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-slate-500 font-bold">معاينة تصميم الروشتة المعتمد:</span>
-                          <button
-                            type="button"
-                            onClick={() => setPrescriptionTemplateUrl('')}
-                            className="text-[10px] text-rose-500 hover:text-rose-700 font-bold cursor-pointer"
-                          >
-                            إزالة الصورة
-                          </button>
-                        </div>
-                        <div className="max-h-36 overflow-hidden rounded-lg border bg-slate-50 flex items-center justify-center p-2">
-                          <img
-                            src={prescriptionTemplateUrl}
-                            alt="Prescription Template Preview"
-                            className="max-h-32 rounded-md object-contain shadow-xs"
-                          />
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   {/* AI Feature Toggle Switch */}
@@ -4602,23 +4550,21 @@ function OwnerDashboard() {
                   {/* Logos & Colors */}
                   <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-slate-600">رابط الشعار الملون (A4 / شاشات)</Label>
-                      <Input
+                      <MediaUploader
+                        label="الشعار الملون (A4 / شاشات)"
                         value={logoUrl}
-                        onChange={e => setLogoUrl(e.target.value)}
-                        dir="ltr"
-                        placeholder="https://... logo.png"
-                        className="h-10 text-xs rounded-xl bg-white text-right font-mono"
+                        onChange={setLogoUrl}
+                        folder="logos"
+                        maxSizeMB={2}
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-slate-600">رابط الشعار الأحادي (إيصالات 80mm حراري)</Label>
-                      <Input
+                      <MediaUploader
+                        label="الشعار الأحادي (إيصالات 80mm حراري)"
                         value={thermalMonoLogoUrl}
-                        onChange={e => setThermalMonoLogoUrl(e.target.value)}
-                        dir="ltr"
-                        placeholder="https://... mono-logo.png"
-                        className="h-10 text-xs rounded-xl bg-white text-right font-mono"
+                        onChange={setThermalMonoLogoUrl}
+                        folder="logos"
+                        maxSizeMB={2}
                       />
                     </div>
                     <div className="space-y-1.5">

@@ -32,6 +32,8 @@ import { useEgyptianDrugs, type EgyptianDrug } from '@/hooks/useEgyptianDrugs'
 import { ClinicLogo } from '@/components/clinic/ClinicLogo'
 import { A4Prescription } from '@/components/clinic/A4Prescription'
 import { WhatsAppShareButton } from '@/components/common/WhatsAppShareButton'
+import { WhatsAppDeliveryBadge } from '@/components/clinic/WhatsAppDeliveryBadge'
+import { useClinicWhatsAppPolicy } from '@/lib/useClinicWhatsAppPolicy'
 import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import { printHtmlViaIframe, generateA4PrescriptionHtml } from '@/lib/printService'
 import {
@@ -325,6 +327,9 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
   const [isSharingPdf, setIsSharingPdf] = useState(false)
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
   const [isDownloadingImage, setIsDownloadingImage] = useState(false)
+  const [rxWaStatus, setRxWaStatus] = useState<any>(null)
+  const { policy: waPolicy } = useClinicWhatsAppPolicy(slug, clinic)
+  const rxWaPolicy = waPolicy.features.prescription
   const [todayPatients, setTodayPatients] = useState<any[]>([])
   const dateStr = new Date().toISOString().split('T')[0]
 
@@ -753,38 +758,42 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
     setDrugs(drugs.map(d => (d.id === id ? { ...d, [field]: value } : d)))
   }
 
-  // TASK 6 & 7: Save Prescription without automated WhatsApp message
+  // Save Prescription via trusted server endpoint (policy + version/hash dedup + auto-send if enabled)
   const handleSave = async () => {
     stopGlobalVoiceDictation()
     if (!patientName.trim()) return toast.error('يرجى إدخال اسم المريض')
     if (!patientPhone.trim()) return toast.error('يرجى إدخال رقم هاتف المريض')
+    if (!clinicId) return
 
     setIsSaving(true)
     try {
-      if (clinicId) {
-        const hasVitals = Boolean(
-          (vitalsBpSys && vitalsBpSys.trim()) ||
-          (vitalsBpDia && vitalsBpDia.trim()) ||
-          (vitalsPulse && vitalsPulse.trim()) ||
-          (vitalsTemp && vitalsTemp.trim()) ||
-          (vitalsGlucose && vitalsGlucose.trim()) ||
-          (vitalsWeight && vitalsWeight.trim())
-        )
-        const vitalsData = hasVitals ? {
-          bloodPressureSystolic: vitalsBpSys && vitalsBpSys.trim() ? Number(vitalsBpSys.trim()) || vitalsBpSys.trim() : null,
-          bloodPressureDiastolic: vitalsBpDia && vitalsBpDia.trim() ? Number(vitalsBpDia.trim()) || vitalsBpDia.trim() : null,
-          heartRate: vitalsPulse && vitalsPulse.trim() ? Number(vitalsPulse.trim()) || vitalsPulse.trim() : null,
-          temperature: vitalsTemp && vitalsTemp.trim() ? Number(vitalsTemp.trim()) || vitalsTemp.trim() : null,
-          glucoseLevel: vitalsGlucose && vitalsGlucose.trim() ? Number(vitalsGlucose.trim()) || vitalsGlucose.trim() : null,
-          weightKg: vitalsWeight && vitalsWeight.trim() ? Number(vitalsWeight.trim()) || vitalsWeight.trim() : null,
-          recordedAt: new Date().toISOString()
-        } : null
+      const hasVitals = Boolean(
+        (vitalsBpSys && vitalsBpSys.trim()) ||
+        (vitalsBpDia && vitalsBpDia.trim()) ||
+        (vitalsPulse && vitalsPulse.trim()) ||
+        (vitalsTemp && vitalsTemp.trim()) ||
+        (vitalsGlucose && vitalsGlucose.trim()) ||
+        (vitalsWeight && vitalsWeight.trim())
+      )
+      const vitalsData = hasVitals ? {
+        bloodPressureSystolic: vitalsBpSys && vitalsBpSys.trim() ? Number(vitalsBpSys.trim()) || vitalsBpSys.trim() : null,
+        bloodPressureDiastolic: vitalsBpDia && vitalsBpDia.trim() ? Number(vitalsBpDia.trim()) || vitalsBpDia.trim() : null,
+        heartRate: vitalsPulse && vitalsPulse.trim() ? Number(vitalsPulse.trim()) || vitalsPulse.trim() : null,
+        temperature: vitalsTemp && vitalsTemp.trim() ? Number(vitalsTemp.trim()) || vitalsTemp.trim() : null,
+        glucoseLevel: vitalsGlucose && vitalsGlucose.trim() ? Number(vitalsGlucose.trim()) || vitalsGlucose.trim() : null,
+        weightKg: vitalsWeight && vitalsWeight.trim() ? Number(vitalsWeight.trim()) || vitalsWeight.trim() : null,
+        recordedAt: new Date().toISOString()
+      } : null
 
-        const docRef = await addDoc(collection(db, 'prescriptions'), {
-          clinic_id: clinicId,
-          branch_id: selectedBranchId || clinic?.branchId || '',
+      const saveRes = await fetch(`/api/clinic/${encodeURIComponent(slug)}/prescriptions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          prescriptionId: savedRxId || undefined,
+          appointmentId: appointmentId || undefined,
+          branchId: selectedBranchId || clinic?.branchId || '',
           branchName: rxClinic.branchName || '',
-          appointment_id: appointmentId || '',
           patientName,
           patientPhone,
           age,
@@ -795,8 +804,6 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           notes: notes.trim(),
           vitalSigns: vitalsData,
           date: dateStr,
-          status: 'approved',
-          doctorName: clinic?.doctorName || 'طبيب العيادة',
           templateMode,
           topOffset,
           pageSize,
@@ -805,108 +812,104 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
           primaryColor,
           secondaryColor,
           drugs: drugs.filter(d => d.name && d.name.trim() !== ''),
-          createdAt: new Date().toISOString()
+        }),
+      })
+      const saveData = await saveRes.json().catch(() => ({}))
+      if (!saveRes.ok || !saveData.prescriptionId) {
+        toast.error(saveData.error || 'حدث خطأ أثناء حفظ الروشتة')
+        return
+      }
+      const nextRxId = String(saveData.prescriptionId)
+      setSavedRxId(nextRxId)
+      if (saveData.whatsappStatus) {
+        setRxWaStatus(saveData.whatsappStatus)
+      }
+
+      // Record Audit Log
+      try {
+        const { recordAuditLog } = await import('@/lib/audit-logger')
+        recordAuditLog({
+          action: 'PRESCRIPTION_CREATED',
+          actorName: clinic?.doctorName || 'طبيب العيادة',
+          actorRole: 'doctor',
+          clinicId,
+          details: { prescriptionId: nextRxId, patientName, patientPhone, appointmentId }
         })
-        setSavedRxId(docRef.id)
+      } catch (e) {}
 
-        // Record Audit Log
-        try {
-          const { recordAuditLog } = await import('@/lib/audit-logger')
-          recordAuditLog({
-            action: 'PRESCRIPTION_CREATED',
-            actorName: clinic?.doctorName || 'طبيب العيادة',
-            actorRole: 'doctor',
-            clinicId,
-            details: { prescriptionId: docRef.id, patientName, patientPhone, appointmentId }
+      // Persist used dosage, duration, and instructions to clinic suggestions bank
+      try {
+        const itemsToSave: Array<{ type: 'dosage' | 'duration' | 'instruction'; text: string }> = []
+        for (const d of drugs) {
+          if (d.dosage && typeof d.dosage === 'string' && d.dosage.trim().length >= 2) {
+            itemsToSave.push({ type: 'dosage', text: d.dosage.trim() })
+          }
+          if (d.duration && typeof d.duration === 'string' && d.duration.trim().length >= 2) {
+            itemsToSave.push({ type: 'duration', text: d.duration.trim() })
+          }
+        }
+        if (instructions && typeof instructions === 'string' && instructions.trim().length >= 3) {
+          itemsToSave.push({ type: 'instruction', text: instructions.trim() })
+        }
+        if (itemsToSave.length > 0 && clinicId) {
+          savePrescriptionSuggestions(clinicId, itemsToSave, clinic?.doctorEmail).catch(() => {})
+          setDosageSuggestions(prev => {
+            const newItems = itemsToSave.filter(i => i.type === 'dosage').map(i => i.text)
+            return Array.from(new Set([...newItems, ...prev]))
           })
-        } catch (e) {}
+          setDurationSuggestions(prev => {
+            const newItems = itemsToSave.filter(i => i.type === 'duration').map(i => i.text)
+            return Array.from(new Set([...newItems, ...prev]))
+          })
+          setInstructionsSuggestions(prev => {
+            const newItems = itemsToSave.filter(i => i.type === 'instruction').map(i => i.text)
+            return Array.from(new Set([...newItems, ...prev]))
+          })
+        }
+      } catch (e) {
+        console.warn('Error saving prescription suggestions:', e)
+      }
 
-        // Persist used dosage, duration, and instructions to clinic suggestions bank
+      // Clear local draft on successful save
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(draftStorageKey)
+      }
+      setIsDraftRestored(false)
+
+      if (patientPhone) {
         try {
-          const itemsToSave: Array<{ type: 'dosage' | 'duration' | 'instruction'; text: string }> = []
-          for (const d of drugs) {
-            if (d.dosage && typeof d.dosage === 'string' && d.dosage.trim().length >= 2) {
-              itemsToSave.push({ type: 'dosage', text: d.dosage.trim() })
-            }
-            if (d.duration && typeof d.duration === 'string' && d.duration.trim().length >= 2) {
-              itemsToSave.push({ type: 'duration', text: d.duration.trim() })
-            }
-          }
-          if (instructions && typeof instructions === 'string' && instructions.trim().length >= 3) {
-            itemsToSave.push({ type: 'instruction', text: instructions.trim() })
-          }
-          if (itemsToSave.length > 0 && clinicId) {
-            savePrescriptionSuggestions(clinicId, itemsToSave, clinic?.doctorEmail).catch(() => {})
-            // Update in-memory suggestions immediately for current session
-            setDosageSuggestions(prev => {
-              const newItems = itemsToSave.filter(i => i.type === 'dosage').map(i => i.text)
-              return Array.from(new Set([...newItems, ...prev]))
-            })
-            setDurationSuggestions(prev => {
-              const newItems = itemsToSave.filter(i => i.type === 'duration').map(i => i.text)
-              return Array.from(new Set([...newItems, ...prev]))
-            })
-            setInstructionsSuggestions(prev => {
-              const newItems = itemsToSave.filter(i => i.type === 'instruction').map(i => i.text)
-              return Array.from(new Set([...newItems, ...prev]))
-            })
-          }
-        } catch (e) {
-          console.warn('Error saving prescription suggestions:', e)
-        }
+          const { createClinicNotification } = await import('@/lib/notificationService')
+          await createClinicNotification({
+            clinicId,
+            branchId: selectedBranchId || clinic?.branchId || undefined,
+            recipientType: 'patient',
+            recipientTarget: patientPhone,
+            title: 'تم إصدار الروشتة الطبية 📄',
+            body: `تم اعتماد الروشتة الطبية الخاصة بك بواسطة د. ${clinic?.doctorName || 'العيادة'}. يمكنك استعراضها وتحميلها عبر بوابتك الإلكترونية.`,
+            type: 'prescription_ready',
+            eventId: `rx_ready_${nextRxId}`,
+            appointmentId: appointmentId || undefined
+          })
 
-        if (appointmentId) {
-          try {
-            await updateDoc(doc(db, 'appointments', appointmentId), {
-              diagnosis,
-              instructions,
-              notes: notes.trim(),
-              vitalSigns: vitalsData,
-              drugs: drugs.filter(d => d.name && d.name.trim() !== ''),
-              allergies: patientAllergies || '',
-              chronicDiseases: patientChronicDiseases || '',
-              prescription_id: docRef.id,
-              prescriptionStatus: 'approved',
-              prescription_templateMode: templateMode
-            })
-          } catch (e) {}
-        }
+          // Dispatch Real Web Push Notification to patient device
+          const { triggerPatientEventPush } = await import('@/lib/patientNotificationHelper')
+          triggerPatientEventPush({
+            type: 'prescription_ready',
+            appointmentId: appointmentId || undefined,
+            clinicId,
+            clinicSlug: slug,
+            clinicName: clinic?.clinicName || 'العيادة',
+            patientPhone,
+            eventId: `push_rx_ready_${nextRxId}`,
+          }).catch(() => {})
+        } catch (e) {}
+      }
 
-        // Clear local draft on successful save
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem(draftStorageKey)
-        }
-        setIsDraftRestored(false)
-
-        if (patientPhone) {
-          try {
-            const { createClinicNotification } = await import('@/lib/notificationService')
-            await createClinicNotification({
-              clinicId,
-              branchId: selectedBranchId || clinic?.branchId || undefined,
-              recipientType: 'patient',
-              recipientTarget: patientPhone,
-              title: 'تم إصدار الروشتة الطبية 📄',
-              body: `تم اعتماد الروشتة الطبية الخاصة بك بواسطة د. ${clinic?.doctorName || 'العيادة'}. يمكنك استعراضها وتحميلها عبر بوابتك الإلكترونية.`,
-              type: 'prescription_ready',
-              eventId: `rx_ready_${docRef.id}`,
-              appointmentId: appointmentId || undefined
-            })
-
-            // Dispatch Real Web Push Notification to patient device
-            const { triggerPatientEventPush } = await import('@/lib/patientNotificationHelper')
-            triggerPatientEventPush({
-              type: 'prescription_ready',
-              appointmentId: appointmentId || undefined,
-              clinicId,
-              clinicSlug: slug,
-              clinicName: clinic?.clinicName || 'العيادة',
-              patientPhone,
-              eventId: `push_rx_ready_${docRef.id}`,
-            }).catch(() => {})
-          } catch (e) {}
-        }
-
+      if (saveData.whatsappDispatch?.status === 'sent') {
+        toast.success('تم حفظ الروشتة وإرسالها عبر واتساب بنجاح!')
+      } else if (saveData.whatsappDispatch?.status === 'waiting_for_connection') {
+        toast.info('تم حفظ الروشتة وجدولتها للإرسال التلقائي فور اتصال الواتساب.')
+      } else {
         toast.success('تم حفظ واعتماد الروشتة في الملف الطبي بنجاح!')
       }
     } catch (error) {
@@ -1073,14 +1076,24 @@ export default function PrescriptionsPage({ params }: { params: Promise<{ slug: 
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Unified Instant WhatsApp Share Button (No download, 0ms popup-free launch, full Rx in chat, Ctrl+V image, Web vs App Selector) */}
-          <WhatsAppShareButton
-            onSend={(target) => handleShareWhatsAppRx(target)}
-            phone={patientPhone}
-            loading={isSharingPdf}
-            label={t('send_whatsapp_btn', 'مشاركة عبر واتساب')}
-            size="default"
-          />
+          {waPolicy.sectionVisible && rxWaPolicy.visible && rxWaPolicy.enabled && (
+            rxWaPolicy.autoSend ? (
+              <WhatsAppDeliveryBadge
+                status={rxWaStatus?.status}
+                lastError={rxWaStatus?.lastError}
+                sentAt={rxWaStatus?.sentAt}
+                deliveredAt={rxWaStatus?.deliveredAt}
+              />
+            ) : rxWaPolicy.allowManualSend ? (
+              <WhatsAppShareButton
+                onSend={(target) => handleShareWhatsAppRx(target)}
+                phone={patientPhone}
+                loading={isSharingPdf}
+                label={t('send_whatsapp_btn', 'مشاركة عبر واتساب')}
+                size="default"
+              />
+            ) : null
+          )}
 
           {/* Real PDF Download */}
           <Button

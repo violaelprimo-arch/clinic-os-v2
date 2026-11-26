@@ -35,6 +35,7 @@ import {
   DialogTitle,
   DialogDescription
 } from '@/components/ui/dialog'
+import { MediaUploader } from '@/components/common/MediaUploader'
 
 export function OwnerBranchManager({
   clinics,
@@ -819,13 +820,12 @@ export function OwnerBranchManager({
 
               {/* Owner edits location identity only. Operational branch settings belong to the doctor. */}
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-foreground">رابط صورة مبنى الفرع (Photo URL)</Label>
-                <Input
+                <MediaUploader
+                  label="صورة مبنى الفرع (رفع مباشر من الجهاز — الحد الأقصى 2 ميجابايت)"
                   value={image}
-                  onChange={(e) => setImage(e.target.value)}
-                  placeholder="https://images.unsplash.com/..."
-                  className="h-10 text-xs rounded-xl font-mono text-left"
-                  dir="ltr"
+                  onChange={(url) => setImage(url)}
+                  folder="branches"
+                  maxSizeMB={2}
                 />
               </div>
               <div className="p-3 rounded-2xl border border-sky-200 bg-sky-50/60 text-slate-700 text-xs">

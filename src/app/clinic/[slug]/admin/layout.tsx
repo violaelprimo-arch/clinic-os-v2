@@ -25,6 +25,7 @@ import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { LanguageToggle } from '@/components/common/LanguageToggle'
 import { useLanguage } from '@/context/LanguageContext'
 import { ClinicAccessProvider } from '@/context/ClinicAccessContext'
+import { useClinicWhatsAppPolicy } from '@/lib/useClinicWhatsAppPolicy'
 
 export default function AdminLayout({
   children,
@@ -43,6 +44,7 @@ export default function AdminLayout({
   const [authError, setAuthError] = useState<string | null>(null)
   const [mustChangePassword, setMustChangePassword] = useState(false)
   const [clinic, setClinic] = useState<any>(null)
+  const { policy: waPolicy } = useClinicWhatsAppPolicy(slug, clinic)
   const [loading, setLoading] = useState(true)
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -304,7 +306,7 @@ export default function AdminLayout({
       isAction: true,
       onClick: () => setShowUpgradeModal(true)
     }] : []),
-    ...(role === 'doctor' ? [{ id:'whatsapp', name:'ربط الواتساب', href:`/clinic/${slug}/admin/whatsapp`, icon:Settings }] : []),
+    ...(role === 'doctor' && waPolicy.sectionVisible ? [{ id:'whatsapp', name:'رسائل واتساب', href:`/clinic/${slug}/admin/whatsapp`, icon:Settings }] : []),
     {
       id: 'settings',
       name: t('nav_settings', 'الإعدادات'),
@@ -362,6 +364,7 @@ export default function AdminLayout({
     if (item.id === 'prescriptions' && !isPrescriptionsEnabled) return false
     if (item.id === 'ai-training' && !isAiEnabled) return false
     if (item.id === 'branches' && !isBranchesEnabled) return false
+    if (item.id === 'whatsapp' && !waPolicy.sectionVisible) return false
     if (item.id === 'packages' && showPackagesInClinics === false) return false
 
     if (role === 'doctor') return true

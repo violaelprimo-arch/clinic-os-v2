@@ -279,6 +279,14 @@ export async function POST(req: NextRequest) {
       date: bookingDate,
       time: String(time),
       whatsappConsent: body.whatsappConsent === true,
+      whatsappConsentPreferences:
+        body.whatsappConsentPreferences && typeof body.whatsappConsentPreferences === 'object'
+          ? {
+              booking: body.whatsappConsentPreferences.booking !== false,
+              reminders: body.whatsappConsentPreferences.reminders !== false,
+              documents: body.whatsappConsentPreferences.documents !== false,
+            }
+          : null,
       whatsappReminderTime: body.time || validation.shifts?.[0]?.start || null,
       whatsappHasFixedTime: Boolean(body.time),
       status: 'waiting',
@@ -408,13 +416,16 @@ export async function POST(req: NextRequest) {
           clinicSlug: slug,
           patientName: cleanName,
           patientPhone: cleanPhone,
-          clinicName: cData?.name || '',
+          clinicName: cData?.clinicName || cData?.name || '',
           doctorName: cData?.doctorName || '',
+          branchName: String(newAppt.branchName || ''),
           date: bookingDate,
           time,
           whatsappConsent: newAppt.whatsappConsent,
+          whatsappConsentPreferences: newAppt.whatsappConsentPreferences || undefined,
           whatsappReminderTime: newAppt.whatsappReminderTime,
-          whatsappHasFixedTime: newAppt.whatsappHasFixedTime
+          whatsappHasFixedTime: newAppt.whatsappHasFixedTime,
+          clinicDoc: cData,
         }),
       'whatsapp-booking-notifications',
     )

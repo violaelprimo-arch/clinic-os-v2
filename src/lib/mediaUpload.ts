@@ -1,6 +1,8 @@
 import { storage } from '@/lib/firebase'
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
 
+export const MAX_IMAGE_BYTES = 2 * 1024 * 1024 // 2MB strict limit (2,097,152 bytes)
+
 export interface MediaValidationResult {
   valid: boolean
   error?: string
@@ -9,10 +11,11 @@ export interface MediaValidationResult {
 
 /**
  * Validates image size and inspects file magic bytes (not just extension)
+ * Strictly enforces 2MB limit and allowed formats: JPEG, PNG, WebP with safe HEIC detection.
  */
 export async function validateMediaFile(
   file: File,
-  maxSizeBytes = 5 * 1024 * 1024 // 5MB default for marketing / screenshots
+  maxSizeBytes = MAX_IMAGE_BYTES
 ): Promise<MediaValidationResult> {
   const maxMB = (maxSizeBytes / (1024 * 1024)).toFixed(1).replace('.0', '')
 
@@ -23,8 +26,24 @@ export async function validateMediaFile(
     }
   }
 
+  const fileNameLower = (file.name || '').toLowerCase()
+  const mimeType = (file.type || '').toLowerCase()
+
+  // Detect iPhone / Apple HEIC / HEIF format early
+  if (
+    mimeType === 'image/heic' ||
+    mimeType === 'image/heif' ||
+    fileNameLower.endsWith('.heic') ||
+    fileNameLower.endsWith('.heif')
+  ) {
+    return {
+      valid: false,
+      error: 'صيغة HEIC (صور iPhone) غير مدعومة مباشرة، يرجى اختيار صورة بصيغة JPEG أو PNG أو WebP'
+    }
+  }
+
   const allowedMimes = ['image/jpeg', 'image/png', 'image/webp']
-  if (!allowedMimes.includes(file.type.toLowerCase())) {
+  if (mimeType && !allowedMimes.includes(mimeType)) {
     return {
       valid: false,
       error: 'صيغة الصورة غير مدعومة، يرجى اختيار ملف JPEG أو PNG أو WebP'
@@ -32,9 +51,22 @@ export async function validateMediaFile(
   }
 
   try {
-    const slice = file.slice(0, 12)
+    const slice = file.slice(0, 16)
     const arrayBuffer = await slice.arrayBuffer()
     const bytes = new Uint8Array(arrayBuffer)
+
+    // Check for HEIC/HEIF magic bytes (ftyp at offset 4)
+    if (
+      bytes[4] === 0x66 && // 'f'
+      bytes[5] === 0x74 && // 't'
+      bytes[6] === 0x79 && // 'y'
+      bytes[7] === 0x70    // 'p'
+    ) {
+      return {
+        valid: false,
+        error: 'صيغة HEIC (صور iPhone) غير مدعومة مباشرة، يرجى اختيار صورة بصيغة JPEG أو PNG أو WebP'
+      }
+    }
 
     // JPEG: FF D8 FF
     if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) {
@@ -73,9 +105,9 @@ export async function validateMediaFile(
 
     return {
       valid: false,
-      error: 'محتوى الملف غير صالح أو تالف ولا يتطابق مع نوع صورة معتمد'
+      error: 'محتوى الملف غير صالح أو تالف ولا يتطابق مع نوع صورة معتمد (JPEG, PNG, WebP)'
     }
-  } catch (err) {
+  } catch {
     return {
       valid: false,
       error: 'تعذر فحص محتوى ملف الصورة'
@@ -113,15 +145,22 @@ export async function uploadMediaToStorage(
   } catch (clientErr) {
     console.warn('Client Storage upload failed, attempting fallback API upload:', clientErr)
 
-    // Fallback to server-side API upload
+    // Fallback to server-side API upload (/api/media/upload or /api/owner/upload)
     const formData = new FormData()
     formData.append('file', file)
     formData.append('folder', folder)
 
-    const res = await fetch('/api/owner/upload', {
+    let res = await fetch('/api/media/upload', {
       method: 'POST',
       body: formData
     })
+
+    if (!res.ok && res.status === 404) {
+      res = await fetch('/api/owner/upload', {
+        method: 'POST',
+        body: formData
+      })
+    }
 
     if (!res.ok) {
       const errJson = await res.json().catch(() => ({}))

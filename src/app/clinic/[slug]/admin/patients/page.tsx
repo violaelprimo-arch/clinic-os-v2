@@ -27,6 +27,7 @@ import { useClinicReadOnly } from '@/context/ClinicAccessContext'
 import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import { cleanPhoneForWhatsApp, validatePhoneNumber, DEFAULT_COUNTRY, CountryInfo, getPhoneSearchVariants } from '@/lib/countryPhoneHelper'
 import { openManualWhatsAppChat } from '@/lib/whatsappShare'
+import { useClinicWhatsAppPolicy } from '@/lib/useClinicWhatsAppPolicy'
 
 export default function PatientsPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -34,6 +35,7 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
   const { t, tDynamic, dir, isRtl } = useLanguage()
   const isReadOnly = useClinicReadOnly()
   const [clinic, setClinic] = useState<any>(null)
+  const { policy: waPolicy } = useClinicWhatsAppPolicy(slug, clinic)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
@@ -972,15 +974,17 @@ export default function PatientsPage({ params }: { params: Promise<{ slug: strin
                               {t('patient_profile_btn', 'ملف المريض')}
                             </Button>
                           </Link>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-xl"
-                            onClick={() => sendWhatsApp(patient.phone, patient.name)} disabled={isReadOnly}
-                            title={t('whatsapp_chat', 'مراسلة عبر واتساب')}
-                          >
-                            <MessageCircle className="w-4 h-4" />
-                          </Button>
+                          {waPolicy.sectionVisible && waPolicy.serviceEnabled && (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-xl"
+                              onClick={() => sendWhatsApp(patient.phone, patient.name)} disabled={isReadOnly}
+                              title={t('whatsapp_chat', 'مراسلة عبر واتساب')}
+                            >
+                              <MessageCircle className="w-4 h-4" />
+                            </Button>
+                          )}
                           <Button
                             size="icon"
                             variant="ghost"

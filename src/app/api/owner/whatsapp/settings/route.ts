@@ -43,9 +43,11 @@ export async function POST(req: NextRequest) {
 
     const validatedSettings: ClinicWhatsAppSettings = {
       sendBookingConfirmation: Boolean(rawSettings.sendBookingConfirmation ?? true),
+      sendAppointmentReminder: Boolean(rawSettings.sendAppointmentReminder ?? rawSettings.sendReminders ?? true),
       sendReminders: Boolean(rawSettings.sendReminders ?? true),
       reminders: reminders.length > 0 ? reminders : DEFAULT_WHATSAPP_SETTINGS.reminders,
       sendRescheduledNotification: Boolean(rawSettings.sendRescheduledNotification ?? true),
+      sendCancelledNotification: Boolean(rawSettings.sendCancelledNotification ?? rawSettings.sendCancellationNotification ?? true),
       sendCancellationNotification: Boolean(rawSettings.sendCancellationNotification ?? true),
       monthlyLimit: Math.max(1, Math.min(10000, Number(rawSettings.monthlyLimit) || 500))
     }

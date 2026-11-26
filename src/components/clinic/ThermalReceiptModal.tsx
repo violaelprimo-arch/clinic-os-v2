@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
   Printer, X, Receipt, CheckCircle2, ShieldCheck, Download, Share2, Image as ImageIcon, FileText, Loader2
 } from 'lucide-react'
@@ -12,6 +12,8 @@ import {
 } from '@/lib/printService'
 import { shareDocumentOrImage, sharePdfDocument, openManualWhatsAppChat, getSavedWhatsAppTarget, formatInvoiceWhatsAppMessage } from '@/lib/whatsappShare'
 import { WhatsAppShareButton } from '@/components/common/WhatsAppShareButton'
+import { WhatsAppDeliveryBadge } from '@/components/clinic/WhatsAppDeliveryBadge'
+import { useClinicWhatsAppPolicy } from '@/lib/useClinicWhatsAppPolicy'
 import { downloadElementAsPdf, downloadElementAsImage, renderElementToImageBlob, renderElementToPdfBlob } from '@/lib/pdfGenerator'
 import { useLanguage } from '@/context/LanguageContext'
 import { toast } from 'sonner'
@@ -19,15 +21,92 @@ import { toast } from 'sonner'
 export function ThermalReceiptModal({
   data,
   isOpen,
-  onClose
+  onClose,
+  clinicSlug,
+  appointmentId
 }: {
   data: ThermalReceiptData | null
   isOpen: boolean
   onClose: () => void
+  clinicSlug?: string
+  appointmentId?: string
 }) {
   const { t, isRtl, dir } = useLanguage()
   const receiptRef = useRef<HTMLDivElement>(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [waDocStatus, setWaDocStatus] = useState<any>(null)
+  const [isIssuingInvoice, setIsIssuingInvoice] = useState(false)
+
+  const resolvedSlug =
+    clinicSlug ||
+    (typeof window !== 'undefined' && window.location.pathname.startsWith('/clinic/')
+      ? window.location.pathname.split('/')[2] || ''
+      : '')
+  const docKey = appointmentId || data?.invoiceNumber || ''
+  const { policy } = useClinicWhatsAppPolicy(isOpen ? resolvedSlug : null)
+  const invoicePolicy = policy.features.invoice
+
+  useEffect(() => {
+    if (!isOpen || !resolvedSlug || !docKey || !policy.sectionVisible || !invoicePolicy.visible || !invoicePolicy.enabled) {
+      setWaDocStatus(null)
+      return
+    }
+    let cancelled = false
+    fetch(`/api/clinic/${encodeURIComponent(resolvedSlug)}/invoices?id=${encodeURIComponent(docKey)}`, {
+      cache: 'no-store',
+      credentials: 'same-origin',
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((res) => {
+        if (!cancelled && res?.whatsappStatus) setWaDocStatus(res.whatsappStatus)
+      })
+      .catch(() => null)
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen, resolvedSlug, docKey, policy.sectionVisible, invoicePolicy.visible, invoicePolicy.enabled])
+
+  const handleIssueOfficialInvoice = async () => {
+    if (!resolvedSlug || !data || isIssuingInvoice) return
+    setIsIssuingInvoice(true)
+    try {
+      const res = await fetch(`/api/clinic/${encodeURIComponent(resolvedSlug)}/invoices`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          invoiceId: docKey || undefined,
+          appointmentId: appointmentId || undefined,
+          invoiceNumber: data.invoiceNumber,
+          patientName: data.patientName,
+          patientPhone: data.patientPhone,
+          branchName: data.branchName,
+          date: data.date,
+          serviceName: data.serviceName,
+          originalPrice: data.originalPrice,
+          discount: data.discountAmount ?? (data as any).discount ?? 0,
+          netTotal: data.netPrice ?? (data as any).netTotal ?? 0,
+          paymentMethod: data.paymentMethod,
+          paymentStatus: data.paymentStatus,
+        }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(json.error || 'تعذر إصدار الفاتورة')
+        return
+      }
+      if (json.whatsappStatus) setWaDocStatus(json.whatsappStatus)
+      if (json.deduplicated) {
+        toast.info('الفاتورة مُصدرة بالفعل لهذه النسخة ولم يتم إرسال نسخة مكررة')
+      } else {
+        toast.success('تم إصدار الفاتورة ومعالجة حالة الواتساب بنجاح')
+      }
+    } catch {
+      toast.error('تعذر الاتصال بالخادم أثناء إصدار الفاتورة')
+    } finally {
+      setIsIssuingInvoice(false)
+    }
+  }
 
   if (!isOpen || !data) return null
 
@@ -272,16 +351,41 @@ export function ThermalReceiptModal({
         {/* Action Buttons Toolbar */}
         <div className="p-3 sm:p-4 border-t border-border flex flex-wrap items-center justify-between gap-2 bg-card">
           <div className="flex items-center gap-1.5 flex-wrap">
-            {/* WhatsApp Share as PDF with Web / App Selector (Zero computer auto-download) */}
-            <WhatsAppShareButton
-              onSend={handleSendWhatsApp}
-              phone={data.patientPhone}
-              loading={isProcessing}
-              label={t('send_whatsapp_pdf_btn', isRtl ? 'واتساب (PDF)' : 'WhatsApp (PDF)')}
-              size="sm"
-              variant="outline"
-              showPhoneBadge={false}
-            />
+            {policy.sectionVisible && invoicePolicy.visible && invoicePolicy.enabled && (
+              invoicePolicy.autoSend ? (
+                <div className="flex items-center gap-1.5">
+                  <WhatsAppDeliveryBadge
+                    status={waDocStatus?.status}
+                    lastError={waDocStatus?.lastError}
+                    sentAt={waDocStatus?.sentAt}
+                    deliveredAt={waDocStatus?.deliveredAt}
+                    compact
+                  />
+                  {!waDocStatus && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleIssueOfficialInvoice}
+                      disabled={isIssuingInvoice}
+                      className="h-8 px-2.5 text-[11px] font-bold rounded-xl border-emerald-500/30 text-emerald-700 dark:text-emerald-300"
+                    >
+                      {isIssuingInvoice ? 'جاري الإصدار...' : 'إصدار وإرسال'}
+                    </Button>
+                  )}
+                </div>
+              ) : invoicePolicy.allowManualSend ? (
+                <WhatsAppShareButton
+                  onSend={handleSendWhatsApp}
+                  phone={data.patientPhone}
+                  loading={isProcessing}
+                  label={t('send_whatsapp_pdf_btn', isRtl ? 'واتساب (PDF)' : 'WhatsApp (PDF)')}
+                  size="sm"
+                  variant="outline"
+                  showPhoneBadge={false}
+                />
+              ) : null
+            )}
 
             {/* Download as Image */}
             <Button

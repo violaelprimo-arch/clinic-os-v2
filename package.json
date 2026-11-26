@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "test:whatsapp": "node --import ./scripts/register-test-loader.mjs --test tests/ycloud-whatsapp-automation.test.mjs",
-    "test": "node --import ./scripts/register-test-loader.mjs --test tests/ycloud-whatsapp-automation.test.mjs tests/prescription-and-invoice-sharing.test.mjs tests/owner-navigation-sidebar.test.mjs",
+    "test": "node --import ./scripts/register-test-loader.mjs --test tests/ycloud-whatsapp-automation.test.mjs tests/prescription-and-invoice-sharing.test.mjs tests/owner-navigation-sidebar.test.mjs tests/whatsapp-governance-queue.test.mjs",
     "test:landing": "node --import ./scripts/register-test-loader.mjs --test tests/landing-api.test.mjs tests/firebase-credentials.test.mjs",
     "test:landing:rules": "npx --yes firebase-tools@13.35.1 emulators:exec --only firestore --project demo-clinic-landing --config firebase.landing.compat.json 'node --test tests/firestore-landing.rules.test.mjs'",
     "test:landing:browser": "playwright test --config playwright.landing.config.ts",

@@ -32,7 +32,7 @@ export function MediaUploader({
   folder = 'general',
   label,
   hint,
-  maxSizeMB = 5,
+  maxSizeMB = 2,
   aspectRatio = 'auto',
   className = ''
 }: MediaUploaderProps) {
@@ -195,7 +195,7 @@ export function MediaUploader({
                   اضغط لاختيار صورة من جهازك، أو اسحب الملف هنا
                 </p>
                 <p className="text-[11px] text-slate-400 mt-0.5">
-                  الصيغ المدعومة: JPEG, PNG, WebP (بحد أقصى {maxSizeMB} ميجابايت)
+                  الصيغ المدعومة: JPEG, PNG, WebP (الحد الأقصى {maxSizeMB} ميجابايت)
                 </p>
               </div>
             </div>

@@ -328,6 +328,11 @@ export function BookingForm({
   const [transferReference, setTransferReference] = useState('')
   const [transferProofUrl, setTransferProofUrl] = useState('')
   const [whatsappConsent, setWhatsappConsent] = useState(false)
+  const [whatsappConsentPreferences, setWhatsappConsentPreferences] = useState({
+    booking: true,
+    reminders: true,
+    documents: true,
+  })
   const [isBooking, setIsBooking] = useState(false)
   const [successInfo, setSuccessInfo] = useState<{
     queueNumber: number
@@ -391,8 +396,8 @@ export function BookingForm({
   const handleReceiptProofUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      if (file.size > 4 * 1024 * 1024) {
-        return toast.error(isRtl ? 'حجم الصورة كبير، يرجى اختيار صورة أقل من 4 ميجابايت' : 'Image is too large, maximum size is 4MB')
+      if (file.size > 2 * 1024 * 1024) {
+        return toast.error(isRtl ? 'حجم الصورة كبير، الحد الأقصى المسموح به هو 2 ميجابايت' : 'Image is too large, maximum size is 2MB')
       }
       const reader = new FileReader()
       reader.onload = () => {
@@ -467,6 +472,7 @@ export function BookingForm({
           patientName: name,
           patientPhone: phone,
           whatsappConsent,
+          whatsappConsentPreferences: whatsappConsent ? whatsappConsentPreferences : undefined,
           age: age || null,
           birthDate: dob || null,
           serviceId: selectedService.id,
@@ -1022,10 +1028,44 @@ export function BookingForm({
             })}
           </div>
 
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={whatsappConsent} onChange={(event) => setWhatsappConsent(event.target.checked)} />
-            {isRtl ? 'أوافق على استلام تأكيد الحجز والتذكيرات عبر واتساب' : 'Send me booking confirmations and reminders on WhatsApp'}
-          </label>
+          <div className="space-y-2 rounded-xl border border-border bg-secondary/30 p-3">
+            <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+              <input
+                type="checkbox"
+                checked={whatsappConsent}
+                onChange={(event) => setWhatsappConsent(event.target.checked)}
+              />
+              {isRtl ? 'أوافق على استلام تأكيد الحجز والتذكيرات عبر واتساب' : 'Send me booking confirmations and reminders on WhatsApp'}
+            </label>
+            {whatsappConsent && (
+              <div className="flex flex-wrap gap-3 pr-5 text-xs text-muted-foreground">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={whatsappConsentPreferences.booking}
+                    onChange={(e) => setWhatsappConsentPreferences((p) => ({ ...p, booking: e.target.checked }))}
+                  />
+                  {isRtl ? 'تأكيد وتعديل الحجز' : 'Booking updates'}
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={whatsappConsentPreferences.reminders}
+                    onChange={(e) => setWhatsappConsentPreferences((p) => ({ ...p, reminders: e.target.checked }))}
+                  />
+                  {isRtl ? 'تذكيرات الموعد' : 'Reminders'}
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={whatsappConsentPreferences.documents}
+                    onChange={(e) => setWhatsappConsentPreferences((p) => ({ ...p, documents: e.target.checked }))}
+                  />
+                  {isRtl ? 'الروشتات والفواتير' : 'Prescriptions & Invoices'}
+                </label>
+              </div>
+            )}
+          </div>
           <div className="flex gap-2.5 pt-2">
             <Button
               onClick={handleNextStep2}

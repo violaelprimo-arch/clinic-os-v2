@@ -1262,7 +1262,7 @@ export function LandingPageManager() {
                   hint="اختر لقطة شاشة حقيقية لنظام العيادة من جهازك. يتم الرفع إلى التخزين السحابي وحفظ الرابط تلقائياً."
                   value={config.heroImage || ''}
                   folder="hero"
-                  maxSizeMB={5}
+                  maxSizeMB={2}
                   onChange={(url) => setConfigField('heroImage', url)}
                 />
               </div>
@@ -1950,7 +1950,7 @@ export function LandingPageManager() {
                         label="ملف صورة الشاشة (رفع من الجهاز)"
                         value={shot.imageUrl}
                         folder="screenshots"
-                        maxSizeMB={5}
+                        maxSizeMB={2}
                         onChange={(url) => {
                           const arr = [...config.screenshots]
                           arr[idx].imageUrl = url
@@ -3444,7 +3444,7 @@ export function LandingPageManager() {
                       label="شعار العيادة (رفع ملف من الجهاز)"
                       value={cli.logoUrl || ''}
                       folder="clients"
-                      maxSizeMB={3}
+                      maxSizeMB={2}
                       onChange={(url) => {
                         const arr = [...config.clients]
                         arr[idx].logoUrl = url

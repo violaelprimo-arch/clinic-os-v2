@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Printer, Download, Receipt, CheckCircle2, Clock, MapPin, Phone, Building, Share2, MessageCircle, Image as ImageIcon } from 'lucide-react'
@@ -9,6 +9,8 @@ import { printHtmlViaIframe, generateThermalReceiptHtml } from '@/lib/printServi
 import { downloadElementAsPdf, downloadElementAsImage } from '@/lib/pdfGenerator'
 import { openWhatsAppRecordShare } from '@/lib/whatsappShare'
 import { WhatsAppShareButton } from '@/components/common/WhatsAppShareButton'
+import { WhatsAppDeliveryBadge } from '@/components/clinic/WhatsAppDeliveryBadge'
+import { useClinicWhatsAppPolicy } from '@/lib/useClinicWhatsAppPolicy'
 import { useLanguage } from '@/context/LanguageContext'
 import { toast } from 'sonner'
 
@@ -49,8 +51,75 @@ export function InvoiceView({
   const printableRef = useRef<HTMLDivElement>(null)
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
   const [isGeneratingImage, setIsGeneratingImage] = useState(false)
+  const [waDocStatus, setWaDocStatus] = useState<any>(null)
+  const [isIssuingInvoice, setIsIssuingInvoice] = useState(false)
 
   const resolvedSlug = propSlug || (typeof window !== 'undefined' ? window.location.pathname.split('/')[2] : '')
+  const docKey = invoice.appointmentId || invoice.invoiceNumber || ''
+  const { policy } = useClinicWhatsAppPolicy(!isPatientView ? resolvedSlug : null)
+  const invoicePolicy = policy.features.invoice
+
+  useEffect(() => {
+    if (isPatientView || !resolvedSlug || !docKey || !policy.sectionVisible || !invoicePolicy.visible || !invoicePolicy.enabled) {
+      setWaDocStatus(null)
+      return
+    }
+    let cancelled = false
+    fetch(`/api/clinic/${encodeURIComponent(resolvedSlug)}/invoices?id=${encodeURIComponent(docKey)}`, {
+      cache: 'no-store',
+      credentials: 'same-origin',
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((res) => {
+        if (!cancelled && res?.whatsappStatus) setWaDocStatus(res.whatsappStatus)
+      })
+      .catch(() => null)
+    return () => {
+      cancelled = true
+    }
+  }, [isPatientView, resolvedSlug, docKey, policy.sectionVisible, invoicePolicy.visible, invoicePolicy.enabled])
+
+  const handleIssueOfficialInvoice = async () => {
+    if (!resolvedSlug || isIssuingInvoice) return
+    setIsIssuingInvoice(true)
+    try {
+      const res = await fetch(`/api/clinic/${encodeURIComponent(resolvedSlug)}/invoices`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          invoiceId: docKey || undefined,
+          appointmentId: invoice.appointmentId || undefined,
+          invoiceNumber: invoice.invoiceNumber,
+          patientName: invoice.patientName,
+          patientPhone: invoice.patientPhone,
+          branchName: invoice.branchName,
+          date: invoice.date,
+          serviceName: invoice.serviceName,
+          originalPrice: invoice.servicePrice,
+          discount: invoice.discount,
+          netTotal: invoice.netTotal,
+          paymentMethod: invoice.paymentMethod,
+          paymentStatus: invoice.paymentStatus,
+        }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(json.error || 'تعذر إصدار الفاتورة')
+        return
+      }
+      if (json.whatsappStatus) setWaDocStatus(json.whatsappStatus)
+      if (json.deduplicated) {
+        toast.info('الفاتورة مُصدرة بالفعل لهذه النسخة ولم يتم إرسال نسخة مكررة')
+      } else {
+        toast.success('تم إصدار الفاتورة ومعالجة الإرسال عبر واتساب بنجاح')
+      }
+    } catch {
+      toast.error('تعذر الاتصال بالخادم أثناء إصدار الفاتورة')
+    } finally {
+      setIsIssuingInvoice(false)
+    }
+  }
 
   // Isolated 80mm Thermal Receipt Print (For XP-80C)
   const handlePrintThermal = () => {
@@ -159,14 +228,41 @@ export function InvoiceView({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* WhatsApp Share as PDF with Web / App Selector (Zero computer auto-download) */}
-          <WhatsAppShareButton
-            onSend={handleShareWhatsApp}
-            phone={invoice.patientPhone}
-            loading={isGeneratingPdf}
-            label={isGeneratingPdf ? (isRtl ? 'جاري التجهيز...' : 'Preparing...') : t('send_whatsapp_pdf_btn', isRtl ? 'إرسال واتساب (PDF)' : 'Send WhatsApp (PDF)')}
-            size="sm"
-          />
+          {!isPatientView ? (
+            policy.sectionVisible && invoicePolicy.visible && invoicePolicy.enabled ? (
+              invoicePolicy.autoSend ? (
+                <div className="flex items-center gap-2">
+                  <WhatsAppDeliveryBadge
+                    status={waDocStatus?.status}
+                    lastError={waDocStatus?.lastError}
+                    sentAt={waDocStatus?.sentAt}
+                    deliveredAt={waDocStatus?.deliveredAt}
+                    compact
+                  />
+                  {!waDocStatus && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={handleIssueOfficialInvoice}
+                      disabled={isIssuingInvoice}
+                      className="h-9 px-3 text-xs font-bold rounded-xl border-emerald-500/30 text-emerald-700"
+                    >
+                      {isIssuingInvoice ? 'جاري الإصدار...' : 'إصدار وإرسال'}
+                    </Button>
+                  )}
+                </div>
+              ) : invoicePolicy.allowManualSend ? (
+                <WhatsAppShareButton
+                  onSend={handleShareWhatsApp}
+                  phone={invoice.patientPhone}
+                  loading={isGeneratingPdf}
+                  label={isGeneratingPdf ? (isRtl ? 'جاري التجهيز...' : 'Preparing...') : t('send_whatsapp_pdf_btn', isRtl ? 'إرسال واتساب (PDF)' : 'Send WhatsApp (PDF)')}
+                  size="sm"
+                />
+              ) : null
+            ) : null
+          ) : null}
 
           {/* Download as Image */}
           <Button

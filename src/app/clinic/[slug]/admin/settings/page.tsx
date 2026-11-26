@@ -36,6 +36,7 @@ import { PhoneInputWithCountry } from '@/components/ui/PhoneInputWithCountry'
 import { cleanPhoneForWhatsApp } from '@/lib/countryPhoneHelper'
 import { formatWeeklyScheduleSummary, syncClinicScheduleToMainBranch } from '@/lib/branchService'
 import { getClinicWebsiteUrl } from '@/lib/clinicUrls'
+import { MediaUploader } from '@/components/common/MediaUploader'
 
 export const COLOR_PRESETS = [
   { label: 'أزرق ملكي طبي', labelEn: 'Royal Medical Blue', primary: '#087CF4', secondary: '#0284C7' },
@@ -946,30 +947,26 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
                 {/* Standard Colored Logo */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-muted-foreground">{t('standard_logo_url', 'رابط الشعار الملون (Standard Color Logo)')}</Label>
-                  <Input
+                  <MediaUploader
+                    label={t('standard_logo_url', 'شعار العيادة الملون (Standard Color Logo)')}
+                    hint={t('standard_logo_hint', 'يظهر في صفحة الحجز، التقارير المالية A4، ولوحة التحكم. الحد الأقصى 2 ميجابايت.')}
                     value={logoUrl}
-                    onChange={e => setLogoUrl(e.target.value)}
-                    placeholder="https://example.com/logo.png"
-                    className="h-10 text-xs rounded-xl text-left font-mono"
-                    dir="ltr"
+                    onChange={setLogoUrl}
+                    folder="logos"
+                    maxSizeMB={2}
                   />
-                  <p className="text-[11px] text-muted-foreground">{t('standard_logo_hint', 'يظهر في صفحة الحجز، التقارير المالية A4، ولوحة التحكم.')}</p>
                 </div>
 
                 {/* Monochrome Thermal Receipt Logo */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-muted-foreground">{t('thermal_mono_logo_url', 'شعار الفاتورة الحرارية 80mm (أحادي اللون 1-Bit Mono)')}</Label>
-                  <Input
+                  <MediaUploader
+                    label={t('thermal_mono_logo_url', 'شعار الفاتورة الحرارية 80mm (أحادي اللون 1-Bit Mono)')}
+                    hint={t('thermal_mono_logo_hint', 'لوجو أسود وأبيض عالي التباين بدون تدرجات رمادية للحصول على أعلى دقة طباعة على ورق 80mm الحراري. الحد الأقصى 2 ميجابايت.')}
                     value={thermalMonoLogoUrl}
-                    onChange={e => setThermalMonoLogoUrl(e.target.value)}
-                    placeholder="https://example.com/thermal-logo-mono.png"
-                    className="h-10 text-xs rounded-xl text-left font-mono"
-                    dir="ltr"
+                    onChange={setThermalMonoLogoUrl}
+                    folder="logos"
+                    maxSizeMB={2}
                   />
-                  <p className="text-[11px] text-muted-foreground">
-                    {t('thermal_mono_logo_hint', 'لوجو أسود وأبيض عالي التباين بدون تدرجات رمادية للحصول على أعلى دقة طباعة على ورق 80mm الحراري.')}
-                  </p>
                 </div>
               </div>
 
@@ -1170,88 +1167,26 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
 
               {/* Doctor Photo Section */}
               <div hidden={!isOwnerSectionVisible(clinic, 'settings.profile.doctor')} className="p-4 rounded-2xl bg-muted/40 border border-border space-y-3">
-                <Label className="text-xs font-bold text-foreground flex items-center gap-2">
-                  <User className="w-4 h-4 text-primary" />
-                  {t('doctor_photo_label', 'صورة الطبيب (تظهر في الواجهة الرئيسية والمعاينة الحية)')}
-                </Label>
-                <div className="flex items-center gap-4">
-                  <div className="relative w-16 h-16 rounded-2xl overflow-hidden border-2 border-primary/30 shadow-xs shrink-0 bg-muted">
-                    <img
-                      src={safeImageUrl(photoUrl) || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=400&auto=format&fit=crop'}
-                      alt="Doctor Preview"
-                      className="w-full h-full object-cover object-top"
-                    />
-                  </div>
-                  <div className="flex-1 space-y-1.5">
-                    <Input
-                      value={photoUrl}
-                      onChange={e => setPhotoUrl(e.target.value)}
-                      placeholder="https://example.com/doctor-photo.jpg"
-                      className="h-10 text-xs rounded-xl font-mono text-left"
-                      dir="ltr"
-                    />
-                    <p className="text-[11px] text-muted-foreground">
-                      {t('doctor_photo_hint', 'ضع رابط مباشر لصورة الطبيب (PNG أو JPG). تنعكس فوراً في المعاينة الحية.')}
-                    </p>
-                  </div>
-                </div>
+                <MediaUploader
+                  label={t('doctor_photo_label', 'صورة الطبيب (تظهر في الواجهة الرئيسية والمعاينة الحية)')}
+                  hint={t('doctor_photo_hint', 'ارفع صورة الطبيب من جهازك مباشرة (JPEG, PNG, WebP بحد أقصى 2 ميجابايت).')}
+                  value={photoUrl}
+                  onChange={setPhotoUrl}
+                  folder="doctor_photos"
+                  maxSizeMB={2}
+                />
               </div>
 
               {/* Clinic Facility / Main Branch Photo Section */}
               <div hidden={!isOwnerSectionVisible(clinic, 'settings.profile.doctor')} className="p-4 rounded-2xl bg-muted/40 border border-border space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-bold text-foreground flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-primary" />
-                    <span>{t('clinic_branch_photo_label', 'صورة مبنى العيادة / الفرع الرئيسي (تظهر في شاشة حجز المريض والخرائط)')}</span>
-                  </Label>
-                  {branchImage && (
-                    <button
-                      type="button"
-                      onClick={() => setBranchImage('')}
-                      className="text-[10px] text-rose-500 hover:underline font-bold cursor-pointer"
-                    >
-                      {t('clear_photo', 'إزالة')}
-                    </button>
-                  )}
-                </div>
-                <div className="flex flex-col sm:flex-row items-center gap-4">
-                  <div className="relative w-28 h-20 rounded-2xl overflow-hidden border-2 border-primary/30 shadow-xs shrink-0 bg-slate-900">
-                    <img
-                      src={safeImageUrl(branchImage) || 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=400&auto=format&fit=crop'}
-                      alt="Clinic Facility Preview"
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div className="flex-1 w-full space-y-2">
-                    <Input
-                      value={branchImage}
-                      onChange={e => setBranchImage(e.target.value)}
-                      placeholder="https://images.unsplash.com/photo-..."
-                      className="h-10 text-xs rounded-xl font-mono text-left"
-                      dir="ltr"
-                    />
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-[10px] text-muted-foreground font-bold flex items-center gap-1">
-                        <Sparkles className="w-3 h-3 text-amber-500" />
-                        <span>صور مقترحة:</span>
-                      </span>
-                      {[
-                        { label: 'مستشفى حديث', url: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=800&auto=format&fit=crop' },
-                        { label: 'مركز طبي راقي', url: 'https://images.unsplash.com/photo-1586773860418-d37222d8fce3?q=80&w=800&auto=format&fit=crop' },
-                        { label: 'عيادة خاصة', url: 'https://images.unsplash.com/photo-1538108149393-fbbd81895907?q=80&w=800&auto=format&fit=crop' }
-                      ].map((preset) => (
-                        <button
-                          key={preset.label}
-                          type="button"
-                          onClick={() => setBranchImage(preset.url)}
-                          className="px-2 py-0.5 text-[10px] font-bold rounded-lg bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition-colors cursor-pointer"
-                        >
-                          {preset.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                <MediaUploader
+                  label={t('clinic_branch_photo_label', 'صورة مبنى العيادة / الفرع الرئيسي (تظهر في شاشة حجز المريض والخرائط)')}
+                  hint="ارفع صورة مبنى أو مقر العيادة الرئيسي من جهازك (JPEG, PNG, WebP بحد أقصى 2 ميجابايت)."
+                  value={branchImage}
+                  onChange={setBranchImage}
+                  folder="branch_photos"
+                  maxSizeMB={2}
+                />
               </div>
 
               <div className="space-y-1.5">

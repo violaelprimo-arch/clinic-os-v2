@@ -7,6 +7,10 @@ export async function POST(request: NextRequest) {
     await requireOwner(request)
 
     const formData = await request.formData()
+    if (formData.get('url') || formData.get('externalUrl')) {
+      throw new ApiError(400, 'EXTERNAL_URL_REJECTED', 'رفع الصور عبر روابط خارجية غير مسموح. يرجى رفع ملف الصورة مباشرة.')
+    }
+
     const file = formData.get('file') as File | null
     const folder = formData.get('folder') || 'general'
     if (typeof folder !== 'string' || !/^[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/.test(folder) || folder.length > 160) {
@@ -17,13 +21,53 @@ export async function POST(request: NextRequest) {
       throw new ApiError(400, 'NO_FILE', 'لم يتم إرسال أي ملف صورة')
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      throw new ApiError(400, 'FILE_TOO_LARGE', 'حجم الصورة يجب ألا يتجاوز 10 ميجابايت')
+    const MAX_IMAGE_BYTES = 2 * 1024 * 1024 // 2MB strict limit (2,097,152 bytes)
+    if (file.size > MAX_IMAGE_BYTES) {
+      throw new ApiError(413, 'FILE_TOO_LARGE', 'حجم الصورة يجب ألا يتجاوز 2 ميجابايت')
+    }
+
+    const fileNameLower = (file.name || '').toLowerCase()
+    const mimeType = (file.type || '').toLowerCase()
+
+    if (
+      mimeType === 'image/heic' ||
+      mimeType === 'image/heif' ||
+      fileNameLower.endsWith('.heic') ||
+      fileNameLower.endsWith('.heif')
+    ) {
+      throw new ApiError(400, 'HEIC_NOT_SUPPORTED', 'صيغة HEIC (صور iPhone) غير مدعومة مباشرة، يرجى اختيار صورة بصيغة JPEG أو PNG أو WebP')
     }
 
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
-    if (!allowedTypes.includes(file.type.toLowerCase())) {
+    if (!allowedTypes.includes(mimeType)) {
       throw new ApiError(400, 'UNSUPPORTED_TYPE', 'صيغة الصورة غير مدعومة (فقط JPEG, PNG, WebP)')
+    }
+
+    // Inspect magic bytes
+    const slice = file.slice(0, 16)
+    const arrayBuffer = await slice.arrayBuffer()
+    const bytes = new Uint8Array(arrayBuffer)
+
+    // HEIC check
+    if (bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70) {
+      throw new ApiError(400, 'HEIC_NOT_SUPPORTED', 'صيغة HEIC غير مدعومة مباشرة')
+    }
+
+    const isJpeg = bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF
+    const isPng =
+      bytes[0] === 0x89 &&
+      bytes[1] === 0x50 &&
+      bytes[2] === 0x4E &&
+      bytes[3] === 0x47 &&
+      bytes[4] === 0x0D &&
+      bytes[5] === 0x0A &&
+      bytes[6] === 0x1A &&
+      bytes[7] === 0x0A
+    const isRiff = bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46
+    const isWebp = bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50
+
+    if (!isJpeg && !isPng && !(isRiff && isWebp)) {
+      throw new ApiError(400, 'INVALID_IMAGE_BYTES', 'محتوى الملف غير صالح أو تالف ولا يتطابق مع صورة JPEG أو PNG أو WebP')
     }
 
     const { project } = getFirebaseServerCredentials()

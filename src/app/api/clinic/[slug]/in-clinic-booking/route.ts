@@ -245,6 +245,14 @@ export async function POST(
       date: bookingDate,
       time: time || 'حسب الدور',
       whatsappConsent: body.whatsappConsent === true,
+      whatsappConsentPreferences:
+        body.whatsappConsentPreferences && typeof body.whatsappConsentPreferences === 'object'
+          ? {
+              booking: body.whatsappConsentPreferences.booking !== false,
+              reminders: body.whatsappConsentPreferences.reminders !== false,
+              documents: body.whatsappConsentPreferences.documents !== false,
+            }
+          : null,
       whatsappReminderTime: body.time || validation.shifts?.[0]?.start || null,
       whatsappHasFixedTime: Boolean(body.time),
       status: 'waiting',
@@ -354,13 +362,16 @@ export async function POST(
           clinicSlug: slug,
           patientName: cleanName,
           patientPhone: cleanPhone,
-          clinicName: clinic?.name || '',
+          clinicName: clinic?.clinicName || clinic?.name || '',
           doctorName: clinic?.doctorName || '',
+          branchName: String(newAppointmentData.branchName || ''),
           date: bookingDate,
           time: newAppointmentData.time || '10:00 AM',
           whatsappConsent: newAppointmentData.whatsappConsent,
+          whatsappConsentPreferences: newAppointmentData.whatsappConsentPreferences || undefined,
           whatsappReminderTime: newAppointmentData.whatsappReminderTime,
-          whatsappHasFixedTime: newAppointmentData.whatsappHasFixedTime
+          whatsappHasFixedTime: newAppointmentData.whatsappHasFixedTime,
+          clinicDoc: clinic,
         }),
       'whatsapp-in-clinic-booking',
     )

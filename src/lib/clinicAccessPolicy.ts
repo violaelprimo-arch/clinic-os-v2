@@ -72,3 +72,14 @@ export function isOwnerSectionVisible(source: unknown, sectionId: string): boole
   const parts = sectionId.split('.')
   return !parts.some((_, index) => hidden.includes(parts.slice(0, index + 1).join('.')))
 }
+
+export function isOwnerTabVisible(source: unknown, tabId: string): boolean {
+  if (!tabId || !source || typeof source !== 'object') return true
+  const clinic = source as ClinicAccessRecord
+  const hidden = Array.isArray(clinic.hiddenTabs) ? clinic.hiddenTabs : []
+  return !hidden.includes(tabId)
+}
+
+export function isClinicFeatureEnabled(source: unknown, feature: string): boolean {
+  return isOwnerTabVisible(source, feature) && isOwnerSectionVisible(source, feature)
+}

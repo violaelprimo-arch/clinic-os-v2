@@ -39,6 +39,7 @@ import {
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { type ClinicWhatsAppSettings, type ClinicWhatsAppReminderRule } from '@/lib/server/whatsapp-scheduler'
+import { OwnerWhatsAppGovernancePanel } from './OwnerWhatsAppGovernancePanel'
 
 export interface ClinicWhatsAppItem {
   id: string
@@ -69,6 +70,7 @@ export interface ClinicWhatsAppItem {
 }
 
 export function OwnerWhatsAppManager() {
+  const [activeTab, setActiveTab] = useState<'governance' | 'channels'>('governance')
   const [clinics, setClinics] = useState<ClinicWhatsAppItem[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -76,7 +78,7 @@ export function OwnerWhatsAppManager() {
 
   // Selected clinic for settings modal
   const [settingsClinic, setSettingsClinic] = useState<ClinicWhatsAppItem | null>(null)
-  const [editSettings, setEditSettings] = useState<ClinicWhatsAppSettings | null>(null)
+  const [editSettings, setEditSettings] = useState<any | null>(null)
   const [savingSettings, setSavingSettings] = useState(false)
 
   // Selected clinic for test message modal
@@ -223,7 +225,7 @@ export function OwnerWhatsAppManager() {
       toast.error('الحد الأقصى هو 5 تذكيرات لكل عيادة')
       return
     }
-    const newRule: ClinicWhatsAppReminderRule = {
+    const newRule: any = {
       id: `rem-${Date.now()}`,
       value: 1,
       unit: 'hour'
@@ -239,7 +241,7 @@ export function OwnerWhatsAppManager() {
     if (!editSettings) return
     setEditSettings({
       ...editSettings,
-      reminders: editSettings.reminders.filter((r) => r.id !== id)
+      reminders: editSettings.reminders.filter((r: any) => r.id !== id)
     })
   }
 
@@ -248,7 +250,7 @@ export function OwnerWhatsAppManager() {
     if (!editSettings) return
     setEditSettings({
       ...editSettings,
-      reminders: editSettings.reminders.map((r) => {
+      reminders: editSettings.reminders.map((r: any) => {
         if (r.id === id) {
           return { ...r, [field]: field === 'value' ? Math.max(1, Number(val) || 1) : val }
         }
@@ -415,7 +417,43 @@ export function OwnerWhatsAppManager() {
         </div>
       </div>
 
-      {/* Filters and Search Bar */}
+      {/* View Switcher: Governance & Queue vs Channels */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 pb-3">
+        <Button
+          type="button"
+          variant={activeTab === 'governance' ? 'default' : 'outline'}
+          onClick={() => setActiveTab('governance')}
+          className={`gap-2 text-xs font-bold ${
+            activeTab === 'governance'
+              ? 'bg-emerald-600 text-white hover:bg-emerald-500'
+              : 'border-slate-800 text-slate-300 hover:bg-slate-900'
+          }`}
+        >
+          <ShieldCheck className="size-4 text-emerald-300" />
+          حوكمة الميزات والسياسات وطابور السحابة
+        </Button>
+        <Button
+          type="button"
+          variant={activeTab === 'channels' ? 'default' : 'outline'}
+          onClick={() => setActiveTab('channels')}
+          className={`gap-2 text-xs font-bold ${
+            activeTab === 'channels'
+              ? 'bg-emerald-600 text-white hover:bg-emerald-500'
+              : 'border-slate-800 text-slate-300 hover:bg-slate-900'
+          }`}
+        >
+          <Radio className="size-4 text-teal-300" />
+          قنوات العيادات وأرقام WP Sender ({clinics.length})
+        </Button>
+      </div>
+
+      {activeTab === 'governance' && (
+        <OwnerWhatsAppGovernancePanel />
+      )}
+
+      {activeTab === 'channels' && (
+        <>
+          {/* Filters and Search Bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
@@ -680,6 +718,8 @@ export function OwnerWhatsAppManager() {
           })}
         </div>
       )}
+        </>
+      )}
 
       {/* Reminder Settings Modal */}
       <Dialog open={Boolean(settingsClinic)} onOpenChange={(open) => !open && setSettingsClinic(null)}>
@@ -731,7 +771,7 @@ export function OwnerWhatsAppManager() {
                 {editSettings.sendReminders && (
                   <div className="space-y-2.5 pt-2 border-t border-slate-800/80">
                     <Label className="text-xs font-semibold text-slate-300">مواعيد التذكير:</Label>
-                    {editSettings.reminders.map((rule, idx) => (
+                    {editSettings.reminders.map((rule: any, idx: number) => (
                       <div key={rule.id} className="flex items-center gap-2">
                         <span className="text-xs text-slate-400 w-16">التذكير #{idx + 1}:</span>
                         <span className="text-xs text-slate-300">قبل الموعد بـ</span>

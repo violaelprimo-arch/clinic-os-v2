@@ -23,6 +23,7 @@ import { ThermalReceiptData, generateExaminationTicketHtml, printHtmlViaIframe }
 import { openManualWhatsAppChat, formatQueueAlertWhatsAppMessage, formatPaymentConfirmationWhatsAppMessage } from '@/lib/whatsappShare'
 import { exportAppointmentsToExcel } from '@/lib/excelExport'
 import { isClinicFeatureEnabled } from '@/lib/featurePermissions'
+import { useClinicWhatsAppPolicy } from '@/lib/useClinicWhatsAppPolicy'
 import { useLanguage } from '@/context/LanguageContext'
 import { resolveEffectiveDailyLimit, isAppointmentActive } from '@/lib/bookingCapacity'
 import {
@@ -37,10 +38,25 @@ import {
 
 export function AdminDashboard({ clinic }: { clinic: any }) {
   const { t, tDynamic, language, dir, isRtl } = useLanguage()
+  const { policy: waPolicy } = useClinicWhatsAppPolicy(clinic?.slug || null)
   const isFinanceEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'finance'), [clinic])
   const isPrescriptionsEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'prescriptions'), [clinic])
   const isPatientAlertsEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'patientAlerts'), [clinic])
   const isTvEnabled = useMemo(() => isClinicFeatureEnabled(clinic, 'tvScreen'), [clinic])
+
+  const showManualQueueWhatsApp = Boolean(
+    waPolicy.sectionVisible &&
+    waPolicy.serviceEnabled &&
+    waPolicy.features.appointment_reminder?.visible &&
+    waPolicy.features.appointment_reminder?.enabled &&
+    !waPolicy.features.appointment_reminder?.autoSend,
+  )
+  const showRescheduleAction = Boolean(
+    waPolicy.sectionVisible &&
+    waPolicy.serviceEnabled &&
+    waPolicy.features.reschedule_cancel?.visible &&
+    waPolicy.features.reschedule_cancel?.enabled,
+  )
 
   const [rawAppointments, setRawAppointments] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -54,6 +70,8 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
   const [editingPatient, setEditingPatient] = useState<any | null>(null)
   const [editQueueNumber, setEditQueueNumber] = useState<string>('')
   const [editServiceName, setEditServiceName] = useState<string>('')
+  const [editDate, setEditDate] = useState<string>('')
+  const [editTime, setEditTime] = useState<string>('')
   const [isUpdatingQueue, setIsUpdatingQueue] = useState(false)
 
   // Discount Modal State
@@ -549,6 +567,8 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     setEditingPatient(patient)
     setEditQueueNumber(String(patient.queue_number || ''))
     setEditServiceName(patient.serviceName || 'كشف عادي')
+    setEditDate(String(patient.date || ''))
+    setEditTime(String(patient.whatsappReminderTime || ''))
   }
 
   const handleSaveEditTurn = async () => {
@@ -556,6 +576,27 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
     setIsUpdatingQueue(true)
     const effectiveSlug = clinic?.slug || 'demo'
     try {
+      const dateChanged = Boolean(editDate && editDate !== String(editingPatient.date || ''))
+      const timeChanged = Boolean(editTime && editTime !== String(editingPatient.whatsappReminderTime || ''))
+
+      if (dateChanged || timeChanged) {
+        const resRsch = await fetch(`/api/clinic/${encodeURIComponent(effectiveSlug)}/appointments/manage`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          cache: 'no-store',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'reschedule',
+            appointmentId: editingPatient.id,
+            newDate: editDate || editingPatient.date,
+            newTime: editTime || undefined,
+          }),
+        })
+        const rschData = await resRsch.json().catch(() => ({}))
+        if (!resRsch.ok || !rschData.success) throw new Error(rschData.error || 'RESCHEDULE_FAILED')
+        patchLocalAppointment(editingPatient.id, rschData.appointment || { date: editDate }, rschData.serverTime || new Date().toISOString())
+      }
+
       const isUrgent = editServiceName.includes('مستعجل') || editServiceName.includes('طوارئ')
       const queueNum = Number(editQueueNumber) || editingPatient.queue_number
       const nextServiceName = editServiceName || editingPatient.serviceName
@@ -580,10 +621,14 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
         data.appointment || { queue_number: queueNum, serviceName: nextServiceName, isUrgent },
         nowIso,
       )
-      toast.success(`تم تعديل دور المريض ${editingPatient.patientName} بنجاح`)
+      toast.success(
+        dateChanged || timeChanged
+          ? `تم تعديل موعد ودور المريض ${editingPatient.patientName} بنجاح`
+          : `تم تعديل دور المريض ${editingPatient.patientName} بنجاح`,
+      )
       setEditingPatient(null)
     } catch (err) {
-      toast.error('حدث خطأ أثناء تعديل دور المريض.')
+      toast.error('حدث خطأ أثناء تعديل الموعد أو الدور.')
     } finally {
       setIsUpdatingQueue(false)
     }
@@ -1282,7 +1327,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                   {t('patient_entry', 'دخول المريض للكشف')}
                 </Button>
 
-                {isPatientAlertsEnabled && nextPatient.phone && (
+                {showManualQueueWhatsApp && nextPatient.phone && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -1813,7 +1858,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                                   <span>تيكت الدور 🎫</span>
                                 </Button>
 
-                                {isPatientAlertsEnabled && b.phone && (
+                                {showManualQueueWhatsApp && b.phone && (
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -1973,7 +2018,7 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                             </Button>
 
                             {/* WhatsApp alert button (MANUAL click-to-chat) */}
-                            {isPatientAlertsEnabled && b.status === 'waiting' && b.phone && (
+                            {showManualQueueWhatsApp && b.status === 'waiting' && b.phone && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -2132,6 +2177,31 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
                 />
                 <p className="text-[11px] text-muted-foreground">{t('edit_turn_hint', 'يمكنك تعديل رقم الدور ليأخذ المريض الترتيب المطلوب يدوياً.')}</p>
               </div>
+
+              {showRescheduleAction && (
+                <div className="grid grid-cols-2 gap-2.5 pt-2 border-t border-border/70">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-foreground">تاريخ الموعد</label>
+                    <input
+                      type="date"
+                      value={editDate}
+                      onChange={(e) => setEditDate(e.target.value)}
+                      className="w-full h-10 px-2.5 rounded-xl bg-background border border-input text-foreground font-mono text-xs"
+                      dir="ltr"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-foreground">ساعة الموعد (اختياري)</label>
+                    <input
+                      type="time"
+                      value={editTime}
+                      onChange={(e) => setEditTime(e.target.value)}
+                      className="w-full h-10 px-2.5 rounded-xl bg-background border border-input text-foreground font-mono text-xs"
+                      dir="ltr"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-foreground">{t('exam_type_label', 'نوع الكشف والخدمة')}</label>
@@ -2319,6 +2389,8 @@ export function AdminDashboard({ clinic }: { clinic: any }) {
         <ThermalReceiptModal
           data={thermalReceiptData}
           isOpen={true}
+          clinicSlug={clinic?.slug}
+          appointmentId={selectedReceiptAppt.id}
           onClose={() => setSelectedReceiptAppt(null)}
         />
       )}

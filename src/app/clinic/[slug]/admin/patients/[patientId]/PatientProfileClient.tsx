@@ -19,6 +19,8 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import { generateCleanRxFileName, openWhatsAppRecordShare } from '@/lib/whatsappShare'
 import { WhatsAppShareButton } from '@/components/common/WhatsAppShareButton'
+import { WhatsAppDeliveryBadge } from '@/components/clinic/WhatsAppDeliveryBadge'
+import { useClinicWhatsAppPolicy } from '@/lib/useClinicWhatsAppPolicy'
 import { InvoiceView, type InvoiceData } from '@/components/clinic/InvoiceView'
 import { useLanguage } from '@/context/LanguageContext'
 import { useClinicReadOnly } from '@/context/ClinicAccessContext'
@@ -137,6 +139,8 @@ export default function PatientProfileClient({ slug, patientId }: { slug: string
   const [editingDiagnosisFor, setEditingDiagnosisFor] = useState<string | null>(null)
   const [tempDiagnosis, setTempDiagnosis] = useState('')
   const [clinic, setClinic] = useState<any>(null)
+  const { policy: waPolicy } = useClinicWhatsAppPolicy(slug, clinic)
+  const rxWaPolicy = waPolicy.features.prescription
   const [isEditResidenceOpen, setIsEditResidenceOpen] = useState(false)
   const [editResidenceValue, setEditResidenceValue] = useState<ResidentialAreaValue | null>(null)
   const [isSavingResidence, setIsSavingResidence] = useState(false)
@@ -719,14 +723,20 @@ export default function PatientProfileClient({ slug, patientId }: { slug: string
                                   <Download className="w-4 h-4 ml-1.5" />
                                   {downloadingApptId === appt.id ? 'جاري التحميل...' : 'تحميل الروشتة PDF'}
                                 </Button>
-                                <WhatsAppShareButton
-                                  onSend={(target) => sendWhatsAppRx(appt, target)}
-                                  phone={phone}
-                                  loading={sharingApptId === appt.id}
-                                  label={sharingApptId === appt.id ? 'جاري الفتح...' : 'إرسال واتساب للمريض'}
-                                  size="sm"
-                                  showPhoneBadge={false}
-                                />
+                                {waPolicy.sectionVisible && rxWaPolicy.visible && rxWaPolicy.enabled && (
+                                  rxWaPolicy.autoSend ? (
+                                    <WhatsAppDeliveryBadge compact />
+                                  ) : rxWaPolicy.allowManualSend ? (
+                                    <WhatsAppShareButton
+                                      onSend={(target) => sendWhatsAppRx(appt, target)}
+                                      phone={phone}
+                                      loading={sharingApptId === appt.id}
+                                      label={sharingApptId === appt.id ? 'جاري الفتح...' : 'إرسال واتساب للمريض'}
+                                      size="sm"
+                                      showPhoneBadge={false}
+                                    />
+                                  ) : null
+                                )}
                                 <Link href={`/clinic/${slug}/admin/prescriptions?appointmentId=${appt.id}&phone=${phone}&patientName=${patientData.name}&age=${patientData.age || patientData.dob}`}>
                                   <Button variant="outline" className="h-9 px-3.5 text-xs font-bold rounded-xl border-border">
                                     تعديل الروشتة
