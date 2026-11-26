@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateOwnerRequest, readJson, apiFailure } from '@/lib/server/owner-access'
 import { readDocument, writeDocument } from '@/lib/server/firebase-rest'
-import { listWabaPhoneNumbers } from '@/lib/server/ycloud-service'
+import { checkWpSenderSessionHealth } from '@/lib/server/wp-sender'
+import { requeueWaitingJobsForClinic } from '@/lib/server/whatsapp-scheduler'
 
 export const dynamic = 'force-dynamic'
 
 const noStore = {
   'Cache-Control': 'no-store, no-cache, must-revalidate',
-  'Content-Type': 'application/json'
+  'Content-Type': 'application/json',
 }
 
 export async function POST(req: NextRequest) {
@@ -29,70 +30,45 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404, headers: noStore })
     }
 
-    const wabaId = String(config?.wabaId || clinic?.whatsappWabaId || '').trim()
+    const health = await checkWpSenderSessionHealth(clinicId, {
+      persistedStatus: typeof config?.sessionStatus === 'string' ? config.sessionStatus : undefined,
+    })
 
-    if (!wabaId) {
-      return NextResponse.json(
-        {
-          success: true,
-          status: config?.status || 'not_linked',
-          message: 'لم يتم ربط حساب WABA بعد لهذه العيادة.'
-        },
-        { status: 200, headers: noStore }
-      )
-    }
-
-    // Query YCloud for phone numbers under this WABA
-    const phones = await listWabaPhoneNumbers(wabaId)
     const now = new Date().toISOString()
+    const sessionStatus = health.connected ? 'connected' : 'disconnected'
+    const status = health.connected ? 'connected' : config?.status || 'disconnected'
 
-    if (phones.length > 0) {
-      const primary = phones[0]
-      const isConnected = (primary.status || '').toUpperCase() === 'CONNECTED'
-      const status = isConnected ? 'connected' : 'error'
+    await writeDocument(
+      `clinic_whatsapp_configs/${clinicId}`,
+      {
+        sessionStatus,
+        status,
+        connected: health.connected,
+        sessionId: health.sessionId || config?.sessionId || null,
+        senderNumber: health.senderNumber || config?.senderNumber || null,
+        lastSyncAt: now,
+        lastError: health.connected ? null : health.reason || 'DISCONNECTED',
+      },
+      true,
+    )
 
-      await writeDocument(
-        `clinic_whatsapp_configs/${clinicId}`,
-        {
-          phoneNumber: primary.phoneNumber,
-          phoneNumberId: primary.id,
-          businessName: primary.verifiedName || config?.businessName || clinic?.name,
-          status,
-          lastSyncAt: now,
-          lastError: isConnected ? null : `Phone status: ${primary.status}`
-        },
-        true
-      )
-
-      await writeDocument(
-        `clinics/${clinicId}`,
-        {
-          whatsappPhoneNumber: primary.phoneNumber,
-          whatsappPhoneNumberId: primary.id,
-          whatsappLinkedAt: now
-        },
-        true
-      ).catch(() => {})
-
-      return NextResponse.json(
-        {
-          success: true,
-          status,
-          phoneNumber: primary.phoneNumber,
-          verifiedName: primary.verifiedName,
-          qualityRating: primary.qualityRating
-        },
-        { status: 200, headers: noStore }
-      )
+    let resumedJobs: any = null
+    if (health.connected) {
+      resumedJobs = await requeueWaitingJobsForClinic(clinicId, { drainImmediately: true }).catch(() => null)
     }
 
     return NextResponse.json(
       {
         success: true,
-        status: config?.status || 'linking',
-        message: 'الحساب قيد المراجعة ولم يتم العثور على أرقام مسجلة بعد في YCloud.'
+        clinicId,
+        sessionStatus,
+        status,
+        connected: health.connected,
+        sessionId: health.sessionId,
+        senderNumber: health.senderNumber,
+        resumedJobs,
       },
-      { status: 200, headers: noStore }
+      { status: 200, headers: noStore },
     )
   } catch (err) {
     return apiFailure(err)

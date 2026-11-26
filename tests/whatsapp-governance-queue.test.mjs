@@ -13,6 +13,7 @@ import {
 import {
   resolveEffectiveWhatsAppPolicy,
   DEFAULT_PLATFORM_WHATSAPP_DEFAULTS,
+  getNewClinicDefaultWhatsAppPolicy,
 } from '../src/lib/whatsapp-policy.ts'
 
 import {
@@ -659,4 +660,97 @@ test('16. 2MB image upload validator accepts <=2MB valid images and rejects >2MB
   const heicResult = await validateMediaFile(heicFile, MAX_IMAGE_BYTES)
   assert.equal(heicResult.valid, false)
   assert.ok(heicResult.error?.includes('HEIC'), 'Should reject HEIC with clear message')
+})
+
+test('17. Global Emergency Stop (Kill Switch) freezes all automated and manual sends', () => {
+  const stoppedPlatform = {
+    ...DEFAULT_PLATFORM_WHATSAPP_DEFAULTS,
+    emergencyStop: true,
+  }
+
+  const effective = resolveEffectiveWhatsAppPolicy({
+    platformDefaults: stoppedPlatform,
+    clinic: {
+      whatsappAutomationEnabled: true,
+    },
+    waConfig: {
+      mode: 'live',
+      connected: true,
+      enabled: true,
+    },
+  })
+
+  assert.equal(effective.emergencyStop, true, 'Emergency stop flag must be true')
+  assert.equal(effective.serviceEnabled, false, 'Service must be disabled when emergency stop is active')
+  assert.equal(effective.features.booking_confirmation.autoSend, false, 'Auto send must be frozen')
+  assert.equal(effective.features.prescription.allowManualSend, false, 'Manual send must be frozen')
+  assert.equal(effective.features.invoice.allowManualSend, false, 'Manual send must be frozen')
+})
+
+test('18. Template variables: {رابط_المستند} and new tokens {التاريخ}, {الوقت}, {رقم_الحجز}', () => {
+  const templateWithNewTokens = `مرحبًا {اسم_المريض}
+موعدك في {اسم_العيادة} ({اسم_الدكتور})
+التاريخ: {التاريخ}
+الوقت: {الوقت}
+رقم الحجز: {رقم_الحجز}`
+
+  const rendered = renderClinicMessage(templateWithNewTokens, {
+    patientName: 'سارة أحمد',
+    clinicName: 'عيادة الأمل',
+    doctorName: 'د. منى',
+    date: '2026-12-05',
+    time: '04:30 م',
+    queueNumber: 'B-09',
+  })
+
+  assert.ok(rendered.includes('سارة أحمد'))
+  assert.ok(rendered.includes('عيادة الأمل'))
+  assert.ok(rendered.includes('د. منى'))
+  assert.ok(rendered.includes('2026-12-05'))
+  assert.ok(rendered.includes('04:30 م'))
+  assert.ok(rendered.includes('B-09'))
+})
+
+test('19. New clinic default policy is completely disabled and hidden', () => {
+  const defaultPolicy = getNewClinicDefaultWhatsAppPolicy()
+
+  assert.equal(defaultPolicy.sectionVisible, false, 'New clinics must have section hidden')
+  assert.equal(defaultPolicy.serviceEnabled, false, 'New clinics must have service disabled')
+  for (const feat of Object.values(defaultPolicy.features)) {
+    assert.equal(feat.visible, false, 'Feature must be hidden')
+    assert.equal(feat.enabled, false, 'Feature must be disabled')
+    assert.equal(feat.mode, 'disabled', 'Feature mode must be disabled')
+  }
+})
+
+test('20. Edit permission: read_only vs editable policy resolution', () => {
+  const platform = {
+    ...DEFAULT_PLATFORM_WHATSAPP_DEFAULTS,
+    features: {
+      ...DEFAULT_PLATFORM_WHATSAPP_DEFAULTS.features,
+      booking_confirmation: { visible: true, enabled: true, mode: 'auto', editPermission: 'read_only' },
+      appointment_reminder: { visible: true, enabled: true, mode: 'auto', editPermission: 'editable' },
+    },
+  }
+
+  const effective = resolveEffectiveWhatsAppPolicy({
+    platformDefaults: platform,
+  })
+
+  assert.equal(effective.features.booking_confirmation.editPermission, 'read_only')
+  assert.equal(effective.features.appointment_reminder.editPermission, 'editable')
+})
+
+test('21. Queue alert (queue_alert) message type rendering', () => {
+  const queueMsg = renderClinicMessage(messageDefaults.queue_alert, {
+    patientName: 'محمود حسن',
+    clinicName: 'مركز الشفاء',
+    doctorName: 'د. يوسف',
+    queueNumber: 'A-22',
+  })
+
+  assert.ok(queueMsg.includes('محمود حسن'))
+  assert.ok(queueMsg.includes('مركز الشفاء'))
+  assert.ok(queueMsg.includes('A-22'))
+  assert.ok(queueMsg.includes('اقتراب دورك'))
 })

@@ -245,6 +245,18 @@ export async function POST(
   } else if (body?.templates && typeof body.templates === 'object') {
     for (const key of WHATSAPP_TEMPLATE_KEYS) {
       if (!Object.prototype.hasOwnProperty.call(body.templates, key)) continue
+      const featKey = key === 'appointment_rescheduled' || key === 'appointment_cancelled'
+        ? 'reschedule_cancel'
+        : key === 'prescription_ready'
+        ? 'prescription'
+        : key === 'invoice_ready'
+        ? 'invoice'
+        : key
+      const featPolicy = (policy.features as Record<string, any>)[featKey]
+      if (featPolicy?.editPermission === 'read_only') {
+        // Enforce Owner read-only restriction: doctor cannot override locked template
+        continue
+      }
       const raw = body.templates[key]
       const normalized = normalizeTemplateText(raw)
       const check = validateTemplateText(normalized)

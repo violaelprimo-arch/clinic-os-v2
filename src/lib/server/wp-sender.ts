@@ -345,6 +345,237 @@ export async function checkWpSenderSessionHealth(
   }
 }
 
+export interface WpSenderSessionResult {
+  success: boolean
+  sessionId?: string
+  senderNumber?: string
+  qrCode?: string
+  connected?: boolean
+  error?: string
+}
+
+/**
+ * Create or initialize a dedicated WP Sender session for a clinic.
+ * Multi-tenant safe: strictly uses the target clinic's credentials and session ID.
+ */
+export async function createWpSenderSession(
+  clinicId: string,
+  senderNumber?: string,
+  options?: { fetchImpl?: typeof fetch },
+): Promise<WpSenderSessionResult> {
+  const cfg = getWpSenderConfig(clinicId)
+  const phone = senderNumber ? normalizeWpPhone(senderNumber) : cfg?.senderNumber || ''
+  const targetSessionId = cfg?.sessionId || `session_${clinicId}`
+
+  if (!cfg || cfg.mode === 'off') {
+    return {
+      success: true,
+      sessionId: targetSessionId,
+      senderNumber: phone,
+      qrCode: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="100%" height="100%" fill="%23f3f4f6"/><text x="50%" y="50%" text-anchor="middle" fill="%23111827" font-size="14" font-family="sans-serif">QR Mock: ${targetSessionId}</text></svg>`,
+      connected: false,
+    }
+  }
+
+  if (cfg.mode === 'mock' || process.env.WPSENDER_LIVE_ENABLED !== 'true') {
+    return {
+      success: true,
+      sessionId: targetSessionId,
+      senderNumber: phone || cfg.senderNumber || 'mock-sender',
+      qrCode: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="100%" height="100%" fill="%23f3f4f6"/><text x="50%" y="50%" text-anchor="middle" fill="%23111827" font-size="14" font-family="sans-serif">QR Mock: ${targetSessionId}</text></svg>`,
+      connected: false,
+    }
+  }
+
+  if (!cfg.apiKey) {
+    return { success: false, error: 'MISSING_CLINIC_WPSENDER_API_KEY' }
+  }
+
+  const doFetch = options?.fetchImpl || fetch
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), STATUS_TIMEOUT_MS * 2)
+
+  try {
+    const res = await doFetch('https://backendapi.wpsenderx.com/api/whatsapp-session', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': cfg.apiKey,
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        session_id: targetSessionId,
+        sender_number: phone || cfg.senderNumber,
+      }),
+      signal: controller.signal,
+    })
+
+    const raw = await res.text().catch(() => '')
+    let data: any = null
+    try {
+      data = raw ? JSON.parse(raw) : {}
+    } catch {
+      data = null
+    }
+
+    if (!res.ok) {
+      return {
+        success: false,
+        sessionId: targetSessionId,
+        error: data?.message || data?.error || `HTTP_${res.status}: ${raw.slice(0, 100)}`,
+      }
+    }
+
+    const qr = data?.qr || data?.qrcode || data?.qrCode || data?.data?.qr || data?.data?.qrcode
+    return {
+      success: true,
+      sessionId: targetSessionId,
+      senderNumber: phone || cfg.senderNumber,
+      qrCode: qr || undefined,
+      connected: data?.connected === true || data?.status === 'connected',
+    }
+  } catch (err: any) {
+    return {
+      success: false,
+      sessionId: targetSessionId,
+      error: err?.message || 'FAILED_TO_CREATE_WPSENDER_SESSION',
+    }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * Fetch the active QR code for a clinic's WP Sender session.
+ */
+export async function getWpSenderQrCode(
+  clinicId: string,
+  options?: { fetchImpl?: typeof fetch },
+): Promise<WpSenderSessionResult> {
+  const cfg = getWpSenderConfig(clinicId)
+  const targetSessionId = cfg?.sessionId || `session_${clinicId}`
+
+  if (!cfg || cfg.mode === 'off' || cfg.mode === 'mock' || process.env.WPSENDER_LIVE_ENABLED !== 'true') {
+    return {
+      success: true,
+      sessionId: targetSessionId,
+      senderNumber: cfg?.senderNumber || '',
+      qrCode: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="100%" height="100%" fill="%23f3f4f6"/><text x="50%" y="50%" text-anchor="middle" fill="%23111827" font-size="14" font-family="sans-serif">QR Mock: ${targetSessionId}</text></svg>`,
+      connected: false,
+    }
+  }
+
+  if (!cfg.apiKey) {
+    return { success: false, error: 'MISSING_CLINIC_WPSENDER_API_KEY' }
+  }
+
+  const doFetch = options?.fetchImpl || fetch
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), STATUS_TIMEOUT_MS)
+
+  try {
+    const res = await doFetch(
+      `https://backendapi.wpsenderx.com/api/whatsapp-session/${encodeURIComponent(targetSessionId)}/qr`,
+      {
+        method: 'GET',
+        headers: {
+          'X-API-Key': cfg.apiKey,
+          Accept: 'application/json',
+        },
+        signal: controller.signal,
+      },
+    )
+
+    const raw = await res.text().catch(() => '')
+    let data: any = null
+    try {
+      data = raw ? JSON.parse(raw) : {}
+    } catch {
+      data = null
+    }
+
+    if (!res.ok) {
+      return {
+        success: false,
+        sessionId: targetSessionId,
+        error: data?.message || data?.error || `HTTP_${res.status}`,
+      }
+    }
+
+    const qr = data?.qr || data?.qrcode || data?.qrCode || data?.data?.qr || data?.data?.qrcode
+    return {
+      success: true,
+      sessionId: targetSessionId,
+      senderNumber: cfg.senderNumber,
+      qrCode: qr || undefined,
+      connected: data?.connected === true,
+    }
+  } catch (err: any) {
+    return {
+      success: false,
+      sessionId: targetSessionId,
+      error: err?.message || 'FAILED_TO_FETCH_QR',
+    }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * Disconnect and unlink a clinic's WP Sender session.
+ */
+export async function unlinkWpSenderSession(
+  clinicId: string,
+  options?: { fetchImpl?: typeof fetch },
+): Promise<{ success: boolean; error?: string }> {
+  const cfg = getWpSenderConfig(clinicId)
+  if (!cfg || cfg.mode === 'off' || cfg.mode === 'mock' || process.env.WPSENDER_LIVE_ENABLED !== 'true') {
+    return { success: true }
+  }
+
+  if (!cfg.sessionId || !cfg.apiKey) {
+    return { success: true }
+  }
+
+  const doFetch = options?.fetchImpl || fetch
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), STATUS_TIMEOUT_MS)
+
+  try {
+    const res = await doFetch(
+      `https://backendapi.wpsenderx.com/api/whatsapp-session/${encodeURIComponent(cfg.sessionId)}/disconnect`,
+      {
+        method: 'POST',
+        headers: {
+          'X-API-Key': cfg.apiKey,
+          Accept: 'application/json',
+        },
+        signal: controller.signal,
+      },
+    )
+    if (!res.ok && res.status !== 404) {
+      const raw = await res.text().catch(() => '')
+      return { success: false, error: raw || `HTTP_${res.status}` }
+    }
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'FAILED_TO_DISCONNECT' }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * Re-link or restart session pairing for a clinic.
+ */
+export async function relinkWpSenderSession(
+  clinicId: string,
+  options?: { fetchImpl?: typeof fetch },
+): Promise<WpSenderSessionResult> {
+  await unlinkWpSenderSession(clinicId, options).catch(() => null)
+  return createWpSenderSession(clinicId, undefined, options)
+}
+
 export type WpSenderConfig = WpSenderClinicEntry
 
 export interface SendWpSenderParams {

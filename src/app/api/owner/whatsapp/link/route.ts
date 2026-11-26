@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateOwnerRequest, readJson, apiFailure } from '@/lib/server/owner-access'
 import { readDocument, writeDocument } from '@/lib/server/firebase-rest'
-import { createEmbeddedSignupLink } from '@/lib/server/ycloud-service'
+import { createWpSenderSession, getWpSenderQrCode } from '@/lib/server/wp-sender'
 import { DEFAULT_WHATSAPP_SETTINGS } from '@/lib/server/whatsapp-scheduler'
 
 export const dynamic = 'force-dynamic'
 
 const noStore = {
   'Cache-Control': 'no-store, no-cache, must-revalidate',
-  'Content-Type': 'application/json'
+  'Content-Type': 'application/json',
 }
 
 export async function POST(req: NextRequest) {
@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
 
     const body = await readJson(req)
     const clinicId = String(body?.clinicId || '').trim()
+    const senderNumber = body?.senderNumber ? String(body.senderNumber).trim() : undefined
 
     if (!clinicId) {
       return NextResponse.json({ error: 'clinicId مطلوب' }, { status: 400, headers: noStore })
@@ -29,14 +30,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'العيادة غير موجودة' }, { status: 404, headers: noStore })
     }
 
-    // 3. Generate dynamic YCloud Partner Embedded Signup Link
-    // Uses partnerCustomerId = clinicId and onboardingType = WHATSAPP_BUSINESS_APP (Coexistence mode)
-    const result = await createEmbeddedSignupLink({
-      partnerCustomerId: clinicId,
-      locale: 'ar'
-    })
+    // 3. Initialize WP Sender session and retrieve QR code
+    const result = await createWpSenderSession(clinicId, senderNumber)
+    let qr = result.qrCode
+    if (!qr && result.success) {
+      const qrRes = await getWpSenderQrCode(clinicId)
+      qr = qrRes.qrCode
+    }
 
-    // 4. Mark status as 'linking' in clinic_whatsapp_configs
+    // 4. Mark status as 'linking' / update session details in clinic_whatsapp_configs
     const now = new Date().toISOString()
     await writeDocument(
       `clinic_whatsapp_configs/${clinicId}`,
@@ -44,22 +46,28 @@ export async function POST(req: NextRequest) {
         clinicId,
         clinicSlug: clinic.slug || '',
         businessName: clinic.name || null,
-        status: 'linking',
+        sessionId: result.sessionId || null,
+        senderNumber: result.senderNumber || null,
+        sessionStatus: result.connected ? 'connected' : 'linking',
+        status: result.connected ? 'connected' : 'linking',
         lastSyncAt: now,
-        lastError: null,
-        settings: DEFAULT_WHATSAPP_SETTINGS
+        lastError: result.error || null,
+        settings: DEFAULT_WHATSAPP_SETTINGS,
       },
-      true
+      true,
     ).catch(() => {})
 
     return NextResponse.json(
       {
-        success: true,
-        url: result.url,
-        linkId: result.id,
-        clinicId
+        success: result.success,
+        clinicId,
+        sessionId: result.sessionId,
+        senderNumber: result.senderNumber,
+        qrCode: qr,
+        connected: result.connected,
+        error: result.error,
       },
-      { status: 200, headers: noStore }
+      { status: 200, headers: noStore },
     )
   } catch (err) {
     return apiFailure(err)

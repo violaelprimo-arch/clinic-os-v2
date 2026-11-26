@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateOwnerRequest, assertSameOrigin, apiFailure } from '@/lib/server/owner-access'
-import { queryDocuments, queryDocumentsByField } from '@/lib/server/firebase-rest'
+import { queryDocuments, queryDocumentsByField, readDocument, writeDocument } from '@/lib/server/firebase-rest'
 import {
   retryWhatsAppJobById,
   drainPendingWhatsAppJobs,
   requeueWaitingJobsForClinic,
   getClinicWhatsAppConfig,
 } from '@/lib/server/whatsapp-scheduler'
-import { checkWpSenderSessionHealth } from '@/lib/server/wp-sender'
+import { checkWpSenderSessionHealth, sendWpSenderMessage } from '@/lib/server/wp-sender'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         stats,
-        jobs: filtered.slice(0, 80),
+        jobs: filtered.slice(0, 100),
       },
       { headers: noStore },
     )
@@ -68,6 +68,51 @@ export async function POST(req: NextRequest) {
         allowUncertainRetry: body?.allowUncertainRetry === true,
       })
       return NextResponse.json({ success: res.outcome === 'sent', result: res }, { headers: noStore })
+    }
+
+    if (action === 'cancel_job') {
+      const jobId = String(body?.jobId || '').trim()
+      if (!jobId) {
+        return NextResponse.json({ error: 'معرف الرسالة مطلوب' }, { status: 400, headers: noStore })
+      }
+      const job = await readDocument(`whatsapp_jobs/${jobId}`)
+      if (!job) {
+        return NextResponse.json({ error: 'الرسالة غير موجودة' }, { status: 404, headers: noStore })
+      }
+      if (job.status === 'sent' || job.status === 'delivered') {
+        return NextResponse.json({ error: 'لا يمكن إلغاء رسالة تم إرسالها بالفعل' }, { status: 400, headers: noStore })
+      }
+      const now = new Date().toISOString()
+      await writeDocument(
+        `whatsapp_jobs/${jobId}`,
+        {
+          status: 'cancelled',
+          lastError: 'CANCELLED_BY_OWNER',
+          updatedAt: now,
+          cancelledBy: owner.uid,
+        },
+        true,
+      )
+      return NextResponse.json({ success: true, jobId }, { headers: noStore })
+    }
+
+    if (action === 'test_preview') {
+      const phone = String(body?.phone || '').trim()
+      const message = String(body?.message || '').trim()
+      const clinicId = String(body?.clinicId || '').trim() || 'clinic-demo'
+      if (!phone || !message) {
+        return NextResponse.json({ error: 'رقم الهاتف ونص الرسالة مطلوبان' }, { status: 400, headers: noStore })
+      }
+      const res = await sendWpSenderMessage({
+        clinicId,
+        phone,
+        message,
+      }).catch((err: any) => ({
+        ok: false,
+        error: err?.message || 'SEND_ERROR',
+        mode: 'off',
+      }))
+      return NextResponse.json({ success: res.ok, result: res }, { headers: noStore })
     }
 
     if (action === 'drain_due') {

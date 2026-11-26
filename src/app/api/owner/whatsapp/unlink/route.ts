@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateOwnerRequest, readJson, apiFailure } from '@/lib/server/owner-access'
 import { writeDocument, queryDocumentsByField } from '@/lib/server/firebase-rest'
+import { unlinkWpSenderSession } from '@/lib/server/wp-sender'
 
 export const dynamic = 'force-dynamic'
 
 const noStore = {
   'Cache-Control': 'no-store, no-cache, must-revalidate',
-  'Content-Type': 'application/json'
+  'Content-Type': 'application/json',
 }
 
 export async function POST(req: NextRequest) {
@@ -21,46 +22,38 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'clinicId مطلوب' }, { status: 400, headers: noStore })
     }
 
+    // 2. Unlink live session via WP Sender
+    await unlinkWpSenderSession(clinicId).catch(() => null)
+
     const now = new Date().toISOString()
 
-    // 2. Clear WhatsApp configuration on clinic_whatsapp_configs
+    // 3. Clear WhatsApp configuration on clinic_whatsapp_configs
     await writeDocument(
       `clinic_whatsapp_configs/${clinicId}`,
       {
         status: 'not_linked',
-        phoneNumber: null,
-        phoneNumberId: null,
-        wabaId: null,
+        sessionStatus: 'disconnected',
+        connected: false,
+        disconnectedAt: now,
         lastSyncAt: now,
-        lastError: 'تم إلغاء الربط بواسطة مالك المنصة'
+        lastError: 'تم إلغاء الربط بواسطة مالك المنصة',
       },
-      true
+      true,
     )
-
-    // 3. Clear WhatsApp fields on clinics document
-    await writeDocument(
-      `clinics/${clinicId}`,
-      {
-        whatsappPhoneNumber: null,
-        whatsappPhoneNumberId: null,
-        whatsappWabaId: null
-      },
-      true
-    ).catch(() => {})
 
     // 4. Cancel any pending jobs for this clinic
     try {
       const pendingJobs = await queryDocumentsByField('whatsapp_jobs', 'clinicId', clinicId, 100)
       for (const job of pendingJobs) {
-        if (job.status === 'pending') {
+        if (job.status === 'pending' || job.status === 'queued' || job.status === 'waiting_for_connection') {
           await writeDocument(
             `whatsapp_jobs/${job.id}`,
             {
               status: 'cancelled',
               lastError: 'CLINIC_UNLINKED',
-              updatedAt: now
+              updatedAt: now,
             },
-            true
+            true,
           ).catch(() => {})
         }
       }
@@ -70,7 +63,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(
       { success: true, message: 'تم إلغاء ربط رقم واتساب للعيادة بنجاح' },
-      { status: 200, headers: noStore }
+      { status: 200, headers: noStore },
     )
   } catch (err) {
     return apiFailure(err)

@@ -29,6 +29,7 @@ import {
   messageDefaults,
   TEMPLATE_CATALOG,
   TEMPLATE_VARIABLE_DEFS,
+  TEMPLATE_ALLOWED_TOKENS_PER_KEY,
   WHATSAPP_TEMPLATE_KEYS,
   renderClinicMessage,
   resolveSampleContextForKey,
@@ -59,8 +60,11 @@ const TEMPLATE_ICONS: Record<WhatsAppTemplateKey, any> = {
   appointment_reminder: BellRing,
   appointment_rescheduled: CalendarClock,
   appointment_cancelled: CalendarX2,
+  queue_alert: BellRing,
   prescription: FileText,
   invoice: Receipt,
+  prescription_ready: FileText,
+  invoice_ready: Receipt,
 }
 
 function templateKeyToPolicyKey(key: WhatsAppTemplateKey): WhatsAppSubFeatureKey {
@@ -190,9 +194,13 @@ export default function ClinicWhatsAppSettingsPage({
       case 'appointment_cancelled':
         return settings.sendCancelledNotification
       case 'prescription':
+      case 'prescription_ready':
         return settings.sendPrescription
       case 'invoice':
+      case 'invoice_ready':
         return settings.sendInvoice
+      default:
+        return true
     }
   }
 
@@ -208,9 +216,13 @@ export default function ClinicWhatsAppSettingsPage({
         case 'appointment_cancelled':
           return { ...prev, sendCancelledNotification: checked }
         case 'prescription':
+        case 'prescription_ready':
           return { ...prev, sendPrescription: checked }
         case 'invoice':
+        case 'invoice_ready':
           return { ...prev, sendInvoice: checked }
+        default:
+          return prev
       }
     })
   }
@@ -569,6 +581,13 @@ export default function ClinicWhatsAppSettingsPage({
             </div>
           )}
 
+          {activeSubPolicy?.editPermission === 'read_only' && (
+            <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 px-3.5 py-2.5 flex items-center gap-2 text-xs font-bold text-amber-800 dark:text-amber-200">
+              <Lock className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span>محدد بواسطة إدارة المنصة: هذا القالب للقراءة فقط ومضبوط مركزيًا لحماية الهوية، ولا يمكن تعديله من العيادة.</span>
+            </div>
+          )}
+
           {/* 1-Click Variable Insertion Bar */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -576,18 +595,31 @@ export default function ClinicWhatsAppSettingsPage({
               <span className="text-[11px] text-muted-foreground">يُضاف مكان المؤشر</span>
             </div>
             <div className="flex flex-wrap gap-2">
-              {TEMPLATE_VARIABLE_DEFS.map((v) => {
+              {TEMPLATE_VARIABLE_DEFS.filter((v) => {
+                const allowedTokens = TEMPLATE_ALLOWED_TOKENS_PER_KEY[activeKey]
+                if (allowedTokens) {
+                  return allowedTokens.includes(v.token)
+                }
+                if (v.docOnly) {
+                  return activeKey === 'prescription' || activeKey === 'invoice'
+                }
+                return true
+              }).map((v) => {
                 const isRecommended = activeMeta.recommendedVars.includes(v.token)
+                const isReadOnly = activeSubPolicy?.editPermission === 'read_only'
                 return (
                   <button
                     key={v.token}
                     type="button"
                     title={v.descriptionAr}
+                    disabled={isReadOnly}
                     onClick={() => handleInsertToken(v.token)}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                      isRecommended
-                        ? 'bg-primary/10 text-primary border-primary/30 hover:bg-primary/15'
-                        : 'bg-muted/50 text-foreground border-border hover:bg-muted'
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                      isReadOnly
+                        ? 'opacity-50 cursor-not-allowed bg-muted text-muted-foreground border-border'
+                        : isRecommended
+                        ? 'bg-primary/10 text-primary border-primary/30 hover:bg-primary/15 cursor-pointer'
+                        : 'bg-muted/50 text-foreground border-border hover:bg-muted cursor-pointer'
                     }`}
                   >
                     <Plus className="w-3 h-3" />
@@ -604,7 +636,9 @@ export default function ClinicWhatsAppSettingsPage({
           {/* Wide Editor Textarea */}
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-bold text-foreground">نص الرسالة (يدعم *التنسيق العريض* والرموز التعبيرية والأسطر)</span>
+              <span className="font-bold text-foreground">
+                نص الرسالة {activeSubPolicy?.editPermission === 'read_only' ? '(🔒 للعرض فقط)' : '(يدعم *التنسيق العريض* والرموز التعبيرية والأسطر)'}
+              </span>
               <span
                 className={`font-mono font-bold ${
                   activeText.length > MAX_TEMPLATE_LENGTH ? 'text-rose-600' : 'text-muted-foreground'
@@ -616,10 +650,15 @@ export default function ClinicWhatsAppSettingsPage({
             <textarea
               ref={editorRef}
               value={activeText}
+              readOnly={activeSubPolicy?.editPermission === 'read_only'}
               onChange={(e) => setTemplates((prev) => ({ ...prev, [activeKey]: e.target.value }))}
               rows={7}
               maxLength={MAX_TEMPLATE_LENGTH}
-              className="w-full rounded-2xl border border-input bg-background p-4 text-sm leading-7 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-y"
+              className={`w-full rounded-2xl border p-4 text-sm leading-7 text-foreground focus:outline-none resize-y ${
+                activeSubPolicy?.editPermission === 'read_only'
+                  ? 'bg-muted/30 border-border text-muted-foreground cursor-not-allowed'
+                  : 'border-input bg-background focus:ring-2 focus:ring-primary/40'
+              }`}
               placeholder="اكتب نص رسالة الواتساب هنا..."
             />
             {!validation.valid && (
@@ -658,26 +697,30 @@ export default function ClinicWhatsAppSettingsPage({
                 <Eye className="w-3.5 h-3.5 ml-1.5" />
                 معاينة ببيانات تجريبية
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleRestoreCurrentDefault}
-                className="rounded-xl text-xs font-bold h-9"
-              >
-                <RotateCcw className="w-3.5 h-3.5 ml-1.5" />
-                استعادة الافتراضي
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => handleSave(false)}
-                disabled={saving || !validation.valid}
-                className="rounded-xl text-xs font-black h-9 px-5 yalla-gradient-btn text-white shadow-sm"
-              >
-                <Save className="w-3.5 h-3.5 ml-1.5" />
-                {saving ? 'جاري الحفظ...' : hasUnsavedChanges ? 'حفظ التعديلات' : 'حفظ القالب'}
-              </Button>
+              {activeSubPolicy?.editPermission !== 'read_only' && (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRestoreCurrentDefault}
+                    className="rounded-xl text-xs font-bold h-9"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 ml-1.5" />
+                    استعادة الافتراضي
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => handleSave(false)}
+                    disabled={saving || !validation.valid}
+                    className="rounded-xl text-xs font-black h-9 px-5 yalla-gradient-btn text-white shadow-sm"
+                  >
+                    <Save className="w-3.5 h-3.5 ml-1.5" />
+                    {saving ? 'جاري الحفظ...' : hasUnsavedChanges ? 'حفظ التعديلات' : 'حفظ القالب'}
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>

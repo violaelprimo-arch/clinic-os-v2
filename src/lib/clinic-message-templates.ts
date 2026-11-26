@@ -3,16 +3,32 @@ export type WhatsAppTemplateKey =
   | 'appointment_reminder'
   | 'appointment_rescheduled'
   | 'appointment_cancelled'
+  | 'queue_alert'
   | 'prescription'
   | 'invoice'
+  | 'prescription_ready'
+  | 'invoice_ready'
+
+export const PRIMARY_TEMPLATE_KEYS: WhatsAppTemplateKey[] = [
+  'booking_confirmation',
+  'appointment_reminder',
+  'appointment_rescheduled',
+  'appointment_cancelled',
+  'queue_alert',
+  'prescription',
+  'invoice',
+]
 
 export const WHATSAPP_TEMPLATE_KEYS: WhatsAppTemplateKey[] = [
   'booking_confirmation',
   'appointment_reminder',
   'appointment_rescheduled',
   'appointment_cancelled',
+  'queue_alert',
   'prescription',
   'invoice',
+  'prescription_ready',
+  'invoice_ready',
 ]
 
 export const MAX_TEMPLATE_LENGTH = 1000
@@ -20,10 +36,21 @@ export const MIN_TEMPLATE_LENGTH = 5
 
 export interface TemplateVariableDef {
   token: string
-  key: 'patientName' | 'clinicName' | 'when' | 'doctorName' | 'branchName' | 'link'
+  key:
+    | 'patientName'
+    | 'clinicName'
+    | 'when'
+    | 'doctorName'
+    | 'branchName'
+    | 'link'
+    | 'date'
+    | 'time'
+    | 'queueNumber'
+    | 'documentUrl'
   labelAr: string
   descriptionAr: string
   sampleValue: string
+  docOnly?: boolean
 }
 
 export const TEMPLATE_VARIABLE_DEFS: TemplateVariableDef[] = [
@@ -35,25 +62,18 @@ export const TEMPLATE_VARIABLE_DEFS: TemplateVariableDef[] = [
     sampleValue: 'أحمد محمود',
   },
   {
-    token: '{اسم_العيادة}',
-    key: 'clinicName',
-    labelAr: 'اسم العيادة',
-    descriptionAr: 'اسم العيادة كما يظهر للمرضى',
-    sampleValue: 'عيادة النور التخصصية',
-  },
-  {
-    token: '{الموعد}',
-    key: 'when',
-    labelAr: 'الموعد',
-    descriptionAr: 'تاريخ ووقت الكشف (أو التاريخ فقط إذا لم يكن هناك وقت محدد)',
-    sampleValue: 'الأحد 3 مايو، الساعة 07:30 م',
-  },
-  {
     token: '{اسم_الدكتور}',
     key: 'doctorName',
     labelAr: 'اسم الدكتور',
     descriptionAr: 'اسم الطبيب المعالج بالعيادة',
     sampleValue: 'د. كريم عبد الله',
+  },
+  {
+    token: '{اسم_العيادة}',
+    key: 'clinicName',
+    labelAr: 'اسم العيادة',
+    descriptionAr: 'اسم العيادة كما يظهر للمرضى',
+    sampleValue: 'عيادة النور التخصصية',
   },
   {
     token: '{اسم_الفرع}',
@@ -63,15 +83,65 @@ export const TEMPLATE_VARIABLE_DEFS: TemplateVariableDef[] = [
     sampleValue: 'فرع مدينة نصر',
   },
   {
+    token: '{التاريخ}',
+    key: 'date',
+    labelAr: 'التاريخ',
+    descriptionAr: 'تاريخ موعد الكشف',
+    sampleValue: 'الأحد 3 مايو 2026',
+  },
+  {
+    token: '{الوقت}',
+    key: 'time',
+    labelAr: 'الوقت',
+    descriptionAr: 'وقت موعد الكشف',
+    sampleValue: '07:30 م',
+  },
+  {
+    token: '{رقم_الحجز}',
+    key: 'queueNumber',
+    labelAr: 'رقم الحجز / الدور',
+    descriptionAr: 'رقم الحجز أو الدور في الطابور',
+    sampleValue: 'A-14',
+  },
+  {
+    token: '{رابط_المستند}',
+    key: 'documentUrl',
+    labelAr: 'رابط المستند',
+    descriptionAr: 'رابط الروشتة أو الفاتورة الآمن (خاص بالروشتة والفاتورة فقط)',
+    sampleValue: 'https://yalla-clinic.com/track/sample',
+    docOnly: true,
+  },
+  // Legacy aliases
+  {
+    token: '{الموعد}',
+    key: 'when',
+    labelAr: 'الموعد (تاريخ ووقت)',
+    descriptionAr: 'تاريخ ووقت الكشف معًا',
+    sampleValue: 'الأحد 3 مايو، الساعة 07:30 م',
+  },
+  {
     token: '{الرابط}',
     key: 'link',
-    labelAr: 'الرابط الآمن',
+    labelAr: 'الرابط الآمن (قديم)',
     descriptionAr: 'رابط الروشتة أو الفاتورة أو صفحة متابعة الحجز',
-    sampleValue: 'https://yalla-clinic.com/clinic/clinic-demo/track/sample',
+    sampleValue: 'https://yalla-clinic.com/track/sample',
+    docOnly: true,
   },
 ]
 
 export const ALLOWED_TEMPLATE_TOKENS = new Set(TEMPLATE_VARIABLE_DEFS.map((v) => v.token))
+
+export const TEMPLATE_ALLOWED_TOKENS_PER_KEY: Record<string, string[]> = {
+  booking_confirmation: ['{اسم_المريض}', '{اسم_الدكتور}', '{اسم_العيادة}', '{اسم_الفرع}', '{التاريخ}', '{الوقت}', '{رقم_الحجز}'],
+  appointment_reminder: ['{اسم_المريض}', '{اسم_الدكتور}', '{اسم_العيادة}', '{اسم_الفرع}', '{التاريخ}', '{الوقت}', '{رقم_الحجز}'],
+  appointment_rescheduled: ['{اسم_المريض}', '{اسم_الدكتور}', '{اسم_العيادة}', '{اسم_الفرع}', '{التاريخ}', '{الوقت}', '{رقم_الحجز}'],
+  appointment_cancelled: ['{اسم_المريض}', '{اسم_الدكتور}', '{اسم_العيادة}', '{اسم_الفرع}', '{التاريخ}', '{الوقت}', '{رقم_الحجز}'],
+  queue_alert: ['{اسم_المريض}', '{اسم_الدكتور}', '{اسم_العيادة}', '{اسم_الفرع}', '{التاريخ}', '{الوقت}', '{رقم_الحجز}'],
+  prescription: ['{اسم_المريض}', '{اسم_الدكتور}', '{اسم_العيادة}', '{اسم_الفرع}', '{رابط_المستند}'],
+  invoice: ['{اسم_المريض}', '{اسم_الدكتور}', '{اسم_العيادة}', '{اسم_الفرع}', '{رابط_المستند}'],
+  prescription_ready: ['{اسم_المريض}', '{اسم_الدكتور}', '{اسم_العيادة}', '{اسم_الفرع}', '{رابط_المستند}'],
+  invoice_ready: ['{اسم_المريض}', '{اسم_الدكتور}', '{اسم_العيادة}', '{اسم_الفرع}', '{رابط_المستند}'],
+}
 
 export interface TemplateCatalogItem {
   key: WhatsAppTemplateKey
@@ -90,7 +160,7 @@ export const TEMPLATE_CATALOG: Record<WhatsAppTemplateKey, TemplateCatalogItem> 
     titleAr: 'تأكيد الحجز',
     subtitleAr: 'يُرسل تلقائيًا فور تسجيل حجز جديد بعد التأكد من عدم تكراره.',
     categoryAr: 'الحجوزات',
-    recommendedVars: ['{اسم_المريض}', '{اسم_العيادة}', '{اسم_الدكتور}', '{اسم_الفرع}', '{الموعد}'],
+    recommendedVars: ['{اسم_المريض}', '{اسم_العيادة}', '{اسم_الدكتور}', '{اسم_الفرع}', '{التاريخ}', '{الوقت}'],
     requiresWhen: true,
   },
   appointment_reminder: {
@@ -98,7 +168,7 @@ export const TEMPLATE_CATALOG: Record<WhatsAppTemplateKey, TemplateCatalogItem> 
     titleAr: 'تذكير بالموعد',
     subtitleAr: 'يُرسل قبل موعد الكشف حسب أوقات التذكير المضبوطة للعيادة.',
     categoryAr: 'الحجوزات',
-    recommendedVars: ['{اسم_المريض}', '{اسم_العيادة}', '{اسم_الفرع}', '{الموعد}'],
+    recommendedVars: ['{اسم_المريض}', '{اسم_العيادة}', '{اسم_الدكتور}', '{اسم_الفرع}', '{التاريخ}', '{الوقت}'],
     requiresWhen: true,
     privacyNoteAr: 'لا يحتوي التذكير على أي تشخيص أو تفاصيل طبية حفاظًا على خصوصية المريض.',
   },
@@ -107,7 +177,7 @@ export const TEMPLATE_CATALOG: Record<WhatsAppTemplateKey, TemplateCatalogItem> 
     titleAr: 'تعديل الموعد',
     subtitleAr: 'يُرسل عند تغيير يوم أو وقت الحجز بعد إلغاء التذكيرات القديمة.',
     categoryAr: 'الحجوزات',
-    recommendedVars: ['{اسم_المريض}', '{اسم_العيادة}', '{اسم_الفرع}', '{الموعد}'],
+    recommendedVars: ['{اسم_المريض}', '{اسم_العيادة}', '{اسم_الدكتور}', '{اسم_الفرع}', '{التاريخ}', '{الوقت}'],
     requiresWhen: true,
   },
   appointment_cancelled: {
@@ -115,15 +185,22 @@ export const TEMPLATE_CATALOG: Record<WhatsAppTemplateKey, TemplateCatalogItem> 
     titleAr: 'إلغاء الحجز',
     subtitleAr: 'يُرسل عند إلغاء الموعد وإيقاف أي تذكيرات لاحقة لنفس الحجز.',
     categoryAr: 'الحجوزات',
-    recommendedVars: ['{اسم_المريض}', '{اسم_العيادة}', '{الموعد}'],
+    recommendedVars: ['{اسم_المريض}', '{اسم_العيادة}', '{التاريخ}', '{الوقت}'],
     requiresWhen: true,
+  },
+  queue_alert: {
+    key: 'queue_alert',
+    titleAr: 'اقتراب الدور في الطابور',
+    subtitleAr: 'يُرسل لتنبيه المريض باقتراب دوره للدخول إلى غرفة الكشف.',
+    categoryAr: 'الطابور والانتظار',
+    recommendedVars: ['{اسم_المريض}', '{اسم_العيادة}', '{اسم_الدكتور}', '{رقم_الحجز}'],
   },
   prescription: {
     key: 'prescription',
     titleAr: 'الروشتة الطبية',
     subtitleAr: 'رسالة مشاركة رابط الروشتة الآمن بدون كشف أسماء الأدوية أو التشخيص داخل واتساب.',
     categoryAr: 'المستندات الطبية',
-    recommendedVars: ['{اسم_المريض}', '{اسم_العيادة}', '{اسم_الدكتور}', '{الرابط}'],
+    recommendedVars: ['{اسم_المريض}', '{اسم_العيادة}', '{اسم_الدكتور}', '{رابط_المستند}'],
     requiresLink: true,
     privacyNoteAr: 'حفاظًا على سرية المريض، يُرسل رابط الروشتة الآمن فقط بدون ذكر الأدوية أو التشخيص.',
   },
@@ -132,7 +209,24 @@ export const TEMPLATE_CATALOG: Record<WhatsAppTemplateKey, TemplateCatalogItem> 
     titleAr: 'الفاتورة والإيصال',
     subtitleAr: 'رسالة إرسال الفاتورة الرسمية ورابط التحميل للمريض.',
     categoryAr: 'المالية والفواتير',
-    recommendedVars: ['{اسم_المريض}', '{اسم_العيادة}', '{اسم_الفرع}', '{الرابط}'],
+    recommendedVars: ['{اسم_المريض}', '{اسم_العيادة}', '{اسم_الفرع}', '{رابط_المستند}'],
+    requiresLink: true,
+  },
+  prescription_ready: {
+    key: 'prescription_ready',
+    titleAr: 'الروشتة الطبية',
+    subtitleAr: 'رسالة مشاركة رابط الروشتة الآمن بدون كشف أسماء الأدوية أو التشخيص داخل واتساب.',
+    categoryAr: 'المستندات الطبية',
+    recommendedVars: ['{اسم_المريض}', '{اسم_العيادة}', '{اسم_الدكتور}', '{رابط_المستند}'],
+    requiresLink: true,
+    privacyNoteAr: 'حفاظًا على سرية المريض، يُرسل رابط الروشتة الآمن فقط بدون ذكر الأدوية أو التشخيص.',
+  },
+  invoice_ready: {
+    key: 'invoice_ready',
+    titleAr: 'الفاتورة والإيصال',
+    subtitleAr: 'رسالة إرسال الفاتورة الرسمية ورابط التحميل للمريض.',
+    categoryAr: 'المالية والفواتير',
+    recommendedVars: ['{اسم_المريض}', '{اسم_العيادة}', '{اسم_الفرع}', '{رابط_المستند}'],
     requiresLink: true,
   },
 }
@@ -146,10 +240,16 @@ export const messageDefaults: Record<WhatsAppTemplateKey, string> = {
     'أهلًا *{اسم_المريض}* 📅\nتم تعديل موعد زيارتك في *{اسم_العيادة}*.\n• الطبيب: {اسم_الدكتور}\n• الفرع: {اسم_الفرع}\n• الموعد الجديد: {الموعد}\n\nنتطلع لخدمتكم بكل سرور.',
   appointment_cancelled:
     'مرحبًا *{اسم_المريض}*\nنود إعلامك بأنه تم إلغاء موعدك في *{اسم_العيادة}* ({الموعد}).\nفي حال رغبتك بحجز موعد جديد في أي وقت، يسعدنا تواصلك معنا.',
+  queue_alert:
+    'أهلًا *{اسم_المريض}* 👋\nنود إعلامك باقتراب دورك في *{اسم_العيادة}* ({اسم_الدكتور}).\nرقم حجزك: {رقم_الحجز}.\nيرجى التواجد بالقرب من غرفة الكشف.',
   prescription:
-    'مرحبًا *{اسم_المريض}* 📄\nتم إصدار روشتتك الطبية من *{اسم_العيادة}* ({اسم_الدكتور}).\nيمكنك عرض الروشتة وتحميلها أو طباعتها من الرابط التالي:\n{الرابط}\n\nنتمنى لك الشفاء العاجل ودوام العافية.',
+    'مرحبًا *{اسم_المريض}* 📄\nتم إصدار روشتتك الطبية من *{اسم_العيادة}* ({اسم_الدكتور}).\nيمكنك عرض الروشتة وتحميلها أو طباعتها من الرابط التالي:\n{رابط_المستند}\n\nنتمنى لك الشفاء العاجل ودوام العافية.',
   invoice:
-    'مرحبًا *{اسم_المريض}* 🧾\nتم إصدار فاتورتك الرسمية من *{اسم_العيادة}* ({اسم_الفرع}).\nيمكنك الاطلاع على الفاتورة وتحميلها من الرابط التالي:\n{الرابط}\n\nشكرًا لثقتكم بنا.',
+    'مرحبًا *{اسم_المريض}* 🧾\nتم إصدار فاتورتك الرسمية من *{اسم_العيادة}* ({اسم_الفرع}).\nيمكنك الاطلاع على الفاتورة وتحميلها من الرابط التالي:\n{رابط_المستند}\n\nشكرًا لثقتكم بنا.',
+  prescription_ready:
+    'مرحبًا *{اسم_المريض}* 📄\nتم إصدار روشتتك الطبية من *{اسم_العيادة}* ({اسم_الدكتور}).\nيمكنك عرض الروشتة وتحميلها أو طباعتها من الرابط التالي:\n{رابط_المستند}\n\nنتمنى لك الشفاء العاجل ودوام العافية.',
+  invoice_ready:
+    'مرحبًا *{اسم_المريض}* 🧾\nتم إصدار فاتورتك الرسمية من *{اسم_العيادة}* ({اسم_الفرع}).\nيمكنك الاطلاع على الفاتورة وتحميلها من الرابط التالي:\n{رابط_المستند}\n\nشكرًا لثقتكم بنا.',
 }
 
 export interface WhatsAppTemplateAuditEntry {
@@ -163,9 +263,14 @@ export interface WhatsAppMessageRenderContext {
   patientName?: string | null
   clinicName?: string | null
   when?: string | null
+  date?: string | null
+  time?: string | null
   doctorName?: string | null
   branchName?: string | null
   link?: string | null
+  documentUrl?: string | null
+  queueNumber?: string | null
+  appointmentId?: string | null
 }
 
 export interface TemplateValidationIssue {
@@ -179,9 +284,14 @@ export const TEMPLATE_SAMPLE_CONTEXT: Required<WhatsAppMessageRenderContext> = {
   patientName: 'أحمد محمود',
   clinicName: 'عيادة النور التخصصية',
   when: 'الأحد 3 مايو، الساعة 07:30 م',
+  date: 'الأحد 3 مايو 2026',
+  time: '07:30 م',
   doctorName: 'د. كريم عبد الله',
   branchName: 'فرع مدينة نصر',
   link: 'https://yalla-clinic.com/clinic/clinic-demo/prescription/sample',
+  documentUrl: 'https://yalla-clinic.com/clinic/clinic-demo/prescription/sample',
+  queueNumber: 'A-14',
+  appointmentId: 'apt-demo-101',
 }
 
 const PLACEHOLDER_REGEX = /\{[^}\r\n]{1,40}\}/g
@@ -234,13 +344,23 @@ function buildContextMap(ctx: WhatsAppMessageRenderContext): Record<string, stri
       ? doctorRaw
       : `د. ${doctorRaw}`
     : ''
+  const docUrl = String(ctx.documentUrl || ctx.link || '').trim()
+  const dateVal = String(ctx.date || '').trim()
+  const timeVal = String(ctx.time || '').trim()
+  const whenVal = String(ctx.when || (dateVal && timeVal ? `${dateVal}، الساعة ${timeVal}` : dateVal || timeVal || '')).trim()
+  const queueVal = String(ctx.queueNumber || ctx.appointmentId || '').trim()
+
   return {
     '{اسم_المريض}': String(ctx.patientName || '').trim(),
     '{اسم_العيادة}': String(ctx.clinicName || '').trim(),
-    '{الموعد}': String(ctx.when || '').trim(),
     '{اسم_الدكتور}': doctorDisplay,
     '{اسم_الفرع}': String(ctx.branchName || '').trim(),
-    '{الرابط}': String(ctx.link || '').trim(),
+    '{التاريخ}': dateVal || (whenVal.includes('الساعة') ? whenVal.split('الساعة')[0].replace(/[،,-]\s*$/, '').trim() : whenVal),
+    '{الوقت}': timeVal || (whenVal.includes('الساعة') ? whenVal.split('الساعة')[1]?.trim() || '' : ''),
+    '{الموعد}': whenVal,
+    '{رقم_الحجز}': queueVal,
+    '{رابط_المستند}': docUrl,
+    '{الرابط}': docUrl,
   }
 }
 
