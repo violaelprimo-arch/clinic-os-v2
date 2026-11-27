@@ -34,14 +34,8 @@ const PLACEHOLDER_WORDS = [
  * Safely encodes image URLs that may contain non-ASCII/Arabic characters or spaces
  */
 export function safeImageUrl(url?: string | null): string {
-  if (!url || typeof url !== 'string') return ''
-  const trimmed = url.trim()
-  if (!trimmed) return ''
-  try {
-    return encodeURI(decodeURI(trimmed))
-  } catch {
-    return encodeURI(trimmed)
-  }
+  // Let the browser serialize the URL. Re-encoding %2F changes the Firebase object key.
+  return typeof url === 'string' ? url.trim() : ''
 }
 
 /**
