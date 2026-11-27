@@ -4240,11 +4240,10 @@ function OwnerDashboard() {
                   </div>
                   <div className="space-y-1.5 sm:col-span-2">
                     <MediaUploader
-                      label="صورة الطبيب (Hero Image) — الحد الأقصى 2 ميجابايت"
+                      label="صورة الطبيب (Hero Image) — الحد الأقصى 10 ميجابايت"
                       value={heroImage}
                       onChange={setHeroImage}
                       folder="hero"
-                      maxSizeMB={2}
                     />
                   </div>
                 </div>

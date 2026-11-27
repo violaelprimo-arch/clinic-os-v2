@@ -1,3 +1,4 @@
+import { imageLimitMB } from '@/lib/profilePhoto'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifySessionToken } from '@/lib/auth-crypto'
 import { verifyOwnerSession, OWNER_COOKIE } from '@/lib/owner-session'
@@ -5,7 +6,6 @@ import { googleAccessToken, getFirebaseServerCredentials } from '@/lib/server/fi
 
 export const dynamic = 'force-dynamic'
 
-const MAX_IMAGE_BYTES = 2 * 1024 * 1024 // 2MB strict limit (2,097,152 bytes)
 
 export async function POST(request: NextRequest) {
   try {
@@ -77,13 +77,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'لم يتم إرسال أي ملف صورة', code: 'NO_FILE' }, { status: 400 })
     }
 
-    // 2. Strict 2MB Limit
-    if (file.size > MAX_IMAGE_BYTES) {
+    const maxMB = imageLimitMB(folder)
+    const maxBytes = maxMB * 1024 * 1024
+    if (file.size > maxBytes) {
       return NextResponse.json(
         {
-          error: 'حجم الصورة يجب ألا يتجاوز 2 ميجابايت (2,097,152 بايت)',
+          error: `حجم الصورة يجب ألا يتجاوز ${maxMB} ميجابايت`,
           code: 'FILE_TOO_LARGE',
-          maxSizeBytes: MAX_IMAGE_BYTES,
+          maxSizeBytes: maxBytes,
           actualSizeBytes: file.size,
         },
         { status: 413 }
