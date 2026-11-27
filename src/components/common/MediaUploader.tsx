@@ -13,6 +13,7 @@ import {
   ExternalLink
 } from 'lucide-react'
 import { validateMediaFile, uploadMediaToStorage, deleteMediaFromStorage } from '@/lib/mediaUpload'
+import { imageLimitMB, isProfilePhotoFolder } from '@/lib/profilePhoto'
 import { ImageFramingEditor } from './ImageFramingEditor'
 import { toast } from 'sonner'
 
@@ -33,7 +34,7 @@ export function MediaUploader({
   folder = 'general',
   label,
   hint,
-  maxSizeMB = 2,
+  maxSizeMB = imageLimitMB(folder),
   aspectRatio = 'auto',
   className = ''
 }: MediaUploaderProps) {
@@ -123,7 +124,7 @@ export function MediaUploader({
       />
 
       {source ? (
-        <ImageFramingEditor source={source} portrait={folder === 'doctor_photos'} busy={isUploading}
+        <ImageFramingEditor source={source} portrait={isProfilePhotoFolder(folder)} busy={isUploading}
           maxBytes={maxBytes} onSave={upload} onCancel={() => setSource(null)} />
       ) : value ? (
         /* Image Preview Box */

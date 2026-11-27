@@ -1,3 +1,4 @@
+import { imageLimitMB } from '@/lib/profilePhoto'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireOwner, apiFailure, ApiError } from '@/lib/server/owner-access'
 import { googleAccessToken, getFirebaseServerCredentials } from '@/lib/server/firebase-rest'
@@ -21,9 +22,10 @@ export async function POST(request: NextRequest) {
       throw new ApiError(400, 'NO_FILE', 'لم يتم إرسال أي ملف صورة')
     }
 
-    const MAX_IMAGE_BYTES = 2 * 1024 * 1024 // 2MB strict limit (2,097,152 bytes)
-    if (file.size > MAX_IMAGE_BYTES) {
-      throw new ApiError(413, 'FILE_TOO_LARGE', 'حجم الصورة يجب ألا يتجاوز 2 ميجابايت')
+    const maxMB = imageLimitMB(folder)
+    const maxBytes = maxMB * 1024 * 1024
+    if (file.size > maxBytes) {
+      throw new ApiError(413, 'FILE_TOO_LARGE', `حجم الصورة يجب ألا يتجاوز ${maxMB} ميجابايت`)
     }
 
     const fileNameLower = (file.name || '').toLowerCase()

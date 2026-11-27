@@ -16,11 +16,13 @@ export function ImageFramingEditor({ source, portrait, busy, maxBytes, onSave, o
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [image, setImage] = useState<HTMLImageElement>()
   const [failed, setFailed] = useState(false)
-  const [ratio, setRatio] = useState(portrait ? '0.8' : 'original')
+  const [ratio, setRatio] = useState(portrait ? '1' : 'original')
   const [zoom, setZoom] = useState(1)
   const [x, setX] = useState(50)
   const [y, setY] = useState(50)
   const [encoding, setEncoding] = useState(false)
+  const drag = useRef<{ x: number; y: number; startX: number; startY: number } | null>(null)
+  const clamp = (value: number) => Math.max(0, Math.min(100, value))
   const locked = busy || encoding
 
   useEffect(() => {
@@ -29,7 +31,15 @@ export function ImageFramingEditor({ source, portrait, busy, maxBytes, onSave, o
     const url = local ? URL.createObjectURL(source) : source
     if (!local) img.crossOrigin = 'anonymous'
     img.onload = () => setImage(img)
-    img.onerror = () => setFailed(true)
+    let retried = false
+    img.onerror = () => {
+      if (!local && !retried && /^https:\/\/firebasestorage\.googleapis\.com\//i.test(url)) {
+        retried = true
+        img.src = '/api/image-proxy?url=' + encodeURIComponent(url)
+      } else {
+        setFailed(true)
+      }
+    }
     img.src = url
     return () => {
       img.onload = img.onerror = null
@@ -73,17 +83,39 @@ export function ImageFramingEditor({ source, portrait, busy, maxBytes, onSave, o
 
   return <fieldset disabled={locked} className="space-y-3 rounded-xl border border-sky-200 p-3 text-xs">
     <legend className="px-1 font-bold">ضبط الصورة</legend>
-    <canvas ref={canvasRef} hidden={!image} className="mx-auto max-h-60 max-w-full rounded-lg" aria-label="معاينة القص" />
+    <canvas ref={canvasRef} hidden={!image} tabIndex={portrait ? 0 : undefined}
+      className={portrait ? 'mx-auto aspect-square w-64 max-w-full touch-none cursor-grab rounded-full border-2 border-sky-400 bg-slate-100 active:cursor-grabbing' : 'mx-auto max-h-60 max-w-full rounded-lg'}
+      aria-label={portrait ? 'معاينة صورة البروفايل، اسحب أو استخدم الأسهم لتحريكها' : 'معاينة القص'}
+      onPointerDown={e => {
+        if (!portrait || locked || !image || !e.isPrimary) return
+        e.currentTarget.setPointerCapture(e.pointerId)
+        drag.current = { x: e.clientX, y: e.clientY, startX: x, startY: y }
+      }}
+      onPointerMove={e => {
+        if (!drag.current || !image || !e.isPrimary || locked) return
+        const side = Math.min(image.naturalWidth, image.naturalHeight) / zoom
+        const factor = 100 * side / e.currentTarget.getBoundingClientRect().width
+        if (image.naturalWidth > side) setX(clamp(drag.current.startX - (e.clientX - drag.current.x) * factor / (image.naturalWidth - side)))
+        if (image.naturalHeight > side) setY(clamp(drag.current.startY - (e.clientY - drag.current.y) * factor / (image.naturalHeight - side)))
+      }}
+      onLostPointerCapture={() => { drag.current = null }}
+      onKeyDown={e => {
+        if (!portrait || locked || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return
+        e.preventDefault()
+        if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') setX(clamp(x + (e.key === 'ArrowRight' ? -5 : 5)))
+        else setY(clamp(y + (e.key === 'ArrowDown' ? -5 : 5)))
+      }} />
+    {portrait && image && <p className="text-center text-slate-600">اسحب الصورة داخل الدائرة واضبط التكبير</p>}
     {!image && <p role="status">{failed ? 'تعذر فتح الصورة للتعديل. اختار الملف من جهازك.' : 'جارٍ تجهيز المعاينة…'}</p>}
-    <label className="flex items-center gap-2">شكل الصورة
+    {!portrait && <label className="flex items-center gap-2">شكل الصورة
       <select value={ratio} onChange={e => setRatio(e.target.value)}>
         <option value="original">المقاس الأصلي</option><option value="0.8">بورتريه</option>
         <option value="1">مربع</option><option value="1.7777777778">عريض</option>
       </select>
-    </label>
-    {([{ label: 'التكبير', value: zoom, set: setZoom, min: 1, max: 4, step: 0.05 },
+    </label>}
+    {image && ([{ label: 'التكبير', value: zoom, set: setZoom, min: 1, max: 4, step: 0.05 },
        { label: 'الموضع الأفقي', value: x, set: setX, min: 0, max: 100, step: 1 },
-       { label: 'الموضع الرأسي', value: y, set: setY, min: 0, max: 100, step: 1 }]).map(control =>
+       { label: 'الموضع الرأسي', value: y, set: setY, min: 0, max: 100, step: 1 }]).filter(control => !portrait || control.set === setZoom).map(control =>
       <label key={control.label} className="flex items-center gap-2">{control.label}
         <input type="range" dir="ltr" className="flex-1" min={control.min} max={control.max} step={control.step}
           value={control.value} onChange={e => control.set(Number(e.target.value))} />

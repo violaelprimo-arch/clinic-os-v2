@@ -1169,11 +1169,10 @@ export default function ClinicSettings({ params }: { params: Promise<{ slug: str
               <div hidden={!isOwnerSectionVisible(clinic, 'settings.profile.doctor')} className="p-4 rounded-2xl bg-muted/40 border border-border space-y-3">
                 <MediaUploader
                   label={t('doctor_photo_label', 'صورة الطبيب (تظهر في الواجهة الرئيسية والمعاينة الحية)')}
-                  hint={t('doctor_photo_hint', 'ارفع صورة الطبيب من جهازك مباشرة (JPEG, PNG, WebP بحد أقصى 2 ميجابايت).')}
+                  hint={t('doctor_photo_hint', 'ارفع صورة الطبيب من جهازك مباشرة (JPEG, PNG, WebP بحد أقصى 10 ميجابايت).')}
                   value={photoUrl}
                   onChange={setPhotoUrl}
                   folder="doctor_photos"
-                  maxSizeMB={2}
                 />
               </div>
 
