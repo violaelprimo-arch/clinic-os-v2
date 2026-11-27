@@ -13,6 +13,7 @@ import {
   ExternalLink
 } from 'lucide-react'
 import { validateMediaFile, uploadMediaToStorage, deleteMediaFromStorage } from '@/lib/mediaUpload'
+import { ImageFramingEditor } from './ImageFramingEditor'
 import { toast } from 'sonner'
 
 export interface MediaUploaderProps {
@@ -40,6 +41,7 @@ export function MediaUploader({
   const [isDragging, setIsDragging] = useState<boolean>(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
+  const [source, setSource] = useState<File | string | null>(null)
   const maxBytes = maxSizeMB * 1024 * 1024
 
   const handleProcessFile = async (file: File) => {
@@ -51,11 +53,16 @@ export function MediaUploader({
       return
     }
 
-    // 2. Upload
+    setSource(file)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const upload = async (file: File) => {
     setIsUploading(true)
     try {
       const downloadUrl = await uploadMediaToStorage(file, folder)
       onChange(downloadUrl)
+      setSource(null)
       toast.success('تم رفع الصورة بنجاح! 📸')
     } catch (err: any) {
       console.error('Media upload error:', err)
@@ -115,7 +122,10 @@ export function MediaUploader({
         onChange={handleFileChange}
       />
 
-      {value ? (
+      {source ? (
+        <ImageFramingEditor source={source} portrait={folder === 'doctor_photos'} busy={isUploading}
+          maxBytes={maxBytes} onSave={upload} onCancel={() => setSource(null)} />
+      ) : value ? (
         /* Image Preview Box */
         <div className="relative rounded-2xl border border-sky-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 p-3 group overflow-hidden">
           <div className="flex items-center gap-3">
@@ -145,6 +155,9 @@ export function MediaUploader({
                 >
                   <RotateCcw className="w-3 h-3" />
                   <span>استبدال من جهازك</span>
+                </button>
+                <button type="button" className="text-xs font-bold text-sky-600 hover:underline" onClick={() => setSource(value)}>
+                  ضبط المقاس
                 </button>
                 <span className="text-slate-300 dark:text-slate-700">•</span>
                 <button
